@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2662
+ * Version: 20260905_v2663
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2662';
+  const APP_VERSION = '20260905_v2663';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3238,7 +3238,6 @@
 
       tasks.unshift(newTask);
       localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
-      this.pushGlobalMeta();
 
       if ('BroadcastChannel' in window) {
         try {
@@ -3247,6 +3246,30 @@
           bc.close();
         } catch (e) {}
       }
+
+      const currUser = this.getCurrentUser();
+      const teacherUserId = currUser?.id || '1001';
+      const teacherToken = currUser?.token || currUser?.activeSessionId || '';
+
+      // ⚡ 极速原子直连落库：毫秒级同步入库 MySQL 与 main_meta 并递增全局版本号
+      fetch('sync.php?action=create_task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          task: newTask,
+          userId: teacherUserId,
+          token: teacherToken
+        })
+      }).then(async (res) => {
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data && data.version) {
+            this.globalMetaVersion = parseInt(data.version, 10);
+          }
+        }
+      }).catch(() => {});
+
+      this.pushGlobalMeta();
       return newTask;
     }
 
@@ -3392,8 +3415,6 @@
         localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(surveysList));
       }
 
-      this.pushGlobalMeta();
-
       if ('BroadcastChannel' in window) {
         try {
           const bc = new BroadcastChannel('jizhi_global_events');
@@ -3401,6 +3422,30 @@
           bc.close();
         } catch (e) {}
       }
+
+      const currUser = this.getCurrentUser();
+      const teacherUserId = currUser?.id || '1001';
+      const teacherToken = currUser?.token || currUser?.activeSessionId || '';
+
+      // ⚡ 极速原子直连删除：毫秒级清理 MySQL tasks 与 main_meta 并递增版本号
+      fetch('sync.php?action=delete_task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taskId: taskId,
+          userId: teacherUserId,
+          token: teacherToken
+        })
+      }).then(async (res) => {
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data && data.version) {
+            this.globalMetaVersion = parseInt(data.version, 10);
+          }
+        }
+      }).catch(() => {});
+
+      this.pushGlobalMeta();
     }
 
     publishAnnouncement(taskId, title, content, attachment = null, targetGroupId = 'all', targetGroupName = '全班所有小组', classId = 'all', className = '全校班级', targetGroupIds = ['all'], isSystemAction = false) {
@@ -6142,6 +6187,21 @@
     const savedScrollTop = oldLayout ? oldLayout.scrollTop : (state._teacherScrollTop || 0);
     const savedWinY = window.scrollY || window.pageYOffset || (document.documentElement && document.documentElement.scrollTop) || (state._teacherWinY || 0);
 
+    if ('BroadcastChannel' in window) {
+      try {
+        if (window._teacherPortalBc) { try { window._teacherPortalBc.close(); } catch (e) {} }
+        window._teacherPortalBc = new BroadcastChannel('jizhi_global_events');
+        window._teacherPortalBc.onmessage = (e) => {
+          if (!e.data || !e.data.type) return;
+          if (['task_created', 'task_deleted', 'task_updated', 'task_extended'].includes(e.data.type)) {
+            if (!document.querySelector('.modal-overlay')) {
+              renderTeacherPortal(container, authManager, state, onLogout);
+            }
+          }
+        };
+      } catch (e) {}
+    }
+
     if (authManager && authManager.sanitizeAndDeduplicateGroups) {
       authManager.sanitizeAndDeduplicateGroups();
     }
@@ -6338,10 +6398,16 @@
 
       if (authManager && authManager.pullGlobalMeta) {
         try {
+          const oldTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
+          const oldClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
+          const oldUsersJson = localStorage.getItem(STORAGE_KEY_USERS_DB) || '[]';
           const oldAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
           await authManager.pullGlobalMeta();
+          const newTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
+          const newClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
+          const newUsersJson = localStorage.getItem(STORAGE_KEY_USERS_DB) || '[]';
           const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
-          if (oldAnnsJson !== newAnnsJson) {
+          if (oldTasksJson !== newTasksJson || oldClassesJson !== newClassesJson || oldUsersJson !== newUsersJson || oldAnnsJson !== newAnnsJson) {
             if (document.querySelector('.modal-overlay') || document.querySelector('#modal-extend-deadline')) {
               // 延缓至弹窗关闭后再刷
             } else {
@@ -9556,8 +9622,12 @@
           const calculatedDuration = Math.max(1, Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000)));
 
           try {
-            authManager.createTask(title, classId, desc, [], startTime, deadline, calculatedDuration, taskType, words);
+            const newTask = authManager.createTask(title, classId, desc, [], startTime, deadline, calculatedDuration, taskType, words);
+            if (newTask && newTask.id) {
+              state.activeTaskId = newTask.id;
+            }
             closeModal();
+            showGlobalBannerNotice('✅ 任务发布成功', `写作任务《${title}》已成功发布至【${targetClass?.name || '班级'}】！`, 'success');
             renderTeacherPortal(container, authManager, state, onLogout);
           } catch (err) {
             alert('❌ ' + err.message);
@@ -10280,14 +10350,26 @@
         window._studentPortalBc.onmessage = (e) => {
           if (state.studentViewMode !== 'task_list') return;
 
-          // 1. 新任务发布广播：无需通知横幅，直接刷新大厅卡片列表实时呈现
+          // 1. 新任务发布广播：本地即时装载并刷新大厅卡片列表
           if (e.data && e.data.type === 'task_created' && e.data.task) {
+            if (authManager) {
+              const localTasks = authManager.getTasks();
+              if (!localTasks.some(lt => lt && lt.id === e.data.task.id)) {
+                localTasks.unshift(e.data.task);
+                try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
+              }
+            }
             renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
             return;
           }
 
-          // 2. 任务被删除广播：在大厅顶部轻量提示并即时刷新大厅卡片列表
+          // 2. 任务被删除广播：本地即时清除并在大厅顶部轻量提示并即时刷新大厅
           if (e.data && e.data.type === 'task_deleted') {
+            if (authManager && e.data.taskId) {
+              let localTasks = authManager.getTasks();
+              localTasks = localTasks.filter(lt => lt && lt.id !== e.data.taskId);
+              try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
+            }
             const delTaskTitle = e.data.title || '写作任务';
             showGlobalBannerNotice('🗑️ 任务已删除', `写作任务《${escapeHtml(delTaskTitle)}》已被任课教师删除。`, 'info', 4000);
             renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
@@ -10350,7 +10432,7 @@
         } catch (e) {}
       }
       const isStudentIdle = () => document.hidden || (Date.now() - (window._lastStudentPortalActivity || Date.now()) > 60000);
-      const sInterval = isStudentIdle() ? 10000 : 3000;
+      const sInterval = isStudentIdle() ? 5000 : 1500;
       window._studentPortalSyncTimer = setTimeout(pullAndRefresh, sInterval);
     };
     if (window._studentPortalSyncTimer) clearTimeout(window._studentPortalSyncTimer);
@@ -10367,7 +10449,7 @@
       window.addEventListener(evt, markStudentPortalActive, { passive: true });
     });
 
-    const sInitInterval = (document.hidden ? 15000 : 3000);
+    const sInitInterval = (document.hidden ? 8000 : 1500);
     window._studentPortalSyncTimer = setTimeout(pullAndRefresh, sInitInterval);
 
     const currentUser = authManager.getCurrentUser();

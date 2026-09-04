@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260905_v2662";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260905_v2662";
+} from "./constants.js?v=20260905_v2663";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260905_v2663";
 
 /* ==========================================================================
    6.8 TEACHER MONITOR IN-PLACE INCREMENTAL UPDATER (PREVENT IFRAME THRASHING)
@@ -251,6 +251,21 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
   const savedScrollTop = oldLayout ? oldLayout.scrollTop : (state._teacherScrollTop || 0);
   const savedWinY = window.scrollY || window.pageYOffset || (document.documentElement && document.documentElement.scrollTop) || (state._teacherWinY || 0);
 
+  if ('BroadcastChannel' in window) {
+    try {
+      if (window._teacherPortalBc) { try { window._teacherPortalBc.close(); } catch (e) {} }
+      window._teacherPortalBc = new BroadcastChannel('jizhi_global_events');
+      window._teacherPortalBc.onmessage = (e) => {
+        if (!e.data || !e.data.type) return;
+        if (['task_created', 'task_deleted', 'task_updated', 'task_extended'].includes(e.data.type)) {
+          if (!document.querySelector('.modal-overlay')) {
+            renderTeacherPortal(container, authManager, state, onLogout);
+          }
+        }
+      };
+    } catch (e) {}
+  }
+
   if (authManager && authManager.sanitizeAndDeduplicateGroups) {
     authManager.sanitizeAndDeduplicateGroups();
   }
@@ -447,10 +462,16 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
 
     if (authManager && authManager.pullGlobalMeta) {
       try {
+        const oldTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
+        const oldClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
+        const oldUsersJson = localStorage.getItem(STORAGE_KEY_USERS_DB) || '[]';
         const oldAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
         await authManager.pullGlobalMeta();
+        const newTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
+        const newClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
+        const newUsersJson = localStorage.getItem(STORAGE_KEY_USERS_DB) || '[]';
         const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
-        if (oldAnnsJson !== newAnnsJson) {
+        if (oldTasksJson !== newTasksJson || oldClassesJson !== newClassesJson || oldUsersJson !== newUsersJson || oldAnnsJson !== newAnnsJson) {
           if (document.querySelector('.modal-overlay') || document.querySelector('#modal-extend-deadline')) {
             // 延缓至弹窗关闭后再刷
           } else {
@@ -3665,8 +3686,12 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
         const calculatedDuration = Math.max(1, Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000)));
 
         try {
-          authManager.createTask(title, classId, desc, [], startTime, deadline, calculatedDuration, taskType, words);
+          const newTask = authManager.createTask(title, classId, desc, [], startTime, deadline, calculatedDuration, taskType, words);
+          if (newTask && newTask.id) {
+            state.activeTaskId = newTask.id;
+          }
           closeModal();
+          showGlobalBannerNotice('✅ 任务发布成功', `写作任务《${title}》已成功发布至【${targetClass?.name || '班级'}】！`, 'success');
           renderTeacherPortal(container, authManager, state, onLogout);
         } catch (err) {
           alert('❌ ' + err.message);
