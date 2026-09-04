@@ -1179,37 +1179,53 @@ if ($action === 'get_teacher_monitor_all_groups') {
             $isCurrentActiveGroup = empty($reqActiveGId) || ($reqActiveGId === $gid) || (count($allGroupIds) === 1);
 
             if ($isCurrentActiveGroup) {
-                // 🛡️ 教师端协同镜像主动对齐：若当前小组在 MySQL 中存有正文 (>10 字)，且 Etherpad 仍为初始默认空占位符 ('啥意思捏')，由服务端单向写入 Etherpad 填充底层
-                if (!empty($s2Data['unifiedContent'])) {
-                    $uHtml = $s2Data['unifiedContent'];
-                    $uPlain = trim(strip_tags($uHtml));
-                    if (mb_strlen($uPlain, 'UTF-8') > 10) {
-                        $targetPids = ["jizhi_{$taskId}_{$gid}", "jizhi_{$sk}"];
-                        $epApiKey = 'jizhi_academic_secret_key_2026';
-                        $kFiles = ['/www/wwwroot/etherpad-lite/APIKEY.txt', dirname(__DIR__) . '/etherpad-lite/APIKEY.txt', __DIR__ . '/APIKEY.txt', '/root/etherpad-lite/APIKEY.txt'];
-                        foreach ($kFiles as $kf) {
-                            if (is_readable($kf)) { $k = trim(@file_get_contents($kf)); if (!empty($k)) { $epApiKey = $k; break; } }
-                        }
-                        foreach (array_unique($targetPids) as $tPid) {
-                            $chT = curl_init("http://127.0.0.1:9001/api/1.2.14/getText?apikey=" . urlencode($epApiKey) . "&padID=" . urlencode($tPid));
-                            curl_setopt($chT, CURLOPT_RETURNTRANSFER, true);
-                            curl_setopt($chT, CURLOPT_TIMEOUT, 1);
-                            $resT = curl_exec($chT);
-                            curl_close($chT);
-                            $curPadTxt = '';
-                            if (!empty($resT)) {
-                                $jT = json_decode($resT, true);
-                                if (isset($jT['data']['text'])) $curPadTxt = trim($jT['data']['text']);
-                            }
-                            $isPadPlaceholder = empty($curPadTxt) || $curPadTxt === '啥意思捏' || strpos($curPadTxt, '啥意思捏') !== false || strpos($curPadTxt, 'Welcome to Etherpad') !== false || mb_strlen($curPadTxt, 'UTF-8') < 10;
-                            if ($isPadPlaceholder) {
-                                $chS = curl_init("http://127.0.0.1:9001/api/1.2.14/setHTML?apikey=" . urlencode($epApiKey) . "&padID=" . urlencode($tPid) . "&html=" . urlencode($uHtml));
-                                curl_setopt($chS, CURLOPT_RETURNTRANSFER, true);
-                                curl_setopt($chS, CURLOPT_TIMEOUT, 1);
-                                curl_exec($chS);
-                                curl_close($chS);
+                // 🛡️ 教师端协同镜像全自动对齐与无缝迁移：
+                // 1) 优先从 MySQL 取出正文；
+                // 2) 若当前 Pad 仍为空/占位符，自动跨 Pad 检索学生可能留存在 jizhi_null_{$gid} 或数据库历史中的 1000+ 字正文，100% 自动写回当前 Pad
+                $epApiKey = 'jizhi_academic_secret_key_2026';
+                $kFiles = ['/www/wwwroot/etherpad-lite/APIKEY.txt', dirname(__DIR__) . '/etherpad-lite/APIKEY.txt', __DIR__ . '/APIKEY.txt', '/root/etherpad-lite/APIKEY.txt'];
+                foreach ($kFiles as $kf) { if (is_readable($kf)) { $k = trim(@file_get_contents($kf)); if (!empty($k)) { $epApiKey = $k; break; } } }
+
+                $targetPids = ["jizhi_{$taskId}_{$gid}"];
+                $bestRecoveredHtml = !empty($s2Data['unifiedContent']) ? $s2Data['unifiedContent'] : '';
+                $bestRecoveredLen = mb_strlen(trim(strip_tags($bestRecoveredHtml)), 'UTF-8');
+
+                // 尝试从可能存在的 jizhi_null_{$gid} 中提取学生之前写的内容
+                $candidatePids = ["jizhi_null_{$gid}", "jizhi_task_default_{$gid}", "jizhi_{$sk}"];
+                foreach ($candidatePids as $cPid) {
+                    $chC = curl_init("http://127.0.0.1:9001/api/1.2.14/getHTML?apikey=" . urlencode($epApiKey) . "&padID=" . urlencode($cPid));
+                    curl_setopt($chC, CURLOPT_RETURNTRANSFER, true); curl_setopt($chC, CURLOPT_TIMEOUT, 1);
+                    $resC = curl_exec($chC); curl_close($chC);
+                    if ($resC) {
+                        $jC = json_decode($resC, true);
+                        if (isset($jC['data']['html'])) {
+                            $cH = $jC['data']['html'];
+                            $cPlain = trim(strip_tags($cH));
+                            $cLen = mb_strlen($cPlain, 'UTF-8');
+                            if ($cLen > $bestRecoveredLen && $cPlain !== '啥意思捏' && !str_starts_with($cPlain, '一、研究背景与意义')) {
+                                $bestRecoveredLen = $cLen;
+                                $bestRecoveredHtml = $cH;
                             }
                         }
+                    }
+                }
+
+                if ($bestRecoveredLen > 10 && !empty($bestRecoveredHtml)) {
+                    foreach (array_unique($targetPids) as $tPid) {
+                        $chT = curl_init("http://127.0.0.1:9001/api/1.2.14/getText?apikey=" . urlencode($epApiKey) . "&padID=" . urlencode($tPid));
+                        curl_setopt($chT, CURLOPT_RETURNTRANSFER, true); curl_setopt($chT, CURLOPT_TIMEOUT, 1);
+                        $resT = curl_exec($chT); curl_close($chT);
+                        $curPadTxt = '';
+                        if ($resT) { $jT = json_decode($resT, true); if (isset($jT['data']['text'])) $curPadTxt = trim($jT['data']['text']); }
+                        $isPadPlaceholder = empty($curPadTxt) || $curPadTxt === '啥意思捏' || strpos($curPadTxt, '啥意思捏') !== false || strpos($curPadTxt, 'Welcome to Etherpad') !== false || mb_strlen($curPadTxt, 'UTF-8') < 10;
+                        if ($isPadPlaceholder) {
+                            $chS = curl_init("http://127.0.0.1:9001/api/1.2.14/setHTML?apikey=" . urlencode($epApiKey) . "&padID=" . urlencode($tPid) . "&html=" . urlencode($bestRecoveredHtml));
+                            curl_setopt($chS, CURLOPT_RETURNTRANSFER, true); curl_setopt($chS, CURLOPT_TIMEOUT, 1);
+                            curl_exec($chS); curl_close($chS);
+                        }
+                    }
+                    if (empty($s2Data['unifiedContent'])) {
+                        $s2Data['unifiedContent'] = $bestRecoveredHtml;
                     }
                 }
 
