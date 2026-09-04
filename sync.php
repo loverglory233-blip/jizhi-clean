@@ -2793,35 +2793,31 @@ if ($action === 'send_chat' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // 1. 行级插入 chat_messages 表 (严格防重：检查是否已有完全相同或2.5秒内同发送者同内容发言)
+            // 1. 行级插入 chat_messages 表 (零崩溃兼容 sender_name)
             $sndName = isset($msgItem['senderName']) ? $msgItem['senderName'] : (isset($msgItem['sender_name']) ? $msgItem['sender_name'] : '');
-            $chkDupe = $pdo->prepare("SELECT id FROM chat_messages WHERE scope_key = :sk AND stage = :stg AND sender = :snd AND (time_ms = :tms OR (text = :txt AND ABS(time_ms - :tms2) < 2500)) LIMIT 1");
-            $chkDupe->execute([':sk' => $scopeKey, ':stg' => $stage, ':snd' => $snd, ':tms' => $tms, ':txt' => $txt, ':tms2' => $tms]);
-            if (!$chkDupe->fetch()) {
+            try {
+                $stmtInsertMsg = $pdo->prepare("INSERT IGNORE INTO chat_messages (scope_key, stage, sender, sender_name, text, timestamp_str, time_ms) VALUES (:sk, :stg, :snd, :sndName, :txt, :tstr, :tms)");
+                $stmtInsertMsg->execute([
+                    ':sk' => $scopeKey,
+                    ':stg' => $stage,
+                    ':snd' => $snd,
+                    ':sndName' => $sndName,
+                    ':txt' => $txt,
+                    ':tstr' => $tstr,
+                    ':tms' => $tms
+                ]);
+            } catch (\Exception $e) {
                 try {
-                    $stmtInsertMsg = $pdo->prepare("INSERT IGNORE INTO chat_messages (scope_key, stage, sender, sender_name, text, timestamp_str, time_ms) VALUES (:sk, :stg, :snd, :sndName, :txt, :tstr, :tms)");
+                    $stmtInsertMsg = $pdo->prepare("INSERT IGNORE INTO chat_messages (scope_key, stage, sender, text, timestamp_str, time_ms) VALUES (:sk, :stg, :snd, :txt, :tstr, :tms)");
                     $stmtInsertMsg->execute([
                         ':sk' => $scopeKey,
                         ':stg' => $stage,
                         ':snd' => $snd,
-                        ':sndName' => $sndName,
                         ':txt' => $txt,
                         ':tstr' => $tstr,
                         ':tms' => $tms
                     ]);
-                } catch (\Exception $e) {
-                    try {
-                        $stmtInsertMsg = $pdo->prepare("INSERT IGNORE INTO chat_messages (scope_key, stage, sender, text, timestamp_str, time_ms) VALUES (:sk, :stg, :snd, :txt, :tstr, :tms)");
-                        $stmtInsertMsg->execute([
-                            ':sk' => $scopeKey,
-                            ':stg' => $stage,
-                            ':snd' => $snd,
-                            ':txt' => $txt,
-                            ':tstr' => $tstr,
-                            ':tms' => $tms
-                        ]);
-                    } catch (\Exception $e2) {}
-                }
+                } catch (\Exception $e2) {}
             }
 
             // 2. 更新 chats_{scopeKey} 缓存
@@ -3625,21 +3621,11 @@ if ($pdo) {
             }
         }
         $maxChatMs = 0;
-        $seenMsgKey = [];
         foreach ($allRows as $mr) {
             $stg = $mr['stage'] ?: 'stage1';
             if (!isset($chats[$stg])) $chats[$stg] = [];
             $cMs = intval($mr['time_ms']);
             if ($cMs > $maxChatMs) $maxChatMs = $cMs;
-            
-            // 🛡️ 权威去重：同一发送者在 2 秒内发送的相同文本，只保留 1 条
-            $bucket = round($cMs / 2000);
-            $dedupKey = $stg . '_' . ($mr['sender'] ?? '') . '_' . $bucket . '_' . md5(trim($mr['text'] ?? ''));
-            if (isset($seenMsgKey[$dedupKey])) {
-                continue;
-            }
-            $seenMsgKey[$dedupKey] = true;
-
             $chats[$stg][] = [
                 'id'         => $mr['id'] ?: ('msg_' . $mr['time_ms'] . '_' . substr(md5($mr['text']), 0, 6)),
                 'sender'     => $mr['sender'],
@@ -3816,21 +3802,11 @@ if ($pdo) {
             }
         }
         $maxChatMs = 0;
-        $seenMsgKey = [];
         foreach ($allRows as $mr) {
             $stg = $mr['stage'] ?: 'stage1';
             if (!isset($chats[$stg])) $chats[$stg] = [];
             $cMs = intval($mr['time_ms']);
             if ($cMs > $maxChatMs) $maxChatMs = $cMs;
-            
-            // 🛡️ 权威去重：同一发送者在 2 秒内发送的相同文本，只保留 1 条
-            $bucket = round($cMs / 2000);
-            $dedupKey = $stg . '_' . ($mr['sender'] ?? '') . '_' . $bucket . '_' . md5(trim($mr['text'] ?? ''));
-            if (isset($seenMsgKey[$dedupKey])) {
-                continue;
-            }
-            $seenMsgKey[$dedupKey] = true;
-
             $chats[$stg][] = [
                 'id'         => $mr['id'] ?: ('msg_' . $mr['time_ms'] . '_' . substr(md5($mr['text']), 0, 6)),
                 'sender'     => $mr['sender'],
