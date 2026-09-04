@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2679';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2679';
+import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2680';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2680';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -540,7 +540,7 @@ export class CloudSyncEngine {
         if (m.isThinking || String(m.id).startsWith('thinking_eval')) {
           return (now - (m._timeMs || 0) < 30000);
         }
-        const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs === m._timeMs && rm.text === m.text) || (rm.sender === m.sender && String(rm.text || '').trim() === String(m.text || '').trim() && Math.abs((rm._timeMs || 0) - (m._timeMs || 0)) < 2500));
+        const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs === m._timeMs && rm.text === m.text));
         return !existsInRemote;
       });
 
@@ -658,7 +658,7 @@ export class CloudSyncEngine {
       // 合并 baseLogs 与 localPending
       const mergedList = [...baseLogs];
       localPending.forEach(lp => {
-        const exists = mergedList.some(m => (lp.id && m.id === lp.id) || (m._timeMs === lp._timeMs && m.text === lp.text) || (m.sender === lp.sender && String(m.text || '').trim() === String(lp.text || '').trim() && Math.abs((m._timeMs || 0) - (lp._timeMs || 0)) < 2500));
+        const exists = mergedList.some(m => (lp.id && m.id === lp.id) || (m._timeMs === lp._timeMs && m.text === lp.text));
         if (!exists) mergedList.push(lp);
       });
 

@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2679
+ * Version: 20260905_v2680
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2679';
+  const APP_VERSION = '20260905_v2680';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -728,16 +728,7 @@
         if (isSecondChecklist) seenAgentOpenings.add(`${sender}_second_checklist`);
       }
 
-      // 2. 严格防重：同一发送者在 2.5 秒内发送的相同文本，自动去重（防止网络重试或多通道重复推送）
-      const normText = txt.replace(/\s+/g, ' ').trim();
-      const timeBucket = Math.round(Number(m._timeMs || 0) / 2500);
-      const contentKey = `${sender}_${timeBucket}_${normText}`;
-      if (m._timeMs && seenMsgIds.has(contentKey)) {
-        continue;
-      }
-      if (m._timeMs) seenMsgIds.add(contentKey);
-
-      // 3. 严格按数据库主键/唯一标识防重
+      // 2. 严格按数据库主键/唯一标识防重，绝不按文本做模糊误杀
       const msgId = m.id ? String(m.id) : (m._timeMs ? `${sender}_${m._timeMs}_${i}` : null);
       if (msgId) {
         if (seenMsgIds.has(msgId)) continue;
@@ -4746,7 +4737,7 @@
           if (m.isThinking || String(m.id).startsWith('thinking_eval')) {
             return (now - (m._timeMs || 0) < 30000);
           }
-          const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs === m._timeMs && rm.text === m.text) || (rm.sender === m.sender && String(rm.text || '').trim() === String(m.text || '').trim() && Math.abs((rm._timeMs || 0) - (m._timeMs || 0)) < 2500));
+          const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs === m._timeMs && rm.text === m.text));
           return !existsInRemote;
         });
 
@@ -4864,7 +4855,7 @@
         // 合并 baseLogs 与 localPending
         const mergedList = [...baseLogs];
         localPending.forEach(lp => {
-          const exists = mergedList.some(m => (lp.id && m.id === lp.id) || (m._timeMs === lp._timeMs && m.text === lp.text) || (m.sender === lp.sender && String(m.text || '').trim() === String(lp.text || '').trim() && Math.abs((m._timeMs || 0) - (lp._timeMs || 0)) < 2500));
+          const exists = mergedList.some(m => (lp.id && m.id === lp.id) || (m._timeMs === lp._timeMs && m.text === lp.text));
           if (!exists) mergedList.push(lp);
         });
 
