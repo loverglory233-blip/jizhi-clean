@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260904_v2510"
+TARGET_VERSION="20260904_v2511"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -209,13 +209,18 @@ fi
 
 # 🚀 深度自愈与拉起 Etherpad 协同文档引擎
 echo "⚡ 检查与自愈 Etherpad 协同文档服务 (端口 9001)..."
-export PATH="/www/server/nodejs/v20/bin:/www/server/nodejs/v18/bin:/www/server/nodejs/v16/bin:/usr/local/bin:/usr/bin:$PATH"
+export PATH="/www/server/nodejs/v22/bin:/www/server/nodejs/v20/bin:/www/server/nodejs/v18.20.7/bin:/www/server/nodejs/v18/bin:/www/server/nodejs/v16/bin:/usr/local/bin:/usr/bin:$PATH"
 for n in /www/server/nodejs/v*/bin; do
   if [ -d "$n" ]; then
     export PATH="$n:$PATH"
     break
   fi
 done
+
+# 修正服务器 npm/pnpm 镜像源（杜绝 404 镜像失效异常）
+npm config set registry https://registry.npmmirror.com 2>/dev/null || true
+npm config delete disturl 2>/dev/null || true
+npm config delete pnpm_mirror 2>/dev/null || true
 
 EP_DIR=""
 for d in /www/wwwroot/47.99.110.230/etherpad-lite /www/wwwroot/etherpad-lite /opt/etherpad-lite /root/etherpad-lite /var/www/etherpad-lite /www/server/etherpad; do
