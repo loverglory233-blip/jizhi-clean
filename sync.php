@@ -2583,12 +2583,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else if (!empty($existingS1['contract']['isConfirmed'])) {
                     $mergedS1['contract']['isConfirmed'] = true;
                 }
+
+                // 阶段一首入时间戳保护
+                if (!empty($existingS1['startTime'])) {
+                    if (empty($incomingS1['startTime']) || $existingS1['startTime'] < $incomingS1['startTime']) {
+                        $mergedS1['startTime'] = $existingS1['startTime'];
+                    }
+                }
             }
 
             // 合并 stage2 (全篇单画布协作模型与正常编辑删除支持)
             $incomingS2 = (isset($data['stage2']) && is_array($data['stage2'])) ? $data['stage2'] : [];
             $mergedS2 = $incomingS2;
             if (!empty($existingS2)) {
+                if (!empty($existingS2['startTime'])) {
+                    if (empty($incomingS2['startTime']) || $existingS2['startTime'] < $incomingS2['startTime']) {
+                        $mergedS2['startTime'] = $existingS2['startTime'];
+                    }
+                }
                 // 🛡️ 致命防线：若传入的正文为空字符串，而数据库中已有非空正文草稿，且非重置操作，严格保留已有正文！
                 // 🛡️ 乐观并发控制：客户端携带的 revision_id 落后于服务端时判定为过期正文，拒绝覆盖最新正文（杜绝降级模式下旧快照冲刷）
                 $incomingIsStale = ($clientRevision > 0 && $existingRevision > 0 && $clientRevision < $existingRevision);
@@ -2651,6 +2663,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $incomingS3 = (isset($data['stage3']) && is_array($data['stage3'])) ? $data['stage3'] : [];
             $mergedS3 = $incomingS3;
             if (!empty($existingS3)) {
+                if (!empty($existingS3['startTime'])) {
+                    if (empty($incomingS3['startTime']) || $existingS3['startTime'] < $incomingS3['startTime']) {
+                        $mergedS3['startTime'] = $existingS3['startTime'];
+                    }
+                }
                 // 终稿修改全员确认字典合并
                 $exConfirmed3 = isset($existingS3['confirmedMembers']) && is_array($existingS3['confirmedMembers']) ? $existingS3['confirmedMembers'] : [];
                 $inConfirmed3 = isset($incomingS3['confirmedMembers']) && is_array($incomingS3['confirmedMembers']) ? $incomingS3['confirmedMembers'] : [];
@@ -2779,7 +2796,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $mergedTimer = array_merge($existingTimer, $incomingTimer);
                 if (!empty($existingTimer['startTimestamp'])) {
-                    $mergedTimer['startTimestamp'] = $existingTimer['startTimestamp'];
+                    if (empty($incomingTimer['startTimestamp']) || $existingTimer['startTimestamp'] < $incomingTimer['startTimestamp']) {
+                        $mergedTimer['startTimestamp'] = $existingTimer['startTimestamp'];
+                    }
+                }
+                if (empty($mergedTimer['startTimestamp']) && !empty($mergedS1['startTime'])) {
+                    $mergedTimer['startTimestamp'] = $mergedS1['startTime'];
                 }
                 $nowStr = date('Y-m-d H:i:s');
                 $stmtSaveTimer = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value, updated_at) VALUES (:k, :v, :ts) ON DUPLICATE KEY UPDATE meta_value = :v2, updated_at = :ts2");

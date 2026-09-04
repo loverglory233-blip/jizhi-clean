@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260904_v2218';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260904_v2218';
+import { InitialState } from './constants.js?v=20260904_v2219';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260904_v2219';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1218,15 +1218,51 @@ export class CloudSyncEngine {
       }
     }
 
+    if (remoteData.stage1 && remoteData.stage1.startTime) {
+      if (!this.app.state.stage1) this.app.state.stage1 = {};
+      const remoteS1Start = remoteData.stage1.startTime;
+      if (!this.app.state.stage1.startTime || remoteS1Start < this.app.state.stage1.startTime) {
+        this.app.state.stage1.startTime = remoteS1Start;
+      }
+      if (!this.app.state.timer.startTimestamp || remoteS1Start < this.app.state.timer.startTimestamp) {
+        this.app.state.timer.startTimestamp = remoteS1Start;
+      }
+    }
+
+    if (remoteData.stage2 && remoteData.stage2.startTime) {
+      if (!this.app.state.stage2) this.app.state.stage2 = {};
+      const remoteS2Start = remoteData.stage2.startTime;
+      if (!this.app.state.stage2.startTime || remoteS2Start < this.app.state.stage2.startTime) {
+        this.app.state.stage2.startTime = remoteS2Start;
+        this.app.stage2StartTime = remoteS2Start;
+      }
+    }
+
+    if (remoteData.stage3 && remoteData.stage3.startTime) {
+      if (!this.app.state.stage3) this.app.state.stage3 = {};
+      const remoteS3Start = remoteData.stage3.startTime;
+      if (!this.app.state.stage3.startTime || remoteS3Start < this.app.state.stage3.startTime) {
+        this.app.state.stage3.startTime = remoteS3Start;
+        this.app.stage3StartTime = remoteS3Start;
+      }
+    }
+
     if (remoteData.timer && this.app.state.timer) {
       if (remoteData.timer.startTimestamp) {
-        this.app.state.timer.startTimestamp = remoteData.timer.startTimestamp;
+        if (!this.app.state.timer.startTimestamp || remoteData.timer.startTimestamp < this.app.state.timer.startTimestamp) {
+          this.app.state.timer.startTimestamp = remoteData.timer.startTimestamp;
+        }
       }
       if (remoteData.timer.speed !== undefined) {
         this.app.state.timer.speed = remoteData.timer.speed;
       }
       if (remoteData.timer.isRunning !== undefined) {
         this.app.state.timer.isRunning = remoteData.timer.isRunning;
+      }
+      if (this.app.state.timer.startTimestamp) {
+        const speed = this.app.state.timer.speed || 1;
+        const physicalElapsedSec = Math.floor((Date.now() - this.app.state.timer.startTimestamp) / 1000);
+        this.app.state.timer.elapsedSeconds = Math.max(0, Math.floor(physicalElapsedSec * speed));
       }
       if (typeof window.renderChatActionBar === 'function') {
         window.renderChatActionBar(this.app.state);
@@ -1271,6 +1307,7 @@ export class CloudSyncEngine {
         stage1: this.app.state.stage1,
         stage2: this.app.state.stage2,
         stage3: this.app.state.stage3,
+        timer: this.app.state.timer,
         currentStage: this.app.state.currentStage,
         groupMaxStage: this.app.state.groupMaxStage,
         isFinalSubmitted: this.app.state.isFinalSubmitted
