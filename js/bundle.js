@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2231
+ * Version: 20260904_v2233
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2231';
+  const APP_VERSION = '20260904_v2233';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4836,8 +4836,10 @@
               🚀 登录集智平台
             </button>
           </form>
-          <div style="text-align:center; margin-top:24px; font-size:12px; color:#94a3b8; font-weight:500;">
+          <div style="text-align:center; margin-top:24px; font-size:12px; color:#94a3b8; font-weight:500; display:flex; justify-content:center; align-items:center; gap:8px;">
             <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" style="color:#94a3b8; text-decoration:none;">浙ICP备2026066047号-1</a>
+            <span style="opacity:0.5;">·</span>
+            <span style="font-family:monospace; font-size:11px; color:#94a3b8;" title="系统版本号">${APP_VERSION}</span>
           </div>
         </div>
       </div>
@@ -5223,7 +5225,7 @@
                 <span style="background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:700;">教学空间</span>
               </div>
             ` : `
-              <div class="brand-logo" style="font-size:22px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI 教学总控大厅</div>
+              <div class="brand-logo" style="font-size:22px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent; display:flex; align-items:baseline; gap:8px;">集智 JIZHI 教学总控大厅 <span style="font-size:11px; font-weight:700; color:#94a3b8; font-family:monospace;" title="系统版本号">${APP_VERSION}</span></div>
             `}
           </div>
           <div class="teacher-info" style="display:flex; align-items:center; gap:14px;">
@@ -9377,7 +9379,7 @@
 
     const newHeaderHtml = `
       <div class="brand-section">
-        <div class="brand-logo">集智 JIZHI</div>
+        <div class="brand-logo" style="display:flex; align-items:baseline; gap:6px;">集智 JIZHI <span style="font-size:10.5px; font-weight:700; color:#94a3b8; font-family:monospace;" title="系统版本号">${APP_VERSION}</span></div>
         <div class="brand-badge" style="background:#eff6ff; color:#1d4ed8; padding:3px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid #bfdbfe; display:inline-flex; align-items:center; gap:6px;">
           <span>🎓 ${escapeHtml(currentUser ? currentUser.name : '学生')}</span>
           <span style="opacity:0.35;">·</span>
