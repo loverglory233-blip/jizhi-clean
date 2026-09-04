@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2430
+ * Version: 20260904_v2435
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2430';
+  const APP_VERSION = '20260904_v2435';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13936,7 +13936,6 @@
 
           const plainText = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
           const plainTextLen = plainText.length;
-          const contribs = s2.memberContributions || {};
 
           // 动态读取任务时长判定任务规模（全系统统一：静默 3 分钟破冰，6 分钟催促，10 分钟强兜底）
           const allTasks = (this.authManager) ? this.authManager.getTasks() : [];

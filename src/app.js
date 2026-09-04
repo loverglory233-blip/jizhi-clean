@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2430";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2430";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2430";
-import { AuthManager } from "./auth.js?v=20260904_v2430";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2430";
-import { renderLoginView } from "./login.js?v=20260904_v2430";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2430";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2430";
+} from "./constants.js?v=20260904_v2435";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2435";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2435";
+import { AuthManager } from "./auth.js?v=20260904_v2435";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2435";
+import { renderLoginView } from "./login.js?v=20260904_v2435";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2435";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2435";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2430";
+} from "./editor.js?v=20260904_v2435";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1329,7 +1329,6 @@ export class App {
 
         const plainText = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
         const plainTextLen = plainText.length;
-        const contribs = s2.memberContributions || {};
 
         // 动态读取任务时长判定任务规模（全系统统一：静默 3 分钟破冰，6 分钟催促，10 分钟强兜底）
         const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
