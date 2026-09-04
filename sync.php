@@ -2845,22 +2845,22 @@ if ($action === 'send_chat' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmtSaveChats = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
                 $chatJson = json_encode($existingChats, JSON_UNESCAPED_UNICODE);
                 $stmtSaveChats->execute([':k' => 'chats_' . $scopeKey, ':v' => $chatJson, ':v2' => $chatJson]);
-
-                // ⚡ 同步自增 group_states 的 revision_id 与 last_timestamp，秒级唤醒所有组员的客户端拉取最新消息
-                $stmtUpState = $pdo->prepare("INSERT INTO group_states (scope_key, task_id, group_id, current_stage, stage1_data, stage2_data, stage3_data, presence_data, members_data, is_final_submitted, last_timestamp, revision_id)
-                    VALUES (:sk, :tid, :gid, 'stage1', '{}', '{}', '{}', '{}', '[]', 0, :ts, 1)
-                    ON DUPLICATE KEY UPDATE revision_id = IFNULL(revision_id, 0) + 1, last_timestamp = VALUES(last_timestamp)");
-                $stmtUpState->execute([
-                    ':sk' => $scopeKey,
-                    ':tid' => $taskId,
-                    ':gid' => $groupId,
-                    ':ts' => $nowMs
-                ]);
-
-                // 更新变更时间戳，唤醒轮询
-                $stmtSignal = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
-                $stmtSignal->execute([':v' => $nowMs, ':v2' => $nowMs]);
             }
+
+            // ⚡ 无论缓存是否已存在，无条件自增 group_states 的 revision_id 与 last_timestamp，秒级唤醒所有组员的客户端拉取最新消息
+            $stmtUpState = $pdo->prepare("INSERT INTO group_states (scope_key, task_id, group_id, current_stage, stage1_data, stage2_data, stage3_data, presence_data, members_data, is_final_submitted, last_timestamp, revision_id)
+                VALUES (:sk, :tid, :gid, 'stage1', '{}', '{}', '{}', '{}', '[]', 0, :ts, 1)
+                ON DUPLICATE KEY UPDATE revision_id = IFNULL(revision_id, 0) + 1, last_timestamp = VALUES(last_timestamp)");
+            $stmtUpState->execute([
+                ':sk' => $scopeKey,
+                ':tid' => $taskId,
+                ':gid' => $groupId,
+                ':ts' => $nowMs
+            ]);
+
+            // 更新变更时间戳，唤醒轮询
+            $stmtSignal = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+            $stmtSignal->execute([':v' => $nowMs, ':v2' => $nowMs]);
 
             echo json_encode(['success' => true, 'message' => $msgItem, 'timestamp' => $nowMs]);
             exit;
@@ -3710,7 +3710,8 @@ if ($pdo) {
                 'metaVer'         => $metaVer,
                 'presence'        => json_decode($prRaw) ?: new stdClass(),
                 'locks'           => $activeLocks,
-                'resetSeq'        => 0
+                'resetSeq'        => 0,
+                'chatLogs'        => $chats
             ]);
             exit;
         }
@@ -3825,7 +3826,8 @@ if ($pdo) {
                 'metaVer'         => $metaVer,
                 'presence'        => new stdClass(),
                 'locks'           => [],
-                'resetSeq'        => 0
+                'resetSeq'        => 0,
+                'chatLogs'        => $chats
             ], JSON_UNESCAPED_UNICODE);
             exit;
         }

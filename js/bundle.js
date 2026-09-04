@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2675
+ * Version: 20260905_v2676
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2675';
+  const APP_VERSION = '20260905_v2676';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4722,6 +4722,177 @@
       }
     }
 
+    applyRemoteChatLogs(remoteChatLogs) {
+      if (!remoteChatLogs || typeof remoteChatLogs !== 'object') return;
+      if (!this.app.state.chatLogs) this.app.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+      let hasUpdated = false;
+      ['stage1', 'stage2', 'stage3'].forEach(stg => {
+        let remoteLogs = Array.isArray(remoteChatLogs[stg]) ? remoteChatLogs[stg] : [];
+        const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
+
+        // 🛡️ 智能保留本地未决思考气泡与未落库本地发言（Union 并集防吞防闪烁）
+        const now = Date.now();
+        const localPending = localLogs.filter(m => {
+          if (!m) return false;
+          if (m.isThinking || String(m.id).startsWith('thinking_eval')) {
+            return (now - (m._timeMs || 0) < 30000);
+          }
+          const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs === m._timeMs && rm.text === m.text));
+          return !existsInRemote;
+        });
+
+        // 🛡️ 全局过滤掉临时占位思考气泡，杜绝残留
+        remoteLogs = remoteLogs.filter(m => !m || (!String(m.id).startsWith('thinking_eval') && !m.isThinking));
+
+        let baseLogs = remoteLogs;
+        if (stg === 'stage1') {
+          // 🛡️ 阶段一清洗重复套娃前缀与去重
+          const seenPropEvals = new Set();
+          const successfulTitles = new Set();
+
+          // 1. 先统计所有已成功生成的评估标题
+          remoteLogs.forEach(m => {
+            if (m && m.sender === 'auctioneer' && (m.text || '').includes('提案评估') && !((m.text || '').includes('网络提醒'))) {
+              const match = (m.text || '').match(/《([^》]+)》/);
+              if (match) successfulTitles.add(match[1]);
+            }
+          });
+
+          // 2. 过滤掉已被成功替代的旧网络提醒气泡，并对多余的同提案速评进行去重
+          baseLogs = [];
+          for (let i = remoteLogs.length - 1; i >= 0; i--) {
+            const m = remoteLogs[i];
+            if (!m) continue;
+            let t = m.text || '';
+
+            // 如果该提案已经评估成功，清除历史的网络提醒
+            if (m.sender === 'auctioneer' && t.includes('网络提醒')) {
+              const match = t.match(/《([^》]+)》/);
+              if (match && successfulTitles.has(match[1])) {
+                continue; // 彻底隐藏过期的错误重试气泡
+              }
+            }
+
+            if (t.includes('【拍卖师·选题速评】') && t.includes('【学术拍卖师·提案')) {
+              t = t.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:选题速评|提案速评|提案评估|落槌与方案研讨)?】[：:]\s*/g, '');
+              t = t.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:选题速评|提案速评|提案评估|落槌与方案研讨)?】[：:]\s*/g, '');
+              t = `🏛️ 【学术拍卖师·提案评估】：${t.trim()}`;
+              m.text = t;
+            }
+
+            // 同一提案标题的成功速评只保留最新一条
+            if (m.sender === 'auctioneer' && t.includes('提案评估') && !t.includes('网络提醒')) {
+              const match = t.match(/《([^》]+)》/);
+              const propKey = match ? match[1] : t.substring(0, 30);
+              if (seenPropEvals.has(propKey)) {
+                continue;
+              }
+              seenPropEvals.add(propKey);
+            }
+
+            baseLogs.unshift(m);
+          }
+        } else if (stg === 'stage2') {
+          const deduped = [];
+          let seenFirstReview = false;
+          let seenMeetingCall = false;
+          let seenFinalReview = false;
+          let seenWelcome = false;
+          remoteLogs.forEach(m => {
+            if (!m) return;
+            const snd = m.sender || '';
+            const txt = m.text || '';
+            if (snd === 'reviewingEditor' && (txt.includes('初审') || txt.includes('初审微调') || txt.includes('破题把脉') || txt.includes('Research Gap'))) {
+              if (seenFirstReview) return;
+              seenFirstReview = true;
+            }
+            if (snd === 'managingEditor' && (txt.includes('半程会议号召') || txt.includes('半程研讨号召'))) {
+              if (seenMeetingCall) return;
+              seenMeetingCall = true;
+            }
+            if (snd === 'reviewingEditor' && txt.includes('终稿行文扫描')) {
+              if (seenFinalReview) return;
+              seenFinalReview = true;
+            }
+            if (snd === 'managingEditor' && (txt.includes('起草提示') || txt.includes('进度关怀'))) {
+              if (seenWelcome) return;
+              seenWelcome = true;
+            }
+            deduped.push(m);
+          });
+          baseLogs = deduped;
+        } else if (stg === 'stage3') {
+          const deduped = [];
+          let seenStage3Prop = false;
+          let seenStage3Opp = false;
+          let seenStage3Welcome = false;
+          let seenStage3ChairGuide = false;
+          remoteLogs.forEach(m => {
+            if (!m) return;
+            const snd = m.sender || '';
+            const txt = m.text || '';
+            if (snd === 'proponent' && (txt.includes('正方委员') || txt.includes('立论支持') || txt.includes('通读全篇'))) {
+              if (seenStage3Prop) return;
+              seenStage3Prop = true;
+            }
+            if (snd === 'opponent' && (txt.includes('反方委员') || txt.includes('商讨质询') || txt.includes('尖锐质询'))) {
+              if (seenStage3Opp) return;
+              seenStage3Opp = true;
+            }
+            if (snd === 'neutral' && (txt.includes('中间委员开场') || txt.includes('欢迎来到【阶段三'))) {
+              if (seenStage3Welcome) return;
+              seenStage3Welcome = true;
+            }
+            if (snd === 'neutral' && (txt.includes('答辩思路引导') || txt.includes('质询 ①'))) {
+              if (seenStage3ChairGuide) return;
+              seenStage3ChairGuide = true;
+            }
+            deduped.push(m);
+          });
+          baseLogs = deduped;
+        }
+
+        // 合并 baseLogs 与 localPending
+        const mergedList = [...baseLogs];
+        localPending.forEach(lp => {
+          const exists = mergedList.some(m => (lp.id && m.id === lp.id) || (m._timeMs === lp._timeMs && m.text === lp.text));
+          if (!exists) mergedList.push(lp);
+        });
+
+        // 稳健补全缺省 senderName
+        const allUsers = this.app.authManager ? this.app.authManager.getUsers() : [];
+        const membersList = Array.isArray(this.app.state.members) ? this.app.state.members : Object.values(this.app.state.members || {});
+        const _isSame = (typeof isSameUser === 'function') ? isSameUser : (a, b) => {
+          if (!a || !b) return false;
+          const k1 = typeof a === 'object' ? (a.id || a.name) : a;
+          const k2 = typeof b === 'object' ? (b.id || b.name) : b;
+          return k1 && k2 && String(k1).trim().toLowerCase() === String(k2).trim().toLowerCase();
+        };
+        mergedList.forEach(m => {
+          if (!m.senderName && m.sender) {
+            const matchedU = allUsers.find(u => _isSame(u, m.sender) || u.id === m.sender);
+            if (matchedU && matchedU.name) m.senderName = matchedU.name;
+            else {
+              const matchedM = membersList.find(mem => _isSame(mem, m.sender) || mem.id === m.sender);
+              if (matchedM && matchedM.name) m.senderName = matchedM.name;
+            }
+          }
+        });
+
+        mergedList.sort((a, b) => (a._timeMs || 0) - (b._timeMs || 0));
+        this.app.state.chatLogs[stg] = mergedList;
+        hasUpdated = true;
+      });
+
+      if (hasUpdated) {
+        if (this.groupId && typeof this.app.saveGroupState === 'function') {
+          this.app.saveGroupState(this.groupId);
+        }
+        if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
+        if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.app.state);
+      }
+    }
+
     handleRemoteSync(remoteData) {
       if (!remoteData) return;
 
@@ -4732,6 +4903,9 @@
         }
         if (remoteData.revisionId !== undefined) {
           this._lastKnownRevisionId = remoteData.revisionId;
+        }
+        if (remoteData.chatLogs) {
+          this.applyRemoteChatLogs(remoteData.chatLogs);
         }
         if (remoteData.metaVer !== undefined && remoteData.metaVer !== this._lastKnownMetaVer) {
           this._lastKnownMetaVer = remoteData.metaVer;
@@ -5147,168 +5321,7 @@
       }
 
       if (remoteData.chatLogs) {
-        if (!this.app.state.chatLogs) this.app.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
-        ['stage1', 'stage2', 'stage3'].forEach(stg => {
-          let remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
-          const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
-
-          // 🛡️ 智能保留本地未决思考气泡与未落库本地发言（Union 并集防吞防闪烁）
-          const now = Date.now();
-          const localPending = localLogs.filter(m => {
-            if (!m) return false;
-            if (m.isThinking || String(m.id).startsWith('thinking_eval')) {
-              return (now - (m._timeMs || 0) < 30000);
-            }
-            const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs === m._timeMs && rm.text === m.text));
-            return !existsInRemote;
-          });
-
-          // 🛡️ 全局过滤掉临时占位思考气泡，杜绝残留
-          remoteLogs = remoteLogs.filter(m => !m || (!String(m.id).startsWith('thinking_eval') && !m.isThinking));
-
-          let baseLogs = remoteLogs;
-          if (stg === 'stage1') {
-            // 🛡️ 阶段一清洗重复套娃前缀与去重
-            const seenPropEvals = new Set();
-            const successfulTitles = new Set();
-
-            // 1. 先统计所有已成功生成的评估标题
-            remoteLogs.forEach(m => {
-              if (m && m.sender === 'auctioneer' && (m.text || '').includes('提案评估') && !((m.text || '').includes('网络提醒'))) {
-                const match = (m.text || '').match(/《([^》]+)》/);
-                if (match) successfulTitles.add(match[1]);
-              }
-            });
-
-            // 2. 过滤掉已被成功替代的旧网络提醒气泡，并对多余的同提案速评进行去重
-            baseLogs = [];
-            for (let i = remoteLogs.length - 1; i >= 0; i--) {
-              const m = remoteLogs[i];
-              if (!m) continue;
-              let t = m.text || '';
-
-              // 如果该提案已经评估成功，清除历史的网络提醒
-              if (m.sender === 'auctioneer' && t.includes('网络提醒')) {
-                const match = t.match(/《([^》]+)》/);
-                if (match && successfulTitles.has(match[1])) {
-                  continue; // 彻底隐藏过期的错误重试气泡
-                }
-              }
-
-              if (t.includes('【拍卖师·选题速评】') && t.includes('【学术拍卖师·提案')) {
-                t = t.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:选题速评|提案速评|提案评估|落槌与方案研讨)?】[：:]\s*/g, '');
-                t = t.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:选题速评|提案速评|提案评估|落槌与方案研讨)?】[：:]\s*/g, '');
-                t = `🏛️ 【学术拍卖师·提案评估】：${t.trim()}`;
-                m.text = t;
-              }
-
-              // 同一提案标题的成功速评只保留最新一条
-              if (m.sender === 'auctioneer' && t.includes('提案评估') && !t.includes('网络提醒')) {
-                const match = t.match(/《([^》]+)》/);
-                const propKey = match ? match[1] : t.substring(0, 30);
-                if (seenPropEvals.has(propKey)) {
-                  continue;
-                }
-                seenPropEvals.add(propKey);
-              }
-
-              baseLogs.unshift(m);
-            }
-          } else if (stg === 'stage2') {
-            const deduped = [];
-            let seenFirstReview = false;
-            let seenMeetingCall = false;
-            let seenFinalReview = false;
-            let seenWelcome = false;
-            remoteLogs.forEach(m => {
-              if (!m) return;
-              const snd = m.sender || '';
-              const txt = m.text || '';
-              if (snd === 'reviewingEditor' && (txt.includes('初审') || txt.includes('初审微调') || txt.includes('破题把脉') || txt.includes('Research Gap'))) {
-                if (seenFirstReview) return;
-                seenFirstReview = true;
-              }
-              if (snd === 'managingEditor' && (txt.includes('半程会议号召') || txt.includes('半程研讨号召'))) {
-                if (seenMeetingCall) return;
-                seenMeetingCall = true;
-              }
-              if (snd === 'reviewingEditor' && txt.includes('终稿行文扫描')) {
-                if (seenFinalReview) return;
-                seenFinalReview = true;
-              }
-              if (snd === 'managingEditor' && (txt.includes('起草提示') || txt.includes('进度关怀'))) {
-                if (seenWelcome) return;
-                seenWelcome = true;
-              }
-              deduped.push(m);
-            });
-            baseLogs = deduped;
-          } else if (stg === 'stage3') {
-            const deduped = [];
-            let seenStage3Prop = false;
-            let seenStage3Opp = false;
-            let seenStage3Welcome = false;
-            let seenStage3ChairGuide = false;
-            remoteLogs.forEach(m => {
-              if (!m) return;
-              const snd = m.sender || '';
-              const txt = m.text || '';
-              if (snd === 'proponent' && (txt.includes('正方委员') || txt.includes('立论支持') || txt.includes('通读全篇'))) {
-                if (seenStage3Prop) return;
-                seenStage3Prop = true;
-              }
-              if (snd === 'opponent' && (txt.includes('反方委员') || txt.includes('商讨质询') || txt.includes('尖锐质询'))) {
-                if (seenStage3Opp) return;
-                seenStage3Opp = true;
-              }
-              if (snd === 'neutral' && (txt.includes('中间委员开场') || txt.includes('欢迎来到【阶段三'))) {
-                if (seenStage3Welcome) return;
-                seenStage3Welcome = true;
-              }
-              if (snd === 'neutral' && (txt.includes('答辩思路引导') || txt.includes('质询 ①'))) {
-                if (seenStage3ChairGuide) return;
-                seenStage3ChairGuide = true;
-              }
-              deduped.push(m);
-            });
-            baseLogs = deduped;
-          }
-
-          // 合并 baseLogs 与 localPending
-          const mergedList = [...baseLogs];
-          localPending.forEach(lp => {
-            const exists = mergedList.some(m => (lp.id && m.id === lp.id) || (m._timeMs === lp._timeMs && m.text === lp.text));
-            if (!exists) mergedList.push(lp);
-          });
-
-          // 稳健补全缺省 senderName
-          const allUsers = this.app.authManager ? this.app.authManager.getUsers() : [];
-          const membersList = Array.isArray(this.app.state.members) ? this.app.state.members : Object.values(this.app.state.members || {});
-          const _isSame = (typeof isSameUser === 'function') ? isSameUser : (a, b) => {
-            if (!a || !b) return false;
-            const k1 = typeof a === 'object' ? (a.id || a.name) : a;
-            const k2 = typeof b === 'object' ? (b.id || b.name) : b;
-            return k1 && k2 && String(k1).trim().toLowerCase() === String(k2).trim().toLowerCase();
-          };
-          mergedList.forEach(m => {
-            if (!m.senderName && m.sender) {
-              const matchedU = allUsers.find(u => _isSame(u, m.sender) || u.id === m.sender);
-              if (matchedU && matchedU.name) m.senderName = matchedU.name;
-              else {
-                const matchedM = membersList.find(mem => _isSame(mem, m.sender) || mem.id === m.sender);
-                if (matchedM && matchedM.name) m.senderName = matchedM.name;
-              }
-            }
-          });
-
-          mergedList.sort((a, b) => (a._timeMs || 0) - (b._timeMs || 0));
-          this.app.state.chatLogs[stg] = mergedList;
-        });
-        if (this.groupId && typeof this.app.saveGroupState === 'function') {
-          this.app.saveGroupState(this.groupId);
-        }
-        if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
-        if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.app.state);
+        this.applyRemoteChatLogs(remoteData.chatLogs);
       }
 
       // 🔒 渲染阶段一合约与阶段三答辩的字段级排他聚焦锁
