@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2668
+ * Version: 20260905_v2669
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2668';
+  const APP_VERSION = '20260905_v2669';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4698,6 +4698,13 @@
                 const isCurrentTaskAlive = allTasks.some(t => t.id === this.app.state.activeTaskId);
                 if (!isCurrentTaskAlive && !this.app._isHandlingTaskRevoked) {
                   this.app.showTaskRevokedModal(this.app.state.activeTaskTitle || '当前写作任务');
+                  return;
+                }
+                if (typeof this.app.renderHeader === 'function') {
+                  this.app.renderHeader();
+                }
+                if (typeof this.app.checkUnreadAnnouncements === 'function') {
+                  this.app.checkUnreadAnnouncements();
                 }
               }
             }).catch(() => {});
@@ -14439,22 +14446,21 @@
                   }
                 } catch (err) {}
               }
+              if (this.state.studentViewMode === 'workspace') {
+                this.renderHeader();
+                this.checkUnreadAnnouncements();
+              } else if (this.state.studentViewMode === 'task_list') {
+                this.renderMain();
+              }
               if (this.authManager && this.authManager.pullGlobalMeta) {
                 this.authManager.pullGlobalMeta().then(() => {
                   if (this.state.studentViewMode === 'workspace') {
+                    this.renderHeader();
                     this.checkUnreadAnnouncements();
                   } else if (this.state.studentViewMode === 'task_list') {
                     this.renderMain();
                   }
-                  this.renderHeader();
                 }).catch(() => {});
-              } else {
-                if (this.state.studentViewMode === 'workspace') {
-                  this.checkUnreadAnnouncements();
-                } else if (this.state.studentViewMode === 'task_list') {
-                  this.renderMain();
-                }
-                this.renderHeader();
               }
             }
 

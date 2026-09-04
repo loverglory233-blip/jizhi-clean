@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2668';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2668';
+import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2669';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2669';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -542,6 +542,13 @@ export class CloudSyncEngine {
               const isCurrentTaskAlive = allTasks.some(t => t.id === this.app.state.activeTaskId);
               if (!isCurrentTaskAlive && !this.app._isHandlingTaskRevoked) {
                 this.app.showTaskRevokedModal(this.app.state.activeTaskTitle || '当前写作任务');
+                return;
+              }
+              if (typeof this.app.renderHeader === 'function') {
+                this.app.renderHeader();
+              }
+              if (typeof this.app.checkUnreadAnnouncements === 'function') {
+                this.app.checkUnreadAnnouncements();
               }
             }
           }).catch(() => {});
