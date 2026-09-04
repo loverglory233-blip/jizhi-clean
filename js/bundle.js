@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2465
+ * Version: 20260904_v2470
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2465';
+  const APP_VERSION = '20260904_v2470';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -994,6 +994,58 @@
       }, 200);
     });
     tryLock();
+  }
+
+  /**
+   * 🔓 解除 Etherpad 只读锁定：恢复顶部工具栏与正文编辑输入能力
+   */
+  function liftEtherpadReadonly(iframe) {
+    if (!iframe) return;
+
+    const container = iframe.parentElement;
+    if (container) {
+      const shields = container.querySelectorAll('.etherpad-readonly-shield');
+      shields.forEach(s => s.remove());
+    }
+
+    const tryUnlock = () => {
+      try {
+        const doc = iframe.contentDocument;
+        if (!doc) return;
+
+        const toolbar = doc.querySelector('.toolbar') || doc.querySelector('#editbar') || doc.querySelector('#menu_left') || doc.querySelector('#menu_right') || doc.querySelector('.menu');
+        if (toolbar) {
+          toolbar.style.removeProperty('display');
+        }
+
+        const footer = doc.querySelector('#footer') || doc.querySelector('.bottom-bar') || doc.querySelector('#chatbox');
+        if (footer) {
+          footer.style.removeProperty('display');
+        }
+
+        const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
+        if (aceOuter && aceOuter.contentDocument) {
+          const outerDoc = aceOuter.contentDocument;
+          const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
+          if (aceInner && aceInner.contentDocument) {
+            const innerDoc = aceInner.contentDocument;
+            const innerBody = innerDoc.querySelector('#innerdocbody') || innerDoc.querySelector('.innerdocbody') || innerDoc.body;
+            if (innerBody) {
+              innerBody.setAttribute('contenteditable', 'true');
+              innerBody.style.removeProperty('cursor');
+            }
+          }
+        }
+      } catch(e) {}
+    };
+
+    tryUnlock();
+    let attempts = 0;
+    const iv = setInterval(() => {
+      attempts++;
+      tryUnlock();
+      if (attempts >= 10) clearInterval(iv);
+    }, 200);
   }
 
   /**
@@ -4543,12 +4595,10 @@
           this.app.state.stage2PendingReviewing = remoteData.stage2.pendingReviewing;
         }
         if (remoteData.stage2.reviewMilestone) {
-          const s2TextLen = (this.app.state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
-          if (s2TextLen < 50 && (remoteData.stage2.reviewMilestone === 'first_review_done' || remoteData.stage2.reviewMilestone === 'first_review_in_progress' || remoteData.stage2.reviewMilestone === 'meeting_called')) {
-            this.app.state.stage2.reviewMilestone = 'none';
-          } else {
-            this.app.state.stage2.reviewMilestone = remoteData.stage2.reviewMilestone;
-          }
+          this.app.state.stage2.reviewMilestone = remoteData.stage2.reviewMilestone;
+        }
+        if (remoteData.stage2.firstReviewText !== undefined && remoteData.stage2.firstReviewText) {
+          this.app.state.stage2.firstReviewText = remoteData.stage2.firstReviewText;
         }
 
         if (remoteData.stage2.unifiedContent !== undefined) {
@@ -10674,8 +10724,36 @@
 
         const padWin = f.contentWindow;
         let authorData = {};
-        if (padWin && padWin.clientVars && padWin.clientVars.collab_client_vars) {
-          authorData = padWin.clientVars.collab_client_vars.historicalAuthorData || {};
+        if (padWin && padWin.clientVars) {
+          if (padWin.clientVars.collab_client_vars && padWin.clientVars.collab_client_vars.historicalAuthorData) {
+            authorData = Object.assign({}, padWin.clientVars.collab_client_vars.historicalAuthorData);
+          }
+          if (padWin.clientVars.historicalAuthorData) {
+            authorData = Object.assign(authorData, padWin.clientVars.historicalAuthorData);
+          }
+          if (padWin.clientVars.authorData) {
+            authorData = Object.assign(authorData, padWin.clientVars.authorData);
+          }
+        }
+        if (padWin && padWin.pad) {
+          if (typeof padWin.pad.getAuthorData === 'function') {
+            try { authorData = Object.assign(authorData, padWin.pad.getAuthorData()); } catch(e){}
+          }
+          if (padWin.pad.myUserInfo) {
+            if (!padWin.pad.myUserInfo.name || padWin.pad.myUserInfo.name === '组员' || padWin.pad.myUserInfo.name === 'unnamed') {
+              padWin.pad.myUserInfo.name = currUserName;
+            }
+            if (padWin.pad.myUserInfo.userId) {
+              authorData[padWin.pad.myUserInfo.userId] = Object.assign({}, authorData[padWin.pad.myUserInfo.userId] || {}, padWin.pad.myUserInfo);
+            }
+          }
+          if (Array.isArray(padWin.pad.userList)) {
+            padWin.pad.userList.forEach(u => {
+              if (u && u.userId) {
+                authorData[u.userId] = Object.assign({}, authorData[u.userId] || {}, u);
+              }
+            });
+          }
         }
 
         const aceOuter = f.contentDocument.querySelector('iframe[name="ace_outer"]');
@@ -10750,44 +10828,92 @@
         }
 
         // 匹配每个 authorClass 到真实的 membersList 成员
-        let matchedCountTotal = 0;
-        Object.keys(rawCounts).forEach(aKey => {
-          const count = rawCounts[aKey];
-          if (count <= 0) return;
+        const localAuthorId = (padWin && padWin.clientVars && (padWin.clientVars.userId || (padWin.pad && padWin.pad.getUserId && padWin.pad.getUserId()))) || (padWin && padWin.pad && padWin.pad.myUserInfo && padWin.pad.myUserInfo.userId) || '';
 
+        const assignedAuthors = new Map();
+        const unassignedKeys = [];
+
+        Object.keys(rawCounts).forEach(aKey => {
+          if (aKey === 'unassigned') {
+            unassignedKeys.push(aKey);
+            return;
+          }
           let authorName = '';
+          let authorColor = null;
           const normKey1 = aKey.replace(/[-_]/g, '.');
           const normKey2 = aKey.startsWith('a-') ? 'a.' + aKey.slice(2) : (aKey.startsWith('a_') ? 'a.' + aKey.slice(2) : aKey);
 
           for (const k of [aKey, normKey1, normKey2]) {
-            if (authorData[k] && authorData[k].name) {
-              authorName = authorData[k].name;
+            if (authorData[k]) {
+              if (authorData[k].name && authorData[k].name !== '组员' && authorData[k].name !== 'unnamed') {
+                authorName = authorData[k].name;
+              }
+              if (authorData[k].colorId !== undefined || authorData[k].color) {
+                authorColor = authorData[k].colorId !== undefined ? authorData[k].colorId : authorData[k].color;
+              }
               break;
             }
           }
 
-          const matched = membersList.find(m => {
+          // 1. 如果 authorId 是当前用户的 pad userId
+          if (localAuthorId && (aKey === localAuthorId || normKey1 === localAuthorId || normKey2 === localAuthorId)) {
+            const selfMem = membersList.find(m => currUser && (m.id === currUser.id || m.name === currUser.name)) || membersList[0];
+            if (selfMem) {
+              assignedAuthors.set(aKey, selfMem);
+              return;
+            }
+          }
+
+          // 2. 名字/ID 精准匹配
+          let matched = membersList.find(m => {
             if (!m) return false;
-            if (authorName && (m.name === authorName || m.id === authorName)) return true;
-            if (m.name && aKey.includes(m.name)) return true;
+            if (authorName && (m.name === authorName || m.id === authorName || m.studentCode === authorName)) return true;
+            if (m.name && m.name.length >= 2 && aKey.includes(m.name)) return true;
             if (m.id && aKey.includes(m.id)) return true;
             return false;
           });
 
+          // 3. 颜色匹配
+          if (!matched && authorColor !== null) {
+            matched = membersList.find(m => m.color && String(m.color).toLowerCase() === String(authorColor).toLowerCase());
+          }
+
           if (matched) {
-            memberCounts[matched.id] = (memberCounts[matched.id] || 0) + count;
-            if (matched.name) memberCounts[matched.name] = (memberCounts[matched.name] || 0) + count;
-            matchedCountTotal += count;
+            assignedAuthors.set(aKey, matched);
           } else {
-            // 未标记作者或直接粘贴的段落：归属为当前操作者或首个成员
-            const fallback = membersList.find(m => {
-              if (currUser && (m.id === currUser.id || m.name === currUser.name)) return true;
-              return false;
-            }) || membersList[0];
-            if (fallback) {
-              memberCounts[fallback.id] = (memberCounts[fallback.id] || 0) + count;
-              if (fallback.name) memberCounts[fallback.name] = (memberCounts[fallback.name] || 0) + count;
-              matchedCountTotal += count;
+            unassignedKeys.push(aKey);
+          }
+        });
+
+        // 4. 对尚未精确匹配的 authorClass，按顺序分配给尚未匹配的组内成员（避免100%误归属给单人）
+        const alreadyAssignedMemberIds = new Set(Array.from(assignedAuthors.values()).map(m => m.id));
+        const remainingMembers = membersList.filter(m => !alreadyAssignedMemberIds.has(m.id));
+
+        let remIdx = 0;
+        unassignedKeys.forEach(aKey => {
+          if (aKey === 'unassigned') return;
+          if (remIdx < remainingMembers.length) {
+            assignedAuthors.set(aKey, remainingMembers[remIdx]);
+            remIdx++;
+          } else {
+            const fallback = membersList.find(m => currUser && (m.id === currUser.id || m.name === currUser.name)) || membersList[0];
+            if (fallback) assignedAuthors.set(aKey, fallback);
+          }
+        });
+
+        // 5. 累计各成员字数
+        Object.keys(rawCounts).forEach(aKey => {
+          const count = rawCounts[aKey];
+          if (count <= 0) return;
+          const targetMember = assignedAuthors.get(aKey);
+          if (targetMember) {
+            memberCounts[targetMember.id] = (memberCounts[targetMember.id] || 0) + count;
+            if (targetMember.name) memberCounts[targetMember.name] = (memberCounts[targetMember.name] || 0) + count;
+          } else {
+            const target = membersList.find(m => currUser && (m.id === currUser.id || m.name === currUser.name)) || membersList[0];
+            if (target) {
+              memberCounts[target.id] = (memberCounts[target.id] || 0) + count;
+              if (target.name) memberCounts[target.name] = (memberCounts[target.name] || 0) + count;
             }
           }
         });
@@ -11180,7 +11306,7 @@
           if (isEditorReadonly) {
             enforceEtherpadReadonly(existingFrame);
           } else {
-            canvas.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+            liftEtherpadReadonly(existingFrame);
           }
         }
 
@@ -11467,6 +11593,9 @@
     if (isEditorReadonly) {
       const s2Frame = canvas.querySelector('#stage2-etherpad-frame');
       if (s2Frame) enforceEtherpadReadonly(s2Frame);
+    } else {
+      const s2Frame = canvas.querySelector('#stage2-etherpad-frame');
+      if (s2Frame) liftEtherpadReadonly(s2Frame);
     }
     setTimeout(() => {
       const s2f = canvas.querySelector('#stage2-etherpad-frame');
@@ -11751,10 +11880,10 @@
       }
 
       if (existingFrame) {
-        if (isFinalSubmitted) {
+        if (isFinalSubmitted || isTaskDeadlineExpired) {
           enforceEtherpadReadonly(existingFrame);
         } else {
-          canvas.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+          liftEtherpadReadonly(existingFrame);
         }
       }
       return;
@@ -11948,9 +12077,12 @@
       }
     }
 
-    if (isFinalSubmitted) {
+    if (isFinalSubmitted || isTaskDeadlineExpired) {
       const s3Frame = canvas.querySelector('#stage3-etherpad-frame');
       if (s3Frame) enforceEtherpadReadonly(s3Frame);
+    } else {
+      const s3Frame = canvas.querySelector('#stage3-etherpad-frame');
+      if (s3Frame) liftEtherpadReadonly(s3Frame);
     }
 
     const tabDefense = canvas.querySelector('#tab-btn-defense');
@@ -18858,25 +18990,15 @@
       // ═══════════════════════════════════════════════════════════════
       const isReview1Due = (wordProgress >= 0.35 || timeProgress >= 0.35 || rawDoc.length >= (targetWordCount * 0.35));
 
-      // 严格判定真实一审消息（排除开场寄语、初审跟进提示）
+      // 严格判定真实一审消息（排除开场寄语、初审跟进提示、终审扫描）
       const isRealFirstReviewMsg = (m) => {
         if (!m || m.sender !== 'reviewingEditor') return false;
         const txt = m.text || '';
-        if (txt.includes('开场寄语') || txt.includes('初审协同跟进') || txt.includes('初审跟进提示')) return false;
-        return txt.includes('一审破题把脉') || txt.includes('初审破题把脉') || txt.includes('一审质检') || txt.includes('初审质检') || txt.includes('Research Gap');
+        if (txt.includes('开场寄语') || txt.includes('初审协同跟进') || txt.includes('初审跟进提示') || txt.includes('终稿行文扫描') || txt.includes('终审')) return false;
+        return true;
       };
 
-      let hasFirstReviewInLogs = s2ChatList.some(isRealFirstReviewMsg);
-
-      // 🛡️ 智能自愈：若真实一审尚未达成（!isReview1Due），但残留了历史误判标记或孤立的跟进消息，自动修复重置，确保一审能在达到节点时 100% 触发
-      if (!hasFirstReviewInLogs && !isReview1Due) {
-        if (s2.reviewMilestone === 'first_review_done' || s2.reviewMilestone === 'first_review_in_progress') {
-          s2.reviewMilestone = 'none';
-          s2.firstReviewText = null;
-          this.syncStage2();
-          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-        }
-      }
+      let hasFirstReviewInLogs = s2ChatList.some(isRealFirstReviewMsg) || (s2.reviewMilestone === 'first_review_done' && !!s2.firstReviewText);
 
       if (hasFirstReviewInLogs && (s2.reviewMilestone === 'none' || s2.reviewMilestone === 'first_review_in_progress')) {
         s2.reviewMilestone = 'first_review_done';
@@ -18936,10 +19058,11 @@
             s2.firstReviewText = firstReviewText;
             s2.reviewMilestone = 'first_review_done';
 
+            const formattedFirstReview = (firstReviewText.includes('一审') || firstReviewText.includes('初审') || firstReviewText.includes('破题把脉')) ? firstReviewText : `📝 【${reviewerRoleName}·一审破题把脉】：\n${firstReviewText}`;
             const firstReviewMsg = {
               sender: 'reviewingEditor',
-              senderName: '学术质量 · 审稿编辑',
-              text: firstReviewText.startsWith('📝') ? firstReviewText : `📝 【审稿编辑·一审破题把脉】：${firstReviewText}`,
+              senderName: `学术质量 · ${reviewerRoleName}`,
+              text: formattedFirstReview,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now()
             };

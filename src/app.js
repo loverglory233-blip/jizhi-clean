@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2465";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2465";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2465";
-import { AuthManager } from "./auth.js?v=20260904_v2465";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2465";
-import { renderLoginView } from "./login.js?v=20260904_v2465";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2465";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2465";
+} from "./constants.js?v=20260904_v2470";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2470";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2470";
+import { AuthManager } from "./auth.js?v=20260904_v2470";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2470";
+import { renderLoginView } from "./login.js?v=20260904_v2470";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2470";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2470";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2465";
+} from "./editor.js?v=20260904_v2470";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6248,25 +6248,15 @@ ${chatSnippet}
     // ═══════════════════════════════════════════════════════════════
     const isReview1Due = (wordProgress >= 0.35 || timeProgress >= 0.35 || rawDoc.length >= (targetWordCount * 0.35));
     
-    // 严格判定真实一审消息（排除开场寄语、初审跟进提示）
+    // 严格判定真实一审消息（排除开场寄语、初审跟进提示、终审扫描）
     const isRealFirstReviewMsg = (m) => {
       if (!m || m.sender !== 'reviewingEditor') return false;
       const txt = m.text || '';
-      if (txt.includes('开场寄语') || txt.includes('初审协同跟进') || txt.includes('初审跟进提示')) return false;
-      return txt.includes('一审破题把脉') || txt.includes('初审破题把脉') || txt.includes('一审质检') || txt.includes('初审质检') || txt.includes('Research Gap');
+      if (txt.includes('开场寄语') || txt.includes('初审协同跟进') || txt.includes('初审跟进提示') || txt.includes('终稿行文扫描') || txt.includes('终审')) return false;
+      return true;
     };
 
-    let hasFirstReviewInLogs = s2ChatList.some(isRealFirstReviewMsg);
-
-    // 🛡️ 智能自愈：若真实一审尚未达成（!isReview1Due），但残留了历史误判标记或孤立的跟进消息，自动修复重置，确保一审能在达到节点时 100% 触发
-    if (!hasFirstReviewInLogs && !isReview1Due) {
-      if (s2.reviewMilestone === 'first_review_done' || s2.reviewMilestone === 'first_review_in_progress') {
-        s2.reviewMilestone = 'none';
-        s2.firstReviewText = null;
-        this.syncStage2();
-        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-      }
-    }
+    let hasFirstReviewInLogs = s2ChatList.some(isRealFirstReviewMsg) || (s2.reviewMilestone === 'first_review_done' && !!s2.firstReviewText);
 
     if (hasFirstReviewInLogs && (s2.reviewMilestone === 'none' || s2.reviewMilestone === 'first_review_in_progress')) {
       s2.reviewMilestone = 'first_review_done';
@@ -6326,10 +6316,11 @@ ${contentSnippet}
           s2.firstReviewText = firstReviewText;
           s2.reviewMilestone = 'first_review_done';
 
+          const formattedFirstReview = (firstReviewText.includes('一审') || firstReviewText.includes('初审') || firstReviewText.includes('破题把脉')) ? firstReviewText : `📝 【${reviewerRoleName}·一审破题把脉】：\n${firstReviewText}`;
           const firstReviewMsg = {
             sender: 'reviewingEditor',
-            senderName: '学术质量 · 审稿编辑',
-            text: firstReviewText.startsWith('📝') ? firstReviewText : `📝 【审稿编辑·一审破题把脉】：${firstReviewText}`,
+            senderName: `学术质量 · ${reviewerRoleName}`,
+            text: formattedFirstReview,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now()
           };
