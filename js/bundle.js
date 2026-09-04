@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2729
+ * Version: 20260905_v2730
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2729';
+  const APP_VERSION = '20260905_v2730';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -21457,16 +21457,6 @@
     async checkManagingEditorContribCare(currentDocLen, membersList, logs) {
       if (this._isTriggeringContribCare) return;
       const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
-
-      // 🛡️ 多端协同并发防护（选举单一定时触发者）：仅由在线列表中排序第一的组员发起 AI 调用，杜绝同组多端同时生成两条关怀消息
-      if (currentUser && Array.isArray(membersList) && membersList.length > 1) {
-        const sortedMembers = [...membersList].sort((a, b) => String(a.id || a.name).localeCompare(String(b.id || b.name)));
-        const leaderId = String(sortedMembers[0]?.id || sortedMembers[0]?.name);
-        const myId = String(currentUser.id || currentUser.name);
-        if (myId !== leaderId) {
-          return;
-        }
-      }
 
       const now = Date.now();
       const isLargeTask = this.state.activeTaskScale === 'large';
