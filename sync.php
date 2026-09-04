@@ -2712,12 +2712,12 @@ if ($action === 'presence_ping' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $currPresence = !empty($rawPrStr) ? json_decode($rawPrStr, true) : [];
         if (!is_array($currPresence)) $currPresence = [];
 
-        // 清理超过 25 秒的陈旧心跳或显式离线记录
+        // 清理超过 180 秒（3分钟容错）的陈旧心跳或显式离线记录
         $cleanPresence = [];
         foreach ($currPresence as $k => $v) {
             $lastSeen = isset($v['lastSeen']) ? intval($v['lastSeen']) : (isset($v['updatedAt']) ? intval($v['updatedAt']) : 0);
             $isOff = is_array($v) && !empty($v['offline']);
-            if (!$isOff && ($nowMs - $lastSeen < 25000)) {
+            if (!$isOff && ($nowMs - $lastSeen < 180000)) {
                 $cleanPresence[strval($k)] = $v;
             }
         }
@@ -3481,7 +3481,7 @@ if ($pdo) {
             }
         }
 
-        // ⚡ 顺风车自动心跳续期（Piggyback）：每次客户端发送 pull 时，若明确处于工作台则更新时间戳 (25s 极速精准窗口)
+        // ⚡ 顺风车自动心跳续期（Piggyback）：每次客户端发送 pull 时，若明确处于工作台则更新时间戳 (180s 宽裕容错窗口)
         $currPr = (!empty($row['presence_data']) && strlen($row['presence_data']) < 50000) ? json_decode($row['presence_data'], true) : [];
         if (!is_array($currPr)) $currPr = [];
         $prChanged = false;
@@ -3498,7 +3498,7 @@ if ($pdo) {
         foreach ($currPr as $pk => $pv) {
             $t = is_array($pv) ? intval($pv['lastSeen'] ?? $pv['updatedAt'] ?? $pv['timestamp'] ?? 0) : 0;
             $isOff = is_array($pv) && !empty($pv['offline']);
-            if ($isOff || ($nowMs - $t > 25000)) {
+            if ($isOff || ($nowMs - $t > 180000)) {
                 unset($currPr[$pk]);
                 $prChanged = true;
             }
