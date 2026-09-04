@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2460";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2460";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2460";
-import { AuthManager } from "./auth.js?v=20260904_v2460";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2460";
-import { renderLoginView } from "./login.js?v=20260904_v2460";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2460";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2460";
+} from "./constants.js?v=20260904_v2465";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2465";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2465";
+import { AuthManager } from "./auth.js?v=20260904_v2465";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2465";
+import { renderLoginView } from "./login.js?v=20260904_v2465";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2465";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2465";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2460";
+} from "./editor.js?v=20260904_v2465";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6424,9 +6424,10 @@ ${contentSnippet}
     const ssrlCooldownMs = isLargeTask ? 480000 : 360000;
     
     // 🛡️ 贡献比协同关怀自身的 6~8 分钟常规冷却：若最近已下发过协同关怀，等待冷却结束
-    const recentSsrlMsg = [...(logs || [])].reverse().find(m => m && m.sender === 'managingEditor' && m.text?.includes('协同关怀'));
+    const recentSsrlMsg = [...(logs || [])].reverse().find(m => m && m.sender === 'managingEditor' && (m.text?.includes('协同关怀') || m.text?.includes('贡献比')));
     if (recentSsrlMsg && (now - Number(recentSsrlMsg._timeMs || 0) < ssrlCooldownMs)) return;
     if (this.lastS2ContribNudgeTime && (now - this.lastS2ContribNudgeTime < ssrlCooldownMs)) return;
+    if (this.state.stage2?.lastSSRLWarnTimeMs && (now - Number(this.state.stage2.lastSSRLWarnTimeMs) < ssrlCooldownMs)) return;
 
     const contribs = this.state.stage2?.memberContributions || {};
     const getVal = (m) => {
@@ -6460,6 +6461,9 @@ ${contentSnippet}
       this._isTriggeringContribCare = true;
       this.lastS2ContribNudgeTime = now;
       this.state.lastSSRLWarnTimeMs = now;
+      if (this.state.stage2) this.state.stage2.lastSSRLWarnTimeMs = now;
+      this.syncStage2();
+
       const targetMember = lowMembers[0];
       const targetName = targetMember.name || targetMember.id;
       const tasks = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.taskAssignments) ? this.state.stage1.contract.taskAssignments : {};
@@ -6483,9 +6487,9 @@ ${contentSnippet}
       try {
         const resp = await callCozeAgentAPI('managingEditor', contribPrompt, { stage: 'stage2', topic });
         if (resp && resp.trim().length > 0) {
-          careText = resp.trim();
-          if (!careText.startsWith('🤝')) {
-            careText = `🤝 【${managingName}·协同关怀】：${careText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '')}`;
+          const cleanResp = resp.trim().replace(/^🤝\s*/, '').replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '').trim();
+          if (cleanResp.length > 10) {
+            careText = `🤝 【${managingName}·协同关怀】：${cleanResp}`;
           }
         }
       } catch (e) {

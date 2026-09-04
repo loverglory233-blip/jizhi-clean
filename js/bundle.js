@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2460
+ * Version: 20260904_v2465
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2460';
+  const APP_VERSION = '20260904_v2465';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4170,7 +4170,6 @@
               baseLogs.unshift(m);
             }
           } else if (stg === 'stage2') {
-            const s2TextLen = (this.app.state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
             const deduped = [];
             let seenFirstReview = false;
             let seenMeetingCall = false;
@@ -4181,21 +4180,18 @@
               const snd = m.sender || '';
               const txt = m.text || '';
               if (snd === 'reviewingEditor' && (txt.includes('初审') || txt.includes('初审微调') || txt.includes('破题把脉') || txt.includes('Research Gap'))) {
-                if (s2TextLen < 50) return; // 自动清洗早产一审脏数据
                 if (seenFirstReview) return;
                 seenFirstReview = true;
               }
               if (snd === 'managingEditor' && (txt.includes('半程会议号召') || txt.includes('半程研讨号召'))) {
-                if (s2TextLen < 50) return; // 自动清洗早产半程会议脏数据
                 if (seenMeetingCall) return;
                 seenMeetingCall = true;
               }
               if (snd === 'reviewingEditor' && txt.includes('终稿行文扫描')) {
-                if (s2TextLen < 50) return;
                 if (seenFinalReview) return;
                 seenFinalReview = true;
               }
-              if (snd === 'managingEditor' && txt.includes('起草提示')) {
+              if (snd === 'managingEditor' && (txt.includes('起草提示') || txt.includes('进度关怀'))) {
                 if (seenWelcome) return;
                 seenWelcome = true;
               }
@@ -10624,16 +10620,16 @@
       if (strictCtx.taskId) activeTaskId = strictCtx.taskId;
     }
 
-    const currUserCode = currUser?.id || state.currentUser || '';
+    const currUserCode = currUser?.id || currUser?.studentCode || state.currentUser || '';
     let currUserName = currUser?.name || '';
-    if (!currUserName && state.members && state.members[currUserCode]?.name) {
-      currUserName = state.members[currUserCode].name;
+    if (!currUserName && state.members && (state.members[currUserCode]?.name || state.members[state.currentUser]?.name)) {
+      currUserName = state.members[currUserCode]?.name || state.members[state.currentUser]?.name || '';
     }
     if (!currUserName && window.app && window.app.authManager) {
-      const matchedUser = window.app.authManager.getUsers().find(u => u && u.id === currUserCode);
+      const matchedUser = window.app.authManager.findUserByKey ? window.app.authManager.findUserByKey(currUserCode) : window.app.authManager.getUsers().find(u => u && (u.id === currUserCode || u.studentCode === currUserCode));
       if (matchedUser && matchedUser.name) currUserName = matchedUser.name;
     }
-    if (!currUserName || currUserName === currUserCode) currUserName = '组员';
+    if (!currUserName) currUserName = currUserCode || '组员';
     const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
     const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
     const padUrl = `/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans`;
@@ -11896,11 +11892,16 @@
             }
 
             const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
+            const currUserCode = currUser?.id || currUser?.studentCode || state.currentUser || '';
             let currUserName = currUser?.name || '';
-            if (!currUserName && state.members && state.members[currUserCode]?.name) {
-              currUserName = state.members[currUserCode].name;
+            if (!currUserName && state.members && (state.members[currUserCode]?.name || state.members[state.currentUser]?.name)) {
+              currUserName = state.members[currUserCode]?.name || state.members[state.currentUser]?.name || '';
             }
-            if (!currUserName || currUserName === currUserCode) currUserName = '组员';
+            if (!currUserName && window.app && window.app.authManager) {
+              const matchedUser = window.app.authManager.findUserByKey ? window.app.authManager.findUserByKey(currUserCode) : window.app.authManager.getUsers().find(u => u && (u.id === currUserCode || u.studentCode === currUserCode));
+              if (matchedUser && matchedUser.name) currUserName = matchedUser.name;
+            }
+            if (!currUserName) currUserName = currUserCode || '组员';
             const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
 
             const isEditorReadonly = isFinalSubmitted || isTaskDeadlineExpired;
@@ -19033,9 +19034,10 @@
       const ssrlCooldownMs = isLargeTask ? 480000 : 360000;
 
       // 🛡️ 贡献比协同关怀自身的 6~8 分钟常规冷却：若最近已下发过协同关怀，等待冷却结束
-      const recentSsrlMsg = [...(logs || [])].reverse().find(m => m && m.sender === 'managingEditor' && m.text?.includes('协同关怀'));
+      const recentSsrlMsg = [...(logs || [])].reverse().find(m => m && m.sender === 'managingEditor' && (m.text?.includes('协同关怀') || m.text?.includes('贡献比')));
       if (recentSsrlMsg && (now - Number(recentSsrlMsg._timeMs || 0) < ssrlCooldownMs)) return;
       if (this.lastS2ContribNudgeTime && (now - this.lastS2ContribNudgeTime < ssrlCooldownMs)) return;
+      if (this.state.stage2?.lastSSRLWarnTimeMs && (now - Number(this.state.stage2.lastSSRLWarnTimeMs) < ssrlCooldownMs)) return;
 
       const contribs = this.state.stage2?.memberContributions || {};
       const getVal = (m) => {
@@ -19069,6 +19071,9 @@
         this._isTriggeringContribCare = true;
         this.lastS2ContribNudgeTime = now;
         this.state.lastSSRLWarnTimeMs = now;
+        if (this.state.stage2) this.state.stage2.lastSSRLWarnTimeMs = now;
+        this.syncStage2();
+
         const targetMember = lowMembers[0];
         const targetName = targetMember.name || targetMember.id;
         const tasks = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.taskAssignments) ? this.state.stage1.contract.taskAssignments : {};
@@ -19092,9 +19097,9 @@
         try {
           const resp = await callCozeAgentAPI('managingEditor', contribPrompt, { stage: 'stage2', topic });
           if (resp && resp.trim().length > 0) {
-            careText = resp.trim();
-            if (!careText.startsWith('🤝')) {
-              careText = `🤝 【${managingName}·协同关怀】：${careText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '')}`;
+            const cleanResp = resp.trim().replace(/^🤝\s*/, '').replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '').trim();
+            if (cleanResp.length > 10) {
+              careText = `🤝 【${managingName}·协同关怀】：${cleanResp}`;
             }
           }
         } catch (e) {
