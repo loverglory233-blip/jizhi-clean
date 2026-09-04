@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2727
+ * Version: 20260905_v2728
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2727';
+  const APP_VERSION = '20260905_v2728';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -16138,7 +16138,56 @@
             return 0;
           }
 
-          // 1. 阶段二开场静默检测（已优化移除冗余生硬提醒，完全由基于撰写进度的协同关怀接管）
+          // 1. 阶段二开场静默检测（严格综合判定：左侧 Etherpad 撰写 与 右侧研讨区发言）
+          let effectiveDocLen = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
+          let contribSum = 0;
+          const contribs = s2.memberContributions || {};
+          Object.values(contribs).forEach(v => { contribSum += Number(v || 0); });
+          effectiveDocLen = Math.max(effectiveDocLen, contribSum);
+
+          const countBadge = (typeof document !== 'undefined') ? document.getElementById('stage2-word-count-num') : null;
+          if (countBadge && countBadge.innerText) {
+            const badgeNum = parseInt(countBadge.innerText.replace(/[^\d]/g, ''), 10);
+            if (!isNaN(badgeNum)) effectiveDocLen = Math.max(effectiveDocLen, badgeNum);
+          }
+          if (typeof this.lastPlainTextLength === 'number') {
+            effectiveDocLen = Math.max(effectiveDocLen, this.lastPlainTextLength);
+          }
+
+          const s2IntroMsg = s2Chats.find(m => m && (m.sender === 'managingEditor' || m.sender === 'reviewingEditor') && (m.text?.includes('开场') || m.text?.includes('阶段二') || m.text?.includes('寄语')));
+          const s2IntroTime = parseMsgTime(s2IntroMsg) || (s2.startTime || this.stage2StartTime || now);
+          const s2IntroElapsed = Math.max(0, now - s2IntroTime);
+          const studentMsgAfterIntro = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && parseMsgTime(m) >= s2IntroTime);
+          const existS2OpenNudge = s2Chats.some(m => m && (m.text?.includes('进度关怀') || m.text?.includes('协同推进')));
+
+          // 🛡️ 只要【左侧已动笔写正文 (字数 > 0)】或【右侧研讨区有组员发言交流】，判定为已破冰，立即锁定静默状态，绝不触发进度关怀！
+          if (effectiveDocLen > 0 || studentMsgAfterIntro.length > 0 || existS2OpenNudge) {
+            this._nudgeCounts['s2_silence'] = 1;
+          }
+
+          const silenceNudgeCount = this._nudgeCounts['s2_silence'] || 0;
+          // 只有当【满 3 分钟 (180秒)】且【左侧完全未动笔 (0字)】且【右侧完全未发言 (0条)】时，才触发一次性破冰关怀
+          if (silenceNudgeCount < 1 && !existS2OpenNudge && s2IntroElapsed >= 180000 && effectiveDocLen === 0 && studentMsgAfterIntro.length === 0) {
+            this._nudgeCounts['s2_silence'] = 1;
+            this.lastS2SilenceNudgeTime = now;
+            const taskType = this.getCurrentTaskType();
+            const isInst = (taskType === 'instructional');
+            const managingName = isInst ? '备课组长' : '责任编辑';
+            const msg = {
+              sender: 'managingEditor',
+              senderName: `协同调度 · ${managingName}`,
+              text: `🤝 【${managingName}·进度关怀】：大家已进入阶段二协作！\n👉 请大家在研讨区互相交流衔接，在左侧协同文档中积极起草与研读，群策群力协同推进！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now
+            };
+            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+            this.state.chatLogs.stage2.push(msg);
+            this.syncChatLogs();
+            this.syncStage2();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+            return;
+          }
 
 
 
