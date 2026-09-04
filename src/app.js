@@ -3353,7 +3353,9 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
       s1.contract.topic = finalTopic;
       s1.contract.overview = finalOverview;
       s1.researchOverview = finalOverview;
-      s1.contractStep = 'time'; // 顺推至时间分配阶段
+      if (!s1.contractStep || s1.contractStep === 'topic') {
+        s1.contractStep = 'time'; // 顺推至时间分配阶段
+      }
 
       guideSpeech = guideSpeech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师|备课引导师|引导师)[·\s]*(?:方案确立|主题与方案确立|方案提炼)?】[：:]\s*/g, '');
       const noticeText = `🏛️ 【${agentRole}·主题与方案确立】：全组${isInst ? '教学论题' : '研究论题'}《${finalTopic}》与方案概述已成功提炼并录入公约看板！👉 接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定完成后点击左侧【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！`;
