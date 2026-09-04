@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2550';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2550';
+import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2555';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2555';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1173,9 +1173,6 @@ export class CloudSyncEngine {
 
       if (remoteData.stage2.unifiedContent !== undefined) {
         let remoteHtml = remoteData.stage2.unifiedContent || '';
-        if (remoteHtml.includes('请在此处撰写正文') && remoteHtml.replace(/<[^>]*>/g, '').trim().length < 50) {
-          remoteHtml = '';
-        }
         const isLocalPadActive = !!document.getElementById('stage2-etherpad-frame');
         const localLen = (this.app.state.stage2?.unifiedContent || '').length;
         if (!isLocalPadActive || remoteHtml.length >= localLen || localLen === 0) {

@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2550";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2550";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2550";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2555";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2555";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2555";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1289,9 +1289,6 @@ function renderStage1Canvas(canvas, state, handlers) {
 function renderStage2Canvas(canvas, state, handlers) {
   if (!canvas) return;
   const s2 = state.stage2;
-  if (s2.unifiedContent && s2.unifiedContent.includes('请在此处撰写正文') && s2.unifiedContent.replace(/<[^>]*>/g, '').trim().length < 50) {
-    s2.unifiedContent = '';
-  }
   const actionPlan = s2.actionPlan;
   const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
   let userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
