@@ -203,14 +203,110 @@ $actualDoc = isset($req['actual_doc']) ? $req['actual_doc'] : '';
 $priorReview = isset($req['prior_review']) ? $req['prior_review'] : '';
 $taskType = isset($req['task_type']) ? $req['task_type'] : (isset($req['taskType']) ? $req['taskType'] : 'experiment');
 
-if (empty($userQuery)) {
-    echo json_encode(['success' => false, 'message' => 'Query is empty']);
-    exit;
+$scopeKey = isset($req['scope_key']) ? trim($req['scope_key']) : (isset($req['scopeKey']) ? trim($req['scopeKey']) : '');
+$milestoneKey = isset($req['milestone_key']) ? trim($req['milestone_key']) : (isset($req['milestoneKey']) ? trim($req['milestoneKey']) : '');
+
+$lockFile = null;
+$lockFp = null;
+$isMilestone = (!empty($milestoneKey) && !empty($scopeKey));
+
+if ($isMilestone) {
+    $lockDir = sys_get_temp_dir() . '/jizhi_coze_milestones';
+    if (!is_dir($lockDir)) {
+        @mkdir($lockDir, 0777, true);
+    }
+    $safeScope = preg_replace('/[^a-zA-Z0-9_-]/', '_', $scopeKey);
+    $safeMilestone = preg_replace('/[^a-zA-Z0-9_-]/', '_', $milestoneKey);
+    $lockFile = $lockDir . "/ms_{$safeScope}_{$safeMilestone}.json";
+
+    // 1. 检查是否存在 10 分钟内的成功完成缓存（0 Token 消耗秒级返回）
+    if (file_exists($lockFile)) {
+        $existingRaw = @file_get_contents($lockFile);
+        if (!empty($existingRaw)) {
+            $existingData = @json_decode($existingRaw, true);
+            if ($existingData && isset($existingData['status']) && $existingData['status'] === 'completed' && !empty($existingData['reply'])) {
+                $completedAt = isset($existingData['completed_at']) ? intval($existingData['completed_at']) : 0;
+                if (time() - $completedAt < 600) {
+                    echo json_encode([
+                        'success' => true,
+                        'completed' => true,
+                        'reply' => $existingData['reply'],
+                        'bot_id' => $botId,
+                        'cached' => true
+                    ]);
+                    exit;
+                }
+            }
+        }
+    }
+
+    // 2. 获取文件排他锁，防止同组多学生同时请求大模型
+    $lockFp = @fopen($lockFile . '.lock', 'c+');
+    if ($lockFp) {
+        $acquired = false;
+        $waitStart = microtime(true);
+        // 最多非阻塞重试等待 15 秒（等待同组首个同学的大模型返回）
+        while ((microtime(true) - $waitStart) < 15.0) {
+            if (@flock($lockFp, LOCK_EX | LOCK_NB)) {
+                $acquired = true;
+                break;
+            }
+            // 未拿到锁：说明同组有其他同学正在请求生成中，休眠 300ms 后探测缓存
+            usleep(300000);
+            if (file_exists($lockFile)) {
+                $checkRaw = @file_get_contents($lockFile);
+                if (!empty($checkRaw)) {
+                    $checkData = @json_decode($checkRaw, true);
+                    if ($checkData && isset($checkData['status']) && $checkData['status'] === 'completed' && !empty($checkData['reply'])) {
+                        @fclose($lockFp);
+                        echo json_encode([
+                            'success' => true,
+                            'completed' => true,
+                            'reply' => $checkData['reply'],
+                            'bot_id' => $botId,
+                            'cached' => true
+                        ]);
+                        exit;
+                    }
+                }
+            }
+        }
+
+        if ($acquired) {
+            // 再次复检缓存，避免拿到锁前一瞬间首个同学刚写完
+            if (file_exists($lockFile)) {
+                $postAcquireRaw = @file_get_contents($lockFile);
+                if (!empty($postAcquireRaw)) {
+                    $postAcquireData = @json_decode($postAcquireRaw, true);
+                    if ($postAcquireData && isset($postAcquireData['status']) && $postAcquireData['status'] === 'completed' && !empty($postAcquireData['reply'])) {
+                        if (time() - intval($postAcquireData['completed_at'] ?? 0) < 600) {
+                            @flock($lockFp, LOCK_UN);
+                            @fclose($lockFp);
+                            echo json_encode([
+                                'success' => true,
+                                'completed' => true,
+                                'reply' => $postAcquireData['reply'],
+                                'bot_id' => $botId,
+                                'cached' => true
+                            ]);
+                            exit;
+                        }
+                    }
+                }
+            }
+            // 标记生成中
+            @file_put_contents($lockFile, json_encode([
+                'status' => 'in_progress',
+                'started_at' => time()
+            ]));
+        }
+    }
 }
 
 // 1. 获取持久自动续期的 Token
 $accessToken = getCozeAccessToken();
 if (!$accessToken) {
+    if ($lockFp) { @flock($lockFp, LOCK_UN); @fclose($lockFp); }
     echo json_encode([
         'success' => false,
         'message' => 'OAuth token generation failed'
@@ -309,6 +405,17 @@ if ($httpCode === 401 || (strpos($resp, '4100') !== false || strpos($resp, '4001
 $answerText = parseCozeSseStream($resp);
 
 if (!empty($answerText)) {
+    if ($isMilestone && !empty($lockFile)) {
+        @file_put_contents($lockFile, json_encode([
+            'status' => 'completed',
+            'reply' => $answerText,
+            'completed_at' => time()
+        ]));
+    }
+    if ($lockFp) {
+        @flock($lockFp, LOCK_UN);
+        @fclose($lockFp);
+    }
     echo json_encode([
         'success' => true,
         'completed' => true,
@@ -316,6 +423,10 @@ if (!empty($answerText)) {
         'bot_id' => $botId
     ]);
 } else {
+    if ($lockFp) {
+        @flock($lockFp, LOCK_UN);
+        @fclose($lockFp);
+    }
     // 如果返回了非 SSE 错误 JSON
     $errJson = @json_decode($resp, true);
     echo json_encode([
