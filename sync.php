@@ -2712,11 +2712,12 @@ if ($action === 'presence_ping' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $currPresence = !empty($rawPrStr) ? json_decode($rawPrStr, true) : [];
         if (!is_array($currPresence)) $currPresence = [];
 
-        // 清理超过 5 分钟的陈旧心跳
+        // 清理超过 25 秒的陈旧心跳或显式离线记录
         $cleanPresence = [];
         foreach ($currPresence as $k => $v) {
             $lastSeen = isset($v['lastSeen']) ? intval($v['lastSeen']) : (isset($v['updatedAt']) ? intval($v['updatedAt']) : 0);
-            if ($nowMs - $lastSeen < 300000) {
+            $isOff = is_array($v) && !empty($v['offline']);
+            if (!$isOff && ($nowMs - $lastSeen < 25000)) {
                 $cleanPresence[strval($k)] = $v;
             }
         }
@@ -2766,7 +2767,7 @@ if ($action === 'presence_leave' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $stRow = $stmtGet->fetch();
         $currPresence = ($stRow && !empty($stRow['presence_data'])) ? json_decode($stRow['presence_data'], true) : [];
         if (!is_array($currPresence)) $currPresence = [];
-        $currPresence[strval($userKey)] = ['offline' => true, 'leftAt' => $nowMs, 'lastSeen' => 0];
+        unset($currPresence[strval($userKey)]);
         $prJson = json_encode($currPresence, JSON_UNESCAPED_UNICODE);
         $stmtUp = $pdo->prepare("UPDATE group_states SET presence_data = :pr, last_timestamp = :ts WHERE scope_key = :sk");
         $stmtUp->execute([':pr' => $prJson, ':ts' => $nowMs, ':sk' => $scopeKey]);
@@ -3480,21 +3481,24 @@ if ($pdo) {
             }
         }
 
-        // ⚡ 顺风车自动心跳续期（Piggyback）：每次客户端发送 pull 时，自动更新当前用户在当前组的在线时间戳 (180s 稳定窗口)
+        // ⚡ 顺风车自动心跳续期（Piggyback）：每次客户端发送 pull 时，若明确处于工作台则更新时间戳 (25s 极速精准窗口)
         $currPr = (!empty($row['presence_data']) && strlen($row['presence_data']) < 50000) ? json_decode($row['presence_data'], true) : [];
         if (!is_array($currPr)) $currPr = [];
         $prChanged = false;
-        if (!empty($reqUserId)) {
+        $inWorkspace = isset($_GET['inWorkspace']) ? ($_GET['inWorkspace'] === '1' || $_GET['inWorkspace'] === 'true') : false;
+        if (!empty($reqUserId) && $inWorkspace) {
             $currPr[strval($reqUserId)] = [
                 'userId'      => $reqUserId,
                 'updatedAt'   => $nowMs,
-                'timestamp'   => $nowMs
+                'timestamp'   => $nowMs,
+                'lastSeen'    => $nowMs
             ];
             $prChanged = true;
         }
         foreach ($currPr as $pk => $pv) {
-            $t = is_array($pv) ? intval($pv['updatedAt'] ?? $pv['timestamp'] ?? 0) : 0;
-            if ($nowMs - $t > 180000) {
+            $t = is_array($pv) ? intval($pv['lastSeen'] ?? $pv['updatedAt'] ?? $pv['timestamp'] ?? 0) : 0;
+            $isOff = is_array($pv) && !empty($pv['offline']);
+            if ($isOff || ($nowMs - $t > 25000)) {
                 unset($currPr[$pk]);
                 $prChanged = true;
             }

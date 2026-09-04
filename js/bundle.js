@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2655
+ * Version: 20260905_v2656
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2655';
+  const APP_VERSION = '20260905_v2656';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4121,25 +4121,31 @@
     updateScopeKeys() {
       const isTeacher = this.app.authManager?.getCurrentUser()?.role === 'teacher';
       const user = this.app.authManager?.getCurrentUser();
+      const isStudent = user && (user.role === 'student' || user.isStudent);
       const effectiveClassId = (isTeacher ? this.app.state.activeClassId : this.app.state.activeStudentClassId) || user?.classId || null;
       const groupId = this.getEffectiveGroupId();
-      let taskId = (this.app.state.activeTaskId) ? this.app.state.activeTaskId : `task_${effectiveClassId}_default`;
-      if (taskId === 'task_default' || !taskId) {
+
+      let taskId = this.app.state.activeTaskId || null;
+      if (!taskId && isTeacher) {
         taskId = `task_${effectiveClassId}_default`;
       }
+      if (isStudent && this.app.state.studentViewMode !== 'workspace') {
+        taskId = null;
+      }
+
       this.groupId = groupId;
       this.taskId = taskId;
       this.effectiveClassId = effectiveClassId;
-      if (this.app && this.app.state) {
+      if (this.app && this.app.state && taskId) {
         this.app.state.activeTaskId = taskId;
         this.app.state.activeStudentClassId = effectiveClassId;
       }
       this.storageKey = `jizhi_cloud_snapshot_v10_pure_${effectiveClassId}_${taskId}_${groupId}`;
-      this.syncEndpoints = [
+      this.syncEndpoints = taskId ? [
         `sync.php?taskId=${taskId}&groupId=${groupId}&classId=${effectiveClassId}`
-      ];
+      ] : [];
 
-      if ('BroadcastChannel' in window) {
+      if ('BroadcastChannel' in window && taskId && groupId) {
         try {
           if (this.bc) { try { this.bc.close(); } catch (e) {} }
           this.bc = new BroadcastChannel(`jizhi_bc_${effectiveClassId}_${this.taskId}_${this.groupId}`);
@@ -4316,9 +4322,14 @@
     // 🌿 独立轻量在线心跳：仅上报当前用户在线状态，物理隔离绝不触碰全量协作数据
     async sendPresencePing(userObj = null) {
       if (this.isLoggingOut) return;
-      this.updateScopeKeys();
       const currentUser = userObj || (this.app.authManager ? this.app.authManager.getCurrentUser() : null);
       if (!currentUser) return;
+      const isStudent = (currentUser.role === 'student' || currentUser.isStudent);
+      if (isStudent && (this.app.state.studentViewMode !== 'workspace' || !this.app.state.activeTaskId)) {
+        return; // 学生不在工作台内部时，绝不上报工作台在线心跳
+      }
+      this.updateScopeKeys();
+      if (!this.taskId || !this.groupId) return;
       const userKey = String(currentUser.id || '').trim();
       if (!userKey) return;
 
@@ -4341,6 +4352,39 @@
             if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
             this.app.renderPresenceCursors();
           }
+        }
+      } catch (e) {}
+    }
+
+    // 🚪 离线即时退出心跳：离开任务大厅或登出时瞬间清除在线状态
+    sendPresenceLeave(userObj = null) {
+      const currentUser = userObj || (this.app.authManager ? this.app.authManager.getCurrentUser() : null);
+      if (!currentUser) return;
+      const userKey = String(currentUser.id || '').trim();
+      if (!userKey) return;
+      const effectiveClassId = this.effectiveClassId || currentUser.classId || null;
+      const taskId = this.taskId || (this.app.state ? this.app.state.activeTaskId : null);
+      const groupId = this.groupId || this.getEffectiveGroupId();
+      if (!taskId || !groupId) return;
+
+      if (this.app.state.presence) {
+        delete this.app.state.presence[userKey];
+        if (currentUser.name) delete this.app.state.presence[currentUser.name];
+      }
+      if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
+      if (typeof this.app.renderPresenceCursors === 'function') this.app.renderPresenceCursors();
+
+      try {
+        const url = `sync.php?action=presence_leave&taskId=${encodeURIComponent(taskId)}&groupId=${encodeURIComponent(groupId)}&classId=${encodeURIComponent(effectiveClassId)}`;
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(url, JSON.stringify({ userId: userKey }));
+        } else {
+          fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: userKey }),
+            keepalive: true
+          }).catch(() => {});
         }
       } catch (e) {}
     }
@@ -4459,10 +4503,20 @@
 
     async pullFromServer() {
       if (this.isPulling || this.isLoggingOut) return;
+      const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
+      const isTeacher = currentUser && (currentUser.isTeacher || currentUser.role === 'teacher');
+      const isStudent = currentUser && (currentUser.role === 'student' || currentUser.isStudent);
+      if (isStudent && (this.app.state.studentViewMode !== 'workspace' || !this.app.state.activeTaskId)) {
+        return; // 学生在大厅/登录页时，不拉取任何具体任务工作台的协同快照
+      }
       this.isPulling = true;
       this.updateScopeKeys();
 
-      const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
+      if (!this.taskId || !this.groupId) {
+        this.isPulling = false;
+        return;
+      }
+
       const userKey = currentUser ? currentUser.id : '';
       const sessToken = currentUser ? (currentUser.activeSessionId || currentUser.token || currentUser.sessionToken || '') : '';
       const lastRev = this._lastKnownRevisionId || 0;
@@ -4474,7 +4528,8 @@
         for (const endpoint of this.syncEndpoints) {
           try {
             const sep = endpoint.includes('?') ? '&' : '?';
-            const url = `${endpoint}${sep}userId=${encodeURIComponent(userKey)}&sessToken=${encodeURIComponent(sessToken)}&lastRev=${lastRev}&lastChatMs=${lastChatMs}&metaVer=${metaVer}&incGlobal=${incGlobal}&nocache=${Date.now()}`;
+            const inWs = (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) ? 1 : 0;
+            const url = `${endpoint}${sep}userId=${encodeURIComponent(userKey)}&sessToken=${encodeURIComponent(sessToken)}&lastRev=${lastRev}&lastChatMs=${lastChatMs}&metaVer=${metaVer}&incGlobal=${incGlobal}&inWorkspace=${inWs}&nocache=${Date.now()}`;
             const res = await fetch(url, { cache: 'no-store' });
             if (res.ok) {
               const data = await res.json();
@@ -13507,20 +13562,6 @@
       const myCode = currUser?.id || state.currentUser || '';
       const nowMs = Date.now();
 
-      // 收集近期 180 秒内发言或操作的所有成员
-      const recentSpeakers = new Set();
-      const visibleStages = ['stage1', 'stage2', 'stage3'];
-      visibleStages.forEach(stg => {
-        if (state.chatLogs && state.chatLogs[stg]) {
-          state.chatLogs[stg].slice(-25).forEach(msg => {
-            if (msg._timeMs && (nowMs - msg._timeMs < 180000)) {
-              if (msg.sender) recentSpeakers.add(msg.sender);
-              if (msg.senderName) recentSpeakers.add(msg.senderName);
-            }
-          });
-        }
-      });
-
       let memberList = [];
       if (Array.isArray(state.members)) memberList = state.members;
       else if (state.members && typeof state.members === 'object') memberList = Object.values(state.members);
@@ -13551,17 +13592,9 @@
         if (!isOnline) {
           for (const k of candidateKeys) {
             const p = presence[k];
-            if (p) {
+            if (p && !p.offline) {
               const pTime = Number(p.lastSeen || p.updatedAt || p.timestamp || 0);
-              if (pTime > 0 && (nowMs - pTime <= 180000)) {
-                isOnline = true;
-                break;
-              }
-            }
-          }
-          if (!isOnline) {
-            for (const k of candidateKeys) {
-              if (recentSpeakers.has(k)) {
+              if (pTime > 0 && (nowMs - pTime <= 25000)) {
                 isOnline = true;
                 break;
               }
@@ -16416,13 +16449,15 @@
 
     handleLogout() { 
       const user = this.authManager.getCurrentUser();
+      if (this.cloudSyncEngine) {
+        this.cloudSyncEngine.sendPresenceLeave(user);
+      }
       if (user) {
         const uCode = user.id;
         if (this.state.presence) {
           if (uCode) delete this.state.presence[uCode];
           if (user.studentCode) delete this.state.presence[user.studentCode];
         }
-        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       }
       this.authManager.logout(); 
       this.state.studentViewMode = 'task_list';
@@ -16432,6 +16467,11 @@
     }
 
     backToTaskList() {
+      const user = this.authManager ? this.authManager.getCurrentUser() : null;
+      if (this.cloudSyncEngine) {
+        this.cloudSyncEngine.sendPresenceLeave(user);
+        this.cloudSyncEngine.stopPolling();
+      }
       this.state.studentViewMode = 'task_list';
       this.state.activeTaskId = null;
       this.state.activeTaskTitle = null;
@@ -16439,13 +16479,17 @@
       sessionStorage.removeItem('jizhi_active_task_id');
       localStorage.setItem('jizhi_student_view_mode', 'task_list');
       localStorage.removeItem('jizhi_active_task_id');
-      if (this.cloudSyncEngine) this.cloudSyncEngine.stopPolling();
       this.renderMain();
     }
 
     showTaskRevokedModal(taskTitle = '写作任务') {
       // 🛡️ 立即锁定撤销状态，并把全局状态直接切回任务大厅模式，终止工作台同步
       this._isHandlingTaskRevoked = true;
+      const user = this.authManager ? this.authManager.getCurrentUser() : null;
+      if (this.cloudSyncEngine) {
+        this.cloudSyncEngine.sendPresenceLeave(user);
+        this.cloudSyncEngine.stopPolling();
+      }
       this.state.studentViewMode = 'task_list';
       this.state.activeTaskId = null;
       this.state.activeTaskTitle = null;
@@ -16453,7 +16497,6 @@
       sessionStorage.removeItem('jizhi_active_task_id');
       localStorage.setItem('jizhi_student_view_mode', 'task_list');
       localStorage.removeItem('jizhi_active_task_id');
-      if (this.cloudSyncEngine) this.cloudSyncEngine.stopPolling();
 
       // 立即切回大厅底层视图
       this.renderMain();

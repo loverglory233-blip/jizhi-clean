@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2655';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2655';
+import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2656';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2656';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -35,25 +35,31 @@ export class CloudSyncEngine {
   updateScopeKeys() {
     const isTeacher = this.app.authManager?.getCurrentUser()?.role === 'teacher';
     const user = this.app.authManager?.getCurrentUser();
+    const isStudent = user && (user.role === 'student' || user.isStudent);
     const effectiveClassId = (isTeacher ? this.app.state.activeClassId : this.app.state.activeStudentClassId) || user?.classId || null;
     const groupId = this.getEffectiveGroupId();
-    let taskId = (this.app.state.activeTaskId) ? this.app.state.activeTaskId : `task_${effectiveClassId}_default`;
-    if (taskId === 'task_default' || !taskId) {
+    
+    let taskId = this.app.state.activeTaskId || null;
+    if (!taskId && isTeacher) {
       taskId = `task_${effectiveClassId}_default`;
     }
+    if (isStudent && this.app.state.studentViewMode !== 'workspace') {
+      taskId = null;
+    }
+
     this.groupId = groupId;
     this.taskId = taskId;
     this.effectiveClassId = effectiveClassId;
-    if (this.app && this.app.state) {
+    if (this.app && this.app.state && taskId) {
       this.app.state.activeTaskId = taskId;
       this.app.state.activeStudentClassId = effectiveClassId;
     }
     this.storageKey = `jizhi_cloud_snapshot_v10_pure_${effectiveClassId}_${taskId}_${groupId}`;
-    this.syncEndpoints = [
+    this.syncEndpoints = taskId ? [
       `sync.php?taskId=${taskId}&groupId=${groupId}&classId=${effectiveClassId}`
-    ];
+    ] : [];
 
-    if ('BroadcastChannel' in window) {
+    if ('BroadcastChannel' in window && taskId && groupId) {
       try {
         if (this.bc) { try { this.bc.close(); } catch (e) {} }
         this.bc = new BroadcastChannel(`jizhi_bc_${effectiveClassId}_${this.taskId}_${this.groupId}`);
@@ -230,9 +236,14 @@ export class CloudSyncEngine {
   // 🌿 独立轻量在线心跳：仅上报当前用户在线状态，物理隔离绝不触碰全量协作数据
   async sendPresencePing(userObj = null) {
     if (this.isLoggingOut) return;
-    this.updateScopeKeys();
     const currentUser = userObj || (this.app.authManager ? this.app.authManager.getCurrentUser() : null);
     if (!currentUser) return;
+    const isStudent = (currentUser.role === 'student' || currentUser.isStudent);
+    if (isStudent && (this.app.state.studentViewMode !== 'workspace' || !this.app.state.activeTaskId)) {
+      return; // 学生不在工作台内部时，绝不上报工作台在线心跳
+    }
+    this.updateScopeKeys();
+    if (!this.taskId || !this.groupId) return;
     const userKey = String(currentUser.id || '').trim();
     if (!userKey) return;
 
@@ -255,6 +266,39 @@ export class CloudSyncEngine {
           if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
           this.app.renderPresenceCursors();
         }
+      }
+    } catch (e) {}
+  }
+
+  // 🚪 离线即时退出心跳：离开任务大厅或登出时瞬间清除在线状态
+  sendPresenceLeave(userObj = null) {
+    const currentUser = userObj || (this.app.authManager ? this.app.authManager.getCurrentUser() : null);
+    if (!currentUser) return;
+    const userKey = String(currentUser.id || '').trim();
+    if (!userKey) return;
+    const effectiveClassId = this.effectiveClassId || currentUser.classId || null;
+    const taskId = this.taskId || (this.app.state ? this.app.state.activeTaskId : null);
+    const groupId = this.groupId || this.getEffectiveGroupId();
+    if (!taskId || !groupId) return;
+
+    if (this.app.state.presence) {
+      delete this.app.state.presence[userKey];
+      if (currentUser.name) delete this.app.state.presence[currentUser.name];
+    }
+    if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
+    if (typeof this.app.renderPresenceCursors === 'function') this.app.renderPresenceCursors();
+
+    try {
+      const url = `sync.php?action=presence_leave&taskId=${encodeURIComponent(taskId)}&groupId=${encodeURIComponent(groupId)}&classId=${encodeURIComponent(effectiveClassId)}`;
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(url, JSON.stringify({ userId: userKey }));
+      } else {
+        fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: userKey }),
+          keepalive: true
+        }).catch(() => {});
       }
     } catch (e) {}
   }
@@ -373,10 +417,20 @@ export class CloudSyncEngine {
 
   async pullFromServer() {
     if (this.isPulling || this.isLoggingOut) return;
+    const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
+    const isTeacher = currentUser && (currentUser.isTeacher || currentUser.role === 'teacher');
+    const isStudent = currentUser && (currentUser.role === 'student' || currentUser.isStudent);
+    if (isStudent && (this.app.state.studentViewMode !== 'workspace' || !this.app.state.activeTaskId)) {
+      return; // 学生在大厅/登录页时，不拉取任何具体任务工作台的协同快照
+    }
     this.isPulling = true;
     this.updateScopeKeys();
 
-    const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
+    if (!this.taskId || !this.groupId) {
+      this.isPulling = false;
+      return;
+    }
+
     const userKey = currentUser ? currentUser.id : '';
     const sessToken = currentUser ? (currentUser.activeSessionId || currentUser.token || currentUser.sessionToken || '') : '';
     const lastRev = this._lastKnownRevisionId || 0;
@@ -388,7 +442,8 @@ export class CloudSyncEngine {
       for (const endpoint of this.syncEndpoints) {
         try {
           const sep = endpoint.includes('?') ? '&' : '?';
-          const url = `${endpoint}${sep}userId=${encodeURIComponent(userKey)}&sessToken=${encodeURIComponent(sessToken)}&lastRev=${lastRev}&lastChatMs=${lastChatMs}&metaVer=${metaVer}&incGlobal=${incGlobal}&nocache=${Date.now()}`;
+          const inWs = (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) ? 1 : 0;
+          const url = `${endpoint}${sep}userId=${encodeURIComponent(userKey)}&sessToken=${encodeURIComponent(sessToken)}&lastRev=${lastRev}&lastChatMs=${lastChatMs}&metaVer=${metaVer}&incGlobal=${incGlobal}&inWorkspace=${inWs}&nocache=${Date.now()}`;
           const res = await fetch(url, { cache: 'no-store' });
           if (res.ok) {
             const data = await res.json();
