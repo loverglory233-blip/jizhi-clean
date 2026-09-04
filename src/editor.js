@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2310";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2310";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2310";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2315";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2315";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2315";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1357,7 +1357,7 @@ function renderStage2Canvas(canvas, state, handlers) {
 
   const padName = `jizhi_${activeTaskId}_${userGroupId}`;
 
-  // 🚀 核心黑科技：同源 Etherpad iframe 内部 DOM 毫秒级直读函数
+  // 🚀 核心黑科技：同源 Etherpad iframe 内部 DOM 毫秒级直读函数与本地输入精准捕获
   const getEtherpadTextDirect = () => {
     try {
       const f = document.getElementById('stage2-etherpad-frame');
@@ -1368,6 +1368,17 @@ function renderStage2Canvas(canvas, state, handlers) {
           if (aceInner && aceInner.contentDocument) {
             const innerBody = aceInner.contentDocument.querySelector('.innerdocbody') || aceInner.contentDocument.body;
             if (innerBody) {
+              if (!innerBody._jizhiInputBound) {
+                innerBody._jizhiInputBound = true;
+                const markLocalTyping = () => {
+                  window._lastLocalPadInputTime = Date.now();
+                };
+                innerBody.addEventListener('input', markLocalTyping, true);
+                innerBody.addEventListener('keydown', markLocalTyping, true);
+                innerBody.addEventListener('keyup', markLocalTyping, true);
+                innerBody.addEventListener('paste', markLocalTyping, true);
+                innerBody.addEventListener('compositionend', markLocalTyping, true);
+              }
               return (innerBody.innerText || '').replace(/\r\n/g, '\n').trim();
             }
           }
@@ -1470,7 +1481,8 @@ function renderStage2Canvas(canvas, state, handlers) {
         const prevLen = state.stage2._prevKnownLen !== undefined ? state.stage2._prevKnownLen : 0;
         state.stage2._prevKnownLen = wordCount;
 
-        const delta = (wordCount > prevLen) ? (wordCount - prevLen) : ((wordCount > 0 && rawTotal === 0) ? wordCount : 0);
+        const isLocalUserTyping = !!(window._lastLocalPadInputTime && (Date.now() - window._lastLocalPadInputTime < 3500));
+        const delta = (wordCount > prevLen && isLocalUserTyping) ? (wordCount - prevLen) : 0;
         if (delta > 0) {
           const matchedMember = membersList.find(m => {
             if (!m) return false;
