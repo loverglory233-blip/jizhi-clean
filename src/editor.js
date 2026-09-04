@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2709";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2709";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2709";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2710";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2710";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2710";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2991,18 +2991,41 @@ export function renderChat(state) {
 
   const currentUser = state.currentUser;
   const allStages = ['stage1', 'stage2', 'stage3'];
+  const curStage = state.currentStage || 'stage1';
+  const stageOrder = { stage1: 1, stage2: 2, stage3: 3 };
+  const currentStageNum = stageOrder[curStage] || 1;
+  const maxReachedStageNum = stageOrder[state.groupMaxStage || curStage] || 1;
+  const activeDisplayStageNum = Math.max(currentStageNum, maxReachedStageNum);
 
-  // Collect all visible messages in order across all stages, auto-purging old legacy idle spam
+  // 🛡️ 智能体阶段物理归属铁律：每个智能体只能出现在属于它的阶段
+  const allowedAgentsByStage = {
+    stage1: new Set(['auctioneer']),
+    stage2: new Set(['managingEditor', 'reviewingEditor']),
+    stage3: new Set(['proponent', 'opponent', 'neutral'])
+  };
+
   const allMsgs = [];
   const seenMsgKeys = new Set();
+
   allStages.forEach(stg => {
+    // 仅收集当前已推进到达的阶段历史记录，绝不提前展示未来阶段消息
+    if ((stageOrder[stg] || 1) > activeDisplayStageNum) return;
+
     if (state.chatLogs && Array.isArray(state.chatLogs[stg])) {
       state.chatLogs[stg].forEach(msg => {
         if (!msg) return;
         const txt = msg.text || '';
         if (txt.includes('已连续') || txt.includes('互动督促') || txt.includes('秒未研讨') || txt.includes('秒没有发言')) return;
 
-        // 🛡️ 严格去重守护：依据唯一 msg.id 去重，100% 保护人类多次发送相同词汇（如连续发好/收到/同意）绝不误杀吞掉！
+        // 🛡️ 严格阶段隔离：若非属于该阶段的智能体消息，绝对予以过滤屏蔽
+        const sender = msg.sender;
+        if (['auctioneer', 'managingEditor', 'reviewingEditor', 'proponent', 'opponent', 'neutral'].includes(sender)) {
+          if (!allowedAgentsByStage[stg] || !allowedAgentsByStage[stg].has(sender)) {
+            return;
+          }
+        }
+
+        // 🛡️ 严格去重守护：依据唯一 msg.id 去重
         const idKey = msg.id ? `id_${msg.id}` : `fallback_${msg.sender}_${stg}_${msg._timeMs || msg.timestamp}`;
         if (seenMsgKeys.has(idKey)) {
           return;
