@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2676
+ * Version: 20260905_v2677
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2676';
+  const APP_VERSION = '20260905_v2677';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4942,6 +4942,7 @@
       }
 
       const user = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
+      const isTeacher = user && (user.isTeacher || user.role === 'teacher');
       const myGroupId = this.getEffectiveGroupId();
 
       if (remoteData.groupId && remoteData.groupId !== myGroupId && user?.role === 'student') return;
@@ -5822,8 +5823,9 @@
         (document.getElementById('canvas-panel')?.contains(activeEl) || document.querySelector('.contract-card')?.contains(activeEl) || document.querySelector('.matrix-workspace-container')?.contains(activeEl))
       ) || window._isGlobalComposing;
 
+      const isFirstPull = !this._hasRenderedInitialWorkspace;
       if (!isTypingInWorkspace) {
-        if (needWorkspaceRender && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+        if ((isFirstPull || needWorkspaceRender) && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
           this._hasRenderedInitialWorkspace = true;
           this.app.renderStudentWorkspace();
         }
