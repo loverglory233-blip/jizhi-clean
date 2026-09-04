@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2213
+ * Version: 20260904_v2214
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2213';
+  const APP_VERSION = '20260904_v2214';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12255,56 +12255,8 @@
         actionBar.innerHTML = '';
       }
     } else if (curStage === 'stage2') {
-      if (s2.meetingStep === 'completed' || hasFinalChecklistSummary || hasFinalReviewInLogs) {
-        actionBar.style.display = 'none';
-        actionBar.innerHTML = '';
-      } else {
-        actionBar.style.display = 'block';
-        const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-        const currentTask = allTasks.find(t => t.id === state.activeTaskId);
-        const taskGenreKey = currentTask?.taskType || 'experiment';
-        const isInst = (taskGenreKey === 'instructional');
-        const managingTitle = isInst ? '备课组长' : '责任编辑';
-        const reviewingTitle = isInst ? '教研专家' : '审稿编辑';
-        const meetingName = isInst ? '磨课会议' : '编辑会议';
-
-        if (!isS2MeetingDone) {
-          actionBar.innerHTML = `
-            <button id="btn-s2-locked-notice" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
-              🔒 请先全员参与【${meetingName}】打卡 (${s2SubCount}/${totalCount} 人已打卡)
-            </button>
-          `;
-          actionBar.querySelector('#btn-s2-locked-notice')?.addEventListener('click', () => {
-            alert(`🔒 请先在正文上方点击【📢 参与【${meetingName}】】完成半程自查打卡！\n\n当前打卡进度：${s2SubCount}/${totalCount} 人。\n全员打卡完成后，${managingTitle}将主持会议，届时方可点击总结。`);
-          });
-        } else if (!s2.meetingStep || s2.meetingStep === 'discussing_divergence' || s2.meetingStep === 'initial' || s2.meetingStep === 'discussing_agreement') {
-          const count = isDoneHelper(confs.s2_managing);
-          const isMe = isMyDoneHelper(confs.s2_managing);
-          actionBar.innerHTML = `
-            <button id="btn-s2-managing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
-              ${isMe ? `✅ 您已确认总结共识 (${count}/${totalCount} 等待组员)` : `🤝 讨论差不多了？让${managingTitle}总结 (${count}/${totalCount})`}
-            </button>
-          `;
-          actionBar.querySelector('#btn-s2-managing-summary')?.addEventListener('click', () => {
-            if (window.app && typeof window.app.handleS2ManagingSummary === 'function') {
-              window.app.handleS2ManagingSummary();
-            }
-          });
-        } else if (s2.meetingStep === 'discussing_checklist') {
-          const count = isDoneHelper(confs.s2_reviewing);
-          const isMe = isMyDoneHelper(confs.s2_reviewing);
-          actionBar.innerHTML = `
-            <button id="btn-s2-reviewing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #059669, #047857)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(5,150,105,0.25); transition:all 0.2s;">
-              ${isMe ? `✅ 您已确认总结清单 (${count}/${totalCount} 等待组员)` : `📝 讨论差不多了？让${reviewingTitle}总结 (${count}/${totalCount})`}
-            </button>
-          `;
-          actionBar.querySelector('#btn-s2-reviewing-summary')?.addEventListener('click', () => {
-            if (window.app && typeof window.app.handleS2ReviewingSummary === 'function') {
-              window.app.handleS2ReviewingSummary();
-            }
-          });
-        }
-      }
+      actionBar.style.display = 'none';
+      actionBar.innerHTML = '';
     } else if (curStage === 'stage3') {
       const s3 = state.stage3 || {};
       const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
@@ -13041,60 +12993,7 @@
               const rawContent = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent : '';
               this.checkAgentTriggersOnContent(rawContent);
 
-              // ① 阶段二：二审研讨共识确认催促（自第一位成员确认起满 3 分钟）
-              const s2ManMap = s2.confirmations?.s2_managing || {};
-              const s2ManCount = membersList.filter(m => isMemberDone(s2ManMap, m)).length;
-              const s2UnmanMembers = membersList.filter(m => !isMemberDone(s2ManMap, m));
-              if (s2ManCount > 0 && !this.state._firstS2ManTimeMs) {
-                this.state._firstS2ManTimeMs = s2._firstManagingSummaryTimeMs || nowMs;
-              }
-              const firstS2ManTime = this.state._firstS2ManTimeMs || s2._firstManagingSummaryTimeMs || nowMs;
-              const timeSinceFirstS2Man = nowMs - firstS2ManTime;
-              if (!this.state.s2_manNudgeSent && s2ManCount > 0 && s2UnmanMembers.length > 0 && s2ManCount < membersList.length && timeSinceFirstS2Man >= 180000) {
-                this.state.s2_manNudgeSent = true;
-                const s2UnmanNames = s2UnmanMembers.map(m => m.name || m.id).join('、');
-                const taskType = this.getCurrentTaskType();
-                const isInst = (taskType === 'instructional');
-                const managingName = isInst ? '备课组长' : '责任编辑';
-                const msgS2ManNudge = {
-                  sender: 'managingEditor',
-                  senderName: `协同调度 · ${managingName}`,
-                  text: `🤝 【${managingName}·研讨共识确认提示】：组内已有同学确认提炼二审研讨共识，目前确认进度为【${s2ManCount}/${membersList.length} 人】，看到 ${s2UnmanNames} 同学尚未确认。请尽快在讨论区底部点击【🤝 确认提炼共识】，全员确认后将由审稿专家下发《二审修正清单》！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: nowMs
-                };
-                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-                this.state.chatLogs.stage2.push(msgS2ManNudge);
-                this.syncChatLogs();
-                renderChat(this.state);
-              }
-
-              // ② 阶段二：二审审稿指导确认催促（自第一位成员确认起满 3 分钟）
-              const s2RevMap = s2.confirmations?.s2_reviewing || {};
-              const s2RevCount = membersList.filter(m => isMemberDone(s2RevMap, m)).length;
-              const s2UnrevMembers = membersList.filter(m => !isMemberDone(s2RevMap, m));
-              if (s2RevCount > 0 && !this.state._firstS2RevTimeMs) {
-                this.state._firstS2RevTimeMs = s2._firstReviewingSummaryTimeMs || nowMs;
-              }
-              const firstS2RevTime = this.state._firstS2RevTimeMs || s2._firstReviewingSummaryTimeMs || nowMs;
-              const timeSinceFirstS2Rev = nowMs - firstS2RevTime;
-              if (!this.state.s2_revNudgeSent && s2RevCount > 0 && s2UnrevMembers.length > 0 && s2RevCount < membersList.length && timeSinceFirstS2Rev >= 180000) {
-                this.state.s2_revNudgeSent = true;
-                const s2UnrevNames = s2UnrevMembers.map(m => m.name || m.id).join('、');
-                const msgS2RevNudge = {
-                  sender: 'reviewingEditor',
-                  senderName: '审稿专家 · 质量把关',
-                  text: `📝 【审稿专家·二审指导确认提示】：组内已有同学确认审稿修改指导，目前确认进度为【${s2RevCount}/${membersList.length} 人】，看到 ${s2UnrevNames} 同学尚未确认。请尽快在讨论区底部点击【📝 确认指导】，全员确认后即可对齐清单继续完善正文！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: nowMs
-                };
-                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-                this.state.chatLogs.stage2.push(msgS2RevNudge);
-                this.syncChatLogs();
-                renderChat(this.state);
-              }
-
-              // ③ 初稿签署确认催促（自第一位成员确认签署初稿起满 3 分钟，仍有同学未确认）
+              // 初稿签署确认催促（自第一位成员确认签署初稿起满 3 分钟，仍有同学未确认）
               const s2 = this.state.stage2 || {};
               const s2ConfMap = s2.confirmedMembers || {};
               const s2ConfCount = membersList.filter(m => isMemberDone(s2ConfMap, m)).length;
