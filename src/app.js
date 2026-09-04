@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2651";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2651";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2651";
-import { AuthManager } from "./auth.js?v=20260905_v2651";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2651";
-import { renderLoginView } from "./login.js?v=20260905_v2651";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2651";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2651";
+} from "./constants.js?v=20260905_v2652";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2652";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2652";
+import { AuthManager } from "./auth.js?v=20260905_v2652";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2652";
+import { renderLoginView } from "./login.js?v=20260905_v2652";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2652";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2652";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2651";
+} from "./editor.js?v=20260905_v2652";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -136,10 +136,14 @@ export class App {
           if (e.data.type === 'task_deleted') {
             const delTaskId = e.data.taskId;
             const delTaskTitle = e.data.title || '写作任务';
-            // 若学生刚好在被删除的任务工作台中
+            // 1) 若学生刚好在被删除的任务工作台中：全屏模态弹窗强阻断，引导安全返回大厅
             if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId === delTaskId) {
               this.showTaskRevokedModal(delTaskTitle);
+            } else if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId !== delTaskId) {
+              // 2) 若学生在另一个任务工作台中：弹出轻量顶部横幅提醒，当前写作空间不被强退打断
+              showGlobalBannerNotice('🗑️ 任务变更提醒', `任课教师已从系统移除班级另一项写作任务《${escapeHtml(delTaskTitle)}》。`, 'info', 6000);
             } else if (this.state.studentViewMode === 'task_list') {
+              // 3) 若学生在任务大厅中：即时刷新大厅任务卡片列表
               this.renderMain();
             }
           }

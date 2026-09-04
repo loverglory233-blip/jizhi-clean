@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2651
+ * Version: 20260905_v2652
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2651';
+  const APP_VERSION = '20260905_v2652';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13824,10 +13824,14 @@
             if (e.data.type === 'task_deleted') {
               const delTaskId = e.data.taskId;
               const delTaskTitle = e.data.title || '写作任务';
-              // 若学生刚好在被删除的任务工作台中
+              // 1) 若学生刚好在被删除的任务工作台中：全屏模态弹窗强阻断，引导安全返回大厅
               if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId === delTaskId) {
                 this.showTaskRevokedModal(delTaskTitle);
+              } else if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId !== delTaskId) {
+                // 2) 若学生在另一个任务工作台中：弹出轻量顶部横幅提醒，当前写作空间不被强退打断
+                showGlobalBannerNotice('🗑️ 任务变更提醒', `任课教师已从系统移除班级另一项写作任务《${escapeHtml(delTaskTitle)}》。`, 'info', 6000);
               } else if (this.state.studentViewMode === 'task_list') {
+                // 3) 若学生在任务大厅中：即时刷新大厅任务卡片列表
                 this.renderMain();
               }
             }
