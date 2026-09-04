@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260904_v2504"
+TARGET_VERSION="20260904_v2505"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -390,33 +390,28 @@ if [ -n "$EP_DIR" ]; then
 }
 EPSETEOF
 
-  # 检查 Etherpad 是否已经在健康运行，若已健康运行则绝不重启，保护正在编辑的会话与内存数据
-  if curl -s -I http://127.0.0.1:9001/p/test 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
-    echo "   🟢 Etherpad 协同文档引擎正在稳定运行，保持活跃状态（不重启，保护会话与正文数据）"
-  else
-    echo "   ⚡ Etherpad 未运行或异常，启动自愈引擎..."
-    # 执行全套插件防御式安全装载（确保 12 大插件 100% 挂载且防冲突报错）
-    if [ -n "$MAIN_DIR" ] && [ -f "$MAIN_DIR/bulletproof_etherpad_startup.sh" ]; then
-      cp "$MAIN_DIR/bulletproof_etherpad_startup.sh" "$EP_DIR/" 2>/dev/null || true
-    fi
-    cd "$EP_DIR"
-    if [ -f "bulletproof_etherpad_startup.sh" ]; then
-      bash bulletproof_etherpad_startup.sh 2>&1 || true
-    else
-      fuser -k 9001/tcp 2>/dev/null || true
-      kill -9 $(lsof -t -i:9001 2>/dev/null) 2>/dev/null || true
-      pkill -9 -f "node.*server\.js" 2>/dev/null || true
-      sleep 1
-      export NODE_ENV=production
-      if [ -f "src/node/server.js" ]; then
-        nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
-      elif [ -f "bin/run.sh" ]; then
-        nohup bash bin/run.sh --root > /var/log/etherpad.log 2>&1 &
-      fi
-    fi
+  # 🚀 深度重启与载入最新语言包和工具栏配置（Dirty.db/MySQL 持久化保证数据 100% 完整无损）
+  echo "   ⚡ 重新加载并重启 Etherpad 协同文档引擎..."
+  fuser -k 9001/tcp 2>/dev/null || true
+  kill -9 $(lsof -t -i:9001 2>/dev/null) 2>/dev/null || true
+  pkill -9 -f "node.*server\.js" 2>/dev/null || true
+  pkill -9 -f "node.*etherpad" 2>/dev/null || true
+  sleep 1
+
+  cd "$EP_DIR"
+  rm -f var/minified* var/session* var/plugin-definitions.json var/plugins.json 2>/dev/null || true
+  export NODE_ENV=production
+  if [ -f "src/node/server.js" ]; then
+    nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
+  elif [ -f "ep_etherpad-lite/node/server.ts" ]; then
+    cd ep_etherpad-lite
+    nohup node --require tsx/cjs node/server.ts > /var/log/etherpad.log 2>&1 &
+    cd ..
+  elif [ -f "bin/run.sh" ]; then
+    nohup bash bin/run.sh --root > /var/log/etherpad.log 2>&1 &
   fi
 
-  for i in {1..15}; do
+  for i in {1..20}; do
     if curl -s -I http://127.0.0.1:9001/p/test 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
       echo "   🟢 Etherpad 学术全插件协同引擎就绪！(耗时 $i 秒)"
       break

@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2504
+ * Version: 20260904_v2505
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2504';
+  const APP_VERSION = '20260904_v2505';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1095,7 +1095,7 @@
    * 彻底消除 Etherpad 默认未同步真实姓名导致显示为“组员/学术组员”的问题
    */
   function ensureEtherpadUserSync(iframe, userName, userColor) {
-    if (!iframe || !userName) return;
+    if (!iframe) return;
     const color = userColor || '#2563eb';
 
     const doSync = () => {
@@ -1106,12 +1106,83 @@
         // 1. 设置 iframe 内 cookie name
         try {
           if (padWin.document) {
-            padWin.document.cookie = `name=${encodeURIComponent(userName)}; path=/; max-age=86400`;
+            if (userName) {
+              padWin.document.cookie = `name=${encodeURIComponent(userName)}; path=/; max-age=86400`;
+            }
+
+            // 🛡️ 注入强力工具栏与布局保护 CSS，根治 Etherpad 渲染时工具栏被遮盖或隐藏
+            const doc = padWin.document;
+            let guardStyle = doc.getElementById('jizhi-etherpad-guard-style');
+            if (!guardStyle) {
+              guardStyle = doc.createElement('style');
+              guardStyle.id = 'jizhi-etherpad-guard-style';
+              guardStyle.textContent = `
+                #editbar, .toolbar, #menu_left, #menu_right, .menu_left, .menu_right {
+                  display: flex !important;
+                  visibility: visible !important;
+                  opacity: 1 !important;
+                  position: relative !important;
+                  z-index: 9999 !important;
+                  min-height: 34px !important;
+                  height: auto !important;
+                  overflow: visible !important;
+                }
+                #editbar ul, .menu_left ul, .menu_right ul {
+                  display: flex !important;
+                  visibility: visible !important;
+                  opacity: 1 !important;
+                  flex-wrap: wrap !important;
+                }
+                #editbar li, .menu_left li, .menu_right li, .toolbar li {
+                  display: inline-flex !important;
+                  visibility: visible !important;
+                  opacity: 1 !important;
+                }
+                #editorcontainerbox {
+                  top: 36px !important;
+                  position: absolute !important;
+                  bottom: 0px !important;
+                  left: 0px !important;
+                  right: 0px !important;
+                }
+              `;
+              (doc.head || doc.documentElement).appendChild(guardStyle);
+            }
           }
         } catch(e) {}
 
-        // 2. 注入 clientVars
-        if (padWin.clientVars) {
+        // 2. 注入前端多语言兜底补丁（防止缺失翻译键中断 pad.init 初始化）
+        try {
+          const fallbackMap = {
+            'ep_font_size.size': '字号大小',
+            'ep_font_family.family': '字体',
+            'ep_font_family.font': '字体',
+            'ep_headings.style': '正文/标题',
+            'ep_font_color.color': '文字颜色',
+            'ep_line_spacing.spacing': '行间距',
+            'pad.settings.fadeInactiveAuthorColors': '淡化非活跃作者颜色',
+            'ep_cursortrace.settings.showRemoteCarets': '显示协作光标',
+            'pad.deletionToken.deleteWithToken': '安全删除',
+            'pad.deletionToken.tokenFieldLabel': '验证码',
+            'pad.deletionToken.modalTitle': '确认操作',
+            'pad.deletionToken.modalBody': '请输入验证码',
+            'pad.deletionToken.tokenValueLabel': '验证码'
+          };
+          if (padWin.html10n && !padWin.html10n._hasJizhiPatch) {
+            padWin.html10n._hasJizhiPatch = true;
+            const origGet = padWin.html10n.get;
+            padWin.html10n.get = function(id, args, fallback) {
+              try {
+                const res = origGet ? origGet.apply(this, arguments) : null;
+                if (res) return res;
+              } catch(e) {}
+              return fallbackMap[id] || fallback || id;
+            };
+          }
+        } catch(e) {}
+
+        // 3. 注入 clientVars
+        if (userName && padWin.clientVars) {
           padWin.clientVars.userName = userName;
           padWin.clientVars.userColor = color;
           const uId = padWin.clientVars.userId || (padWin.pad && padWin.pad.getUserId && padWin.pad.getUserId());
@@ -1123,8 +1194,8 @@
           }
         }
 
-        // 3. 安全注入 pad.myUserInfo
-        if (padWin.pad && padWin.pad.myUserInfo) {
+        // 4. 安全注入 pad.myUserInfo
+        if (userName && padWin.pad && padWin.pad.myUserInfo) {
           padWin.pad.myUserInfo.name = userName;
           padWin.pad.myUserInfo.colorId = color;
         }
@@ -1133,7 +1204,9 @@
 
     iframe.addEventListener('load', () => {
       doSync();
-      setTimeout(doSync, 500);
+      setTimeout(doSync, 200);
+      setTimeout(doSync, 800);
+      setTimeout(doSync, 2000);
     });
     doSync();
   }
@@ -11198,19 +11271,8 @@
           if (s2f) {
             if (s2f._isReadonlyEnforced) {
               liftEtherpadReadonly(s2f);
-            } else {
-              try {
-                const doc = s2f.contentDocument;
-                if (doc) {
-                  const editbar = doc.querySelector('#editbar') || doc.querySelector('.toolbar') || doc.querySelector('#toolbar');
-                  if (editbar && (editbar.style.display === 'none' || editbar.style.visibility === 'hidden')) {
-                    editbar.style.removeProperty('display');
-                    editbar.style.removeProperty('visibility');
-                    editbar.style.removeProperty('opacity');
-                  }
-                }
-              } catch(e) {}
             }
+            ensureEtherpadUserSync(s2f, currUserName, currUserColor);
           }
         }
       } catch (e) {}
