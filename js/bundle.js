@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2692
+ * Version: 20260905_v2693
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2692';
+  const APP_VERSION = '20260905_v2693';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -15674,7 +15674,7 @@
           }
         }
         if (stage === 'stage1') {
-          // 阶段一所有的破冰、集齐提示与公约流转已由统一状态机与单次互锁时钟管辖，此处无需冗余轮询
+          this.checkAndTriggerAllProposalsGathered();
           return;
         }
 
@@ -17247,9 +17247,9 @@
 
       if (!allPropsHaveEvaluation) return false;
 
-      // 3. 检查是否已经发送过全员集齐提醒
+      // 3. 检查是否已经发送过全员集齐提醒（以实际聊天记录中是否已存在为准）
       const hasGatheredMsg = s1Logs.some(m => m && (m.text || '').includes('提案集齐与协同研讨'));
-      if (hasGatheredMsg || s1._allProposalsPrompted || this.state.s1_allPropsGatheredSent) {
+      if (hasGatheredMsg) {
         s1._allProposalsPrompted = true;
         this.state.s1_allPropsGatheredSent = true;
         return true;
