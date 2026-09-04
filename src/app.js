@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2655";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2655";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2655";
-import { AuthManager } from "./auth.js?v=20260905_v2655";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2655";
-import { renderLoginView } from "./login.js?v=20260905_v2655";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2655";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2655";
+} from "./constants.js?v=20260905_v2656";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2656";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2656";
+import { AuthManager } from "./auth.js?v=20260905_v2656";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2656";
+import { renderLoginView } from "./login.js?v=20260905_v2656";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2656";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2656";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2655";
+} from "./editor.js?v=20260905_v2656";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2339,13 +2339,15 @@ export class App {
 
   handleLogout() { 
     const user = this.authManager.getCurrentUser();
+    if (this.cloudSyncEngine) {
+      this.cloudSyncEngine.sendPresenceLeave(user);
+    }
     if (user) {
       const uCode = user.id;
       if (this.state.presence) {
         if (uCode) delete this.state.presence[uCode];
         if (user.studentCode) delete this.state.presence[user.studentCode];
       }
-      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
     }
     this.authManager.logout(); 
     this.state.studentViewMode = 'task_list';
@@ -2355,6 +2357,11 @@ export class App {
   }
 
   backToTaskList() {
+    const user = this.authManager ? this.authManager.getCurrentUser() : null;
+    if (this.cloudSyncEngine) {
+      this.cloudSyncEngine.sendPresenceLeave(user);
+      this.cloudSyncEngine.stopPolling();
+    }
     this.state.studentViewMode = 'task_list';
     this.state.activeTaskId = null;
     this.state.activeTaskTitle = null;
@@ -2362,13 +2369,17 @@ export class App {
     sessionStorage.removeItem('jizhi_active_task_id');
     localStorage.setItem('jizhi_student_view_mode', 'task_list');
     localStorage.removeItem('jizhi_active_task_id');
-    if (this.cloudSyncEngine) this.cloudSyncEngine.stopPolling();
     this.renderMain();
   }
 
   showTaskRevokedModal(taskTitle = '写作任务') {
     // 🛡️ 立即锁定撤销状态，并把全局状态直接切回任务大厅模式，终止工作台同步
     this._isHandlingTaskRevoked = true;
+    const user = this.authManager ? this.authManager.getCurrentUser() : null;
+    if (this.cloudSyncEngine) {
+      this.cloudSyncEngine.sendPresenceLeave(user);
+      this.cloudSyncEngine.stopPolling();
+    }
     this.state.studentViewMode = 'task_list';
     this.state.activeTaskId = null;
     this.state.activeTaskTitle = null;
@@ -2376,7 +2387,6 @@ export class App {
     sessionStorage.removeItem('jizhi_active_task_id');
     localStorage.setItem('jizhi_student_view_mode', 'task_list');
     localStorage.removeItem('jizhi_active_task_id');
-    if (this.cloudSyncEngine) this.cloudSyncEngine.stopPolling();
 
     // 立即切回大厅底层视图
     this.renderMain();

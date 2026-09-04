@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2655";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2655";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2655";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2656";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2656";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2656";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2880,20 +2880,6 @@ export function renderChat(state) {
     const myCode = currUser?.id || state.currentUser || '';
     const nowMs = Date.now();
 
-    // 收集近期 180 秒内发言或操作的所有成员
-    const recentSpeakers = new Set();
-    const visibleStages = ['stage1', 'stage2', 'stage3'];
-    visibleStages.forEach(stg => {
-      if (state.chatLogs && state.chatLogs[stg]) {
-        state.chatLogs[stg].slice(-25).forEach(msg => {
-          if (msg._timeMs && (nowMs - msg._timeMs < 180000)) {
-            if (msg.sender) recentSpeakers.add(msg.sender);
-            if (msg.senderName) recentSpeakers.add(msg.senderName);
-          }
-        });
-      }
-    });
-
     let memberList = [];
     if (Array.isArray(state.members)) memberList = state.members;
     else if (state.members && typeof state.members === 'object') memberList = Object.values(state.members);
@@ -2924,17 +2910,9 @@ export function renderChat(state) {
       if (!isOnline) {
         for (const k of candidateKeys) {
           const p = presence[k];
-          if (p) {
+          if (p && !p.offline) {
             const pTime = Number(p.lastSeen || p.updatedAt || p.timestamp || 0);
-            if (pTime > 0 && (nowMs - pTime <= 180000)) {
-              isOnline = true;
-              break;
-            }
-          }
-        }
-        if (!isOnline) {
-          for (const k of candidateKeys) {
-            if (recentSpeakers.has(k)) {
+            if (pTime > 0 && (nowMs - pTime <= 25000)) {
               isOnline = true;
               break;
             }
