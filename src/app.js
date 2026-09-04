@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2690";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2690";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2690";
-import { AuthManager } from "./auth.js?v=20260905_v2690";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2690";
-import { renderLoginView } from "./login.js?v=20260905_v2690";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2690";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2690";
+} from "./constants.js?v=20260905_v2691";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2691";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2691";
+import { AuthManager } from "./auth.js?v=20260905_v2691";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2691";
+import { renderLoginView } from "./login.js?v=20260905_v2691";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2691";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2691";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2690";
+} from "./editor.js?v=20260905_v2691";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -818,30 +818,8 @@ export class App {
               renderChat(this.state);
             }
 
-            // ③ 提案全齐且尚未投票：提示先交流 1~2 分钟再投票
-            const s1Logs = this.state.chatLogs?.stage1 || [];
-            const hasGatheredNudge = s1Logs.some(m => m && (m.text || '').includes('提案集齐与协同研讨'));
-            const effMembersCount = membersList.length || (this.state.members ? Object.keys(this.state.members).length : 2);
-            if (!this.state.s1_allPropsGatheredSent && !hasGatheredNudge && propCount >= effMembersCount && propCount > 0) {
-              this.state.s1_allPropsGatheredSent = true;
-              this.state._propsGatheredTimeMs = nowMs;
-              const msgPropsAll = {
-                id: 'all_prop_' + nowMs,
-                sender: 'auctioneer',
-                senderName: '头脑风暴 · 学术拍卖师',
-                text: `🎪 【学术拍卖师·提案集齐与协同研讨】：太棒了！全组成员的提案均已悉数亮相！请大家先在讨论区围绕各自提案的创新亮点与互补性展开 1~2 分钟的协同交流，深入了解彼此设想，随后点击左侧卡片投出关键的一票！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: nowMs
-              };
-              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-              this.state.chatLogs.stage1.push(msgPropsAll);
-              if (typeof this.sendSingleChatMessage === 'function') {
-                this.sendSingleChatMessage(msgPropsAll, 'stage1');
-              }
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-            }
+            // ③ 提案全齐且每篇速评均已生成：提示先交流 1~2 分钟再投票
+            this.checkAndTriggerAllProposalsGathered();
 
             // ④ 投票催促：自第一位成员投票起满 3 分钟，仍有同学未投票（点名未投票同学）
             const totalVotesCast = membersList.filter(m => isMemberDone(s1.hasVoted, m)).length;
@@ -2948,34 +2926,8 @@ export class App {
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
 
-      // 🛡️ 检查是否全员提案已集齐，若是则唤起协同研讨提示
-      const s1 = this.state.stage1 || {};
-      const currentProps = s1.proposals || [];
-      const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
-      const totalMembersCount = membersList.length || 2;
-      const curS1Logs = this.state.chatLogs?.stage1 || [];
-      const hasGatheredMsg = curS1Logs.some(m => m && (m.text || '').includes('提案集齐与协同研讨'));
-
-      if (currentProps.length >= totalMembersCount && currentProps.length > 0 && !hasGatheredMsg && !s1._allProposalsPrompted && !this.state.s1_allPropsGatheredSent) {
-        s1._allProposalsPrompted = true;
-        this.state.s1_allPropsGatheredSent = true;
-        this.state._propsGatheredTimeMs = Date.now();
-        const allCollectedMsg = {
-          id: 'all_prop_' + Date.now(),
-          sender: 'auctioneer',
-          senderName: agentSenderName,
-          text: `🎪 【${agentRole}·提案集齐与协同研讨】：太棒了！全组成员的提案均已悉数亮相！请大家先在讨论区围绕各自提案的创新亮点与互补性展开 1~2 分钟的协同交流，深入了解彼此设想，随后点击左侧卡片投出关键的一票！`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now() + 100
-        };
-        this.state.chatLogs.stage1.push(allCollectedMsg);
-        if (typeof this.sendSingleChatMessage === 'function') {
-          this.sendSingleChatMessage(allCollectedMsg, 'stage1');
-        }
-        this.syncChatLogs();
-        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-        renderChat(this.state);
-      }
+      // 🛡️ 检查是否全员提案已集齐且每篇速评均已生成，若是则唤起协同研讨提示
+      this.checkAndTriggerAllProposalsGathered();
     } catch (e) {
       console.warn('handleProposalSubmittedAIFeedback error:', e);
       const safeTitle = normTitle.replace(/'/g, "\\'");
@@ -3007,6 +2959,80 @@ export class App {
       this.state.activeAgentAnalyzing = null;
       renderChat(this.state);
     }
+  }
+
+  /**
+   * 🎪 阶段一：检查全组成员提案是否已集齐且每篇提案均已生成有效智能体速评，若是则下发【提案集齐与协同研讨】
+   */
+  checkAndTriggerAllProposalsGathered() {
+    const s1 = this.state.stage1 || {};
+    const propList = s1.proposals || [];
+    if (propList.length === 0) return false;
+
+    // 1. 获取小组实际全员名单与人数
+    const groupId = this.state.groupId || this.state.activeGroupId;
+    const effClassId = this.state.activeStudentClassId || this.state.activeClassId || null;
+    const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(this.authManager.getCurrentUser(), effClassId) : null;
+    const groupMembers = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0)
+      ? effGroup.members
+      : ((this.getMemberList ? this.getMemberList(groupId) : []) || Object.values(this.state.members || {}));
+    const effMembersCount = groupMembers.length > 0 ? groupMembers.length : (Object.keys(this.state.members || {}).length || 2);
+
+    // 提案数量必须达到小组全员人数
+    if (propList.length < effMembersCount) return false;
+
+    // 2. 检查讨论区历史中是否已生成了针对每篇提案的有效智能体速评
+    const s1Logs = this.state.chatLogs?.stage1 || [];
+    const validEvalMsgs = s1Logs.filter(m => m && m.sender === 'auctioneer' && (m.text?.includes('提案评估') || m.text?.includes('选题速评') || m.text?.includes('提案速评')) && !m.text?.includes('网络提醒') && !m.isThinking);
+
+    // 每一篇提案必须能匹配到对应的有效速评，或有效速评总数已达到提案数
+    const allPropsHaveEvaluation = propList.every(p => {
+      const pTitle = String(p.title || '').trim();
+      const pAuthor = String(p.authorName || p.author || '').trim();
+      return validEvalMsgs.some(m => {
+        const text = m.text || '';
+        return (pTitle && text.includes(pTitle)) || (pAuthor && text.includes(pAuthor));
+      });
+    }) || (validEvalMsgs.length >= propList.length);
+
+    if (!allPropsHaveEvaluation) return false;
+
+    // 3. 检查是否已经发送过全员集齐提醒
+    const hasGatheredMsg = s1Logs.some(m => m && (m.text || '').includes('提案集齐与协同研讨'));
+    if (hasGatheredMsg || s1._allProposalsPrompted || this.state.s1_allPropsGatheredSent) {
+      s1._allProposalsPrompted = true;
+      this.state.s1_allPropsGatheredSent = true;
+      return true;
+    }
+
+    // 4. 触发集齐提醒
+    s1._allProposalsPrompted = true;
+    this.state.s1_allPropsGatheredSent = true;
+    this.state._propsGatheredTimeMs = Date.now();
+
+    const taskType = this.getCurrentTaskType();
+    const isInst = (taskType === 'instructional');
+    const agentRole = isInst ? '备课引导师' : '学术拍卖师';
+    const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
+
+    const allCollectedMsg = {
+      id: 'all_prop_' + Date.now(),
+      sender: 'auctioneer',
+      senderName: agentSenderName,
+      text: `🎪 【${agentRole}·提案集齐与协同研讨】：太棒了！全组成员的提案与专家速评均已悉数亮相！请大家先在讨论区围绕各自提案的创新亮点与互补性展开 1~2 分钟的协同交流，深入了解彼此设想，随后点击左侧卡片投出关键的一票！`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      _timeMs: Date.now() + 100
+    };
+
+    if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+    this.state.chatLogs.stage1.push(allCollectedMsg);
+    if (typeof this.sendSingleChatMessage === 'function') {
+      this.sendSingleChatMessage(allCollectedMsg, 'stage1');
+    }
+    this.syncChatLogs();
+    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+    renderChat(this.state);
+    return true;
   }
 
   handleVoteCast(proposalId) {
