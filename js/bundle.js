@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2455
+ * Version: 20260904_v2460
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2455';
+  const APP_VERSION = '20260904_v2460';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10661,7 +10661,6 @@
     const meetingSubs = s2.meetingSubmissions || {};
     const isStage2MeetingLocked = s2.isMeetingLocked || (Object.keys(meetingSubs).length >= actualTotalCount && actualTotalCount > 0);
     // 🛡️ 阶段二只读严格判定：任务截止过期、全组最终提交终稿、已推进到阶段三、或初稿全员确认完成时锁定为只读归档
-    const isTaskDeadlineExpired = isTaskExpired(currentTask);
     const isFinalSubmitted = !!state.isFinalSubmitted;
     const isEditorReadonly = isTaskDeadlineExpired || isFinalSubmitted || (state.currentStage === 'stage3') || isDraftFullyConfirmed;
     const livePadText = (typeof getEtherpadTextDirect === 'function') ? getEtherpadTextDirect() : null;
