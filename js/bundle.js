@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2703
+ * Version: 20260905_v2704
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2703';
+  const APP_VERSION = '20260905_v2704';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -7252,12 +7252,27 @@
                 </div>
               `;
             }
+            if (currentClassTasks.length === 0) {
+              return `
+                <div class="card" style="border:1.5px dashed #cbd5e1; background:#ffffff; border-radius:16px; padding:48px 24px; text-align:center; box-shadow:0 1px 3px rgba(15,23,42,0.02);">
+                  <div style="width:60px; height:60px; border-radius:50%; background:#eff6ff; color:#2563eb; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:30px; box-shadow:0 4px 12px rgba(37,99,235,0.15);">📝</div>
+                  <h3 style="margin:0 0 8px 0; font-size:18px; font-weight:800; color:#0f172a;">当前班级暂无已发布的写作任务</h3>
+                  <p style="font-size:13.5px; color:#64748b; margin:0 auto 20px; max-width:440px; line-height:1.65;">
+                    您尚未在当前班级（${escapeHtml(activeClass.name)}）发布任何写作任务（或历史任务已被删除）。<br/>
+                    请前往【📝 任务与教学资料】新建并发布任务，学生进入任务后即可在此开启全景实时监控！
+                  </p>
+                  <button class="teacher-action-btn" id="btn-goto-create-task-tab" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:9px 20px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
+                    📝 前往发布写作任务
+                  </button>
+                </div>
+              `;
+            }
             const monitorStageMode = state.teacherMonitorStageMode || 'auto';
             const actualStage = state.currentStage || 'stage1';
             const effectiveMonitorStage = monitorStageMode === 'auto' ? actualStage : monitorStageMode;
 
             const currentClassId = activeClass.id;
-            const activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : `task_${currentClassId}_default`);
+            const activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : null);
             const currentMonitorTaskId = activeTaskId;
             const monitorTaskObj = currentClassTasks.find(t => t.id === currentMonitorTaskId) || (currentClassTasks[0] || null);
             const isMonitorTaskExpired = isTaskExpired(monitorTaskObj);
@@ -8033,6 +8048,18 @@
         renderTeacherPortal(container, authManager, state, onLogout);
       });
     });
+
+    const btnGotoCreateTask = container.querySelector('#btn-goto-create-task-tab');
+    if (btnGotoCreateTask) {
+      btnGotoCreateTask.addEventListener('click', () => {
+        state.teacherClassTab = 'tasks_resources';
+        try {
+          sessionStorage.setItem('jizhi_teacher_ctab', 'tasks_resources');
+          localStorage.setItem('jizhi_teacher_ctab', 'tasks_resources');
+        } catch (e) {}
+        renderTeacherPortal(container, authManager, state, onLogout);
+      });
+    }
 
     container.querySelectorAll('.btn-enter-class, .btn-select-class').forEach(btn => {
       btn.addEventListener('click', () => {
