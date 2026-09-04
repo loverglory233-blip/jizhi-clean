@@ -781,7 +781,7 @@ export class App {
                 <div class="at-group-title">👥 小组成员 (${membersList.length}人)</div>
                 ${membersList.map(m => `
                   <div class="at-item" data-mention="@${m.name}">
-                    ${m.avatar || '👨‍🎓'} @${m.name} (${m.roleTitle || '组员'})
+                    ${m.avatar || '👨‍🎓'} @${m.name}
                   </div>
                 `).join('')}
                 <div class="at-group-title" style="margin-top:6px;">🤖 当前阶段 AI 智能体</div>
@@ -980,7 +980,7 @@ export class App {
         }
       }
 
-      // ⚡ 单点守护主节点动态选举：优先由组长担当；若组长缺勤/掉线，自动由当前在场学号最小的在线成员接管，杜绝单点失效与并发重复！
+      // ⚡ 单点守护主节点动态选举：由当前在场学号最小的在线成员接管，杜绝单点失效与并发重复！
       const myCode = currUserObj?.id || this.state.currentUser || 'A';
       const now = Date.now();
       const membersList = Object.values(this.state.members || {});
