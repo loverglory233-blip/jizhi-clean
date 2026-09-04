@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2224";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2224";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2224";
-import { AuthManager } from "./auth.js?v=20260904_v2224";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2224";
-import { renderLoginView } from "./login.js?v=20260904_v2224";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2224";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2224";
+} from "./constants.js?v=20260904_v2225";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2225";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2225";
+import { AuthManager } from "./auth.js?v=20260904_v2225";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2225";
+import { renderLoginView } from "./login.js?v=20260904_v2225";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2225";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2225";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2224";
+} from "./editor.js?v=20260904_v2225";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4884,18 +4884,26 @@ ${chatSnippet}
       const s1 = this.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
       const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
       const currentUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
-      const myKeys = new Set([...getUserAllKeys(currentUserObj), this.state.currentUser, currentUserObj?.id, currentUserObj?.id].filter(Boolean));
+      const myKeys = new Set(
+        [...getUserAllKeys(currentUserObj), this.state.currentUser, currentUserObj?.id]
+          .filter(k => k && k !== '我' && k !== '组员')
+          .map(k => String(k).trim().toLowerCase())
+      );
+      const isMyProposal = (p) => {
+        if (!p) return false;
+        const pKeys = [p.author, p.authorId, p.authorName]
+          .filter(k => k && k !== '我' && k !== '组员')
+          .map(k => String(k).trim().toLowerCase());
+        if (pKeys.length === 0) return false;
+        return pKeys.some(pk => myKeys.has(pk));
+      };
+
       const userVotedProposalId = s1.votes ? (getUserFromMap(s1.votes, currentUserObj) || s1.votes[this.state.currentUser]) : null;
       const userHasVoted = s1.hasVoted ? (isUserInMap(s1.hasVoted, currentUserObj) || s1.hasVoted[this.state.currentUser]) : false;
       const isContractLocked = s1.contract?.isConfirmed || this.state.isFinalSubmitted;
 
       const allUsers = this.authManager ? this.authManager.getUsers() : [];
-      const hasSubmittedMyProposal = (s1.proposals || []).some(p => {
-        if (!p) return false;
-        if (myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId)) return true;
-        if (currentUserObj && (isSameUser(p.author, currentUserObj) || isSameUser(p.authorName, currentUserObj) || (p.authorName && p.authorName === currentUserObj.name))) return true;
-        return false;
-      });
+      const hasSubmittedMyProposal = (s1.proposals || []).some(p => isMyProposal(p));
 
       const btnOpenProp = document.getElementById('btn-open-submit-proposal');
       if (btnOpenProp) {
@@ -4932,16 +4940,21 @@ ${chatSnippet}
                   if (isThisVoted) { btnText = '🔒 已投此提案'; btnClass = 'vote-btn active locked'; }
                   else { btnText = '🔒 投票已锁定'; btnClass = 'vote-btn disabled'; }
                 }
-                let authorName = (p.authorName && p.authorName !== '组员') ? p.authorName : null;
-                if (!authorName) {
-                  const authorUser = allUsers.find(u => isSameUser(u, p.author) || isSameUser(u, p.authorName) || u.id === p.author || u.name === p.author || u.name === p.authorName);
-                  if (authorUser && authorUser.name) authorName = authorUser.name;
+                let authorName = '';
+                if (p.authorName && p.authorName !== '我' && p.authorName !== '组员' && p.authorName !== p.author) {
+                  authorName = p.authorName;
                 }
                 if (!authorName) {
-                  const authorMem = membersList.find(m => isSameUser(m, p.author) || isSameUser(m, p.authorName) || m.id === p.author || m.name === p.author);
-                  if (authorMem && authorMem.name) authorName = authorMem.name;
+                  const authorUser = allUsers.find(u => u && (u.id === p.author || u.id === p.authorId || (u.name && u.name !== '我' && (u.name === p.author || u.name === p.authorName))));
+                  if (authorUser && authorUser.name && authorUser.name !== '我') authorName = authorUser.name;
                 }
-                if (!authorName) authorName = p.authorName || p.author || '组员';
+                if (!authorName) {
+                  const authorMem = membersList.find(m => m && (m.id === p.author || m.id === p.authorId || (m.name && m.name !== '我' && (m.name === p.author || m.name === p.authorName))));
+                  if (authorMem && authorMem.name && authorMem.name !== '我') authorName = authorMem.name;
+                }
+                if (!authorName) {
+                  authorName = (p.authorName && p.authorName !== '我' && p.authorName !== p.author) ? p.authorName : (p.author && p.author !== '我' ? p.author : '组员');
+                }
                 return `
                   <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column; position:relative;">
                     <div class="proposal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
