@@ -5552,13 +5552,13 @@ ${chatSnippet}
     const totalPlannedMin = (times.background || 25) + (times.literature || 30) + (times.questions || 25) + (times.method || 40) + (times.reflection || 20) + (times.references || 10);
     const totalTaskMinutes = (curTask && (curTask.durationMinutes || curTask.duration)) ? Number(curTask.durationMinutes || curTask.duration) : (totalPlannedMin > 0 ? (totalPlannedMin / 0.70) : 150);
     
-    // ⏱️ 严格三阶段基准比例：阶段一 10% | 阶段二 70% | 阶段三 20%
-    const s1BudgetMin = totalTaskMinutes * 0.10;
-    const s2BaseBudgetMin = totalTaskMinutes * 0.70;
+    // ⏱️ 严格三阶段基准比例：阶段一 ~15% (25分钟) | 阶段二 70% (105分钟) | 阶段三 ~15% (20分钟)
+    const s1BudgetMin = (totalTaskMinutes <= 150) ? 25 : (totalTaskMinutes * 0.15);
+    const s2BaseBudgetMin = (totalTaskMinutes <= 150) ? 105 : (totalTaskMinutes * 0.70);
     
-    // 计算阶段一实际耗时与时间转移
-    const s1StartTime = this.state.stage1StartTime || (this.state.stage1 && this.state.stage1.startTime) || (s2.startTime ? (s2.startTime - (s1BudgetMin * 60 * 1000)) : (now - 60000));
-    const s1EndTime = s2.startTime || (this.state.stage1 && this.state.stage1._confirmedTime) || now;
+    // 计算阶段一实际耗时与时间转移（阶段一提前结束，结余时间 70% 注入阶段二正文起草，30% 注入阶段三答辩）
+    const s1StartTime = this.state.timer?.startTimestamp || this.state.stage1StartTime || (this.state.stage1 && this.state.stage1.startTime) || (s2.startTime ? (s2.startTime - (s1BudgetMin * 60 * 1000)) : (now - 60000));
+    const s1EndTime = s2.startTime || s2.stageStartTime || this.stage2StartTime || (this.state.stage1 && this.state.stage1._confirmedTime) || now;
     const s1ActualMin = Math.max(0, (s1EndTime - s1StartTime) / 60000);
 
     let stage2BudgetMin = s2BaseBudgetMin;
