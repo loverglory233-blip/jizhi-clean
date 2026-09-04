@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2702';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice } from './utils.js?v=20260905_v2702';
+} from './constants.js?v=20260905_v2703';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice } from './utils.js?v=20260905_v2703';
 
 export class AuthManager {
   constructor() {
@@ -358,9 +358,11 @@ export class AuthManager {
             const mergedTasks = Array.from(taskMap.values());
             localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
 
-            // 🛡️ 核心守卫：仅当当前任务被教师明确删除时才弹窗通知并返回任务大厅
+            // 🛡️ 核心守卫：当前任务被教师删除时立即弹窗通知并安全返回任务大厅
             if (window.app && window.app.state && window.app.state.studentViewMode === 'workspace' && window.app.state.activeTaskId) {
-              if (deletedTaskIds.has(window.app.state.activeTaskId) && !window.app._isHandlingTaskRevoked) {
+              const activeTid = window.app.state.activeTaskId;
+              const isTaskStillAlive = taskMap.has(activeTid) && !deletedTaskIds.has(activeTid);
+              if (!isTaskStillAlive && !window.app._isHandlingTaskRevoked) {
                 window.app.showTaskRevokedModal(window.app.state.activeTaskTitle || '当前写作任务');
                 return;
               }

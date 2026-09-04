@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2702";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2702";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2702";
-import { AuthManager } from "./auth.js?v=20260905_v2702";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2702";
-import { renderLoginView } from "./login.js?v=20260905_v2702";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2702";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2702";
+} from "./constants.js?v=20260905_v2703";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2703";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2703";
+import { AuthManager } from "./auth.js?v=20260905_v2703";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2703";
+import { renderLoginView } from "./login.js?v=20260905_v2703";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2703";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2703";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2702";
+} from "./editor.js?v=20260905_v2703";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1105,14 +1105,16 @@ export class App {
         return;
       }
 
-      // 🛡️ 任务撤销守卫：仅当当前任务被明确加入删除黑名单时才弹窗拦截
+      // 🛡️ 任务撤销守卫：当前任务被教师删除时立即弹窗拦截引导返回大厅
       if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
         let deletedTaskIds = new Set();
         try {
           const delList = JSON.parse(localStorage.getItem('jizhi_deleted_task_ids')) || [];
           if (Array.isArray(delList)) deletedTaskIds = new Set(delList);
         } catch (e) {}
-        if (deletedTaskIds.has(this.state.activeTaskId) && !this._isHandlingTaskRevoked) {
+        const allTasks = this.authManager ? this.authManager.getTasks() : [];
+        const isTaskStillAlive = allTasks.some(t => t && t.id === this.state.activeTaskId) && !deletedTaskIds.has(this.state.activeTaskId);
+        if (!isTaskStillAlive && !this._isHandlingTaskRevoked) {
           this.showTaskRevokedModal(this.state.activeTaskTitle || '当前写作任务');
           return;
         }
