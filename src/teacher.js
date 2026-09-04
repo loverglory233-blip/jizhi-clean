@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260905_v2694";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260905_v2694";
+} from "./constants.js?v=20260905_v2695";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260905_v2695";
 
 /* ==========================================================================
    6.8 TEACHER MONITOR IN-PLACE INCREMENTAL UPDATER (PREVENT IFRAME THRASHING)

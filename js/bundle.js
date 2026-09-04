@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2694
+ * Version: 20260905_v2695
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2694';
+  const APP_VERSION = '20260905_v2695';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4318,6 +4318,9 @@
                 if (this.groupId && typeof this.app.saveGroupState === 'function') {
                   this.app.saveGroupState(this.groupId);
                 }
+                if (stg === 'stage1' && typeof this.app.checkAndTriggerAllProposalsGathered === 'function') {
+                  this.app.checkAndTriggerAllProposalsGathered();
+                }
                 if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
               }
             }
@@ -4824,6 +4827,9 @@
       if (hasUpdated) {
         if (this.groupId && typeof this.app.saveGroupState === 'function') {
           this.app.saveGroupState(this.groupId);
+        }
+        if ((this.app.state.currentStage === 'stage1' || !this.app.state.currentStage) && typeof this.app.checkAndTriggerAllProposalsGathered === 'function') {
+          this.app.checkAndTriggerAllProposalsGathered();
         }
         if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
         if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.app.state);
@@ -13763,6 +13769,10 @@
     const stream = document.getElementById('chat-stream');
     if (!stream) return;
 
+    if ((state.currentStage === 'stage1' || !state.currentStage) && window.app && typeof window.app.checkAndTriggerAllProposalsGathered === 'function' && !window.app._isTriggeringGathered) {
+      window.app.checkAndTriggerAllProposalsGathered();
+    }
+
     const currentUser = state.currentUser;
     const allStages = ['stage1', 'stage2', 'stage3'];
 
@@ -17215,35 +17225,51 @@
      * 🎪 阶段一：检查全组成员提案是否已集齐且每篇提案均已生成有效智能体速评，若是则下发【提案集齐与协同研讨】
      */
     checkAndTriggerAllProposalsGathered() {
+      if (this._isTriggeringGathered) return false;
       const s1 = this.state.stage1 || {};
       const propList = s1.proposals || [];
       if (propList.length === 0) return false;
 
       // 1. 获取小组实际全员名单与人数
-      const groupId = this.state.groupId || this.state.activeGroupId;
-      const effClassId = this.state.activeStudentClassId || this.state.activeClassId || null;
-      const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(this.authManager.getCurrentUser(), effClassId) : null;
-      const groupMembers = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0)
-        ? effGroup.members
-        : ((this.getMemberList ? this.getMemberList(groupId) : []) || Object.values(this.state.members || {}));
-      const effMembersCount = groupMembers.length > 0 ? groupMembers.length : (Object.keys(this.state.members || {}).length || 2);
+      let memberList = [];
+      if (Array.isArray(this.state.members)) memberList = this.state.members;
+      else if (this.state.members && typeof this.state.members === 'object') memberList = Object.values(this.state.members);
+      if (memberList.length === 0 && this.authManager) {
+        const u = this.authManager.getCurrentUser();
+        const effClassId = this.state.activeStudentClassId || u?.classId || null;
+        const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
+        const grpMap = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
+        memberList = Object.values(grpMap || {});
+      }
+      const effMembersCount = memberList.length > 0 ? memberList.length : 2;
 
-      // 提案数量必须达到小组全员人数
-      if (propList.length < effMembersCount) return false;
+      // 只要已提交提案数 >= 小组人数，或者已有提案数 >= 2
+      const distinctAuthors = new Set(propList.map(p => String(p.authorName || p.author || p.authorId || '').trim()).filter(Boolean));
+      const isPropsSufficient = (propList.length >= effMembersCount) || (propList.length >= 2 && distinctAuthors.size >= 2) || (propList.length >= 2);
+      if (!isPropsSufficient) return false;
 
       // 2. 检查讨论区历史中是否已生成了针对每篇提案的有效智能体速评
-      const s1Logs = this.state.chatLogs?.stage1 || [];
-      const validEvalMsgs = s1Logs.filter(m => m && m.sender === 'auctioneer' && (m.text?.includes('提案评估') || m.text?.includes('选题速评') || m.text?.includes('提案速评')) && !m.text?.includes('网络提醒') && !m.isThinking);
+      const s1Logs = (this.state.chatLogs && Array.isArray(this.state.chatLogs.stage1)) ? this.state.chatLogs.stage1 : (Array.isArray(this.state.chatLogs) ? this.state.chatLogs : Object.values(this.state.chatLogs || {}).flat());
+      const validEvalMsgs = s1Logs.filter(m => {
+        if (!m || typeof m !== 'object') return false;
+        const txt = String(m.text || '');
+        const sdr = String(m.sender || '');
+        const sdrName = String(m.senderName || '');
+        const isAuctioneerAgent = sdr === 'auctioneer' || sdr.startsWith('agent_') || sdrName.includes('拍卖师') || sdrName.includes('引导师') || txt.includes('【学术拍卖师') || txt.includes('【备课引导师') || txt.includes('【拍卖师');
+        const isEvalText = txt.includes('提案评估') || txt.includes('选题速评') || txt.includes('提案速评') || txt.includes('针对《') || txt.includes('提案亮点') || txt.includes('速评') || txt.includes('落槌与方案研讨');
+        const isErrOrThinking = m.isThinking || String(m.id || '').startsWith('thinking_') || txt.includes('网络提醒') || txt.includes('正在研读评估');
+        return isAuctioneerAgent && isEvalText && !isErrOrThinking;
+      });
 
       // 每一篇提案必须能匹配到对应的有效速评，或有效速评总数已达到提案数
-      const allPropsHaveEvaluation = propList.every(p => {
+      const allPropsHaveEvaluation = (validEvalMsgs.length >= propList.length) || (propList.length > 0 && propList.every(p => {
         const pTitle = String(p.title || '').trim();
         const pAuthor = String(p.authorName || p.author || '').trim();
         return validEvalMsgs.some(m => {
-          const text = m.text || '';
+          const text = String(m.text || '');
           return (pTitle && text.includes(pTitle)) || (pAuthor && text.includes(pAuthor));
         });
-      }) || (validEvalMsgs.length >= propList.length);
+      }));
 
       if (!allPropsHaveEvaluation) return false;
 
@@ -17256,33 +17282,42 @@
       }
 
       // 4. 触发集齐提醒
-      s1._allProposalsPrompted = true;
-      this.state.s1_allPropsGatheredSent = true;
-      this.state._propsGatheredTimeMs = Date.now();
+      this._isTriggeringGathered = true;
+      try {
+        s1._allProposalsPrompted = true;
+        this.state.s1_allPropsGatheredSent = true;
+        this.state._propsGatheredTimeMs = Date.now();
 
-      const taskType = this.getCurrentTaskType();
-      const isInst = (taskType === 'instructional');
-      const agentRole = isInst ? '备课引导师' : '学术拍卖师';
-      const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
+        const taskType = this.getCurrentTaskType();
+        const isInst = (taskType === 'instructional');
+        const agentRole = isInst ? '备课引导师' : '学术拍卖师';
+        const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
 
-      const allCollectedMsg = {
-        id: 'all_prop_' + Date.now(),
-        sender: 'auctioneer',
-        senderName: agentSenderName,
-        text: `🎪 【${agentRole}·提案集齐与协同研讨】：太棒了！全组成员的提案与专家速评均已悉数亮相！请大家先在讨论区围绕各自提案的创新亮点与互补性展开 1~2 分钟的协同交流，深入了解彼此设想，随后点击左侧卡片投出关键的一票！`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        _timeMs: Date.now() + 100
-      };
+        const allCollectedMsg = {
+          id: 'all_prop_' + Date.now(),
+          sender: 'auctioneer',
+          senderName: agentSenderName,
+          text: `🎪 【${agentRole}·提案集齐与协同研讨】：太棒了！全组成员的提案与专家速评均已悉数亮相！请大家先在讨论区围绕各自提案的创新亮点与互补性展开 1~2 分钟的协同交流，深入了解彼此设想，随后点击左侧卡片投出关键的一票！`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now() + 100
+        };
 
-      if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-      this.state.chatLogs.stage1.push(allCollectedMsg);
-      if (typeof this.sendSingleChatMessage === 'function') {
-        this.sendSingleChatMessage(allCollectedMsg, 'stage1');
+        if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+        this.state.chatLogs.stage1.push(allCollectedMsg);
+        if (typeof this.sendSingleChatMessage === 'function') {
+          this.sendSingleChatMessage(allCollectedMsg, 'stage1');
+        }
+        this.syncChatLogs(allCollectedMsg, 'stage1');
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        if (typeof window.renderChat === 'function') {
+          window.renderChat(this.state);
+        } else {
+          renderChat(this.state);
+        }
+        return true;
+      } finally {
+        this._isTriggeringGathered = false;
       }
-      this.syncChatLogs();
-      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-      renderChat(this.state);
-      return true;
     }
 
     handleVoteCast(proposalId) {
