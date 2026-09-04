@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2544
+ * Version: 20260905_v2545
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,8 +16,8 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2544';
-  const APP_BUILD_DATE = '2026-09-04';
+  const APP_VERSION = '20260905_v2545';
+  const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
   const STORAGE_KEY_USERS_DB = 'jizhi_pure_v10_users_db';
@@ -3956,9 +3956,9 @@
       });
 
       const isHidden = () => document.hidden || document.visibilityState === 'hidden';
-      const isIdle = () => isHidden() || (Date.now() - lastUserActivity > 120000);
-      const getPollInterval = () => (isHidden() ? 20000 : (isIdle() ? 10000 : 1500));
-      const getPingInterval = () => (isHidden() ? 40000 : (isIdle() ? 20000 : 8000));
+      const isIdle = () => isHidden() || (Date.now() - lastUserActivity > 180000);
+      const getPollInterval = () => (isHidden() ? 15000 : (isIdle() ? 5000 : 1500));
+      const getPingInterval = () => (isHidden() ? 30000 : 8000);
 
       const runPoll = () => {
         if (this.isLoggingOut) return;
@@ -10038,7 +10038,7 @@
           const p = presence[k];
           if (p) {
             const pTime = Number(p.lastSeen || p.updatedAt || p.timestamp || 0);
-            if (pTime > 0 && Math.abs(serverNow - pTime) <= 25000) {
+            if (pTime > 0 && ((serverNow - pTime <= 120000) || (pTime - serverNow <= 60000))) {
               isOnline = true;
               break;
             }

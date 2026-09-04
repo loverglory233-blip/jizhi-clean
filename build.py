@@ -105,7 +105,7 @@ def sync_versions(new_ver):
 
 def build():
     import sys
-    NEW_VERSION = sys.argv[1] if len(sys.argv) > 1 else "20260904_v2505"
+    NEW_VERSION = sys.argv[1] if len(sys.argv) > 1 else "20260905_v2545"
     sync_versions(NEW_VERSION)
     
     print("🚀 [ESM Build] 开始验证并装配 JIZHI 现代化模块...")

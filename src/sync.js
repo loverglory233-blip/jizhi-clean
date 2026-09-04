@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260904_v2544';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260904_v2544';
+import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2545';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2545';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -294,9 +294,9 @@ export class CloudSyncEngine {
     });
 
     const isHidden = () => document.hidden || document.visibilityState === 'hidden';
-    const isIdle = () => isHidden() || (Date.now() - lastUserActivity > 120000);
-    const getPollInterval = () => (isHidden() ? 20000 : (isIdle() ? 10000 : 1500));
-    const getPingInterval = () => (isHidden() ? 40000 : (isIdle() ? 20000 : 8000));
+    const isIdle = () => isHidden() || (Date.now() - lastUserActivity > 180000);
+    const getPollInterval = () => (isHidden() ? 15000 : (isIdle() ? 5000 : 1500));
+    const getPingInterval = () => (isHidden() ? 30000 : 8000);
 
     const runPoll = () => {
       if (this.isLoggingOut) return;
