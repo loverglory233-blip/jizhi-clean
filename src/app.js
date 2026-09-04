@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2220";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2220";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2220";
-import { AuthManager } from "./auth.js?v=20260904_v2220";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2220";
-import { renderLoginView } from "./login.js?v=20260904_v2220";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2220";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2220";
+} from "./constants.js?v=20260904_v2221";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2221";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2221";
+import { AuthManager } from "./auth.js?v=20260904_v2221";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2221";
+import { renderLoginView } from "./login.js?v=20260904_v2221";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2221";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2221";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2220";
+} from "./editor.js?v=20260904_v2221";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2664,6 +2664,17 @@ export class App {
     const currentStage = this.state.currentStage || 'stage1';
     if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
 
+    // 辅助函数：更新对应提案的 evalFailed 状态
+    const setProposalEvalFailed = (failed) => {
+      const proposals = this.state?.stage1?.proposals;
+      if (Array.isArray(proposals)) {
+        const p = proposals.find(item => item && (item.title === title || item.authorName === authorName || item.author === authorName));
+        if (p) {
+          p.evalFailed = failed;
+        }
+      }
+    };
+
     const taskPrompt = `小组成员【${authorName}】在选题池${isModify ? '修改完善了' : '提出了新'}提案《${title}》。
 请作为资深学术拍卖师/备课引导师：
 【最高审查红线】：先审查文本是否为乱码、无意义字符或空洞套话。若是，严禁虚构亮点，直接回复：“当前提交内容尚未形成可研讨的实质提案”，引导其交流思路或@拍卖师；
@@ -2679,7 +2690,9 @@ export class App {
         speech = resp.trim();
         speech = speech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:选题速评|提案速评|提案评估|落槌与方案研讨)?】[：:]\s*/g, '');
         speech = `🏛️ 【学术拍卖师·提案评估】：${speech.trim()}`;
+        setProposalEvalFailed(false);
       } else {
+        setProposalEvalFailed(true);
         const safeTitle = (title || '').replace(/'/g, "\\'");
         const safeAuthor = (authorName || '').replace(/'/g, "\\'");
         speech = `🏛️ 【学术拍卖师·网络提醒】：📡 智能体网络连接稍有延迟，未获取到即时评估。<br><button class="btn-retry-ai" onclick="window.app.handleProposalSubmittedAIFeedback('${safeTitle}', '${safeAuthor}', ${isModify})" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成评估</button>`;
@@ -2702,16 +2715,20 @@ export class App {
         this.sendSingleChatMessage(finalAiMsg, currentStage);
       }
       this.syncChatLogs();
+      if (typeof this.syncStage1 === 'function') this.syncStage1();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
       this.renderStudentWorkspace();
     } catch (e) {
       console.warn('handleProposalSubmittedAIFeedback error:', e);
+      setProposalEvalFailed(true);
+      const safeTitle = (title || '').replace(/'/g, "\\'");
+      const safeAuthor = (authorName || '').replace(/'/g, "\\'");
       const fallbackAiMsg = {
         id: 'eval_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
         sender: 'auctioneer',
         senderName: '头脑风暴 · 学术拍卖师',
-        text: `🏛️ 【学术拍卖师·提案评估】：收到 ${authorName} ${isModify ? '修改后的' : '提交的'}《${title}》！建议组员在研讨区就具体的研究对象与实施情境交流补充！`,
+        text: `🏛️ 【学术拍卖师·网络提醒】：📡 智能体网络连接稍有延迟，未获取到即时评估。<br><button class="btn-retry-ai" onclick="window.app.handleProposalSubmittedAIFeedback('${safeTitle}', '${safeAuthor}', ${isModify})" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成评估</button>`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: Date.now()
       };
@@ -2721,6 +2738,8 @@ export class App {
         this.sendSingleChatMessage(fallbackAiMsg, currentStage);
       }
       this.syncChatLogs();
+      if (typeof this.syncStage1 === 'function') this.syncStage1();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
       this.renderStudentWorkspace();
     }
@@ -4938,8 +4957,7 @@ ${chatSnippet}
                         得票: <b>${proposalVotesCount}</b> 票
                       </span>
                     </div>
-                    <div style="font-size:12px; color:#64748b; margin-bottom:8px;">提出人: <b style="color:#0f172a;">${escapeHtml(authorName)}</b></div>
-                    ${isMyProposal ? `<button class="btn-retry-eval" data-title="${escapeHtml(p.title)}" data-author="${escapeHtml(authorName)}" style="width:100%; margin-bottom:6px; padding:5px 0; font-size:12px; background:#f0fdf4; color:#16a34a; border:1px solid #86efac; border-radius:6px; cursor:pointer;">🔄 重新请求速评</button>` : ''}
+                    ${(isMyProposal && p.evalFailed) ? `<button class="btn-retry-eval" data-title="${escapeHtml(p.title)}" data-author="${escapeHtml(authorName)}" style="width:100%; margin-bottom:6px; padding:5px 0; font-size:12px; background:#fef2f2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; cursor:pointer;">🔄 重新请求速评</button>` : ''}
                     <button class="${btnClass}" data-id="${p.id}" ${isContractLocked || userHasVoted ? 'disabled' : ''} style="width:100%; margin-top:auto;">${btnText}</button>
                   </div>
                 `;
