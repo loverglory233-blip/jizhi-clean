@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2523";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2523";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2523";
-import { AuthManager } from "./auth.js?v=20260904_v2523";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2523";
-import { renderLoginView } from "./login.js?v=20260904_v2523";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2523";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2523";
+} from "./constants.js?v=20260904_v2524";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2524";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2524";
+import { AuthManager } from "./auth.js?v=20260904_v2524";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2524";
+import { renderLoginView } from "./login.js?v=20260904_v2524";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2524";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2524";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2523";
+} from "./editor.js?v=20260904_v2524";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1544,12 +1544,12 @@ export class App {
           const reviewTime = parseMsgTime(realFirstReviewMsg) || this.stage2StartTime || (now - 60000);
           const reviewElapsed = Math.max(0, now - reviewTime);
           const studentMsgAfterReview = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && parseMsgTime(m) > reviewTime);
-          const lastStudentMsgAfterReview = studentMsgAfterReview.length > 0 ? studentMsgAfterReview[studentMsgAfterReview.length - 1] : null;
-          const lastStudentMsgAfterReviewTime = parseMsgTime(lastStudentMsgAfterReview);
-          const silenceAfterReview = lastStudentMsgAfterReviewTime ? Math.max(0, now - lastStudentMsgAfterReviewTime) : reviewElapsed;
 
-          // ── 真正一审后冷场满 3 分钟：初审跟进提示（全场严格仅 1 次） ──
-          if (silenceAfterReview >= 180000) {
+          // 💡 教学交互优化：只要一审下发后学生【曾经在研讨区发言讨论过】，说明已达成引导交流目的（随后可能已转入文档埋头打字修改），绝不再弹窗打扰；
+          // 仅当一审下发后全组【连续 3 分钟从未有任何同学发言】，才触发 1 次破冰跟进提醒。
+          if (studentMsgAfterReview.length > 0) {
+            this._nudgeCounts['s2_first_review_silence'] = 1; // 标记已响应，不再提醒
+          } else if (reviewElapsed >= 180000) {
             this._nudgeCounts['s2_first_review_silence'] = 1;
             const followMsg = {
               sender: 'reviewingEditor',
