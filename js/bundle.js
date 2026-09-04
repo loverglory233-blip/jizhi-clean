@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2672
+ * Version: 20260905_v2673
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2672';
+  const APP_VERSION = '20260905_v2673';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5149,13 +5149,13 @@
           let remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
           const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
 
-          // 🛡️ 智能保留本地未决思考气泡与 10 秒内未落库临时消息（防吞防闪烁）
+          // 🛡️ 智能保留本地未决思考气泡与未落库本地发言（Union 并集防吞防闪烁）
           const now = Date.now();
           const localPending = localLogs.filter(m => {
             if (!m) return false;
-            if (m.isThinking) return true;
-            const isRecent = (now - (m._timeMs || 0) < 10000);
-            if (!isRecent) return false;
+            if (m.isThinking || String(m.id).startsWith('thinking_eval')) {
+              return (now - (m._timeMs || 0) < 30000);
+            }
             const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs === m._timeMs && rm.text === m.text));
             return !existsInRemote;
           });
@@ -5301,6 +5301,9 @@
           mergedList.sort((a, b) => (a._timeMs || 0) - (b._timeMs || 0));
           this.app.state.chatLogs[stg] = mergedList;
         });
+        if (this.groupId && typeof this.app.saveGroupState === 'function') {
+          this.app.saveGroupState(this.groupId);
+        }
         if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
         if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.app.state);
       }
@@ -11554,7 +11557,7 @@
           const isModify = existingIdx >= 0;
           const submitNoticeMsg = {
             id: 'msg_prop_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-            sender: currentUser,
+            sender: effectiveAuthorId || currUserObj?.id || (typeof currentUser === 'string' ? currentUser : 'student'),
             senderName: authorName,
             text: isModify
               ? `✏️ 【选题提案修改】我 (${authorName}) 修改完善了选题提案《${title}》！`
@@ -14784,22 +14787,46 @@
 
       if (!groupId) return;
 
-      if (this.cloudSyncEngine && typeof this.cloudSyncEngine.sendPresencePing === 'function') {
-        this.cloudSyncEngine.sendPresencePing(currentUser);
+      if (!msg.id) msg.id = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+      if (!msg._timeMs) msg._timeMs = Date.now();
+      if (!msg.timestamp) msg.timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      // 🛡️ 稳健补齐发送者姓名
+      let resolvedSenderName = msg.senderName || '';
+      if (!resolvedSenderName && currentUser && (msg.sender === currentUser.id || msg.sender === currentUser.name)) {
+        resolvedSenderName = currentUser.name || currentUser.id;
+      }
+      if (!resolvedSenderName && msg.sender) {
+        const allUsers = this.authManager ? this.authManager.getUsers() : [];
+        const foundU = allUsers.find(u => u && (u.id === msg.sender || u.name === msg.sender));
+        if (foundU) resolvedSenderName = foundU.name;
       }
 
       const payload = {
-        id: msg.id || ('msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6)),
+        id: msg.id,
         classId: effectiveClassId,
         groupId: groupId,
         taskId: taskId,
         stage: targetStage,
         sender: msg.sender,
-        senderName: msg.senderName || '',
+        senderName: resolvedSenderName,
         text: msg.text,
-        timestamp: msg.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        _timeMs: msg._timeMs || Date.now()
+        timestamp: msg.timestamp,
+        _timeMs: msg._timeMs
       };
+
+      // 🛡️ 1. 确保本地内存与快照毫秒级入库（杜绝刷新页面导致的新消息被冲刷被吞）
+      if (!this.state.chatLogs) this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+      if (!Array.isArray(this.state.chatLogs[targetStage])) this.state.chatLogs[targetStage] = [];
+      const existsLocally = this.state.chatLogs[targetStage].some(m => (m.id && m.id === payload.id) || (m._timeMs === payload._timeMs && m.text === payload.text));
+      if (!existsLocally) {
+        this.state.chatLogs[targetStage].push(payload);
+      }
+      this.saveGroupState(groupId);
+
+      if (this.cloudSyncEngine && typeof this.cloudSyncEngine.sendPresencePing === 'function') {
+        this.cloudSyncEngine.sendPresencePing(currentUser);
+      }
 
       try {
         if (this.cloudSyncEngine && this.cloudSyncEngine.bc) {
@@ -14837,10 +14864,13 @@
         return;
       }
       const logs = (this.state.chatLogs && this.state.chatLogs[targetStage]) ? this.state.chatLogs[targetStage] : [];
-      const latestMsg = logs[logs.length - 1];
-
-      if (latestMsg) {
-        this.sendSingleChatMessage(latestMsg, targetStage);
+      if (logs.length > 0) {
+        const recentLogs = logs.slice(-5);
+        recentLogs.forEach(m => {
+          if (m && !m.isThinking && !String(m.id).startsWith('thinking_eval')) {
+            this.sendSingleChatMessage(m, targetStage);
+          }
+        });
       }
     }
 

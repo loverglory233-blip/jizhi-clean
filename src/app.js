@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2672";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2672";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2672";
-import { AuthManager } from "./auth.js?v=20260905_v2672";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2672";
-import { renderLoginView } from "./login.js?v=20260905_v2672";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2672";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2672";
+} from "./constants.js?v=20260905_v2673";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2673";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2673";
+import { AuthManager } from "./auth.js?v=20260905_v2673";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2673";
+import { renderLoginView } from "./login.js?v=20260905_v2673";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2673";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2673";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2672";
+} from "./editor.js?v=20260905_v2673";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -480,22 +480,46 @@ export class App {
 
     if (!groupId) return;
 
-    if (this.cloudSyncEngine && typeof this.cloudSyncEngine.sendPresencePing === 'function') {
-      this.cloudSyncEngine.sendPresencePing(currentUser);
+    if (!msg.id) msg.id = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+    if (!msg._timeMs) msg._timeMs = Date.now();
+    if (!msg.timestamp) msg.timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    // 🛡️ 稳健补齐发送者姓名
+    let resolvedSenderName = msg.senderName || '';
+    if (!resolvedSenderName && currentUser && (msg.sender === currentUser.id || msg.sender === currentUser.name)) {
+      resolvedSenderName = currentUser.name || currentUser.id;
+    }
+    if (!resolvedSenderName && msg.sender) {
+      const allUsers = this.authManager ? this.authManager.getUsers() : [];
+      const foundU = allUsers.find(u => u && (u.id === msg.sender || u.name === msg.sender));
+      if (foundU) resolvedSenderName = foundU.name;
     }
 
     const payload = {
-      id: msg.id || ('msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6)),
+      id: msg.id,
       classId: effectiveClassId,
       groupId: groupId,
       taskId: taskId,
       stage: targetStage,
       sender: msg.sender,
-      senderName: msg.senderName || '',
+      senderName: resolvedSenderName,
       text: msg.text,
-      timestamp: msg.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      _timeMs: msg._timeMs || Date.now()
+      timestamp: msg.timestamp,
+      _timeMs: msg._timeMs
     };
+
+    // 🛡️ 1. 确保本地内存与快照毫秒级入库（杜绝刷新页面导致的新消息被冲刷被吞）
+    if (!this.state.chatLogs) this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+    if (!Array.isArray(this.state.chatLogs[targetStage])) this.state.chatLogs[targetStage] = [];
+    const existsLocally = this.state.chatLogs[targetStage].some(m => (m.id && m.id === payload.id) || (m._timeMs === payload._timeMs && m.text === payload.text));
+    if (!existsLocally) {
+      this.state.chatLogs[targetStage].push(payload);
+    }
+    this.saveGroupState(groupId);
+
+    if (this.cloudSyncEngine && typeof this.cloudSyncEngine.sendPresencePing === 'function') {
+      this.cloudSyncEngine.sendPresencePing(currentUser);
+    }
 
     try {
       if (this.cloudSyncEngine && this.cloudSyncEngine.bc) {
@@ -533,10 +557,13 @@ export class App {
       return;
     }
     const logs = (this.state.chatLogs && this.state.chatLogs[targetStage]) ? this.state.chatLogs[targetStage] : [];
-    const latestMsg = logs[logs.length - 1];
-
-    if (latestMsg) {
-      this.sendSingleChatMessage(latestMsg, targetStage);
+    if (logs.length > 0) {
+      const recentLogs = logs.slice(-5);
+      recentLogs.forEach(m => {
+        if (m && !m.isThinking && !String(m.id).startsWith('thinking_eval')) {
+          this.sendSingleChatMessage(m, targetStage);
+        }
+      });
     }
   }
 
