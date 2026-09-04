@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2495
+ * Version: 20260904_v2496
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2495';
+  const APP_VERSION = '20260904_v2496';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -964,7 +964,7 @@
         const doc = iframe.contentDocument;
         if (!doc) return;
 
-        const toolbars = doc.querySelectorAll('.toolbar, #editbar, #menu_left, #menu_right, .menu, #toolbar, nav.navbar, .menu_left, .menu_right');
+        const toolbars = doc.querySelectorAll('.toolbar, #editbar, #menu_left, #menu_right, .menu, #toolbar, nav.navbar, .menu_left, .menu_right, .editbar, #editbar ul, .menu_left ul, .menu_right ul');
         toolbars.forEach(tb => tb.style.setProperty('display', 'none', 'important'));
 
         const footers = doc.querySelectorAll('#footer, .bottom-bar, #chatbox');
@@ -986,17 +986,32 @@
       } catch(e) {}
     };
 
-    iframe.addEventListener('load', () => {
-      tryLock();
-      let attempts = 0;
-      const iv = setInterval(() => {
-        attempts++;
-        if (!iframe._isReadonlyEnforced) { clearInterval(iv); return; }
-        tryLock();
-        if (attempts >= 10) clearInterval(iv);
-      }, 200);
-    });
+    if (!iframe._hasReadonlyLoadAttached) {
+      iframe._hasReadonlyLoadAttached = true;
+      iframe.addEventListener('load', () => {
+        if (iframe._isReadonlyEnforced) {
+          tryLock();
+          let attempts = 0;
+          const iv = setInterval(() => {
+            attempts++;
+            if (!iframe._isReadonlyEnforced) { clearInterval(iv); return; }
+            tryLock();
+            if (attempts >= 15) clearInterval(iv);
+          }, 200);
+        } else {
+          liftEtherpadReadonly(iframe);
+        }
+      });
+    }
+
     tryLock();
+    let attempts = 0;
+    const iv = setInterval(() => {
+      attempts++;
+      if (!iframe._isReadonlyEnforced) { clearInterval(iv); return; }
+      tryLock();
+      if (attempts >= 10) clearInterval(iv);
+    }, 200);
   }
 
   /**
@@ -1018,7 +1033,7 @@
         const doc = iframe.contentDocument;
         if (!doc) return;
 
-        const toolbars = doc.querySelectorAll('.toolbar, #editbar, #menu_left, #menu_right, .menu, #toolbar, nav.navbar, .menu_left, .menu_right');
+        const toolbars = doc.querySelectorAll('.toolbar, #editbar, #menu_left, #menu_right, .menu, #toolbar, nav.navbar, .menu_left, .menu_right, .editbar, #editbar ul, .menu_left ul, .menu_right ul');
         toolbars.forEach(tb => {
           tb.style.removeProperty('display');
           tb.style.display = '';
@@ -1052,13 +1067,29 @@
       } catch(e) {}
     };
 
+    if (!iframe._hasReadonlyLoadAttached) {
+      iframe._hasReadonlyLoadAttached = true;
+      iframe.addEventListener('load', () => {
+        if (!iframe._isReadonlyEnforced) {
+          tryUnlock();
+          let a = 0;
+          const ivLoad = setInterval(() => {
+            a++;
+            if (iframe._isReadonlyEnforced) { clearInterval(ivLoad); return; }
+            tryUnlock();
+            if (a >= 20) clearInterval(ivLoad);
+          }, 200);
+        }
+      });
+    }
+
     tryUnlock();
     let attempts = 0;
     const iv = setInterval(() => {
       attempts++;
       if (iframe._isReadonlyEnforced) { clearInterval(iv); return; }
       tryUnlock();
-      if (attempts >= 10) clearInterval(iv);
+      if (attempts >= 15) clearInterval(iv);
     }, 200);
   }
 
@@ -3621,6 +3652,16 @@
             if (e.data && e.data.type === 'task_extended' && e.data.task) {
               const t = e.data.task;
               this._knownTaskDeadlines[t.id] = t.deadline;
+              if (this.app.authManager) {
+                const localTasks = this.app.authManager.getTasks();
+                const idx = localTasks.findIndex(lt => lt && (lt.id === t.id || (lt.title && lt.title === t.title)));
+                if (idx >= 0) {
+                  localTasks[idx] = { ...localTasks[idx], ...t, deadline: t.deadline, durationMinutes: t.durationMinutes || localTasks[idx].durationMinutes, lastExtension: t.lastExtension };
+                } else {
+                  localTasks.push(t);
+                }
+                try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
+              }
               this.handleTaskDeadlineChange(t, e.data.prevDeadline);
             }
           };
@@ -3642,6 +3683,18 @@
       const taskClassIds = Array.isArray(t.targetClassIds) ? t.targetClassIds : (t.classId ? [t.classId] : ['all']);
       const isStudentInTargetClass = taskClassIds.includes('all') || userClassIds.some(cid => taskClassIds.includes(cid));
       if (!isStudentInTargetClass) return;
+
+      // ⚡ 立即同步到本地任务存储，确保后续渲染工作台时读取到权威的新截止时间
+      if (this.app.authManager) {
+        const localTasks = this.app.authManager.getTasks();
+        const idx = localTasks.findIndex(lt => lt && (lt.id === t.id || (lt.title && lt.title === t.title)));
+        if (idx >= 0) {
+          localTasks[idx] = { ...localTasks[idx], ...t, deadline: t.deadline, durationMinutes: t.durationMinutes || localTasks[idx].durationMinutes, lastExtension: t.lastExtension };
+        } else {
+          localTasks.push(t);
+        }
+        try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
+      }
 
       let shownEvents = {};
       try { shownEvents = JSON.parse(sessionStorage.getItem('jizhi_shown_deadline_events') || '{}'); } catch (e) {}
@@ -3676,14 +3729,12 @@
             const f2 = document.getElementById('stage2-etherpad-frame');
             if (f2) {
               liftEtherpadReadonly(f2);
-              f2.src = f2.src;
             }
           }
           if (!isS3FinalDone) {
             const f3 = document.getElementById('stage3-etherpad-frame');
             if (f3) {
               liftEtherpadReadonly(f3);
-              f3.src = f3.src;
             }
           }
         }
@@ -9024,6 +9075,16 @@
           // 4. 任务延期广播
           if (e.data && e.data.type === 'task_extended' && e.data.task) {
             const t = e.data.task;
+            if (authManager) {
+              const localTasks = authManager.getTasks();
+              const idx = localTasks.findIndex(lt => lt && (lt.id === t.id || (lt.title && lt.title === t.title)));
+              if (idx >= 0) {
+                localTasks[idx] = { ...localTasks[idx], ...t, deadline: t.deadline, durationMinutes: t.durationMinutes || localTasks[idx].durationMinutes, lastExtension: t.lastExtension };
+              } else {
+                localTasks.push(t);
+              }
+              try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
+            }
             renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
 
             let shownEvents = {};
@@ -10740,7 +10801,7 @@
     if (!currUserName) currUserName = currUserCode || '组员';
     const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
     const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
-    const padUrl = `/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans`;
+    const padUrl = `/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=true&showChat=false&showLineNumbers=true&lang=zh-hans`;
 
     const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
     const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
@@ -12108,7 +12169,7 @@
             const isEditorReadonly = isFinalSubmitted || isTaskDeadlineExpired;
 
             const targetPad = rawPadName;
-            const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans`;
+            const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=true&showChat=false&showLineNumbers=true&lang=zh-hans`;
 
             return `
               <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
