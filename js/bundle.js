@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2199
+ * Version: 20260904_v2200
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2199';
+  const APP_VERSION = '20260904_v2200';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12175,7 +12175,7 @@
             📜 公约草案已全部生成！👉 请全员在左侧公约下方核对并签署 (${confirmedCount}/${totalCount} 人已签)
           </div>
         `;
-      } else if (elapsedSec >= 13 * 60 && s1.contractStep !== 'completed' && !s1.contract?.isDraftGenerated && !s1.contract?.isConfirmed) {
+      } else if (s1.contractStep !== 'completed' && !s1.contract?.isDraftGenerated && !s1.contract?.isConfirmed) {
         actionBar.style.display = 'block';
         const isGenerating = !!(window.app && window.app._isGeneratingContract);
         const isFailed = !!(window.app && window.app._contractGenerateFailed);
