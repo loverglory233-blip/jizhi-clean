@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2590';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2590';
+} from './constants.js?v=20260905_v2595';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2595';
 
 export class AuthManager {
   constructor() {
@@ -1104,8 +1104,10 @@ export class AuthManager {
       activeTask = tasks.find(t => t.id === taskId) || null;
     }
     if (!activeTask && tasks.length > 0) {
-      activeTask = tasks[0];
+      const clsTasks = tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === activeClass.id);
+      activeTask = clsTasks.length > 0 ? clsTasks[0] : tasks[0];
     }
+    const resolvedTaskId = activeTask ? activeTask.id : `task_${activeClass.id}_default`;
 
     // 4) 成员 = 当前登录用户本身
     return {
@@ -1116,7 +1118,7 @@ export class AuthManager {
       task: activeTask,
       classId: activeClass.id,
       groupId: group.id,
-      taskId: activeTask ? activeTask.id : null
+      taskId: resolvedTaskId
     };
   }
 
