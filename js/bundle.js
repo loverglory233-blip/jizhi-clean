@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2530
+ * Version: 20260904_v2531
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2530';
+  const APP_VERSION = '20260904_v2531';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11232,6 +11232,20 @@
         if (cleanTxt !== null) {
           const wordCount = cleanTxt.length;
 
+          // 🛡️ 静默自动保底守护：若当前打开的 Pad 为初始空状态 (<30字)，且尚未尝试自愈，静默检索云端/同组最长正文自动填入
+          if (wordCount < 30 && !window._hasAttemptedPadSilentAutoHeal) {
+            window._hasAttemptedPadSilentAutoHeal = true;
+            fetch(`sync.php?action=restore_pad_max_revision&padId=${encodeURIComponent(rawPadName)}&classId=${encodeURIComponent(userClassId)}&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}`)
+              .then(r => r.json())
+              .then(res => {
+                if (res && res.success && res.textLength > 50) {
+                  const s2f = document.getElementById('stage2-etherpad-frame');
+                  if (s2f) { s2f.src = s2f.src; }
+                }
+              })
+              .catch(() => {});
+          }
+
           // 实时更新字数角标
           const countBadge = document.getElementById('stage2-word-count-num');
           if (countBadge && countBadge.innerText !== String(wordCount)) {
@@ -11782,7 +11796,6 @@
                 <span id="ep-status-text-s2" style="font-weight:600;">${isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)'}</span>
               </div>
               <div style="display:flex; align-items:center; gap:6px;">
-                <button onclick="fetch('sync.php?action=restore_pad_max_revision&padId=${encodeURIComponent(rawPadName)}&classId=${encodeURIComponent(userClassId)}&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}').then(r=>r.json()).then(res=>{ if(res.success){ if(typeof showGlobalBannerNotice==='function') showGlobalBannerNotice('✅ 历史正文已找回', '已成功恢复 ' + res.textLength + ' 字历史完整版本！', 'success', 6000); const f=document.getElementById('stage2-etherpad-frame'); if(f) f.src=f.src; } else { alert(res.message || '未找到更长历史版本'); } }).catch(e=>alert('恢复失败：'+e.message));" style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:700;" title="从历史版本库或云端备份中一键找回最完整的长篇正文">🔄 一键找回历史完整正文</button>
                 <a id="s2-pad-popout-link" href="${padUrl}" target="_blank" style="background:#ffffff; color:#334155; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; text-decoration:none; font-weight:600; display:inline-flex; align-items:center; gap:3px;">↗️ 独立窗口</a>
                 <button onclick="const f=document.getElementById('stage2-etherpad-frame'); if(f) { f.src=f.src; document.getElementById('ep-status-text-s2').innerText='正在重新连接...'; }" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:700;">🔄 刷新连接</button>
               </div>
