@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2290";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2290";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2290";
-import { AuthManager } from "./auth.js?v=20260904_v2290";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2290";
-import { renderLoginView } from "./login.js?v=20260904_v2290";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2290";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2290";
+} from "./constants.js?v=20260904_v2295";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2295";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2295";
+import { AuthManager } from "./auth.js?v=20260904_v2295";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2295";
+import { renderLoginView } from "./login.js?v=20260904_v2295";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2295";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2295";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2290";
+} from "./editor.js?v=20260904_v2295";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4047,14 +4047,17 @@ ${instructionSection}
     if (!s1.contract.confirmedMembers) s1.contract.confirmedMembers = {};
 
     let memberArr = [];
-    if (Array.isArray(this.state.members)) memberArr = this.state.members;
-    else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
-    if (memberArr.length === 0 && this.authManager) {
+    if (this.authManager) {
       const u = this.authManager.getCurrentUser();
       const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
       const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
       const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null, effClassId);
-      memberArr = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+      const authMembers = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+      if (authMembers.length > 0) memberArr = authMembers;
+    }
+    if (memberArr.length === 0) {
+      if (Array.isArray(this.state.members)) memberArr = this.state.members;
+      else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
     }
     if (!Array.isArray(memberArr)) {
       memberArr = Object.values(memberArr || {});
@@ -5133,12 +5136,10 @@ ${chatSnippet}
     const s3 = this.state.stage3 || {};
 
     const isContractSigned = !!(
-      s1.contract?.signed || 
       s1.contract?.isConfirmed || 
-      (s1.contract?.confirmedMembers && (
-        (Array.isArray(s1.contract.confirmedMembers) && s1.contract.confirmedMembers.length > 0) ||
-        (typeof s1.contract.confirmedMembers === 'object' && Object.keys(s1.contract.confirmedMembers).length > 0)
-      ))
+      s1.contract?.isLocked || 
+      this.state.groupMaxStage === 'stage2' || 
+      this.state.groupMaxStage === 'stage3'
     );
     const isDraftDone = !!(s2.isDraftConfirmed || (s2.meetingSubmissions && Object.keys(s2.meetingSubmissions).length > 0) || this.state.groupMaxStage === 'stage3' || this.state.isFinalSubmitted);
     const isStage3Active = !!(this.state.groupMaxStage === 'stage3' || this.state.isFinalSubmitted || isDraftDone || (s3.confirmedMembers && Object.keys(s3.confirmedMembers).length > 0) || (s3.finalSubmittedMembers && Object.keys(s3.finalSubmittedMembers).length > 0));

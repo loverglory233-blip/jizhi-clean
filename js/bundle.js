@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2290
+ * Version: 20260904_v2295
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2290';
+  const APP_VERSION = '20260904_v2295';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9364,12 +9364,10 @@
     const s2 = state.stage2 || {};
     const s3 = state.stage3 || {};
     const isContractSigned = !!(
-      s1.contract?.signed || 
       s1.contract?.isConfirmed || 
-      (s1.contract?.confirmedMembers && (
-        (Array.isArray(s1.contract.confirmedMembers) && s1.contract.confirmedMembers.length > 0) ||
-        (typeof s1.contract.confirmedMembers === 'object' && Object.keys(s1.contract.confirmedMembers).length > 0)
-      ))
+      s1.contract?.isLocked || 
+      state.groupMaxStage === 'stage2' || 
+      state.groupMaxStage === 'stage3'
     );
     const isDraftDone = !!(s2.isDraftConfirmed || (s2.meetingSubmissions && Object.keys(s2.meetingSubmissions).length > 0) || state.groupMaxStage === 'stage3' || state.isFinalSubmitted);
     const isStage3Active = !!(state.groupMaxStage === 'stage3' || state.isFinalSubmitted || isDraftDone || (s3.confirmedMembers && Object.keys(s3.confirmedMembers).length > 0) || (s3.finalSubmittedMembers && Object.keys(s3.finalSubmittedMembers).length > 0));
@@ -16510,14 +16508,17 @@
       if (!s1.contract.confirmedMembers) s1.contract.confirmedMembers = {};
 
       let memberArr = [];
-      if (Array.isArray(this.state.members)) memberArr = this.state.members;
-      else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
-      if (memberArr.length === 0 && this.authManager) {
+      if (this.authManager) {
         const u = this.authManager.getCurrentUser();
         const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
         const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
         const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null, effClassId);
-        memberArr = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+        const authMembers = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+        if (authMembers.length > 0) memberArr = authMembers;
+      }
+      if (memberArr.length === 0) {
+        if (Array.isArray(this.state.members)) memberArr = this.state.members;
+        else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
       }
       if (!Array.isArray(memberArr)) {
         memberArr = Object.values(memberArr || {});
@@ -17596,12 +17597,10 @@
       const s3 = this.state.stage3 || {};
 
       const isContractSigned = !!(
-        s1.contract?.signed || 
         s1.contract?.isConfirmed || 
-        (s1.contract?.confirmedMembers && (
-          (Array.isArray(s1.contract.confirmedMembers) && s1.contract.confirmedMembers.length > 0) ||
-          (typeof s1.contract.confirmedMembers === 'object' && Object.keys(s1.contract.confirmedMembers).length > 0)
-        ))
+        s1.contract?.isLocked || 
+        this.state.groupMaxStage === 'stage2' || 
+        this.state.groupMaxStage === 'stage3'
       );
       const isDraftDone = !!(s2.isDraftConfirmed || (s2.meetingSubmissions && Object.keys(s2.meetingSubmissions).length > 0) || this.state.groupMaxStage === 'stage3' || this.state.isFinalSubmitted);
       const isStage3Active = !!(this.state.groupMaxStage === 'stage3' || this.state.isFinalSubmitted || isDraftDone || (s3.confirmedMembers && Object.keys(s3.confirmedMembers).length > 0) || (s3.finalSubmittedMembers && Object.keys(s3.finalSubmittedMembers).length > 0));
