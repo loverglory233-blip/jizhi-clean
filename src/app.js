@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2315";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2315";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2315";
-import { AuthManager } from "./auth.js?v=20260904_v2315";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2315";
-import { renderLoginView } from "./login.js?v=20260904_v2315";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2315";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2315";
+} from "./constants.js?v=20260904_v2320";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2320";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2320";
+import { AuthManager } from "./auth.js?v=20260904_v2320";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2320";
+import { renderLoginView } from "./login.js?v=20260904_v2320";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2320";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2320";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2315";
+} from "./editor.js?v=20260904_v2320";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4116,7 +4116,14 @@ ${instructionSection}
 
     if (confirmedCount >= totalMembersCount) {
       s1.contract.isConfirmed = true;
+      s1.contract._confirmedTime = Date.now();
       this.state.groupMaxStage = 'stage2';
+      if (!this.state.stage2) this.state.stage2 = {};
+      const nowS2Start = Date.now();
+      this.state.stage2.startTime = nowS2Start;
+      this.state.stage2.stageStartTime = nowS2Start;
+      this.stage2StartTime = nowS2Start;
+      this.syncStage2();
       const taskType = this.getCurrentTaskType();
       const isInst = (taskType === 'instructional');
       const agentRole = isInst ? '备课引导师' : '学术拍卖师';
@@ -6206,9 +6213,9 @@ ${chatSnippet}
     const s2ChatList = this.state.chatLogs?.stage2 || [];
 
     // ═══════════════════════════════════════════════════════════════
-    // 🛡️ 第一次学术质检（目标字数的 35% / 35% 时间 · 破题把脉）
+    // 🛡️ 第一次学术质检（目标字数的 35% / 切实进行阶段二起草 35% 时间且至少满 3 分钟 · 破题把脉）
     // ═══════════════════════════════════════════════════════════════
-    const isReview1Due = (wordProgress >= 0.35 || timeProgress >= 0.35 || rawDoc.length >= (targetWordCount * 0.35));
+    const isReview1Due = (wordProgress >= 0.35 || rawDoc.length >= (targetWordCount * 0.35) || (timeProgress >= 0.35 && stage2DurationMs >= 180000));
     const hasFirstReviewInLogs = s2ChatList.some(m => m.sender === 'reviewingEditor' && (m.text.includes('初审') || m.text.includes('破题把脉') || m.text.includes('Research Gap')));
     if (hasFirstReviewInLogs && (s2.reviewMilestone === 'none' || s2.reviewMilestone === 'first_review_in_progress')) {
       s2.reviewMilestone = 'first_review_done';
@@ -6291,9 +6298,9 @@ ${contentSnippet}
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 🛡️ 第二次学术质检与编辑会议（目标字数的 70% / 70% 时间 · 深度研讨）
+    // 🛡️ 第二次学术质检与编辑会议（目标字数的 70% / 切实进行阶段二起草 70% 时间且至少满 6 分钟 · 深度研讨）
     // ═══════════════════════════════════════════════════════════════
-    const isMeetingDue = (hasFirstReviewInLogs || s2.reviewMilestone === 'first_review_done') && (wordProgress >= 0.70 || timeProgress >= 0.70 || rawDoc.length >= (targetWordCount * 0.70));
+    const isMeetingDue = (hasFirstReviewInLogs || s2.reviewMilestone === 'first_review_done') && (wordProgress >= 0.70 || rawDoc.length >= (targetWordCount * 0.70) || (timeProgress >= 0.70 && stage2DurationMs >= 360000));
     const hasMeetingCalledInLogs = s2ChatList.some(m => m.sender === 'managingEditor' && (m.text.includes('半程会议号召') || m.text.includes('半程研讨号召')));
     if (hasMeetingCalledInLogs && s2.reviewMilestone !== 'meeting_called' && s2.reviewMilestone !== 'action_plan_generated') {
       s2.reviewMilestone = 'meeting_called';
