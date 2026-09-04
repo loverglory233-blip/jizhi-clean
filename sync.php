@@ -3789,7 +3789,8 @@ if ($pdo) {
             'classes'          => ($needGlobalSync && isset($globalMeta['classes']))          ? $globalMeta['classes']          : null,
             'tasks'            => ($needGlobalSync && isset($globalMeta['tasks']))            ? $globalMeta['tasks']            : null,
             'announcements'    => ($needGlobalSync && isset($globalMeta['announcements']))    ? $globalMeta['announcements']    : null,
-            'referencePapers'  => ($needGlobalSync && isset($globalMeta['referencePapers'])) ? $globalMeta['referencePapers'] : null
+            'referencePapers'  => ($needGlobalSync && isset($globalMeta['referencePapers'])) ? $globalMeta['referencePapers'] : null,
+            'surveys'          => ($needGlobalSync && isset($globalMeta['surveys']))          ? $globalMeta['surveys']          : null
         ];
         echo json_encode($respData);
         exit;
@@ -3895,7 +3896,8 @@ if ($pdo) {
             'classes'          => ($needGlobalSync && isset($globalMeta['classes']))          ? $globalMeta['classes']          : null,
             'tasks'            => ($needGlobalSync && isset($globalMeta['tasks']))            ? $globalMeta['tasks']            : null,
             'announcements'    => ($needGlobalSync && isset($globalMeta['announcements']))    ? $globalMeta['announcements']    : null,
-            'referencePapers'  => ($needGlobalSync && isset($globalMeta['referencePapers'])) ? $globalMeta['referencePapers'] : null
+            'referencePapers'  => ($needGlobalSync && isset($globalMeta['referencePapers'])) ? $globalMeta['referencePapers'] : null,
+            'surveys'          => ($needGlobalSync && isset($globalMeta['surveys']))          ? $globalMeta['surveys']          : null
         ], JSON_UNESCAPED_UNICODE);
         exit;
     }

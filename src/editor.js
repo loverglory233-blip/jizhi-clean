@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2710";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2710";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2710";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2711";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2711";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2711";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -38,6 +38,8 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
   }
 
   const activeClassId = (window.app?.authManager ? window.app.authManager.getEffectiveStudentClassId(currentUser, state.activeTaskId) : (state.activeStudentClassId || currentUser?.classId || null));
+  const classes = (window.app && window.app.authManager) ? window.app.authManager.getClasses() : [];
+  const currentClassObj = classes.find(c => c.id === activeClassId);
   const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currentUser, activeClassId) : null;
   const groupId = state.activeGroupId || (window.app && window.app.cloudSyncEngine?.groupId) || activeGroupObj?.id || currentUser?.groupId || 'group_unassigned';
   const groupName = activeGroupObj?.name || '协作小组';
@@ -46,12 +48,12 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
   // 严格按【当前班级】、【当前任务】和【当前小组】三位一体过滤教学通知（延期由瞬时大弹窗处理，不混入通知中心）
   const relevantAnnouncements = (announcements || []).filter(a => {
     if (!a || a.isExtension || a.title?.includes('延期') || a.title?.includes('延长至')) return false;
-    const matchClass = !a.classId || a.classId === 'all' || (a.classId === activeClassId) || 
-                       (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(activeClassId)));
-    const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
-      (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-    const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
-    return matchClass && matchGroup && matchTask;
+    return isScopeMatch(a, {
+      userClassId: activeClassId,
+      userGroupId: groupId,
+      currentTaskId: activeTaskId,
+      userClassName: currentClassObj ? currentClassObj.name : ''
+    });
   });
   const isAnnRead = (a) => {
     if (!a) return false;
