@@ -12909,9 +12909,6 @@
               const s1 = this.state.stage1 || {};
               const propList = s1.proposals || [];
               const propCount = propList.length;
-              const unsubmittedMembers = membersList.filter(m => !propList.some(p => isSameUser(m, p.author) || isSameUser(m, p.authorName) || p.author === m.id || (m.name && p.authorName === m.name)));
-              const unsubmittedNames = unsubmittedMembers.map(m => m.name  ).join('、');
-
               // ① 开场 3 分钟【左侧无提案 且 右侧无讨论交流】双静默破冰启发
               const s1Chats = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
               const studentChatsCount = s1Chats.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system').length;
