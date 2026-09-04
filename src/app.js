@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2668";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2668";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2668";
-import { AuthManager } from "./auth.js?v=20260905_v2668";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2668";
-import { renderLoginView } from "./login.js?v=20260905_v2668";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2668";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2668";
+} from "./constants.js?v=20260905_v2669";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2669";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2669";
+import { AuthManager } from "./auth.js?v=20260905_v2669";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2669";
+import { renderLoginView } from "./login.js?v=20260905_v2669";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2669";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2669";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2668";
+} from "./editor.js?v=20260905_v2669";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -183,22 +183,21 @@ export class App {
                 }
               } catch (err) {}
             }
+            if (this.state.studentViewMode === 'workspace') {
+              this.renderHeader();
+              this.checkUnreadAnnouncements();
+            } else if (this.state.studentViewMode === 'task_list') {
+              this.renderMain();
+            }
             if (this.authManager && this.authManager.pullGlobalMeta) {
               this.authManager.pullGlobalMeta().then(() => {
                 if (this.state.studentViewMode === 'workspace') {
+                  this.renderHeader();
                   this.checkUnreadAnnouncements();
                 } else if (this.state.studentViewMode === 'task_list') {
                   this.renderMain();
                 }
-                this.renderHeader();
               }).catch(() => {});
-            } else {
-              if (this.state.studentViewMode === 'workspace') {
-                this.checkUnreadAnnouncements();
-              } else if (this.state.studentViewMode === 'task_list') {
-                this.renderMain();
-              }
-              this.renderHeader();
             }
           }
 
