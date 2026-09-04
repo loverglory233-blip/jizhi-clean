@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260905_v2684"
+TARGET_VERSION="20260905_v2685"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update

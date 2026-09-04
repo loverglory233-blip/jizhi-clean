@@ -491,8 +491,17 @@ export function filterAndDeduplicateChatLogs(messages) {
     const txt = String(m.text || '').trim();
     if (!txt) continue;
 
-    // 🛡️ 过滤正在提炼中的临时过渡/思考占位消息 (如 "收到全组成员确认！...正在根据讨论区研讨记录提炼...")
-    if (m.isThinking || txt.startsWith('⏳ 收到全组成员确认') || (txt.includes('收到全组成员确认') && txt.includes('请稍候'))) {
+    // 🛡️ 过滤正在提炼中的临时过渡/思考占位消息 (如 "正在研读评估...", "收到全组成员确认！...正在根据讨论区研讨记录提炼...")
+    if (
+      m.isThinking ||
+      String(m.id || '').startsWith('thinking_') ||
+      txt.startsWith('⏳') ||
+      txt.includes('正在研读评估') ||
+      txt.includes('正在深度研读') ||
+      txt.includes('正在提炼') ||
+      txt.includes('正在整合') ||
+      (txt.includes('收到全组成员确认') && txt.includes('请稍候'))
+    ) {
       continue;
     }
 
