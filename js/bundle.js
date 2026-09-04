@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2539
+ * Version: 20260904_v2540
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2539';
+  const APP_VERSION = '20260904_v2540';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11279,21 +11279,6 @@
 
         if (cleanTxt !== null) {
           const wordCount = cleanTxt.length;
-
-          // 🛡️ 静默自动保底守护：若当前打开的 Pad 为初始空状态 (<30字)，且尚未尝试自愈，静默检索云端/同组最长正文自动填入
-          if (wordCount < 30 && !window._hasAttemptedPadSilentAutoHeal) {
-            window._hasAttemptedPadSilentAutoHeal = true;
-            fetch(`sync.php?action=restore_pad_max_revision&padId=${encodeURIComponent(rawPadName)}&classId=${encodeURIComponent(userClassId)}&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}`)
-              .then(r => r.json())
-              .then(res => {
-                if (res && res.success && res.textLength > 50) {
-                  const s2f = document.getElementById('stage2-etherpad-frame');
-                  if (s2f) { s2f.src = s2f.src; }
-                }
-              })
-              .catch(() => {});
-          }
-
           // 实时更新字数角标
           const countBadge = document.getElementById('stage2-word-count-num');
           if (countBadge && countBadge.innerText !== String(wordCount)) {
