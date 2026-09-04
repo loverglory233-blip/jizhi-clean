@@ -9294,6 +9294,7 @@
     const activeTaskId = (state && state.activeTaskId) ? state.activeTaskId : null;
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
     const currentTask = allTasks.find(t => t.id === activeTaskId);
+    const taskGenreKey = currentTask?.taskType || 'experiment';
 
     let remainingMin = 150;
     if (currentTask) {
@@ -9390,9 +9391,9 @@
         </button>
       </div>
       <nav class="stage-nav">
-        <button class="stage-btn ${state.currentStage === 'stage1' ? 'active' : ''}" data-stage="stage1" title="阶段一：学术拍卖会 (25分钟)">🎪 阶段一: 拍卖会</button>
-        <button class="stage-btn ${state.currentStage === 'stage2' ? 'active' : ''} ${isS2Locked ? 'stage-locked' : ''}" data-stage="stage2" style="${isS2Locked ? 'opacity:0.65;' : ''}" title="${isS2Locked ? '🔒 待阶段一公约签署完成后解锁' : '阶段二：学术编辑部 (105分钟)'}">${isS2Locked ? '🔒 ' : ''}📰 阶段二: 编辑部</button>
-        <button class="stage-btn ${state.currentStage === 'stage3' ? 'active' : ''} ${isS3Locked ? 'stage-locked' : ''}" data-stage="stage3" style="${isS3Locked ? 'opacity:0.65;' : ''}" title="${isS3Locked ? '🔒 待阶段二编辑会议与正文完成后解锁' : '阶段三：答辩擂台 (20分钟)'}">${isS3Locked ? '🔒 ' : ''}🎓 阶段三: 答辩擂台</button>
+        <button class="stage-btn ${state.currentStage === 'stage1' ? 'active' : ''}" data-stage="stage1" title="${taskGenreKey === 'instructional' ? '阶段一：备课工作坊' : '阶段一：学术拍卖会'} (25分钟)">🎪 阶段一: ${taskGenreKey === 'instructional' ? '工作坊' : '拍卖会'}</button>
+        <button class="stage-btn ${state.currentStage === 'stage2' ? 'active' : ''} ${isS2Locked ? 'stage-locked' : ''}" data-stage="stage2" style="${isS2Locked ? 'opacity:0.65;' : ''}" title="${isS2Locked ? `🔒 待阶段一${taskGenreKey === 'instructional' ? '备课' : ''}公约签署完成后解锁` : `${taskGenreKey === 'instructional' ? '阶段二：集体备课室' : '阶段二：学术编辑部'} (105分钟)`}">${isS2Locked ? '🔒 ' : ''}📰 阶段二: ${taskGenreKey === 'instructional' ? '备课室' : '编辑部'}</button>
+        <button class="stage-btn ${state.currentStage === 'stage3' ? 'active' : ''} ${isS3Locked ? 'stage-locked' : ''}" data-stage="stage3" style="${isS3Locked ? 'opacity:0.65;' : ''}" title="${isS3Locked ? `🔒 待阶段二${taskGenreKey === 'instructional' ? '磨课会议' : '编辑会议'}与正文完成后解锁` : `${taskGenreKey === 'instructional' ? '阶段三：答辩评审会' : '阶段三：答辩擂台'} (20分钟)`}">${isS3Locked ? '🔒 ' : ''}🎓 阶段三: ${taskGenreKey === 'instructional' ? '评审会' : '答辩擂台'}</button>
       </nav>
       <div class="header-controls">
         <button id="btn-header-survey-link" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;" title="课程评估问卷">
@@ -10908,7 +10909,7 @@
             <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:6px; padding:6px 12px; margin-bottom:6px; flex-shrink:0; box-shadow:0 1px 3px rgba(5,150,105,0.06);">
               <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
                 <div style="font-size:12px; font-weight:800; color:#059669; display:flex; align-items:center; gap:8px;">
-                  <span>📋 【半程修正清单】(审稿专家 3 项修改要求)</span>
+                  <span>📋 【半程修正清单】(${taskGenreKey === 'instructional' ? '教研专家' : '审稿专家'} 3 项修改要求)</span>
                   <span style="font-size:11px; background:${isAllDone ? '#d1fae5' : '#fef3c7'}; color:${isAllDone ? '#065f46' : '#b45309'}; border:1px solid ${isAllDone ? '#a7f3d0' : '#fde68a'}; padding:1px 8px; border-radius:10px; font-weight:800;">
                     ${isAllDone ? '🎉 3 项要求已全部落实' : `⏳ 已落实 ${completedCount}/${totalItems} 项`}
                   </span>
@@ -10968,9 +10969,10 @@
         const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
         const isCurrentUserSubmitted = isMemberDone(subs, { id: currUser?.id || currUserCode, name: currUser?.name });
 
+        const meetingLabel = taskGenreKey === 'instructional' ? '磨课' : '会议';
         const meetingTextEl = canvas.querySelector('#stage2-meeting-count-text');
         if (meetingTextEl) {
-          meetingTextEl.innerText = isMeetingFullyDone ? '✅ 会议已全员打卡' : `📢 会议: ${subCount}/${totalCount}`;
+          meetingTextEl.innerText = isMeetingFullyDone ? `✅ ${meetingLabel}已全员打卡` : `📢 ${meetingLabel}: ${subCount}/${totalCount}`;
           meetingTextEl.style.color = isMeetingFullyDone ? '#059669' : '#2563eb';
           meetingTextEl.style.background = isMeetingFullyDone ? '#d1fae5' : '#eff6ff';
           meetingTextEl.style.borderColor = isMeetingFullyDone ? '#a7f3d0' : '#bfdbfe';
@@ -10978,7 +10980,7 @@
 
         const meetingBtnEl = canvas.querySelector('#btn-trigger-meeting-pills');
         if (meetingBtnEl) {
-          meetingBtnEl.innerText = isCurrentUserSubmitted ? '✓ 查看会议' : '📢 参与会议';
+          meetingBtnEl.innerText = isCurrentUserSubmitted ? `✓ 查看${meetingLabel}` : `📢 参与${meetingLabel}`;
           meetingBtnEl.style.background = isCurrentUserSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #2563eb, #1d4ed8)';
           meetingBtnEl.style.color = isCurrentUserSubmitted ? '#059669' : 'white';
           meetingBtnEl.style.border = isCurrentUserSubmitted ? '1px solid #a7f3d0' : 'none';
@@ -11062,10 +11064,10 @@
               return `
                 <div style="display:flex; align-items:center; gap:4px;">
                   <span id="stage2-meeting-count-text" style="font-size:11px; font-weight:800; color:${isMeetingFullyDone ? '#059669' : '#2563eb'}; background:${isMeetingFullyDone ? '#d1fae5' : '#eff6ff'}; padding:1.5px 6px; border-radius:8px; border:1px solid ${isMeetingFullyDone ? '#a7f3d0' : '#bfdbfe'};">
-                    ${isMeetingFullyDone ? '✅ 会议已全员打卡' : `📢 会议: ${subCount}/${totalCount}`}
+                    ${isMeetingFullyDone ? `✅ ${taskGenreKey === 'instructional' ? '磨课' : '会议'}已全员打卡` : `📢 ${taskGenreKey === 'instructional' ? '磨课' : '会议'}: ${subCount}/${totalCount}`}
                   </span>
                   <button id="btn-trigger-meeting-pills" style="background:${isCurrentUserSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isCurrentUserSubmitted ? '1px solid #a7f3d0' : 'none'}; color:${isCurrentUserSubmitted ? '#059669' : 'white'}; padding:2.5px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">
-                    ${isCurrentUserSubmitted ? '✓ 查看会议' : '📢 参与会议'}
+                    ${isCurrentUserSubmitted ? `✓ 查看${taskGenreKey === 'instructional' ? '磨课' : '会议'}` : `📢 参与${taskGenreKey === 'instructional' ? '磨课' : '会议'}`}
                   </button>
                 </div>
               `;
@@ -11216,7 +11218,7 @@
               <div id="stage2-action-plan-card" onclick="if(window.app && window.app.forceRefreshActionPlan){ window.app.forceRefreshActionPlan(); }" title="点击可重新核对并展开最新清单" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px; padding:5px 12px; margin-bottom:6px; flex-shrink:0; display:flex; justify-content:space-between; align-items:center; cursor:pointer; transition:all 0.15s ease;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
                 <div style="font-size:11.5px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
                   <span>📋 【半程修正清单】</span>
-                  <span style="font-size:10.5px; background:#eff6ff; color:#2563eb; padding:1px 6px; border-radius:6px;">待解锁 (组内编辑会议自查对齐后，由审稿专家质检下发)</span>
+                  <span style="font-size:10.5px; background:#eff6ff; color:#2563eb; padding:1px 6px; border-radius:6px;">待解锁 (组内${taskGenreKey === 'instructional' ? '磨课会议' : '编辑会议'}自查对齐后，由${taskGenreKey === 'instructional' ? '教研专家' : '审稿专家'}质检下发)</span>
                 </div>
                 <span style="font-size:10.5px; color:#64748b; background:#ffffff; border:1px solid #e2e8f0; padding:1.5px 6px; border-radius:4px; display:inline-flex; align-items:center; gap:3px;">
                   🔄 点击核对
@@ -11366,7 +11368,7 @@
     if (btnS2ManagingSummary) {
       btnS2ManagingSummary.addEventListener('click', async () => {
         btnS2ManagingSummary.disabled = true;
-        btnS2ManagingSummary.innerText = '⏳ 责任编辑与审稿专家总结中...';
+        btnS2ManagingSummary.innerText = `⏳ ${taskGenreKey === 'instructional' ? '备课组长与教研专家' : '责任编辑与审稿专家'}总结中...`;
         if (window.app && typeof window.app.handleS2ManagingSummary === 'function') {
           await window.app.handleS2ManagingSummary();
         }
@@ -11377,7 +11379,7 @@
     if (btnS2ReviewingSummary) {
       btnS2ReviewingSummary.addEventListener('click', async () => {
         btnS2ReviewingSummary.disabled = true;
-        btnS2ReviewingSummary.innerText = '⏳ 审稿编辑总结冲刺中...';
+        btnS2ReviewingSummary.innerText = `⏳ ${taskGenreKey === 'instructional' ? '教研专家' : '审稿编辑'}总结冲刺中...`;
         if (window.app && typeof window.app.handleS2ReviewingSummary === 'function') {
           await window.app.handleS2ReviewingSummary();
         }
@@ -13425,28 +13427,31 @@
         let stageAgentPills = '';
         let stageAgentMentions = '';
 
+        const taskType = this.getCurrentTaskType();
+        const isInst = (taskType === 'instructional');
+
         if (curStage === 'stage1') {
-          stageAgentPills = `<span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe;">🎪 拍卖师 Agent</span>`;
-          stageAgentMentions = `<div class="at-item agent" data-mention="@拍卖师">🎪 @拍卖师 (阶段一 选题指导)</div>`;
+          stageAgentPills = `<span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe;">🎪 ${isInst ? '备课引导师' : '拍卖师'} Agent</span>`;
+          stageAgentMentions = `<div class="at-item agent" data-mention="@${isInst ? '备课引导师' : '拍卖师'}">🎪 @${isInst ? '备课引导师' : '拍卖师'} (阶段一 选题与方案设计)</div>`;
         } else if (curStage === 'stage2') {
           stageAgentPills = `
-            <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0;">🤝 责任编辑 Agent</span>
-            <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe;">📝 审稿编辑 Agent</span>
+            <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0;">🤝 ${isInst ? '备课组长' : '责任编辑'} Agent</span>
+            <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe;">📝 ${isInst ? '教研专家' : '审稿编辑'} Agent</span>
           `;
           stageAgentMentions = `
-            <div class="at-item agent" data-mention="@责任编辑">🤝 @责任编辑 (阶段二 过程伴学与共识协同)</div>
-            <div class="at-item agent" data-mention="@审稿编辑">📝 @审稿编辑 (阶段二 论文质检)</div>
+            <div class="at-item agent" data-mention="@${isInst ? '备课组长' : '责任编辑'}">🤝 @${isInst ? '备课组长' : '责任编辑'} (阶段二 过程伴学与共识协同)</div>
+            <div class="at-item agent" data-mention="@${isInst ? '教研专家' : '审稿编辑'}">📝 @${isInst ? '教研专家' : '审稿编辑'} (阶段二 ${isInst ? '教学质检' : '论文质检'})</div>
           `;
         } else if (curStage === 'stage3') {
           stageAgentPills = `
-            <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#fefce8; color:#ca8a04; border:1px solid #fef08a;">🟡 中间委员 Agent</span>
-            <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0;">🟢 正方委员 Agent</span>
-            <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#fef2f2; color:#dc2626; border:1px solid #fecaca;">🔴 反方委员 Agent</span>
+            <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#fefce8; color:#ca8a04; border:1px solid #fef08a;">🟡 ${isInst ? '答辩主席' : '中间委员'} Agent</span>
+            <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0;">🟢 ${isInst ? '正方专家' : '正方委员'} Agent</span>
+            <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#fef2f2; color:#dc2626; border:1px solid #fecaca;">🔴 ${isInst ? '反方专家' : '反方委员'} Agent</span>
           `;
           stageAgentMentions = `
-            <div class="at-item agent" data-mention="@中间委员">🟡 @中间委员 (阶段三 答辩裁决)</div>
-            <div class="at-item agent" data-mention="@正方委员">🟢 @正方委员 (阶段三 答辩肯定)</div>
-            <div class="at-item agent" data-mention="@反方委员">🔴 @反方委员 (阶段三 答辩质询)</div>
+            <div class="at-item agent" data-mention="@${isInst ? '答辩主席' : '中间委员'}">🟡 @${isInst ? '答辩主席' : '中间委员'} (阶段三 答辩裁决)</div>
+            <div class="at-item agent" data-mention="@${isInst ? '正方专家' : '正方委员'}">🟢 @${isInst ? '正方专家' : '正方委员'} (阶段三 答辩肯定)</div>
+            <div class="at-item agent" data-mention="@${isInst ? '反方专家' : '反方委员'}">🔴 @${isInst ? '反方专家' : '反方委员'} (阶段三 答辩质询)</div>
           `;
         }
 
@@ -13552,7 +13557,10 @@
           if (fallbackText && fallbackText.trim().length > 0) {
             finalText = fallbackText.trim();
           } else {
-            const roleName = botKey === 'auctioneer' ? '拍卖师' : (botKey === 'reviewingEditor' ? '审稿编辑' : (botKey === 'neutral' ? '中间委员' : '责任编辑'));
+            const taskType = this.getCurrentTaskType();
+            const isInst = (taskType === 'instructional');
+            const roleMap = { auctioneer: isInst ? '备课引导师' : '拍卖师', managingEditor: isInst ? '备课组长' : '责任编辑', reviewingEditor: isInst ? '教研专家' : '审稿编辑', proponent: isInst ? '正方专家' : '正方委员', opponent: isInst ? '反方专家' : '反方委员', neutral: isInst ? '答辩主席' : '中间委员' };
+            const roleName = roleMap[botKey] || (isInst ? '备课组长' : '责任编辑');
             finalText = `💡 【${roleName}】：网络响应稍微慢了一步～如果大家需要我的针对性指导，可以在讨论区输入 @${roleName} 重新召唤我！`;
           }
         }
@@ -15043,12 +15051,12 @@
       const stage = this.state.currentStage || 'stage1';
       let replyAgent = null;
 
-      if (userMsg.includes('@中间委员') || userMsg.includes('@中间委员 Agent')) replyAgent = 'neutral';
-      else if (userMsg.includes('@正方委员') || userMsg.includes('@正方委员 Agent')) replyAgent = 'proponent';
-      else if (userMsg.includes('@反方委员') || userMsg.includes('@反方委员 Agent')) replyAgent = 'opponent';
-      else if (userMsg.includes('@审稿编辑') || userMsg.includes('@审稿编辑 Agent')) replyAgent = 'reviewingEditor';
-      else if (userMsg.includes('@责任编辑') || userMsg.includes('@责任编辑 Agent')) replyAgent = 'managingEditor';
-      else if (userMsg.includes('@拍卖师') || userMsg.includes('@拍卖师 Agent')) replyAgent = 'auctioneer';
+      if (userMsg.includes('@中间委员') || userMsg.includes('@答辩主席') || userMsg.includes('@答辩委员会主席')) replyAgent = 'neutral';
+      else if (userMsg.includes('@正方委员') || userMsg.includes('@正方专家') || userMsg.includes('@正方评审专家')) replyAgent = 'proponent';
+      else if (userMsg.includes('@反方委员') || userMsg.includes('@反方专家') || userMsg.includes('@反方质询专家')) replyAgent = 'opponent';
+      else if (userMsg.includes('@审稿编辑') || userMsg.includes('@教研专家')) replyAgent = 'reviewingEditor';
+      else if (userMsg.includes('@责任编辑') || userMsg.includes('@备课组长')) replyAgent = 'managingEditor';
+      else if (userMsg.includes('@拍卖师') || userMsg.includes('@备课引导师') || userMsg.includes('@引导师')) replyAgent = 'auctioneer';
       else if (userMsg.includes('@')) {
         // 学生 @ 了但没打全名，根据阶段智能匹配
         if (stage === 'stage1') replyAgent = 'auctioneer';
@@ -16460,15 +16468,19 @@
         renderChat(this.state);
         await new Promise(r => setTimeout(r, 1500));
 
+        const isInst = (taskType === 'instructional');
+        const managingName = isInst ? '备课组长' : '责任编辑';
+        const reviewingName = isInst ? '教研专家' : '审稿编辑';
+
         const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues, taskType });
         let managingText = (respManaging && respManaging.trim().length > 0) 
           ? respManaging.trim() 
-          : `🤝 【责任编辑·研讨共识小结】：结合大家在自查打卡与讨论区指出的【${focusIssues.slice(0, 40)}】等全部核心诉求，全组已在研究问题聚焦与方法设计细化上形成了明确共识。👉 接下来正式有请 @审稿编辑 结合全篇草稿为大家下发具体的《二审修正清单》，指导全组深入修改与对齐落实！`;
-        if (!managingText.startsWith('🤝')) managingText = `🤝 【责任编辑·研讨共识小结】：${managingText}`;
+          : `🤝 【${managingName}·研讨共识小结】：结合大家在自查打卡与讨论区指出的【${focusIssues.slice(0, 40)}】等全部核心诉求，全组已在${isInst ? '教学目标聚焦与新知探究活动设计' : '研究问题聚焦与方法设计'}细化上形成了明确共识。👉 接下来正式有请 @${reviewingName} 结合全篇草稿为大家下发具体的《${isInst ? '磨课修正清单' : '二审修正清单'}》，指导全组深入修改与对齐落实！`;
+        if (!managingText.startsWith('🤝')) managingText = `🤝 【${managingName}·研讨共识小结】：${managingText}`;
 
         const msgManaging = {
           sender: 'managingEditor',
-          senderName: '协同调度 · 责任编辑',
+          senderName: isInst ? '协同调度 · 备课组长' : '协同调度 · 责任编辑',
           text: managingText,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
@@ -16477,10 +16489,10 @@
         this.syncChatLogs();
         renderChat(this.state);
 
-        // 🌟 2. 切换为审稿编辑二审质检正在分析中动态状态框
+        // 🌟 2. 切换为审稿编辑/教研专家二审质检正在分析中动态状态框
         this.state.activeAgentAnalyzing = {
           icon: '📝',
-          title: '【审稿编辑】正在下发《二审修正清单》...',
+          title: `【${reviewingName}】正在下发《${isInst ? '磨课修正清单' : '二审修正清单'}》...`,
           detail: '正在深度审阅正文草稿并结合自查瓶颈，生成包含【诊断问题+改进建议】的双结构清单...'
         };
         this.renderStudentWorkspace();
@@ -16514,16 +16526,16 @@
         let reviewingText = '';
         if (respReviewing && respReviewing.trim().length > 0) {
           reviewingText = respReviewing.trim();
-          if (!reviewingText.startsWith('📝')) reviewingText = `📝 【审稿编辑·二审修正清单】：${reviewingText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '')}`;
+          if (!reviewingText.startsWith('📝')) reviewingText = `📝 【${reviewingName}·${isInst ? '磨课修正清单' : '二审修正清单'}】：${reviewingText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '')}`;
           // 🛡️ 清理历史残留的网络提醒错误气泡
           this.state.chatLogs.stage2 = (this.state.chatLogs.stage2 || []).filter(m => !m || !(m.sender === 'reviewingEditor' && (m.text || '').includes('网络提醒')));
         } else {
-          reviewingText = `📝 【审稿编辑·网络提醒】：📡 正在深度审阅正文草稿，网络连接稍有延迟未获取到清单。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新下发《二审修正清单》</button>`;
+          reviewingText = `📝 【${reviewingName}·网络提醒】：📡 正在深度审阅正文草稿，网络连接稍有延迟未获取到清单。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新下发《${isInst ? '磨课修正清单' : '二审修正清单'}》</button>`;
         }
 
         const msgReviewing = {
           sender: 'reviewingEditor',
-          senderName: '学术质量 · 审稿编辑',
+          senderName: isInst ? '教学质量 · 教研专家' : '学术质量 · 审稿编辑',
           text: reviewingText,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now() + 100
@@ -16705,39 +16717,43 @@
 
       const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
 
-      const summaryPrompt = `小组成员已就《二审修正清单》在讨论区明确了具体的修改对策与协同落实方案。
+      const taskType = this.getCurrentTaskType();
+      const isInst = (taskType === 'instructional');
+      const reviewingName = isInst ? '教研专家' : '审稿编辑';
+
+      const summaryPrompt = `小组成员已就《${isInst ? '磨课修正清单' : '二审修正清单'}》在讨论区明确了具体的修改对策与协同落实方案。
   【组内关于清单落实的讨论记录】:
   ${chatSnippet}
 
-  请作为审稿编辑，发表 90~120 字的【修改落实确认与终审冲刺寄语】：
-  ① 肯定大家清晰务实的修改对策与严谨协作态度（严禁出现“分工”字眼）；
-  ② 鼓励全组回到左侧正文继续高效协同与修改，冲刺最终高质量学术成文！（纯自然语言，90~120字，严禁输出代码块）`;
+  请作为${reviewingName}，发表 90~120 字的【修改落实确认与定稿冲刺寄语】：
+  ① 肯定大家清晰务实的修改对策与严谨备课/协作态度（严禁出现“分工”字眼）；
+  ② 鼓励全组回到左侧正文继续高效协同与修改，冲刺最终高质量${isInst ? '教学设计方案' : '学术成文'}！（纯自然语言，90~120字，严禁输出代码块）`;
 
       try {
-        // 🌟 挂载审稿编辑三审正在分析中动态状态框
+        // 🌟 挂载审稿编辑/教研专家三审正在分析中动态状态框
         this.state.activeAgentAnalyzing = {
           icon: '📝',
-          title: '【审稿编辑】正在审查清单落实与定稿冲刺...',
-          detail: '正在评估全组修改对策与落实方案，起草学术成稿与答辩冲刺寄语...'
+          title: `【${reviewingName}】正在审查清单落实与定稿冲刺...`,
+          detail: '正在评估全组修改对策与落实方案，起草成稿与答辩冲刺寄语...'
         };
         this.renderStudentWorkspace();
         renderChat(this.state);
         await new Promise(r => setTimeout(r, 1500));
 
-        const respSummary = await callCozeAgentAPI('reviewingEditor', summaryPrompt, { stage: 'stage2', topic });
+        const respSummary = await callCozeAgentAPI('reviewingEditor', summaryPrompt, { stage: 'stage2', topic, taskType });
         let summaryText = '';
         if (respSummary && respSummary.trim().length > 0) {
           summaryText = respSummary.trim();
-          if (!summaryText.startsWith('📝')) summaryText = `📝 【审稿编辑·修改确认与写作冲刺】：${summaryText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '')}`;
+          if (!summaryText.startsWith('📝')) summaryText = `📝 【${reviewingName}·修改确认与${isInst ? '备课' : '写作'}冲刺】：${summaryText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '')}`;
           // 🛡️ 清理历史残留的网络提醒错误气泡
           this.state.chatLogs.stage2 = (this.state.chatLogs.stage2 || []).filter(m => !m || !(m.sender === 'reviewingEditor' && (m.text || '').includes('网络提醒')));
         } else {
-          summaryText = `📝 【审稿编辑·网络提醒】：📡 网络连接稍有延迟，未能获取到即时决议。<br><button class="btn-retry-ai" onclick="window.app.handleS2ReviewingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成修改落实决议</button>`;
+          summaryText = `📝 【${reviewingName}·网络提醒】：📡 网络连接稍有延迟，未能获取到即时决议。<br><button class="btn-retry-ai" onclick="window.app.handleS2ReviewingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成修改落实决议</button>`;
         }
 
         const msgSummary = {
           sender: 'reviewingEditor',
-          senderName: '学术质量 · 审稿编辑',
+          senderName: isInst ? '教学质量 · 教研专家' : '学术质量 · 审稿编辑',
           text: summaryText,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
@@ -16846,7 +16862,7 @@
             this.state.chatLogs.stage3 = this.state.chatLogs.stage3.filter(m => !m || !(m.sender === 'neutral' && (m.text || '').includes('网络提醒')));
           }
         } else {
-          chairSpeech = `🟡 【中间委员·网络提醒】：📡 答辩审阅网络连接稍有延迟，未能获取到针对【${inqLabel}】的定案。<br><button class="btn-retry-ai" onclick="window.app.handleS3InquirySummary(this)" style="margin-top:6px; background:#d97706; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成【${inqLabel}】答辩定案</button>`;
+          chairSpeech = `🟡 【${chairShort}·网络提醒】：📡 答辩审阅网络连接稍有延迟，未能获取到针对【${inqLabel}】的定案。<br><button class="btn-retry-ai" onclick="window.app.handleS3InquirySummary(this)" style="margin-top:6px; background:#d97706; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成【${inqLabel}】答辩定案</button>`;
         }
 
         if (!chairSpeech.startsWith('🟡')) {
@@ -17279,8 +17295,8 @@
             const errChairMsg = {
               id: 'msg_s3_chair_err_' + Date.now(),
               sender: 'neutral',
-              senderName: '答辩委员会主席 · 中间委员',
-              text: `🟡 【中间委员·网络提醒】：📡 答辩思路引导生成稍有延迟。<br><button class="btn-retry-ai" onclick="window.app.runStage3CommitteePipeline(this)" style="margin-top:6px; background:#d97706; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成答辩思路引导</button>`,
+              senderName: chairName,
+              text: `🟡 【${chairShort}·网络提醒】：📡 答辩思路引导生成稍有延迟。<br><button class="btn-retry-ai" onclick="window.app.runStage3CommitteePipeline(this)" style="margin-top:6px; background:#d97706; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成答辩思路引导</button>`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now()
             };
@@ -17895,8 +17911,10 @@
           this.showReferencePapersModal();
         },
         onOpenMeetingModal: () => { 
+          const taskType = this.getCurrentTaskType();
+          const isInst = (taskType === 'instructional');
           if (this.state.currentStage === 'stage3' || this.state.isFinalSubmitted) {
-            alert('🔒 阶段二半程编辑会议已结束并归档，不可再次发起。你可随时查阅已锁定的【半程编辑修正清单】！');
+            alert(`🔒 阶段二半程${isInst ? '磨课会议' : '编辑会议'}已结束并归档，不可再次发起。你可随时查阅已锁定的【半程${isInst ? '磨课' : '编辑'}修正清单】！`);
             return;
           }
           this.showMeetingModal(); 
@@ -17905,6 +17923,8 @@
           if (!this.state.stage2) this.state.stage2 = {};
           const s2 = this.state.stage2;
           const user = this.state.currentUser;
+          const taskType = this.getCurrentTaskType();
+          const isInst = (taskType === 'instructional');
 
           let memberArr = [];
           if (Array.isArray(this.state.members)) memberArr = this.state.members;
@@ -17930,9 +17950,9 @@
           const isDeadlineNear = isTaskExpired(curTask) || (curTask?.deadline && (new Date(curTask.deadline.replace(/-/g, '/')).getTime() - Date.now() <= 300000));
 
           if (!isMeetingDone && !isDeadlineNear) {
-            alert(`⚠️ 无法确认初稿：全组尚未完成【半程全篇综合自查与二审会议】（当前打卡进度：${subCount}/${totalMembersCount} 人）！\n\n请全组成员先完成半程自查打卡与二审修改研讨，或等待任务总时间临近结束（最后 5 分钟内）再进行初稿定稿确认。`);
+            alert(`⚠️ 无法确认初稿：全组尚未完成【半程全篇综合自查与${isInst ? '磨课会议' : '二审会议'}】（当前打卡进度：${subCount}/${totalMembersCount} 人）！\n\n请全组成员先完成半程自查打卡与${isInst ? '磨课修改研讨' : '二审修改研讨'}，或等待任务总时间临近结束（最后 5 分钟内）再进行初稿定稿确认。`);
             if (typeof showGlobalBannerNotice === 'function') {
-              showGlobalBannerNotice('⚠️ 请先完成二审自查', `当前半程会议打卡进度为 ${subCount}/${totalMembersCount} 人，请先走完二审自查研讨流程或等待临近结课再确认初稿。`, 'warning', 6000);
+              showGlobalBannerNotice('⚠️ 请先完成半程自查', `当前半程${isInst ? '磨课' : '编辑'}会议打卡进度为 ${subCount}/${totalMembersCount} 人，请先走完自查研讨流程或等待临近结课再确认初稿。`, 'warning', 6000);
             }
             return;
           }
@@ -17978,8 +17998,9 @@
           this.renderStudentWorkspace();
 
           // 🛡️ 严格要求：必须全组成员每一个人都点击确认初稿后，才解锁推进至阶段三
+          const stage3Title = isInst ? '阶段三：答辩评审会' : '阶段三：答辩擂台';
           if (confirmedCount < totalMembersCount) {
-            showGlobalBannerNotice('✍️ 初稿确认成功', `您 (${memberName}) 已确认初稿！当前组内进度：${confirmedCount}/${totalMembersCount} 人已确认。全员完成后将解锁【阶段三：答辩擂台】。`, 'info', 6000);
+            showGlobalBannerNotice('✍️ 初稿确认成功', `您 (${memberName}) 已确认初稿！当前组内进度：${confirmedCount}/${totalMembersCount} 人已确认。全员完成后将解锁【${stage3Title}】。`, 'info', 6000);
           } else {
             s2.isDraftConfirmed = true;
             this.state.groupMaxStage = 'stage3';
@@ -18001,9 +18022,9 @@
               sessionStorage.setItem(autoKey, '1');
               this.showStageMilestoneModal({
                 icon: '🎓',
-                title: '全组成员已全部完成初稿确认！',
-                subtitle: `组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成初稿确认！初稿已锁定归档，现在开启【阶段三：答辩擂台】！`,
-                targetName: '阶段三：答辩擂台',
+                title: `全组成员已全部完成${isInst ? '教学设计' : ''}初稿确认！`,
+                subtitle: `组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成初稿确认！初稿已锁定归档，现在开启【${stage3Title}】！`,
+                targetName: stage3Title,
                 onProceed: () => {
                   this.switchStage('stage3', true);
                 }
@@ -18063,11 +18084,16 @@
           const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
           const memberName = currMemObj?.name || currUserObj?.name || '组员';
 
+          const taskType = this.getCurrentTaskType();
+          const isInst = (taskType === 'instructional');
+          const chairSenderTitle = isInst ? '答辩委员会主席' : '中间委员';
+          const docName = isInst ? '教学设计' : '论文';
+
           if (confirmedCount >= totalMembersCount) {
             s3.isRevisionConfirmed = true;
             const promptMsg = {
               sender: 'neutral',
-              text: `🎉 【中间委员宣布】：恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 人已全部确认完成答辩！【修改论文终稿】面板已正式解锁！请组员切换至【📝 修改论文终稿】面板完善正文，修改完毕后由代表点击【🚀 提交论文终稿】完成归档！`,
+              text: `🎉 【${chairSenderTitle}宣布】：恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 人已全部确认完成答辩！【修改${docName}终稿】面板已正式解锁！请组员切换至【📝 修改${docName}终稿】面板完善正文，修改完毕后由代表点击【🚀 提交${docName}终稿】完成归档！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now() + 50
             };
@@ -18084,8 +18110,8 @@
               this.showStageMilestoneModal({
                 icon: '📝',
                 title: '全组成员已全部确认答辩与修改清单！',
-                subtitle: `组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成答辩辩护与裁决矩阵确认！答辩清单已定案归档，【修改论文终稿】面板已正式解锁！`,
-                targetName: '修改论文终稿',
+                subtitle: `组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成答辩辩护与裁决矩阵确认！答辩清单已定案归档，【修改${docName}终稿】面板已正式解锁！`,
+                targetName: `修改${docName}终稿`,
                 onProceed: () => {
                   if (this.handlers && typeof this.handlers.onSwitchStage3Tab === 'function') {
                     this.handlers.onSwitchStage3Tab('editor');
@@ -18106,7 +18132,7 @@
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             this.renderStudentWorkspace();
             renderChat(this.state);
-            showGlobalBannerNotice('✅ 答辩确认成功', `您 (${memberName}) 已成功确认完成答辩！当前组内进度：${confirmedCount}/${totalMembersCount} 人已确认。全员确认后将自动解锁【修改论文终稿】。`, 'info', 6000);
+            showGlobalBannerNotice('✅ 答辩确认成功', `您 (${memberName}) 已成功确认完成答辩！当前组内进度：${confirmedCount}/${totalMembersCount} 人已确认。全员确认后将自动解锁【修改${docName}终稿】。`, 'info', 6000);
           }
         },
         onSwitchStage3Tab: (tabKey) => {
@@ -18202,8 +18228,13 @@
         },
 
         onFinalSubmit: () => { 
+          const taskType = this.getCurrentTaskType();
+          const isInst = (taskType === 'instructional');
+          const docName = isInst ? '教学设计' : '论文';
+          const chairSenderTitle = isInst ? '答辩委员会主席' : '中间委员';
+
           if (this.state.isFinalSubmitted) {
-            alert('🔒 论文终稿已于此前成功全员提交！目前处于全盘只读归档模式，可随时切页查阅各阶段记录。');
+            alert(`🔒 ${docName}终稿已于此前成功全员提交！目前处于全盘只读归档模式，可随时切页查阅各阶段记录。`);
             return;
           }
           const user = this.state.currentUser;
@@ -18241,7 +18272,7 @@
           const submitMsg = {
             sender: user,
             senderName: memberName,
-            text: `📢 [终稿提交确认]: 我 (${memberName}) 已确认提交论文终稿！（全组终稿提交确认进度: ${finalSubmittedCount}/${totalMembersCount} 人）`,
+            text: `📢 [终稿提交确认]: 我 (${memberName}) 已确认提交${docName}终稿！（全组终稿提交确认进度: ${finalSubmittedCount}/${totalMembersCount} 人）`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now()
           };
@@ -18261,7 +18292,7 @@
 
             const neutralFinalMsg = {
               sender: 'neutral',
-              text: `🏆 【中间委员·答辩终审总结与祝贺】：热烈祝贺全组成员 (${totalMembersCount}/${totalMembersCount} 人) 已全部确认提交论文终稿！本组正文与答辩成果已正式全盘锁定归档呈递至教师端！请各位同学点击上方【📋 打开问卷填写界面】完成问卷！`,
+              text: `🏆 【${chairSenderTitle}·答辩终审总结与祝贺】：热烈祝贺全组成员 (${totalMembersCount}/${totalMembersCount} 人) 已全部确认提交${docName}终稿！本组正文与答辩成果已正式全盘锁定归档呈递至教师端！请各位同学点击上方【📋 打开问卷填写界面】完成问卷！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now() + 50
             };
@@ -18273,7 +18304,7 @@
             this.renderStudentWorkspace();
             renderChat(this.state);
 
-            showGlobalBannerNotice('🏆 论文终稿已全员提交归档', `热烈祝贺组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成论文终稿提交！请全组成员填写课程体验与 SSRL 评估问卷。`, 'success', 10000);
+            showGlobalBannerNotice(`🏆 ${docName}终稿已全员提交归档`, `热烈祝贺组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成${docName}终稿提交！请全组成员填写课程体验与 SSRL 评估问卷。`, 'success', 10000);
             setTimeout(() => {
               this.showQuestionnaireModal();
             }, 300);
@@ -18284,7 +18315,7 @@
             this.renderStudentWorkspace();
             renderChat(this.state);
 
-            alert(`✅ 您 (${memberName}) 已成功确认提交论文终稿！\n\n当前组内终稿提交确认进度：${finalSubmittedCount}/${totalMembersCount} 人已确认。\n⚠️ 必须全组所有成员均完成确认提交后，系统才会正式将终稿归档提交至教师端！请提醒组内其他同学尽快确认提交。`);
+            alert(`✅ 您 (${memberName}) 已成功确认提交${docName}终稿！\n\n当前组内终稿提交确认进度：${finalSubmittedCount}/${totalMembersCount} 人已确认。\n⚠️ 必须全组所有成员均完成确认提交后，系统才会正式将终稿归档提交至教师端！请提醒组内其他同学尽快确认提交。`);
           }
         }
       };
