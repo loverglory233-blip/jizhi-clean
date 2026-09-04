@@ -4053,47 +4053,12 @@ ${instructionSection}
     if (typeof showGlobalBannerNotice === 'function') {
       showGlobalBannerNotice('🎉 公约草案已全部生成就绪！', '请各位组员在左侧公约看板核对分工与时间规划，并在下方签署确认！', 'success', 6000);
     }
-  }
-
-    // 🛡️ 清理历史残留的全套公约草案网络提醒
-    this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || !(m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('全套公约草案')));
-
-    this._contractGenerateFailed = false;
-
-    // 写入状态并单向锁定公约草案
-    if (!s1.contract) s1.contract = {};
-    s1.mergedTitle = finalTopic;
-    s1.contract.topic = finalTopic;
-    s1.contract.overview = finalOverview;
-    s1.researchOverview = finalOverview;
-    s1.contract.timeAllocations = finalTimes;
-    s1.contract.taskAssignments = finalAssignments;
-    s1.contract.isDraftGenerated = true;
-    s1.contract._draftedTime = Date.now();
-    s1.contractStep = 'completed'; // 提炼全部完成，左侧3个分步按钮全部退场
-    s1.flowStep = 'refining';
-
-    const noticeText = `🏛️ 【${agentRole}·全盘公约就绪】：全篇${isInst ? '教学课题' : '研究主题'}《${finalTopic}》、时间规划与组员分工已全部提炼生成并录入左侧公约看板！👉 请全组成员在左侧公约卡片仔细核对自己的分工与时间，并在公约下方点击【✍️ 签署确认${contractTitle}】！全员签署后将正式解锁【${stage2Title}】！`;
-    const noticeMsg = {
-      id: 'msg_full_contract_done_' + Date.now(),
-      sender: 'auctioneer',
-      senderName: agentSenderName,
-      text: noticeText,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      _timeMs: Date.now()
-    };
-    s1ChatLogs.push(noticeMsg);
-    if (typeof this.sendSingleChatMessage === 'function') {
-      this.sendSingleChatMessage(noticeMsg, 'stage1');
+      showGlobalBannerNotice('🎉 公约草案已全部生成就绪！', '请各位组员在左侧公约看板核对分工与时间规划，并在下方签署确认！', 'success', 6000);
     }
-
-    this.syncStage1();
-    this.syncChatLogs();
-    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-    this.renderStudentWorkspace();
-    renderChat(this.state);
-
+  }
     if (typeof showGlobalBannerNotice === 'function') {
+      showGlobalBannerNotice('🎉 公约草案已全部生成就绪！', '请各位组员在左侧公约看板核对分工与时间规划，并在下方签署确认！', 'success', 6000);
+    }
       showGlobalBannerNotice('🎉 公约草案已全部生成就绪！', '请各位组员在左侧公约看板核对分工与时间规划，并在下方签署确认！', 'success', 6000);
     }
   }
