@@ -1,4 +1,5 @@
-import { escapeHtml } from "./utils.js?v=20260904_v2231";
+import { escapeHtml } from "./utils.js?v=20260904_v2233";
+import { APP_VERSION } from "./constants.js?v=20260904_v2233";
 
 export function renderLoginView(container, authManager, onLoginSuccess) {
   if (authManager && authManager.pullGlobalMeta) {
@@ -44,8 +45,10 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
             🚀 登录集智平台
           </button>
         </form>
-        <div style="text-align:center; margin-top:24px; font-size:12px; color:#94a3b8; font-weight:500;">
+        <div style="text-align:center; margin-top:24px; font-size:12px; color:#94a3b8; font-weight:500; display:flex; justify-content:center; align-items:center; gap:8px;">
           <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" style="color:#94a3b8; text-decoration:none;">浙ICP备2026066047号-1</a>
+          <span style="opacity:0.5;">·</span>
+          <span style="font-family:monospace; font-size:11px; color:#94a3b8;" title="系统版本号">${APP_VERSION}</span>
         </div>
       </div>
     </div>

@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260904_v2231";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2231";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2231";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2233";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2233";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2233";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -99,7 +99,7 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
 
   const newHeaderHtml = `
     <div class="brand-section">
-      <div class="brand-logo">集智 JIZHI</div>
+      <div class="brand-logo" style="display:flex; align-items:baseline; gap:6px;">集智 JIZHI <span style="font-size:10.5px; font-weight:700; color:#94a3b8; font-family:monospace;" title="系统版本号">${APP_VERSION}</span></div>
       <div class="brand-badge" style="background:#eff6ff; color:#1d4ed8; padding:3px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid #bfdbfe; display:inline-flex; align-items:center; gap:6px;">
         <span>🎓 ${escapeHtml(currentUser ? currentUser.name : '学生')}</span>
         <span style="opacity:0.35;">·</span>

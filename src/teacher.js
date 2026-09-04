@@ -9,9 +9,10 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
-  AgentProfiles
-} from "./constants.js?v=20260904_v2231";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260904_v2231";
+  AgentProfiles,
+  APP_VERSION
+} from "./constants.js?v=20260904_v2233";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260904_v2233";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -290,7 +291,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
               <span style="background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:700;">教学空间</span>
             </div>
           ` : `
-            <div class="brand-logo" style="font-size:22px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI 教学总控大厅</div>
+            <div class="brand-logo" style="font-size:22px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent; display:flex; align-items:baseline; gap:8px;">集智 JIZHI 教学总控大厅 <span style="font-size:11px; font-weight:700; color:#94a3b8; font-family:monospace;" title="系统版本号">${APP_VERSION}</span></div>
           `}
         </div>
         <div class="teacher-info" style="display:flex; align-items:center; gap:14px;">
