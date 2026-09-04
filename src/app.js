@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2375";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2375";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2375";
-import { AuthManager } from "./auth.js?v=20260904_v2375";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2375";
-import { renderLoginView } from "./login.js?v=20260904_v2375";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2375";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2375";
+} from "./constants.js?v=20260904_v2380";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2380";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2380";
+import { AuthManager } from "./auth.js?v=20260904_v2380";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2380";
+import { renderLoginView } from "./login.js?v=20260904_v2380";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2380";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2380";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2375";
+} from "./editor.js?v=20260904_v2380";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1575,11 +1575,22 @@ export class App {
         }
 
         // ======================================================================
-        // 📝 审稿编辑一审后静默跟进（严格 3 分钟冷场静默提示，全场严格仅 1 次）
+        // 📝 审稿编辑一审后静默跟进（严格在真正下发【一审破题把脉】后且 3 分钟冷场才触发）
         // ======================================================================
         const existReviewFollow = s2Chats.some(m => m && (m.text?.includes('初审跟进提示') || m.text?.includes('初审协同跟进')));
-        const lastReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && !m.text?.includes('初审跟进提示') && !m.text?.includes('初审协同跟进'));
-        const isFirstReviewIssued = !!lastReviewMsgObj;
+        const realFirstReviewMsg = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('一审破题把脉') || m.text?.includes('初审破题') || m.text?.includes('初审质检') || m.text?.includes('Research Gap')) && !m.text?.includes('开场寄语') && !m.text?.includes('初审跟进提示') && !m.text?.includes('初审协同跟进'));
+        const isFirstReviewIssued = !!realFirstReviewMsg || (s2.reviewMilestone === 'first_review_done' && !!s2.firstReviewText);
+
+        // 🛡️ 智能自愈：若历史记录存在早产的“初审协同跟进”但真实一审尚未下发，自动清洗多余跟进
+        if (!isFirstReviewIssued && existReviewFollow) {
+          if (this.state.chatLogs && this.state.chatLogs.stage2) {
+            this.state.chatLogs.stage2 = this.state.chatLogs.stage2.filter(m => !(m && m.sender === 'reviewingEditor' && (m.text?.includes('初审跟进提示') || m.text?.includes('初审协同跟进'))));
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+          }
+        }
+
         const hasPassedToSubsequentStages = s2Chats.some(m => m && (
           m.text?.includes('半程研讨号召') || 
           m.text?.includes('半程会议号召') || 
@@ -1587,15 +1598,15 @@ export class App {
           m.text?.includes('半程修正清单')
         )) || !!s2.meetingStep || !!s2.isDraftConfirmed;
         
-        if (!existReviewFollow && isFirstReviewIssued && !hasPassedToSubsequentStages) {
-          const reviewTime = parseMsgTime(lastReviewMsgObj) || this.stage2StartTime || (now - 60000);
+        if (!existReviewFollow && isFirstReviewIssued && !hasPassedToSubsequentStages && realFirstReviewMsg) {
+          const reviewTime = parseMsgTime(realFirstReviewMsg) || this.stage2StartTime || (now - 60000);
           const reviewElapsed = Math.max(0, now - reviewTime);
           const studentMsgAfterReview = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && parseMsgTime(m) > reviewTime);
           const lastStudentMsgAfterReview = studentMsgAfterReview.length > 0 ? studentMsgAfterReview[studentMsgAfterReview.length - 1] : null;
           const lastStudentMsgAfterReviewTime = parseMsgTime(lastStudentMsgAfterReview);
           const silenceAfterReview = lastStudentMsgAfterReviewTime ? Math.max(0, now - lastStudentMsgAfterReviewTime) : reviewElapsed;
 
-          // ── 一审后冷场满 3 分钟：初审跟进提示（全场严格仅 1 次） ──
+          // ── 真正一审后冷场满 3 分钟：初审跟进提示（全场严格仅 1 次） ──
           if (silenceAfterReview >= 180000) {
             this._nudgeCounts['s2_first_review_silence'] = 1;
             const followMsg = {
