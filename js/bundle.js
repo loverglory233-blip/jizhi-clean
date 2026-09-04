@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2806
+ * Version: 20260905_v2807
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2806';
+  const APP_VERSION = '20260905_v2807';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -21792,12 +21792,13 @@
       if (this.authManager) {
         const effClassId = this.state.activeStudentClassId || currUser?.classId || null;
         const effGroup = this.authManager.getStudentActiveGroup(currUser, effClassId);
-        actualGroupMembers = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || this.state.activeGroupId || null);
+        const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null, effClassId);
+        actualGroupMembers = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
       }
       const membersList = actualGroupMembers.length > 0 ? actualGroupMembers : Object.values(this.state.members || {});
       const subs = this.state.stage2?.meetingSubmissions || {};
-      const subCount = Object.keys(subs).length;
-      const totalCount = membersList.length || 2;
+      const totalCount = Math.max(membersList.length, 2);
+      const subCount = membersList.filter(m => isMemberDone(subs, m)).length;
 
       const existingSub = subs[userKey] || (currUser?.name && subs[currUser.name]) || (currUser?.id && subs[currUser.id]) || (currUser?.id && subs[currUser.id]) || (this.state.currentUser && subs[this.state.currentUser]);
       const isCurrentUserSubmitted = !!existingSub;
@@ -22031,9 +22032,11 @@
         if (this.authManager) {
           const effClassId = this.state.activeStudentClassId || currUser?.classId || null;
           const effGroup = this.authManager.getStudentActiveGroup(currUser, effClassId);
-          actualGroupMembers = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || this.state.activeGroupId || null);
+          const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null, effClassId);
+          actualGroupMembers = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
         }
-        const totalMembersCount = Math.max(actualGroupMembers.length, Object.keys(this.state.members || {}).length, 2);
+        const membersList = actualGroupMembers.length > 0 ? actualGroupMembers : Object.values(this.state.members || {});
+        const totalMembersCount = Math.max(membersList.length, 2);
 
         if (!this.state.stage2.meetingSubmissions) this.state.stage2.meetingSubmissions = {};
         this.state.stage2.meetingSubmissions[userKey] = {
@@ -22052,7 +22055,7 @@
         };
 
         const submissions = this.state.stage2.meetingSubmissions;
-        const submittedCount = Object.keys(submissions).length;
+        const submittedCount = membersList.filter(m => isMemberDone(submissions, m)).length;
 
         // 仅当全组所有成员全部打卡完毕时，才解锁并生成【半程编辑修正清单】
         if (submittedCount < totalMembersCount) {
@@ -22060,6 +22063,7 @@
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           closeModal();
           this.renderStudentWorkspace();
+          renderChat(this.state);
           alert(`✅ 你 (${memberName}) 已成功提交半程自查与互阅打卡！\n\n目前组内已打卡：${submittedCount}/${totalMembersCount} 人。\n需组内所有 ${totalMembersCount} 名成员全部完成打卡后，将自动为全组汇总生成【半程修正清单】！`);
           return;
         }
@@ -22144,7 +22148,14 @@
 
         let managingText = '';
         try {
-          managingText = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, bottleneck: primaryAcademicB, taskType });
+          managingText = await callCozeAgentAPI('managingEditor', managingPrompt, {
+            stage: 'stage2',
+            topic,
+            bottleneck: primaryAcademicB,
+            taskType,
+            milestoneKey: 'stage2_meeting_divergence',
+            scopeKey: this.getGroupScopeKey()
+          });
         } catch (e) {
           console.warn('managingEditor divergence analysis error:', e);
         } finally {
