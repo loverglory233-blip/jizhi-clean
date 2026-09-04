@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2380
+ * Version: 20260904_v2385
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2380';
+  const APP_VERSION = '20260904_v2385';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -18880,20 +18880,25 @@
       // 🛡️ 第一次学术质检（目标字数的 35% / 阶段二起草时间水位 35% · 破题把脉）
       // ═══════════════════════════════════════════════════════════════
       const isReview1Due = (wordProgress >= 0.35 || timeProgress >= 0.35 || rawDoc.length >= (targetWordCount * 0.35));
-      let hasFirstReviewInLogs = s2ChatList.some(m => m.sender === 'reviewingEditor' && (m.text.includes('初审') || m.text.includes('破题把脉') || m.text.includes('Research Gap')));
 
-      // 🛡️ 智能自愈：若当前字数极少且阶段二刚开启（<20% 时间且 <20% 字数），但历史记录残留了此前误触发的早产一审消息，自动清洗之，确保本次能真实重新触发
-      if (!isReview1Due && wordProgress < 0.20 && timeProgress < 0.20 && hasFirstReviewInLogs && rawDoc.length < 50) {
-        if (this.state.chatLogs && this.state.chatLogs.stage2) {
-          this.state.chatLogs.stage2 = this.state.chatLogs.stage2.filter(m => !(m.sender === 'reviewingEditor' && (m.text?.includes('初审') || m.text?.includes('破题把脉') || m.text?.includes('Research Gap'))));
+      // 严格判定真实一审消息（排除开场寄语、初审跟进提示）
+      const isRealFirstReviewMsg = (m) => {
+        if (!m || m.sender !== 'reviewingEditor') return false;
+        const txt = m.text || '';
+        if (txt.includes('开场寄语') || txt.includes('初审协同跟进') || txt.includes('初审跟进提示')) return false;
+        return txt.includes('一审破题把脉') || txt.includes('初审破题把脉') || txt.includes('一审质检') || txt.includes('初审质检') || txt.includes('Research Gap');
+      };
+
+      let hasFirstReviewInLogs = s2ChatList.some(isRealFirstReviewMsg);
+
+      // 🛡️ 智能自愈：若真实一审尚未达成（!isReview1Due），但残留了历史误判标记或孤立的跟进消息，自动修复重置，确保一审能在达到节点时 100% 触发
+      if (!hasFirstReviewInLogs && !isReview1Due) {
+        if (s2.reviewMilestone === 'first_review_done' || s2.reviewMilestone === 'first_review_in_progress') {
+          s2.reviewMilestone = 'none';
+          s2.firstReviewText = null;
+          this.syncStage2();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         }
-        s2.reviewMilestone = 'none';
-        s2.firstReviewText = null;
-        hasFirstReviewInLogs = false;
-        this.syncStage2();
-        this.syncChatLogs();
-        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-        renderChat(this.state);
       }
 
       if (hasFirstReviewInLogs && (s2.reviewMilestone === 'none' || s2.reviewMilestone === 'first_review_in_progress')) {
