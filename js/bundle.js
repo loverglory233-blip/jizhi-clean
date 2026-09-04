@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2805
+ * Version: 20260905_v2806
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2805';
+  const APP_VERSION = '20260905_v2806';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12604,10 +12604,30 @@
           if (padWin.clientVars.authorData) {
             authorData = Object.assign(authorData, padWin.clientVars.authorData);
           }
+          if (padWin.clientVars.initialAuthorData) {
+            authorData = Object.assign(authorData, padWin.clientVars.initialAuthorData);
+          }
         }
         if (padWin && padWin.pad) {
           if (typeof padWin.pad.getAuthorData === 'function') {
             try { authorData = Object.assign(authorData, padWin.pad.getAuthorData()); } catch(e){}
+          }
+          if (padWin.pad.collabClient) {
+            try {
+              if (typeof padWin.pad.collabClient.getConnectedUsers === 'function') {
+                const uList = padWin.pad.collabClient.getConnectedUsers();
+                if (Array.isArray(uList)) {
+                  uList.forEach(u => {
+                    if (u && u.userId) authorData[u.userId] = Object.assign({}, authorData[u.userId] || {}, u);
+                  });
+                }
+              }
+              if (padWin.pad.collabClient.users) {
+                Object.entries(padWin.pad.collabClient.users).forEach(([uid, u]) => {
+                  if (u && typeof u === 'object') authorData[uid] = Object.assign({}, authorData[uid] || {}, u);
+                });
+              }
+            } catch(e) {}
           }
           if (padWin.pad.myUserInfo) {
             if (!padWin.pad.myUserInfo.name || padWin.pad.myUserInfo.name === '组员' || padWin.pad.myUserInfo.name === 'unnamed') {
@@ -12671,6 +12691,52 @@
           return emptyRes;
         }
 
+        // 提取 DOM / Style 中的 Author Color 映射
+        const domAuthorColors = {};
+        const extractStylesFromDoc = (doc) => {
+          if (!doc) return;
+          try {
+            const styleEls = doc.querySelectorAll('style');
+            styleEls.forEach(st => {
+              const cssTxt = st.textContent || '';
+              const matches = cssTxt.matchAll(/\.author-([a-zA-Z0-9_\-]+)\s*\{[^}]*background(?:-color)?:\s*([^;!}\s]+)/gi);
+              for (const m of matches) {
+                if (m[1] && m[2]) {
+                  const normId = m[1].replace(/^[a_.-]+/i, '');
+                  domAuthorColors[m[1]] = m[2];
+                  domAuthorColors['a.' + normId] = m[2];
+                  domAuthorColors['a_' + normId] = m[2];
+                }
+              }
+            });
+          } catch(e) {}
+        };
+        extractStylesFromDoc(innerDoc);
+        extractStylesFromDoc(aceOuter ? aceOuter.contentDocument : null);
+
+        const areColorsEqual = (c1, c2) => {
+          if (!c1 || !c2) return false;
+          c1 = String(c1).trim().toLowerCase();
+          c2 = String(c2).trim().toLowerCase();
+          if (c1 === c2) return true;
+          const hex1 = c1.replace(/^#/, '');
+          const hex2 = c2.replace(/^#/, '');
+          if (hex1 === hex2) return true;
+          const toRgb = (hex) => {
+            if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
+            if (hex.length !== 6) return null;
+            const num = parseInt(hex, 16);
+            return `${(num >> 16) & 255},${(num >> 8) & 255},${num & 255}`;
+          };
+          const parseRgb = (rgbStr) => {
+            const m = rgbStr.match(/rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+            return m ? `${m[1]},${m[2]},${m[3]}` : null;
+          };
+          const rgb1 = toRgb(hex1) || parseRgb(c1);
+          const rgb2 = toRgb(hex2) || parseRgb(c2);
+          return !!(rgb1 && rgb2 && rgb1 === rgb2);
+        };
+
         const getAuthorClass = (el) => {
           let cur = el;
           while (cur && cur !== innerBody) {
@@ -12706,11 +12772,40 @@
         const assignedAuthors = new Map();
         const unassignedKeys = [];
 
-        Object.keys(rawCounts).forEach(aKey => {
-          if (aKey === 'unassigned') {
-            unassignedKeys.push(aKey);
-            return;
+        const matchMemberForAuthor = (aKey, authorName, authorColor) => {
+          const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '');
+          const normDot = 'a.' + rawId;
+          const localAuthorRaw = localAuthorId.replace(/^(author[-_]|a[._-])/i, '');
+
+          // 1. 如果是当前用户的 pad userId
+          if (localAuthorId && (aKey === localAuthorId || normDot === localAuthorId || (rawId && localAuthorRaw && rawId === localAuthorRaw))) {
+            const selfMem = membersList.find(m => isSameUser(m, currUser) || isSameUser(m, currUserCode) || (currUserName && m.name === currUserName));
+            if (selfMem) return selfMem;
           }
+
+          // 2. 精确姓名 / ID 匹配
+          if (authorName && authorName !== '组员' && authorName !== 'unnamed') {
+            const cleanAuthorName = authorName.trim().toLowerCase();
+            const nameMatched = membersList.find(m => {
+              if (!m) return false;
+              const mKeys = getUserAllKeys(m);
+              return mKeys.some(k => k.toLowerCase() === cleanAuthorName || cleanAuthorName.includes(k.toLowerCase()) || k.toLowerCase().includes(cleanAuthorName));
+            });
+            if (nameMatched) return nameMatched;
+          }
+
+          // 3. 颜色精确匹配
+          const effColor = authorColor || domAuthorColors[aKey] || domAuthorColors[normDot] || domAuthorColors[rawId];
+          if (effColor) {
+            const colorMatched = membersList.find(m => m.color && areColorsEqual(m.color, effColor));
+            if (colorMatched) return colorMatched;
+          }
+
+          return null;
+        };
+
+        Object.keys(rawCounts).forEach(aKey => {
+          if (aKey === 'unassigned') return;
           let authorName = '';
           let authorColor = null;
 
@@ -12745,30 +12840,7 @@
             }
           }
 
-          // 1. 如果 authorId 是当前用户的 pad userId
-          const localAuthorRaw = localAuthorId.replace(/^(author[-_]|a[._-])/i, '');
-          if (localAuthorId && (aKey === localAuthorId || normDot === localAuthorId || (rawId && localAuthorRaw && rawId === localAuthorRaw))) {
-            const selfMem = membersList.find(m => currUser && (m.id === currUser.id || m.name === currUser.name)) || membersList[0];
-            if (selfMem) {
-              assignedAuthors.set(aKey, selfMem);
-              return;
-            }
-          }
-
-          // 2. 名字/ID 精准匹配
-          let matched = membersList.find(m => {
-            if (!m) return false;
-            if (authorName && (m.name === authorName || m.id === authorName || m.studentCode === authorName)) return true;
-            if (m.name && m.name.length >= 2 && (aKey.includes(m.name) || (authorName && authorName.includes(m.name)))) return true;
-            if (m.id && (aKey.includes(m.id) || (authorName && authorName.includes(m.id)))) return true;
-            return false;
-          });
-
-          // 3. 颜色匹配
-          if (!matched && authorColor !== null) {
-            matched = membersList.find(m => m.color && String(m.color).toLowerCase() === String(authorColor).toLowerCase());
-          }
-
+          const matched = matchMemberForAuthor(aKey, authorName, authorColor);
           if (matched) {
             assignedAuthors.set(aKey, matched);
           } else {
@@ -12776,19 +12848,15 @@
           }
         });
 
-        // 4. 对尚未精确匹配的 authorClass，按顺序分配给尚未匹配的组内成员（避免100%误归属给单人）
+        // 4. 对尚未精确匹配的 authorClass，分配给尚未被分配的组内成员
         const alreadyAssignedMemberIds = new Set(Array.from(assignedAuthors.values()).map(m => m.id));
         const remainingMembers = membersList.filter(m => !alreadyAssignedMemberIds.has(m.id));
 
         let remIdx = 0;
         unassignedKeys.forEach(aKey => {
-          if (aKey === 'unassigned') return;
           if (remIdx < remainingMembers.length) {
             assignedAuthors.set(aKey, remainingMembers[remIdx]);
             remIdx++;
-          } else {
-            const fallback = membersList.find(m => currUser && (m.id === currUser.id || m.name === currUser.name)) || membersList[0];
-            if (fallback) assignedAuthors.set(aKey, fallback);
           }
         });
 
@@ -12803,10 +12871,10 @@
             if (targetMember.name) memberCounts[targetMember.name] = (memberCounts[targetMember.name] || 0) + count;
             totalAssignedChars += count;
           } else if (aKey !== 'unassigned') {
-            const target = membersList.find(m => currUser && (m.id === currUser.id || m.name === currUser.name)) || membersList[0];
-            if (target) {
-              memberCounts[target.id] = (memberCounts[target.id] || 0) + count;
-              if (target.name) memberCounts[target.name] = (memberCounts[target.name] || 0) + count;
+            const selfMem = membersList.find(m => isSameUser(m, currUser) || isSameUser(m, currUserCode) || (currUserName && m.name === currUserName));
+            if (selfMem) {
+              memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + count;
+              if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + count;
               totalAssignedChars += count;
             }
           }
@@ -20815,12 +20883,7 @@
               this.state.stage2.memberContributions[mId] = 0;
             });
           } else {
-            const prevLen = (this.lastPlainTextLength === undefined) ? plain.length : this.lastPlainTextLength;
-            const delta = plain.length - prevLen;
             this.lastPlainTextLength = plain.length;
-            if (delta > 0) {
-              this.state.stage2.memberContributions[user] = (this.state.stage2.memberContributions[user] || 0) + delta;
-            }
           }
 
           const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
