@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2730";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2730";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2730";
-import { AuthManager } from "./auth.js?v=20260905_v2730";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2730";
-import { renderLoginView } from "./login.js?v=20260905_v2730";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2730";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2730";
+} from "./constants.js?v=20260905_v2731";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2731";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2731";
+import { AuthManager } from "./auth.js?v=20260905_v2731";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2731";
+import { renderLoginView } from "./login.js?v=20260905_v2731";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2731";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2731";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2730";
+} from "./editor.js?v=20260905_v2731";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3512,7 +3512,9 @@ ${votedDetails}
     if (typeof renderChat === 'function') renderChat(this.state);
 
     const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-    const validUserLogs = s1ChatLogs.filter(m => {
+    const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('投票结果出炉') || m.text.includes('全票推选') || m.text.includes('投票已完成') || m.text.includes('投票完成') || m.text.includes('投票揭晓') || m.text.includes('公约草案')));
+    const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs;
+    const validUserLogs = relevantLogs.filter(m => {
       if (!m || !m.text) return false;
       if (m.isThinking) return false;
       if (m.sender === 'system' || AgentProfiles[m.sender]) return false;
@@ -3539,26 +3541,23 @@ ${votedDetails}
     const currentCandidate = s1.mergedTitle || s1.contract?.topic || (propList[0] ? propList[0].title : defaultCandidateFallback);
     const allPropTitles = propList.map(p => `《${p.title}》`).join('、');
 
-    const extractPrompt = `【任务指令：请为小组成员提炼规范${isInst ? '教学课题名称' : '研究论文题目'}与 120~200 字结构化${isInst ? '教学方案概述' : '研究方案概述'}】
+    const extractPrompt = `【任务指令：请根据讨论区研讨记录，为小组成员同时提炼出【槽位1 课题名称】与 120~200 字【槽位2 方案概述】】
 
-【小组成员在讨论区的全部真实研讨发言（核心事实依据，小组成员已在讨论区商讨了具体思路、活动情境或研究方法）】:
-${chatSnippet || (isInst ? '组员主要围绕教学设计课题与教学活动设想展开了研讨' : '组员主要围绕学术研究课题与具体实施方案展开了研讨')}
+【小组成员在讨论区的全部真实研讨发言（从引导后至点击前的研讨切片，学生发言可能较口语化、随性交流）】:
+${chatSnippet || '（小组成员在讨论区暂无更多方案研讨发言）'}
 
 【小组成员提交的提案参考】:
 ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员主要通过讨论区直接交流）')}
 
-【提炼与提取核心要求（最高优先级：深度结合组员真实发言提取出具体方案）】：
-1. 真实研讨萃取：小组成员在讨论区交流了具体的思路、情境、案例或方法。请通读全部发言与提案，准确提炼出具体方案！
-2. 规范提炼【${isInst ? '教学课题' : '论文题目'}】(topic)：以已选出的课题《${currentCandidate}》为核心基础，规范润色或沿用此题目；
-3. 忠实提炼 120~200 字【${isInst ? '教学方案概述' : '研究方案概述'}】(overview)：
-   ${isInst 
-     ? '必须涵盖：① 针对的学情与核心情境；② 教学目标与重难点突破；③ 核心探究活动链与学法设计。必须有充实的具体内容，绝不能输出空字符串或简短套话！' 
-     : '必须涵盖：① 研究背景与实践情境；② 核心研究问题与假设；③ 拟采用的研究设计与具体方法（如实验、问卷、访谈、案例分析等）。必须有充实的具体内容，绝不能输出空字符串或简短套话！'}
+【提炼核心规则（最高红线：尽力分析学生口语化发言，两个槽位一次性全部提炼出来；若完全没有方案研讨则写“暂无”，绝对不编造套话）】：
+1. 深入理解与尽力分析：小组成员使用的是日常口语、随性交流。请通读切片发言，尽最大努力理解学生的构想、案例情境、教学活动或研究方法，提炼出 120~200 字结构化【方案概述】(overview)！
+2. 真实判断：若讨论区或提案中有相关思路，请忠实提炼；若讨论区确实完全没有提及任何方案思路或发言完全无关，方案概述 (overview) 直接明确输出“暂无”；
+3. 规范提炼【${isInst ? '教学课题' : '论文题目'}】(topic)：以《${currentCandidate}》为基础规范润色或沿用；
 
 请务必按以下 JSON 格式输出：
 {
   "topic": "${currentCandidate}",
-  "overview": "根据上述组员真实讨论提炼的 120~200 字${isInst ? '教学方案概述（涵盖学情情境、教学目标重难点与探究建构活动）' : '研究方案概述（涵盖情境案例、核心科学问题与实证研究方法）'}",
+  "overview": "根据上述组员真实讨论尽力提炼的 120~200 字${isInst ? '教学方案概述（涵盖学情情境、教学目标与活动链）' : '研究方案概述（涵盖情境案例、核心科学问题与实证方法）'}，若确实无相关讨论则直接输出'暂无'",
   "guideText": "${isInst ? '教学课题与教学方案概述' : '论文主题与研究方案概述'}已成功生成并录入公约看板！接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定后点击【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！"
 }`;
 
@@ -3577,7 +3576,6 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
             let jsonStr = jsonMatch[0];
             let parsed = safeJsonParse(jsonStr);
             if (!parsed) {
-              // 尝试修复未转义换行符引起的 JSON 解析失败
               try {
                 const fixedJson = jsonStr.replace(/"((?:\\.|[^"\\])*)"/g, (match, p1) => {
                   return '"' + p1.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t') + '"';
@@ -3605,35 +3603,18 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
               finalTopic = tMatch[1].replace(/["'《》]/g, '').trim();
             }
             const oMatch = resp.match(/(?:【(?:教学)?(?:研究)?方案概述】|【方案设计】|【总体构想】|(?:方案概述|教学方案|研究方案|总体构想|方案设计|overview)[：:\s]*)([\s\S]+?)(?=\n\s*【|\n\s*[234]\.|\n\s*guideText|\n\s*"|$)/i);
-            if (oMatch && oMatch[1] && oMatch[1].trim().length > 10) {
+            if (oMatch && oMatch[1] && oMatch[1].trim().length > 1) {
               finalOverview = oMatch[1].replace(/^["'：:\s]+|["'，,。;\s]+$/g, '').trim();
             }
           }
         } catch (je) {
-          console.warn('Parse topic & overview JSON fail, use synthesized fallback', je);
+          console.warn('Parse topic & overview JSON fail', je);
         }
-      } else {
-        throw new Error('Empty topic extraction response');
       }
 
-      // 🛡️ 兜底确保 finalOverview 绝对不为空，并深度萃取组员真实发言
-      const meaningfulUtterances = validUserLogs
-        .map(m => (m.text || '').replace(/<[^>]+>/g, '').trim())
-        .filter(t => t.length > 1 && !t.includes('确认') && !t.includes('公约') && !t.includes('投票'));
-      const userUtterances = meaningfulUtterances.slice(-8).join('；');
-      const propDesc = propList.map(p => (p.description || '').replace(/<[^>]+>/g, '').trim()).filter(Boolean).join('；');
-      const actualContext = [userUtterances, propDesc].filter(Boolean).join('；');
-
-      if (!finalOverview || !finalOverview.trim() || finalOverview.length < 15) {
-        if (actualContext) {
-          finalOverview = isInst
-            ? `本教学设计紧扣《${finalTopic}》展开，深度整合组内真实研讨要点（${actualContext.slice(0, 100)}）。立足真实学情创设情境，设计任务驱动与学生活动链，切实落实重难点突破与核心素养培育。`
-            : `本研究围绕《${finalTopic}》展开，系统整合组内研讨思路（${actualContext.slice(0, 100)}）。明确核心问题与实证情境，采用定性与定量分析方法，深入探究关键影响机制与实施路径。`;
-        } else {
-          finalOverview = isInst 
-            ? `本教学设计方案紧扣《${finalTopic}》展开，立足真实学情分析与新课标核心素养目标。全篇采用情境驱动与任务探究相结合的教学模式，设置由浅入深的学生活动链，并配以针对性过程性评价量规与分层作业，确保教学重难点有效突破。`
-            : `本研究围绕《${finalTopic}》展开，立足具体实践情境与核心科学问题。研究设计采用实证方法，明确关键变量与操作化测量工具，通过系统的样本抽样与数据分析模型，深入探究关键影响机制与效应边界。`;
-        }
+      // 🛡️ 严格遵循用户真实研讨：若确实没有提取出方案，直接显示“暂无”，绝对不添加任何预设套话兜底！
+      if (!finalOverview || !finalOverview.trim() || finalOverview === '暂无') {
+        finalOverview = '暂无';
       }
 
       // 🛡️ 移除正在提炼中的思考消息与残留网络提醒
@@ -4286,24 +4267,9 @@ ${instructionSection}
       if (typeof renderChat === 'function') renderChat(this.state);
     }
 
-    // 🛡️ 兜底确保 finalOverview 绝对不为空，并深度萃取组员真实发言
-    const meaningfulUtterances = allUserLogs
-      .map(m => (m.text || '').replace(/<[^>]+>/g, '').trim())
-      .filter(t => t.length > 1 && !t.includes('确认') && !t.includes('公约') && !t.includes('投票'));
-    const userUtterances = meaningfulUtterances.slice(-8).join('；');
-    const propDesc = (s1.proposals || []).map(p => (p.description || '').replace(/<[^>]+>/g, '').trim()).filter(Boolean).join('；');
-    const actualContext = [userUtterances, propDesc].filter(Boolean).join('；');
-
-    if (!finalOverview || !finalOverview.trim() || finalOverview.length < 15) {
-      if (actualContext) {
-        finalOverview = isInst
-          ? `本教学设计围绕《${finalTopic}》展开，深入融合组内研讨思路（${actualContext.slice(0, 90)}...）。立足学情创设真实情境，设计任务驱动与探究建构学生活动，落实教学重难点突破与核心素养培养。`
-          : `本研究围绕《${finalTopic}》展开，系统整合组内研讨重点（${actualContext.slice(0, 90)}...）。明确核心科学问题与变量测量，采用定性与定量实证方法，深入探究关键影响机制与应对策略。`;
-      } else {
-        finalOverview = isInst 
-          ? `本教学设计方案紧扣《${finalTopic}》展开，立足真实学情分析与新课标核心素养目标。全篇采用情境驱动与任务探究相结合的教学模式，设置由浅入深的学生活动链，并配以针对性过程性评价量规与分层作业，确保教学重难点有效突破。`
-          : `本研究围绕《${finalTopic}》展开，立足具体实践情境与核心科学问题。研究设计采用实证方法，明确关键变量与操作化测量工具，通过系统的样本抽样与数据分析模型，深入探究关键影响机制与效应边界。`;
-      }
+    // 🛡️ 严格遵循真实研讨：若确实没有提取出方案，直接显示“暂无”，绝对不添加任何预设套话兜底！
+    if (!finalOverview || !finalOverview.trim() || finalOverview === '暂无') {
+      finalOverview = '暂无';
     }
 
     if (!isSuccess) {
