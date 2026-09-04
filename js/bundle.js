@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2693
+ * Version: 20260905_v2694
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2693';
+  const APP_VERSION = '20260905_v2694';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -19835,6 +19835,11 @@
       // 默认自动触发当前阶段对应智能体的开场白与阶段三专家评审（仅在可编辑状态下触发，只读模式严禁触发任何新智能体）
       if (!this.isCurrentTaskReadOnly()) {
         this.triggerStageWelcomeSpeech(this.state.currentStage || 'stage1');
+
+        // 🎪 阶段一守护：随时检测全员提案与速评是否齐备，若是立即下发协同研讨提示
+        if (this.state.currentStage === 'stage1' || !this.state.currentStage) {
+          this.checkAndTriggerAllProposalsGathered();
+        }
 
         // 🎓 阶段三自愈守护：只要处于阶段三且答辩矩阵为空，立即自动拉起答辩委员会流水线
         if (this.state.currentStage === 'stage3') {
