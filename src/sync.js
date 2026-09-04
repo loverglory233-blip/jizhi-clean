@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260904_v2490';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260904_v2490';
+import { InitialState } from './constants.js?v=20260904_v2495';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260904_v2495';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -132,25 +132,21 @@ export class CloudSyncEngine {
       // 🎯 场景 1：学生正处于该任务工作台内部
       // 🛡️ 严格保护：仅解除当前未完成阶段的只读锁（已完成的历史阶段如阶段一公约、阶段二初稿始终保持只读锁定）
       if (!nowExpired) {
-        const isS2Done = this.app.state.groupMaxStage === 'stage3' || this.app.state.stage2?.isDraftConfirmed;
+        const isS2Done = this.app.state.groupMaxStage === 'stage3' || (this.app.state.stage2?.isDraftConfirmed && this.app.state.currentStage === 'stage3');
         const isS3FinalDone = this.app.state.isFinalSubmitted;
         
         if (!isS2Done) {
           const f2 = document.getElementById('stage2-etherpad-frame');
           if (f2) {
-            f2.parentElement?.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
-            if (f2.src.includes('showControls=false')) {
-              f2.src = f2.src.replace('showControls=false', 'showControls=true');
-            }
+            liftEtherpadReadonly(f2);
+            f2.src = f2.src;
           }
         }
         if (!isS3FinalDone) {
           const f3 = document.getElementById('stage3-etherpad-frame');
           if (f3) {
-            f3.parentElement?.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
-            if (f3.src.includes('showControls=false')) {
-              f3.src = f3.src.replace('showControls=false', 'showControls=true');
-            }
+            liftEtherpadReadonly(f3);
+            f3.src = f3.src;
           }
         }
       }
