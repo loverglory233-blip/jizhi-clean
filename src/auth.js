@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2625';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2625';
+} from './constants.js?v=20260905_v2630';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2630';
 
 export class AuthManager {
   constructor() {
@@ -1027,9 +1027,10 @@ export class AuthManager {
 
     const checkMemberMatch = (m) => {
       if (!m) return false;
-      const mId = String(typeof m === 'object' ? (m.id || m.name || '') : m).trim().toLowerCase();
-      const mName = String(typeof m === 'object' ? (m.name || '') : '').trim().toLowerCase();
-      return (uId && mId === uId) || (uName && mName === uName);
+      const mRaw = typeof m === 'object' ? (m.id || m.name || m.studentCode || '') : m;
+      const mStr = String(mRaw || '').trim().toLowerCase();
+      const mNameStr = String((typeof m === 'object' && m.name) ? m.name : mRaw || '').trim().toLowerCase();
+      return (uId && (mStr === uId || mNameStr === uId)) || (uName && (mStr === uName || mNameStr === uName));
     };
 
     // 1. 若指定了班级 ID，仅在指定班级内检索小组

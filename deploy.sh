@@ -64,7 +64,12 @@ sleep 2
 # 重启 Etherpad
 if [ -n "$EP_RUN_DIR" ]; then
   cd "$EP_RUN_DIR"
-  # 备份并清空历史 dirty.db 中未保存的空模板残留
+  # 修复 Settings.js fast-deep-equal 兼容性
+  if [ -f "src/node/utils/Settings.js" ]; then
+    sed -i "s|require('fast-deep-equal/es6')|require('fast-deep-equal')|g" src/node/utils/Settings.js 2>/dev/null || true
+    sed -i 's|require("fast-deep-equal/es6")|require("fast-deep-equal")|g' src/node/utils/Settings.js 2>/dev/null || true
+  fi
+  # 备份历史 dirty.db
   if [ -f "var/dirty.db" ]; then
     cp var/dirty.db var/dirty.db.bak 2>/dev/null || true
   fi
@@ -76,6 +81,9 @@ if [ -n "$EP_RUN_DIR" ]; then
   cd "$SITE_DIR"
   sleep 5
 fi
+
+# 重新平滑载入 Nginx 配置
+nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
 
 # 检查 Etherpad (端口 9001)
 EP_STATUS="❌ 未启动 (端口 9001 无响应)"
