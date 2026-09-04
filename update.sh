@@ -425,7 +425,7 @@ EPSETEOF
   fi
 
   EP_READY=0
-  for i in {1..20}; do
+  for i in {1..35}; do
     if curl -s -I --connect-timeout 2 --max-time 3 http://127.0.0.1:9001/ 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
       echo "   🟢 Etherpad 学术协同引擎就绪！(耗时 $i 秒)"
       EP_READY=1
