@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2704";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2704";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2704";
-import { AuthManager } from "./auth.js?v=20260905_v2704";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2704";
-import { renderLoginView } from "./login.js?v=20260905_v2704";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2704";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2704";
+} from "./constants.js?v=20260905_v2705";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2705";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2705";
+import { AuthManager } from "./auth.js?v=20260905_v2705";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2705";
+import { renderLoginView } from "./login.js?v=20260905_v2705";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2705";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2705";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2704";
+} from "./editor.js?v=20260905_v2705";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -150,8 +150,7 @@ export class App {
             if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId === delTaskId) {
               this.showTaskRevokedModal(delTaskTitle);
             } else if (this.state.studentViewMode === 'task_list') {
-              // 2) 若学生在任务大厅中：大厅顶部轻量提示并即时刷新大厅卡片列表
-              showGlobalBannerNotice('🗑️ 任务已删除', `写作任务《${escapeHtml(delTaskTitle)}》已被任课教师删除。`, 'info', 4000);
+              // 2) 若学生在任务大厅中：仅静默无感实时刷新大厅卡片列表，无弹窗打扰
               this.renderMain();
             }
             // 3) 若在另一个任务工作台中：做减法，静默不打扰当前写作

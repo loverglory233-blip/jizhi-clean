@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2704
+ * Version: 20260905_v2705
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2704';
+  const APP_VERSION = '20260905_v2705';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10535,15 +10535,13 @@
             return;
           }
 
-          // 2. 任务被删除广播：本地即时清除并在大厅顶部轻量提示并即时刷新大厅
+          // 2. 任务被删除广播：大厅无感静默清除并即时刷新任务卡片（无弹窗打扰）
           if (e.data && e.data.type === 'task_deleted') {
             if (authManager && e.data.taskId) {
               let localTasks = authManager.getTasks();
               localTasks = localTasks.filter(lt => lt && lt.id !== e.data.taskId);
               try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
             }
-            const delTaskTitle = e.data.title || '写作任务';
-            showGlobalBannerNotice('🗑️ 任务已删除', `写作任务《${escapeHtml(delTaskTitle)}》已被任课教师删除。`, 'info', 4000);
             renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
             return;
           }
@@ -14615,8 +14613,7 @@
               if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId === delTaskId) {
                 this.showTaskRevokedModal(delTaskTitle);
               } else if (this.state.studentViewMode === 'task_list') {
-                // 2) 若学生在任务大厅中：大厅顶部轻量提示并即时刷新大厅卡片列表
-                showGlobalBannerNotice('🗑️ 任务已删除', `写作任务《${escapeHtml(delTaskTitle)}》已被任课教师删除。`, 'info', 4000);
+                // 2) 若学生在任务大厅中：仅静默无感实时刷新大厅卡片列表，无弹窗打扰
                 this.renderMain();
               }
               // 3) 若在另一个任务工作台中：做减法，静默不打扰当前写作
