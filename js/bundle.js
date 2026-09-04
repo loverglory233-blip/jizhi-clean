@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2669
+ * Version: 20260905_v2670
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2669';
+  const APP_VERSION = '20260905_v2670';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1995,17 +1995,27 @@
 
               // ⚡ 实时检查是否有新文献下发并提醒
               const newPapers = mergedPapers.filter(p => p && p.id && !oldIds.has(p.id));
-              if (newPapers.length > 0 && window.app && window.app.state && window.app.state.studentViewMode === 'workspace') {
-                const newest = newPapers[0];
-                showGlobalBannerNotice(
-                  '📚 收到新参考范文',
-                  `任课教师刚刚发布了学术示范文献《${newest.title || '参考范文'}》，已存入范文库！可随时点击【📚 查阅参考范文】研读。`,
-                  'info',
-                  8000
-                );
-                const refBtn = document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
+              const appInst = window.app || (typeof this.app !== 'undefined' ? this.app : null);
+              if (appInst && appInst.state && appInst.state.studentViewMode === 'workspace') {
+                const currentUser = currUser;
+                const groupId = appInst.state.activeGroupId || (currentUser ? currentUser.groupId : null);
+                const classId = appInst.state.activeStudentClassId || (currentUser ? currentUser.classId : null);
+                const available = this.getReferencePapers(groupId, classId, appInst.state.activeTaskId);
+                const refBtn = document.getElementById('btn-show-case') || document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
                 if (refBtn) {
-                  refBtn.innerText = `📚 查阅参考范文 (${mergedPapers.length}篇)`;
+                  refBtn.innerText = available.length > 0 ? `📚 查阅参考范文 (${available.length}篇)` : '📚 查阅参考范文库';
+                }
+                if (newPapers.length > 0) {
+                  const newest = newPapers[0];
+                  showGlobalBannerNotice(
+                    '📚 收到新参考范文',
+                    `任课教师刚刚发布了学术示范文献《${newest.title || '参考范文'}》，已存入范文库！可随时查阅。`,
+                    'info',
+                    8000
+                  );
+                }
+                if (typeof appInst.showReferencePapersModal === 'function' && document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库')) {
+                  appInst.showReferencePapersModal();
                 }
               }
             }
@@ -2040,6 +2050,17 @@
               }
 
               localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(Array.from(surveyMap.values())));
+              const surveyIframe = document.getElementById('survey-iframe');
+              const appInst = window.app || (typeof this.app !== 'undefined' ? this.app : null);
+              if (surveyIframe && appInst) {
+                const u = currUser;
+                const cId = appInst.state?.activeStudentClassId || u?.classId;
+                const tId = appInst.state?.activeTaskId;
+                const newUrl = this.getSurveyUrl(cId, tId);
+                if (newUrl && surveyIframe.src !== newUrl) {
+                  surveyIframe.src = newUrl;
+                }
+              }
             }
           }
         }
@@ -2097,9 +2118,10 @@
 
       if ('BroadcastChannel' in window) {
         try {
-          const bc = new BroadcastChannel('jizhi_global_events');
-          bc.postMessage({ type: 'survey_updated', classId, taskId, url: cleanUrl });
-          bc.close();
+          if (!window._jizhiGlobalBc) {
+            window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
+          }
+          window._jizhiGlobalBc.postMessage({ type: 'survey_updated', classId, taskId, url: cleanUrl });
         } catch (e) {}
       }
     }
@@ -2119,9 +2141,10 @@
 
       if ('BroadcastChannel' in window) {
         try {
-          const bc = new BroadcastChannel('jizhi_global_events');
-          bc.postMessage({ type: 'survey_deleted', surveyId });
-          bc.close();
+          if (!window._jizhiGlobalBc) {
+            window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
+          }
+          window._jizhiGlobalBc.postMessage({ type: 'survey_deleted', surveyId });
         } catch (e) {}
       }
     }
@@ -3695,6 +3718,15 @@
         try { localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers)); } catch (err) {}
       }
       this.pushGlobalMeta();
+
+      if ('BroadcastChannel' in window) {
+        try {
+          if (!window._jizhiGlobalBc) {
+            window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
+          }
+          window._jizhiGlobalBc.postMessage({ type: 'paper_uploaded', paper: newPaper });
+        } catch (e) {}
+      }
       return newPaper;
     }
 
@@ -3712,6 +3744,15 @@
       } catch (e) {}
       localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers));
       this.pushGlobalMeta();
+
+      if ('BroadcastChannel' in window) {
+        try {
+          if (!window._jizhiGlobalBc) {
+            window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
+          }
+          window._jizhiGlobalBc.postMessage({ type: 'paper_deleted', paperId });
+        } catch (e) {}
+      }
     }
 
     // 📚 教师端向受众小组研讨区即时推送学术范文导学卡片
@@ -14476,10 +14517,71 @@
               this.renderHeader();
             }
 
-            // 4. 教师更新问卷配置
-            if (e.data.type === 'survey_updated') {
+            // 4. 教师更新或删除问卷配置（秒级同步问卷地址）
+            if (e.data.type === 'survey_updated' || e.data.type === 'survey_deleted') {
+              if (this.authManager && this.authManager.pullGlobalMeta) {
+                this.authManager.pullGlobalMeta().then(() => {
+                  const sFrame = document.getElementById('survey-iframe');
+                  if (sFrame && e.data.type === 'survey_updated' && e.data.url) {
+                    sFrame.src = e.data.url;
+                  }
+                }).catch(() => {});
+              }
+            }
+
+            // 5. 教师上传参考范文（秒级到达学生端文献库并更新工作台按钮）
+            if (e.data.type === 'paper_uploaded') {
+              if (e.data.paper) {
+                try {
+                  let localPapers = this.authManager ? this.authManager.getAllReferencePapers() : [];
+                  if (!localPapers.some(p => p.id === e.data.paper.id)) {
+                    localPapers.unshift(e.data.paper);
+                    localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(localPapers));
+                  }
+                } catch (err) {}
+              }
+              if (this.state.studentViewMode === 'workspace') {
+                const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
+                const groupId = this.state.activeGroupId || (currentUser ? currentUser.groupId : null);
+                const classId = this.state.activeStudentClassId || (currentUser ? currentUser.classId : null);
+                const available = this.authManager ? this.authManager.getReferencePapers(groupId, classId, this.state.activeTaskId) : [];
+                const btnShowCase = document.getElementById('btn-show-case') || document.getElementById('btn-view-reference-papers');
+                if (btnShowCase) {
+                  btnShowCase.innerText = available.length > 0 ? `📚 查阅参考范文 (${available.length}篇)` : '📚 查阅参考范文库';
+                }
+                showGlobalBannerNotice(
+                  '📚 收到新参考范文',
+                  `任课教师刚刚发布了学术示范文献《${e.data.paper?.title || '参考范文'}》，已存入范文库！`,
+                  'info',
+                  6000
+                );
+                if (document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库')) {
+                  this.showReferencePapersModal();
+                }
+              }
               if (this.authManager && this.authManager.pullGlobalMeta) {
                 this.authManager.pullGlobalMeta().catch(() => {});
+              }
+            }
+
+            // 5.5 教师删除参考范文
+            if (e.data.type === 'paper_deleted') {
+              const delPaperId = e.data.paperId;
+              let localPapers = this.authManager ? this.authManager.getAllReferencePapers() : [];
+              localPapers = localPapers.filter(p => p.id !== delPaperId);
+              try { localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(localPapers)); } catch (err) {}
+              if (this.state.studentViewMode === 'workspace') {
+                const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
+                const groupId = this.state.activeGroupId || (currentUser ? currentUser.groupId : null);
+                const classId = this.state.activeStudentClassId || (currentUser ? currentUser.classId : null);
+                const available = this.authManager ? this.authManager.getReferencePapers(groupId, classId, this.state.activeTaskId) : [];
+                const btnShowCase = document.getElementById('btn-show-case') || document.getElementById('btn-view-reference-papers');
+                if (btnShowCase) {
+                  btnShowCase.innerText = available.length > 0 ? `📚 查阅参考范文 (${available.length}篇)` : '📚 查阅参考范文库';
+                }
+                if (document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库')) {
+                  this.showReferencePapersModal();
+                }
               }
             }
           };

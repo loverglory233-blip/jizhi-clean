@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2669";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2669";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2669";
-import { AuthManager } from "./auth.js?v=20260905_v2669";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2669";
-import { renderLoginView } from "./login.js?v=20260905_v2669";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2669";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2669";
+} from "./constants.js?v=20260905_v2670";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2670";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2670";
+import { AuthManager } from "./auth.js?v=20260905_v2670";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2670";
+import { renderLoginView } from "./login.js?v=20260905_v2670";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2670";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2670";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2669";
+} from "./editor.js?v=20260905_v2670";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -213,10 +213,71 @@ export class App {
             this.renderHeader();
           }
 
-          // 4. 教师更新问卷配置
-          if (e.data.type === 'survey_updated') {
+          // 4. 教师更新或删除问卷配置（秒级同步问卷地址）
+          if (e.data.type === 'survey_updated' || e.data.type === 'survey_deleted') {
+            if (this.authManager && this.authManager.pullGlobalMeta) {
+              this.authManager.pullGlobalMeta().then(() => {
+                const sFrame = document.getElementById('survey-iframe');
+                if (sFrame && e.data.type === 'survey_updated' && e.data.url) {
+                  sFrame.src = e.data.url;
+                }
+              }).catch(() => {});
+            }
+          }
+
+          // 5. 教师上传参考范文（秒级到达学生端文献库并更新工作台按钮）
+          if (e.data.type === 'paper_uploaded') {
+            if (e.data.paper) {
+              try {
+                let localPapers = this.authManager ? this.authManager.getAllReferencePapers() : [];
+                if (!localPapers.some(p => p.id === e.data.paper.id)) {
+                  localPapers.unshift(e.data.paper);
+                  localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(localPapers));
+                }
+              } catch (err) {}
+            }
+            if (this.state.studentViewMode === 'workspace') {
+              const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
+              const groupId = this.state.activeGroupId || (currentUser ? currentUser.groupId : null);
+              const classId = this.state.activeStudentClassId || (currentUser ? currentUser.classId : null);
+              const available = this.authManager ? this.authManager.getReferencePapers(groupId, classId, this.state.activeTaskId) : [];
+              const btnShowCase = document.getElementById('btn-show-case') || document.getElementById('btn-view-reference-papers');
+              if (btnShowCase) {
+                btnShowCase.innerText = available.length > 0 ? `📚 查阅参考范文 (${available.length}篇)` : '📚 查阅参考范文库';
+              }
+              showGlobalBannerNotice(
+                '📚 收到新参考范文',
+                `任课教师刚刚发布了学术示范文献《${e.data.paper?.title || '参考范文'}》，已存入范文库！`,
+                'info',
+                6000
+              );
+              if (document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库')) {
+                this.showReferencePapersModal();
+              }
+            }
             if (this.authManager && this.authManager.pullGlobalMeta) {
               this.authManager.pullGlobalMeta().catch(() => {});
+            }
+          }
+
+          // 5.5 教师删除参考范文
+          if (e.data.type === 'paper_deleted') {
+            const delPaperId = e.data.paperId;
+            let localPapers = this.authManager ? this.authManager.getAllReferencePapers() : [];
+            localPapers = localPapers.filter(p => p.id !== delPaperId);
+            try { localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(localPapers)); } catch (err) {}
+            if (this.state.studentViewMode === 'workspace') {
+              const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
+              const groupId = this.state.activeGroupId || (currentUser ? currentUser.groupId : null);
+              const classId = this.state.activeStudentClassId || (currentUser ? currentUser.classId : null);
+              const available = this.authManager ? this.authManager.getReferencePapers(groupId, classId, this.state.activeTaskId) : [];
+              const btnShowCase = document.getElementById('btn-show-case') || document.getElementById('btn-view-reference-papers');
+              if (btnShowCase) {
+                btnShowCase.innerText = available.length > 0 ? `📚 查阅参考范文 (${available.length}篇)` : '📚 查阅参考范文库';
+              }
+              if (document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库')) {
+                this.showReferencePapersModal();
+              }
             }
           }
         };
