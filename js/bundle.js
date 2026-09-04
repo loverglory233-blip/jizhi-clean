@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2211
+ * Version: 20260904_v2212
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2211';
+  const APP_VERSION = '20260904_v2212';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -17509,6 +17509,22 @@
           }
           const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
 
+          // 🛡️ 守卫拦截：必须先走完二审半程自查与会议全流程（全员打卡完成），或者总时间临近截止（<= 5分钟），才允许点击确认初稿！
+          const subs = s2.meetingSubmissions || {};
+          const subCount = Object.keys(subs).length;
+          const isMeetingDone = s2.isMeetingLocked || (subCount >= totalMembersCount && totalMembersCount > 0);
+
+          const curTask = this.authManager ? this.authManager.getTasks().find(t => t.id === this.state.activeTaskId) : null;
+          const isDeadlineNear = isTaskExpired(curTask) || (curTask?.deadline && (new Date(curTask.deadline.replace(/-/g, '/')).getTime() - Date.now() <= 300000));
+
+          if (!isMeetingDone && !isDeadlineNear) {
+            alert(`⚠️ 无法确认初稿：全组尚未完成【半程全篇综合自查与二审会议】（当前打卡进度：${subCount}/${totalMembersCount} 人）！\n\n请全组成员先完成半程自查打卡与二审修改研讨，或等待任务总时间临近结束（最后 5 分钟内）再进行初稿定稿确认。`);
+            if (typeof showGlobalBannerNotice === 'function') {
+              showGlobalBannerNotice('⚠️ 请先完成二审自查', `当前半程会议打卡进度为 ${subCount}/${totalMembersCount} 人，请先走完二审自查研讨流程或等待临近结课再确认初稿。`, 'warning', 6000);
+            }
+            return;
+          }
+
           if (s2.isDraftConfirmed) {
             this.switchStage('stage3', true);
             return;
@@ -17603,6 +17619,23 @@
             memberArr = Object.values(memberArr || {});
           }
           const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
+
+          // 🛡️ 守卫拦截：必须先完成全部答辩质询陈述，或者总时间临近截止（<= 5分钟），才允许点击确认答辩！
+          const items = s3.feedbackItems || [];
+          const unrespondedItems = items.filter(f => f.role === 'opponent' && (!f.response || f.response.trim().length === 0));
+          const isAllDefenseDone = items.length > 0 && unrespondedItems.length === 0;
+
+          const curTask = this.authManager ? this.authManager.getTasks().find(t => t.id === this.state.activeTaskId) : null;
+          const isDeadlineNear = isTaskExpired(curTask) || (curTask?.deadline && (new Date(curTask.deadline.replace(/-/g, '/')).getTime() - Date.now() <= 300000));
+
+          if (!isAllDefenseDone && !isDeadlineNear) {
+            const remainCount = unrespondedItems.length > 0 ? unrespondedItems.length : (items.length === 0 ? '答辩尚未就绪' : 0);
+            alert(`⚠️ 无法确认答辩：目前仍有【${remainCount} 条】反方专家的学术质询尚未完成答辩陈述！\n\n请全组成员在下方答辩卡片录入答辩结论，或等待任务总时间临近结束（最后 5 分钟内）再进行确认。`);
+            if (typeof showGlobalBannerNotice === 'function') {
+              showGlobalBannerNotice('⚠️ 答辩尚未完成', `目前仍有 ${remainCount} 条学术质询待答辩，请先完成答辩陈述或等待临近结课再确认。`, 'warning', 6000);
+            }
+            return;
+          }
 
           if (!s3.confirmedMembers) s3.confirmedMembers = {};
           s3.confirmedMembers[user] = true;
