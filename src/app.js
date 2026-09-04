@@ -4053,14 +4053,6 @@ ${instructionSection}
     if (typeof showGlobalBannerNotice === 'function') {
       showGlobalBannerNotice('🎉 公约草案已全部生成就绪！', '请各位组员在左侧公约看板核对分工与时间规划，并在下方签署确认！', 'success', 6000);
     }
-      showGlobalBannerNotice('🎉 公约草案已全部生成就绪！', '请各位组员在左侧公约看板核对分工与时间规划，并在下方签署确认！', 'success', 6000);
-    }
-  }
-    if (typeof showGlobalBannerNotice === 'function') {
-      showGlobalBannerNotice('🎉 公约草案已全部生成就绪！', '请各位组员在左侧公约看板核对分工与时间规划，并在下方签署确认！', 'success', 6000);
-    }
-      showGlobalBannerNotice('🎉 公约草案已全部生成就绪！', '请各位组员在左侧公约看板核对分工与时间规划，并在下方签署确认！', 'success', 6000);
-    }
   }
 
   /**
