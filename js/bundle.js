@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2208
+ * Version: 20260904_v2209
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2208';
+  const APP_VERSION = '20260904_v2209';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12928,15 +12928,37 @@
                 renderChat(this.state);
               }
 
-              // ② 开场 6 分钟提案未交齐催促（点名未提交提案同学）
+              // ② 开场 6 分钟全员无提案催促（全组 0 篇提案时提醒全组，不点名）
+              if (!this.state.s1_6minNoPropSent && elapsedSec >= 360 && propCount === 0) {
+                this.state.s1_6minNoPropSent = true;
+                const msgNoProp = {
+                  sender: 'auctioneer',
+                  senderName: '头脑风暴 · 学术拍卖师',
+                  text: `🎪 【学术拍卖师·全员提案催促】：头脑风暴已进行 6 分钟啦！目前全组尚未收到任何成员提交的初步提案。请各位研究者加紧构思，尽快在左侧卡片提交您的课题初步设想，开启组内协同研讨！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: nowMs
+                };
+                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+                this.state.chatLogs.stage1.push(msgNoProp);
+                this.syncChatLogs();
+                renderChat(this.state);
+              }
+
+              // ③ 有人提交提案后满 3 分钟仍有同学未提交（点名未提交提案同学）
               const unsubmittedProps = membersList.filter(m => !propList.some(p => isSameUser(m, p.author) || isSameUser(m, p.authorName) || p.author === m.id || (m.name && p.authorName === m.name)));
-              if (!this.state.s1_6minPropNudgeSent && elapsedSec >= 360 && unsubmittedProps.length > 0 && propCount < membersList.length) {
-                this.state.s1_6minPropNudgeSent = true;
+              if (propCount > 0 && !this.state._firstPropTimeMs) {
+                const earliestPropTime = propList.reduce((minT, p) => Math.min(minT, p.updatedAt || p.createdAt || nowMs), nowMs);
+                this.state._firstPropTimeMs = earliestPropTime || nowMs;
+              }
+              const firstPropTime = this.state._firstPropTimeMs || nowMs;
+              const timeSinceFirstProp = nowMs - firstPropTime;
+              if (!this.state.s1_propPartialNudgeSent && propCount > 0 && unsubmittedProps.length > 0 && propCount < membersList.length && timeSinceFirstProp >= 180000) {
+                this.state.s1_propPartialNudgeSent = true;
                 const unsubmittedPropNames = unsubmittedProps.map(m => m.name || m.id).join('、');
                 const msgPropNudge = {
                   sender: 'auctioneer',
                   senderName: '头脑风暴 · 学术拍卖师',
-                  text: `🎪 【学术拍卖师·提案协同催促】：头脑风暴已进行 6 分钟啦！目前全组提案进度为【${propCount}/${membersList.length} 篇】，看到 ${unsubmittedPropNames} 同学尚未提交提案。请大家相互启发，尽快在左侧卡片提交初步设想，全员提交后即可开启投票推选！`,
+                  text: `🎪 【学术拍卖师·提案协同催促】：组内已有同学提交了课题提案，目前全组提案进度为【${propCount}/${membersList.length} 篇】，看到 ${unsubmittedPropNames} 同学尚未提交。请大家抓紧在左侧卡片录入设想，全员提交后即可开启投票推选！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: nowMs
                 };
