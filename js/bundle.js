@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2653
+ * Version: 20260905_v2654
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2653';
+  const APP_VERSION = '20260905_v2654';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1788,20 +1788,50 @@
               this.sanitizeAndDeduplicateGroups();
             }
 
-            // 3. 写作任务：直接以云端权威数据库为准 (智能继承本地更新的延期截止时间)
+            // 3. 写作任务：智能双向合并（保留本地新创建任务，尊重已删除黑名单，智能继承延期信息）
             if (Array.isArray(data.tasks)) {
+              let deletedTaskIds = new Set();
+              try {
+                const delList = JSON.parse(localStorage.getItem('jizhi_deleted_task_ids')) || [];
+                if (Array.isArray(delList)) deletedTaskIds = new Set(delList);
+              } catch (e) {}
+
               const localTasks = this.getTasks();
-              const mergedTasks = data.tasks.map(remoteT => {
-                const localT = localTasks.find(lt => lt.id === remoteT.id || (lt.title && lt.title === remoteT.title));
-                if (localT && localT.lastExtension) {
-                  const localExtAt = localT.lastExtension.extendedAt || 0;
-                  const remoteExtAt = remoteT.lastExtension ? (remoteT.lastExtension.extendedAt || 0) : 0;
-                  if (localExtAt >= remoteExtAt) {
-                    return { ...remoteT, deadline: localT.deadline, durationMinutes: localT.durationMinutes, lastExtension: localT.lastExtension };
+              const taskMap = new Map();
+
+              // 1) 先装载云端任务（自动过滤掉已在本地明确删除的任务）
+              data.tasks.forEach(remoteT => {
+                if (remoteT && remoteT.id && !deletedTaskIds.has(remoteT.id)) {
+                  taskMap.set(remoteT.id, remoteT);
+                }
+              });
+
+              // 2) 合成本地任务：如果本地有新创建但尚未完成云端持久化的任务，绝对保留，严防旧云端数据反向冲刷抹除！
+              localTasks.forEach(localT => {
+                if (!localT || !localT.id) return;
+                if (deletedTaskIds.has(localT.id)) return;
+
+                if (!taskMap.has(localT.id)) {
+                  taskMap.set(localT.id, localT);
+                } else {
+                  const remoteT = taskMap.get(localT.id);
+                  if (localT.lastExtension) {
+                    const localExtAt = localT.lastExtension.extendedAt || 0;
+                    const remoteExtAt = remoteT.lastExtension ? (remoteT.lastExtension.extendedAt || 0) : 0;
+                    if (localExtAt >= remoteExtAt) {
+                      taskMap.set(localT.id, {
+                        ...remoteT,
+                        ...localT,
+                        deadline: localT.deadline,
+                        durationMinutes: localT.durationMinutes,
+                        lastExtension: localT.lastExtension
+                      });
+                    }
                   }
                 }
-                return remoteT;
               });
+
+              const mergedTasks = Array.from(taskMap.values());
               localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
 
               // 🛡️ 核心守卫：若学生当前处于工作台模式，但所在写作任务已被教师删除，立即弹窗通知并返回任务大厅
@@ -2336,6 +2366,16 @@
 
       let tasks = this.getTasks();
       const taskIdsToDelete = tasks.filter(t => t.classId === classId).map(t => t.id);
+      if (taskIdsToDelete.length > 0) {
+        try {
+          let deletedTaskIds = JSON.parse(localStorage.getItem('jizhi_deleted_task_ids')) || [];
+          if (!Array.isArray(deletedTaskIds)) deletedTaskIds = [];
+          taskIdsToDelete.forEach(id => {
+            if (!deletedTaskIds.includes(id)) deletedTaskIds.push(id);
+          });
+          localStorage.setItem('jizhi_deleted_task_ids', JSON.stringify(deletedTaskIds));
+        } catch (e) {}
+      }
       tasks = tasks.filter(t => t.classId !== classId);
       localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
 
@@ -3022,6 +3062,16 @@
         createdAt: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         instructions, resources
       };
+
+      // 🛡️ 确保新任务 ID 不在已删除黑名单中
+      try {
+        let deletedTaskIds = JSON.parse(localStorage.getItem('jizhi_deleted_task_ids')) || [];
+        if (Array.isArray(deletedTaskIds) && deletedTaskIds.includes(newTask.id)) {
+          deletedTaskIds = deletedTaskIds.filter(id => id !== newTask.id);
+          localStorage.setItem('jizhi_deleted_task_ids', JSON.stringify(deletedTaskIds));
+        }
+      } catch (e) {}
+
       tasks.unshift(newTask);
       localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
       this.pushGlobalMeta();
@@ -3149,6 +3199,16 @@
       let tasks = this.getTasks();
       const deletedTask = tasks.find(t => t.id === taskId);
       const deletedTaskTitle = deletedTask ? deletedTask.title : '写作任务';
+
+      // 🛡️ 记录已删除任务 ID，杜绝旧云端快照反向复活
+      try {
+        let deletedTaskIds = JSON.parse(localStorage.getItem('jizhi_deleted_task_ids')) || [];
+        if (!Array.isArray(deletedTaskIds)) deletedTaskIds = [];
+        if (!deletedTaskIds.includes(taskId)) {
+          deletedTaskIds.push(taskId);
+          localStorage.setItem('jizhi_deleted_task_ids', JSON.stringify(deletedTaskIds));
+        }
+      } catch (e) {}
 
       tasks = tasks.filter(t => t.id !== taskId);
       localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
@@ -4375,18 +4435,48 @@
       // 教师一旦发布新范文或公告，学生端在任务工作台内 1~2 秒内自动无感对齐更新
       if (this.app.authManager) {
         if (Array.isArray(remoteData.tasks)) {
+          let deletedTaskIds = new Set();
+          try {
+            const delList = JSON.parse(localStorage.getItem('jizhi_deleted_task_ids')) || [];
+            if (Array.isArray(delList)) deletedTaskIds = new Set(delList);
+          } catch (e) {}
+
           const localTasks = this.app.authManager.getTasks();
-          const mergedTasks = remoteData.tasks.map(remoteT => {
-            const localT = localTasks.find(lt => lt.id === remoteT.id || (lt.title && lt.title === remoteT.title));
-            if (localT && localT.lastExtension) {
-              const localExtAt = localT.lastExtension.extendedAt || 0;
-              const remoteExtAt = remoteT.lastExtension ? (remoteT.lastExtension.extendedAt || 0) : 0;
-              if (localExtAt >= remoteExtAt) {
-                return { ...remoteT, deadline: localT.deadline, durationMinutes: localT.durationMinutes, lastExtension: localT.lastExtension };
+          const taskMap = new Map();
+
+          // 1) 装载云端任务（排除已删除任务）
+          remoteData.tasks.forEach(remoteT => {
+            if (remoteT && remoteT.id && !deletedTaskIds.has(remoteT.id)) {
+              taskMap.set(remoteT.id, remoteT);
+            }
+          });
+
+          // 2) 合成本地任务：保留本地未落库新任务，继承最新延期
+          localTasks.forEach(localT => {
+            if (!localT || !localT.id) return;
+            if (deletedTaskIds.has(localT.id)) return;
+
+            if (!taskMap.has(localT.id)) {
+              taskMap.set(localT.id, localT);
+            } else {
+              const remoteT = taskMap.get(localT.id);
+              if (localT.lastExtension) {
+                const localExtAt = localT.lastExtension.extendedAt || 0;
+                const remoteExtAt = remoteT.lastExtension ? (remoteT.lastExtension.extendedAt || 0) : 0;
+                if (localExtAt >= remoteExtAt) {
+                  taskMap.set(localT.id, {
+                    ...remoteT,
+                    ...localT,
+                    deadline: localT.deadline,
+                    durationMinutes: localT.durationMinutes,
+                    lastExtension: localT.lastExtension
+                  });
+                }
               }
             }
-            return remoteT;
           });
+
+          const mergedTasks = Array.from(taskMap.values());
           localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
 
           // 🛡️ 核心守卫：若学生正在该工作台内写作，而任务已被教师在后台删除，立即弹窗引导返回大厅
