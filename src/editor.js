@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260904_v2225";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2225";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2225";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260904_v2226";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2226";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2226";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2834,10 +2834,18 @@ export function renderChat(state) {
       `;
     } else {
       let rawText = msg.text || '';
-      let safeText = escapeHtml(rawText);
-      let formattedText = safeText
-        .replace(/(@[^\s@]+)/g, '<span class="mention-tag">$1</span>')
-        .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+      let formattedText = '';
+      if (rawText.includes('<button') || rawText.includes('<br>') || rawText.includes('<span')) {
+        // 允许受信任的智能体内置操作按键、换行与高亮标签
+        formattedText = rawText
+          .replace(/(@[^\s@<]+)/g, '<span class="mention-tag">$1</span>')
+          .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+      } else {
+        let safeText = escapeHtml(rawText);
+        formattedText = safeText
+          .replace(/(@[^\s@]+)/g, '<span class="mention-tag">$1</span>')
+          .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+      }
       formattedContent = `<div class="msg-bubble">${formattedText}</div>`;
     }
 

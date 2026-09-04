@@ -26,8 +26,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !$isPoll) {
     exit;
 }
 
-$rawInput = file_get_contents('php://input');
-$req = json_decode($rawInput, true) ?: [];
+global $RAW_INPUT, $REQ_DATA;
+$rawInput = !empty($RAW_INPUT) ? $RAW_INPUT : @file_get_contents('php://input');
+$req = !empty($REQ_DATA) ? $REQ_DATA : (@json_decode($rawInput, true) ?: []);
 $action = isset($_GET['action']) ? $_GET['action'] : (isset($req['action']) ? $req['action'] : '');
 
 /**

@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2225
+ * Version: 20260904_v2226
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2225';
+  const APP_VERSION = '20260904_v2226';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12078,10 +12078,18 @@
         `;
       } else {
         let rawText = msg.text || '';
-        let safeText = escapeHtml(rawText);
-        let formattedText = safeText
-          .replace(/(@[^\s@]+)/g, '<span class="mention-tag">$1</span>')
-          .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+        let formattedText = '';
+        if (rawText.includes('<button') || rawText.includes('<br>') || rawText.includes('<span')) {
+          // 允许受信任的智能体内置操作按键、换行与高亮标签
+          formattedText = rawText
+            .replace(/(@[^\s@<]+)/g, '<span class="mention-tag">$1</span>')
+            .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+        } else {
+          let safeText = escapeHtml(rawText);
+          formattedText = safeText
+            .replace(/(@[^\s@]+)/g, '<span class="mention-tag">$1</span>')
+            .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+        }
         formattedContent = `<div class="msg-bubble">${formattedText}</div>`;
       }
 
