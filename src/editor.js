@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2365";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2365";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2365";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2370";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2370";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2370";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1354,6 +1354,7 @@ function renderStage2Canvas(canvas, state, handlers) {
   // 🛡️ 阶段二只读严格判定：任务截止过期、全组最终提交终稿、已推进到阶段三、或初稿全员确认完成时锁定为只读归档
   const isEditorReadonly = state.isFinalSubmitted || isTaskDeadlineExpired || (state.groupMaxStage === 'stage3') || isDraftFullyConfirmed;
   const plainTextLen = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
+  const targetWordCount = (currentTask && currentTask.targetWordCount) ? Number(currentTask.targetWordCount) : 3000;
 
   const padName = `jizhi_${activeTaskId}_${userGroupId}`;
 
@@ -1631,13 +1632,18 @@ function renderStage2Canvas(canvas, state, handlers) {
   if (window._stage2WordCountTimer) clearInterval(window._stage2WordCountTimer);
   window._stage2WordCountTimer = setInterval(syncPadMetrics, 1500);
   setTimeout(syncPadMetrics, 300);
-  setTimeout(syncPadMetrics, 300);
 
   // 🛡️ 极致单例保护：若 Etherpad 协同编辑器或富文本编辑器已经在当前画布上活跃运行，严禁 innerHTML 销毁重绘！
   const existingFrame = canvas.querySelector('#stage2-etherpad-frame') || canvas.querySelector('#stage2-word-editor.ql-container');
   if (existingFrame) {
     const wordBadge = canvas.querySelector('#stage2-word-count-num');
-    if (wordBadge) wordBadge.innerText = String(plainTextLen);
+    if (wordBadge) {
+      const liveText = (typeof getEtherpadTextDirect === 'function') ? getEtherpadTextDirect() : null;
+      const curLiveLen = (liveText !== null) ? liveText.length : plainTextLen;
+      if (wordBadge.innerText !== String(curLiveLen)) {
+        wordBadge.innerText = String(curLiveLen);
+      }
+    }
 
     const btnShowCase = canvas.querySelector('#btn-show-case');
     if (btnShowCase) {
@@ -1880,7 +1886,7 @@ function renderStage2Canvas(canvas, state, handlers) {
       <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:6px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; flex-shrink:0; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
         <div style="display:flex; align-items:center; gap:8px;">
           <span style="font-size:13.5px; font-weight:800; color:#0f172a; display:inline-flex; align-items:center; gap:4px;">📝 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}正文协同起草</span>
-          <span style="font-size:11.5px; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px; border:1px solid #bfdbfe; font-weight:800;">字数: <b id="stage2-word-count-num">${plainTextLen}</b> 字</span>
+          <span style="font-size:11.5px; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px; border:1px solid #bfdbfe; font-weight:800;" title="当前正文字数 / 目标字数 (达到 35% 即约 ${Math.round(targetWordCount * 0.35)} 字时将触发审稿专家初审破题把脉)">字数: <b id="stage2-word-count-num">${plainTextLen}</b> / ${targetWordCount} 字</span>
           <button id="btn-show-case" style="background:#ffffff; border:1px solid #cbd5e1; color:#1d4ed8; padding:2px 8px; border-radius:6px; font-size:11px; cursor:pointer; font-weight:700;">${paperBtnLabel}</button>
         </div>
 
