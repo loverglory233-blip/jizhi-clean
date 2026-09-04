@@ -482,6 +482,11 @@ export function filterAndDeduplicateChatLogs(messages) {
     const txt = String(m.text || '').trim();
     if (!txt) continue;
 
+    // 🛡️ 过滤正在提炼中的临时过渡/思考占位消息 (如 "收到全组成员确认！...正在根据讨论区研讨记录提炼...")
+    if (m.isThinking || txt.startsWith('⏳ 收到全组成员确认') || (txt.includes('收到全组成员确认') && txt.includes('请稍候'))) {
+      continue;
+    }
+
     const sender = String(m.sender || '');
     const isAgent = (
       sender.startsWith('agent_') || 
