@@ -828,6 +828,9 @@ export function enforceEtherpadReadonly(iframe) {
   tryLock();
   [100, 300, 600, 1200].forEach(delay => setTimeout(tryLock, delay));
 }
+if (typeof window !== 'undefined') {
+  window.enforceEtherpadReadonly = enforceEtherpadReadonly;
+}
 
 /**
  * 🔓 解除 Etherpad 只读锁定：恢复顶部工具栏与正文编辑输入能力
