@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2643
+ * Version: 20260905_v2644
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2643';
+  const APP_VERSION = '20260905_v2644';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11710,11 +11710,15 @@
         const authorStats = getEtherpadAuthorStats();
         let cleanTxt = authorStats ? authorStats.cleanText : null;
 
-        // 2. 若 DOM 暂未就绪，降级尝试服务端代理接口
+        // 2. 若 DOM 暂未就绪，低频降级尝试服务端代理接口（每 10 秒最多 1 次，严禁高频打满 PHP-FPM）
         if (cleanTxt === null) {
-          const res = await fetch(`sync.php?action=get_pad_text&padId=${encodeURIComponent(padName)}`).then(r => r.json()).catch(() => null);
-          if (res && res.success && typeof res.text === 'string') {
-            cleanTxt = res.text.replace(/\r\n/g, '\n').trim();
+          const now = Date.now();
+          if (!window._lastServerPadFetchTime || now - window._lastServerPadFetchTime > 10000) {
+            window._lastServerPadFetchTime = now;
+            const res = await fetch(`sync.php?action=get_pad_text&padId=${encodeURIComponent(padName)}`).then(r => r.json()).catch(() => null);
+            if (res && res.success && typeof res.text === 'string') {
+              cleanTxt = res.text.replace(/\r\n/g, '\n').trim();
+            }
           }
         }
 
