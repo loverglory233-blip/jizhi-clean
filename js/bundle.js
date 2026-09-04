@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2660
+ * Version: 20260905_v2661
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2660';
+  const APP_VERSION = '20260905_v2661';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11412,10 +11412,7 @@
       const effectiveClassId = (isTeacher ? window.app?.state.activeClassId : window.app?.state.activeStudentClassId) || (currUser?.classId || null);
       const activeGroupObj = window.app?.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
       const curGid = activeGroupObj?.id || (currUser?.groupId || state.activeGroupId || null);
-      let curTaskId = window.app?.state.activeTaskId || (window.app?.cloudSyncEngine?.taskId || `task_${effectiveClassId}_default`);
-      if (!curTaskId || curTaskId === 'task_default') {
-        curTaskId = `task_${effectiveClassId}_default`;
-      }
+      let curTaskId = window.app?.state.activeTaskId || (window.app?.cloudSyncEngine?.taskId || '');
       const uId = currUser ? (currUser.id) : 'u';
       const uName = currUser ? (currUser.name ) : '组员';
       const payload = { fieldKey, userId: uId, userName: uName, groupId: curGid, taskId: curTaskId, classId: effectiveClassId };
@@ -11991,8 +11988,7 @@
     let userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
     const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
     let userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || null;
-    let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId || 'default'}_default`);
-    if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId || 'default'}_default`;
+    let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || '';
 
     // 🛡️ 班级/小组/成员/任务严格解析：任一解析不到 → 明确提示并阻止渲染正文画布（不再静默兜底 group_1 / task_default / null）
     const authMgr = (window.app && window.app.authManager) ? window.app.authManager : null;
@@ -13407,8 +13403,7 @@
             let userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
             const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
             let userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || null;
-            let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId || 'default'}_default`);
-            if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId || 'default'}_default`;
+            let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || '';
 
             // 🛡️ 班级/小组/成员/任务严格解析：任一解析不到 → 明确提示并阻止渲染终稿编辑器（不再静默兜底）
             const authMgr3 = (window.app && window.app.authManager) ? window.app.authManager : null;
@@ -14489,10 +14484,10 @@
       const user = this.authManager ? this.authManager.getCurrentUser() : null;
       const isTeacher = user && (user.isTeacher || user.role === 'teacher');
       const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || null;
-      const groupId = this.getEffectiveGroupId();
-      let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : `task_${effectiveClassId}_default`);
-      if (!taskId || taskId === 'task_default') {
-        taskId = `task_${effectiveClassId}_default`;
+      let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : null);
+      if (!taskId) {
+        if (isTeacher) taskId = `task_${effectiveClassId}_default`;
+        else return; // 学生端必须有真实任务 ID
       }
 
       const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
@@ -18860,9 +18855,10 @@
 
       const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || currUser?.classId || null;
       const groupId = this.getEffectiveGroupId();
-      let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : `task_${effectiveClassId}_default`);
-      if (!taskId || taskId === 'task_default') {
-        taskId = `task_${effectiveClassId}_default`;
+      let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : null);
+      if (!taskId) {
+        if (isTeacher) taskId = `task_${effectiveClassId}_default`;
+        else return; // 学生未选定真实任务时绝不触发开场白
       }
 
       const welcomeFlagKey = `jizhi_welcomed_${taskId}_${groupId}_${stage}`;
