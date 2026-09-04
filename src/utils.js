@@ -522,7 +522,16 @@ export function filterAndDeduplicateChatLogs(messages) {
       if (isSecondChecklist) seenAgentOpenings.add(`${sender}_second_checklist`);
     }
 
-    // 2. 严格按数据库主键/唯一标识防重，绝不按文本做模糊误杀
+    // 2. 严格防重：同一发送者在 2.5 秒内发送的相同文本，自动去重（防止网络重试或多通道重复推送）
+    const normText = txt.replace(/\s+/g, ' ').trim();
+    const timeBucket = Math.round(Number(m._timeMs || 0) / 2500);
+    const contentKey = `${sender}_${timeBucket}_${normText}`;
+    if (m._timeMs && seenMsgIds.has(contentKey)) {
+      continue;
+    }
+    if (m._timeMs) seenMsgIds.add(contentKey);
+
+    // 3. 严格按数据库主键/唯一标识防重
     const msgId = m.id ? String(m.id) : (m._timeMs ? `${sender}_${m._timeMs}_${i}` : null);
     if (msgId) {
       if (seenMsgIds.has(msgId)) continue;

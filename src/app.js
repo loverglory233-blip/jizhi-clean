@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2678";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2678";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2678";
-import { AuthManager } from "./auth.js?v=20260905_v2678";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2678";
-import { renderLoginView } from "./login.js?v=20260905_v2678";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2678";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2678";
+} from "./constants.js?v=20260905_v2679";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2679";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2679";
+import { AuthManager } from "./auth.js?v=20260905_v2679";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2679";
+import { renderLoginView } from "./login.js?v=20260905_v2679";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2679";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2679";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2678";
+} from "./editor.js?v=20260905_v2679";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -557,13 +557,10 @@ export class App {
       return;
     }
     const logs = (this.state.chatLogs && this.state.chatLogs[targetStage]) ? this.state.chatLogs[targetStage] : [];
-    if (logs.length > 0) {
-      const recentLogs = logs.slice(-5);
-      recentLogs.forEach(m => {
-        if (m && !m.isThinking && !String(m.id).startsWith('thinking_eval')) {
-          this.sendSingleChatMessage(m, targetStage);
-        }
-      });
+    const latestMsg = logs[logs.length - 1];
+    if (latestMsg && !latestMsg._hasSentToServer && !latestMsg.isThinking && !String(latestMsg.id).startsWith('thinking_eval')) {
+      latestMsg._hasSentToServer = true;
+      this.sendSingleChatMessage(latestMsg, targetStage);
     }
   }
 
@@ -2694,7 +2691,8 @@ export class App {
       if (!this.state.studentChatCounts) this.state.studentChatCounts = {};
       this.state.studentChatCounts[studentId] = (this.state.studentChatCounts[studentId] || 0) + 1;
 
-      this.syncChatLogs();
+      msgObj._hasSentToServer = true;
+      this.sendSingleChatMessage(msgObj, currentStage);
       renderChat(this.state);
 
       // ── 智能体答疑：仅当学生在聊天中显式 @智能体 时才触发大模型定向即时答疑 ──
