@@ -729,9 +729,10 @@ if ($action === 'report_member_contrib') {
     $groupId = $input['groupId'] ?? ($queryGroupId ?: 'group_1');
     $userCode = $input['userCode'] ?? '';
     $delta = intval($input['delta'] ?? 0);
+    $contribs = isset($input['contribs']) && is_array($input['contribs']) ? $input['contribs'] : null;
     $nowMs = round(microtime(true) * 1000);
 
-    if ($pdo && !empty($userCode) && $delta > 0) {
+    if ($pdo && ($contribs !== null || (!empty($userCode) && $delta > 0))) {
         $stmt = $pdo->prepare("SELECT snapshot_data FROM room_snapshots WHERE task_id = :tid AND group_id = :gid LIMIT 1");
         $stmt->execute([':tid' => $taskId, ':gid' => $groupId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -739,7 +740,11 @@ if ($action === 'report_member_contrib') {
         if (!isset($snapshot['stage2'])) $snapshot['stage2'] = [];
         if (!isset($snapshot['stage2']['memberContributions'])) $snapshot['stage2']['memberContributions'] = [];
 
-        $snapshot['stage2']['memberContributions'][$userCode] = intval($snapshot['stage2']['memberContributions'][$userCode] ?? 0) + $delta;
+        if ($contribs !== null) {
+            $snapshot['stage2']['memberContributions'] = $contribs;
+        } else {
+            $snapshot['stage2']['memberContributions'][$userCode] = intval($snapshot['stage2']['memberContributions'][$userCode] ?? 0) + $delta;
+        }
         $snapshot['updatedAt'] = $nowMs;
 
         $upStmt = $pdo->prepare("INSERT INTO room_snapshots (task_id, group_id, snapshot_data, updated_at) VALUES (:tid, :gid, :data, NOW()) ON DUPLICATE KEY UPDATE snapshot_data = VALUES(snapshot_data), updated_at = NOW()");
@@ -756,8 +761,7 @@ if ($action === 'report_member_contrib') {
         $gRow = $gStmt->fetch(PDO::FETCH_ASSOC);
         if ($gRow) {
             $s2Data = json_decode($gRow['stage2_data'], true) ?: [];
-            if (!isset($s2Data['memberContributions'])) $s2Data['memberContributions'] = [];
-            $s2Data['memberContributions'][$userCode] = $snapshot['stage2']['memberContributions'][$userCode];
+            $s2Data['memberContributions'] = $snapshot['stage2']['memberContributions'];
             $upG = $pdo->prepare("UPDATE group_states SET stage2_data = :s2, last_timestamp = :ts, revision_id = IFNULL(revision_id, 0) + 1 WHERE scope_key = :sk");
             $upG->execute([':s2' => json_encode($s2Data, JSON_UNESCAPED_UNICODE), ':ts' => $nowMs, ':sk' => $sk]);
         }
@@ -2635,14 +2639,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } elseif (!empty($existingS2['unifiedContent'])) {
                     $mergedS2['unifiedContent'] = $existingS2['unifiedContent'];
                 }
-                // 贡献度数据合并：逐成员取历史最大值（单调不减），彻底杜绝多端互相清零覆盖 (保留数字学号键)
+                // 贡献度数据合并：以实时传入的最新正文作者贡献度为准
                 $exContrib = isset($existingS2['memberContributions']) && is_array($existingS2['memberContributions']) ? $existingS2['memberContributions'] : [];
                 $inContrib = isset($incomingS2['memberContributions']) && is_array($incomingS2['memberContributions']) ? $incomingS2['memberContributions'] : [];
-                $mergedS2['memberContributions'] = $exContrib;
-                foreach ($inContrib as $contribKey => $contribVal) {
-                    $exVal = isset($exContrib[$contribKey]) ? intval($exContrib[$contribKey]) : 0;
-                    $inVal = is_numeric($contribVal) ? intval($contribVal) : 0;
-                    $mergedS2['memberContributions'][$contribKey] = max($exVal, $inVal);
+                if (!empty($inContrib)) {
+                    $mergedS2['memberContributions'] = $inContrib;
+                } else {
+                    $mergedS2['memberContributions'] = $exContrib;
                 }
 
                 // 初稿全员确认字典合并

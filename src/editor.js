@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2350";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2350";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2350";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2355";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2355";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2355";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1357,35 +1357,137 @@ function renderStage2Canvas(canvas, state, handlers) {
 
   const padName = `jizhi_${activeTaskId}_${userGroupId}`;
 
-  // 🚀 核心黑科技：同源 Etherpad iframe 内部 DOM 毫秒级直读函数与本地输入精准捕获
-  const getEtherpadTextDirect = () => {
+  // 🚀 核心黑科技：扫描 Etherpad 内部 DOM 获取实际留存正文及各成员真实的撰写字数与贡献
+  const getEtherpadAuthorStats = () => {
     try {
       const f = document.getElementById('stage2-etherpad-frame');
-      if (f && f.contentDocument) {
-        const aceOuter = f.contentDocument.querySelector('iframe[name="ace_outer"]');
-        if (aceOuter && aceOuter.contentDocument) {
-          const aceInner = aceOuter.contentDocument.querySelector('iframe[name="ace_inner"]');
-          if (aceInner && aceInner.contentDocument) {
-            const innerBody = aceInner.contentDocument.querySelector('.innerdocbody') || aceInner.contentDocument.body;
-            if (innerBody) {
-              if (!innerBody._jizhiInputBound) {
-                innerBody._jizhiInputBound = true;
-                const markLocalTyping = () => {
-                  window._lastLocalPadInputTime = Date.now();
-                };
-                innerBody.addEventListener('input', markLocalTyping, true);
-                innerBody.addEventListener('keydown', markLocalTyping, true);
-                innerBody.addEventListener('keyup', markLocalTyping, true);
-                innerBody.addEventListener('paste', markLocalTyping, true);
-                innerBody.addEventListener('compositionend', markLocalTyping, true);
-              }
-              return (innerBody.innerText || '').replace(/\r\n/g, '\n').trim();
-            }
+      if (!f || !f.contentDocument) return null;
+
+      const padWin = f.contentWindow;
+      let authorData = {};
+      if (padWin && padWin.clientVars && padWin.clientVars.collab_client_vars) {
+        authorData = padWin.clientVars.collab_client_vars.historicalAuthorData || {};
+      }
+
+      const aceOuter = f.contentDocument.querySelector('iframe[name="ace_outer"]');
+      if (!aceOuter || !aceOuter.contentDocument) return null;
+      const aceInner = aceOuter.contentDocument.querySelector('iframe[name="ace_inner"]');
+      if (!aceInner || !aceInner.contentDocument) return null;
+
+      const innerDoc = aceInner.contentDocument;
+      const innerBody = innerDoc.querySelector('.innerdocbody') || innerDoc.body;
+      if (!innerBody) return null;
+
+      if (!innerBody._jizhiInputBound) {
+        innerBody._jizhiInputBound = true;
+        const markLocalTyping = () => {
+          window._lastLocalPadInputTime = Date.now();
+          if (typeof syncPadMetrics === 'function') {
+            setTimeout(syncPadMetrics, 100);
+          }
+        };
+        innerBody.addEventListener('input', markLocalTyping, true);
+        innerBody.addEventListener('keydown', markLocalTyping, true);
+        innerBody.addEventListener('keyup', markLocalTyping, true);
+        innerBody.addEventListener('paste', markLocalTyping, true);
+        innerBody.addEventListener('compositionend', markLocalTyping, true);
+      }
+
+      const rawText = (innerBody.innerText || '').replace(/\r\n/g, '\n').trim();
+      const totalLen = rawText.length;
+
+      const memberCounts = {};
+      membersList.forEach(m => {
+        memberCounts[m.id] = 0;
+        if (m.name) memberCounts[m.name] = 0;
+      });
+
+      if (totalLen === 0) {
+        return { total: 0, memberCounts, cleanText: '' };
+      }
+
+      const getAuthorClass = (el) => {
+        let cur = el;
+        while (cur && cur !== innerBody) {
+          if (cur.className && typeof cur.className === 'string') {
+            const m = cur.className.match(/\bauthor-([a-zA-Z0-9_\-]+)\b/);
+            if (m) return m[1];
+          }
+          cur = cur.parentElement;
+        }
+        return null;
+      };
+
+      const walker = innerDoc.createTreeWalker(innerBody, NodeFilter.SHOW_TEXT, null, false);
+      const rawCounts = {};
+      let node;
+      let walkTotal = 0;
+
+      while ((node = walker.nextNode())) {
+        const txt = (node.nodeValue || '').replace(/[\r\n\t]/g, '');
+        const len = txt.length;
+        if (len === 0) continue;
+        walkTotal += len;
+        const aClass = getAuthorClass(node.parentElement) || 'unassigned';
+        rawCounts[aClass] = (rawCounts[aClass] || 0) + len;
+      }
+
+      // 匹配每个 authorClass 到真实的 membersList 成员
+      let matchedCountTotal = 0;
+      Object.keys(rawCounts).forEach(aKey => {
+        const count = rawCounts[aKey];
+        if (count <= 0) return;
+
+        let authorName = '';
+        const normKey1 = aKey.replace(/[-_]/g, '.');
+        const normKey2 = aKey.startsWith('a-') ? 'a.' + aKey.slice(2) : (aKey.startsWith('a_') ? 'a.' + aKey.slice(2) : aKey);
+
+        for (const k of [aKey, normKey1, normKey2]) {
+          if (authorData[k] && authorData[k].name) {
+            authorName = authorData[k].name;
+            break;
           }
         }
-      }
-    } catch (e) {}
-    return null;
+
+        const matched = membersList.find(m => {
+          if (!m) return false;
+          if (authorName && (m.name === authorName || m.id === authorName)) return true;
+          if (m.name && aKey.includes(m.name)) return true;
+          if (m.id && aKey.includes(m.id)) return true;
+          return false;
+        });
+
+        if (matched) {
+          memberCounts[matched.id] = (memberCounts[matched.id] || 0) + count;
+          if (matched.name) memberCounts[matched.name] = (memberCounts[matched.name] || 0) + count;
+          matchedCountTotal += count;
+        } else {
+          // 未标记作者或直接粘贴的段落：归属为当前操作者或首个成员
+          const fallback = membersList.find(m => {
+            if (currUser && (m.id === currUser.id || m.name === currUser.name)) return true;
+            return false;
+          }) || membersList[0];
+          if (fallback) {
+            memberCounts[fallback.id] = (memberCounts[fallback.id] || 0) + count;
+            if (fallback.name) memberCounts[fallback.name] = (memberCounts[fallback.name] || 0) + count;
+            matchedCountTotal += count;
+          }
+        }
+      });
+
+      return {
+        total: totalLen,
+        memberCounts: memberCounts,
+        cleanText: rawText
+      };
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const getEtherpadTextDirect = () => {
+    const stats = getEtherpadAuthorStats();
+    return stats ? stats.cleanText : null;
   };
 
   const getMemberContribVal = (contribs, m) => {
@@ -1410,12 +1512,8 @@ function renderStage2Canvas(canvas, state, handlers) {
     let rawTotal = 0;
     membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
     
-    // 🛡️ 严格联动：若当前文档为空（0字），贡献度状态条与标签必须清空归零
+    // 如果当前正文为空，或者各成员实际字数总和为 0，展示空状态
     if (docLen === 0 || rawTotal === 0) {
-      if (docLen === 0 && rawTotal > 0) {
-        state.stage2.memberContributions = {};
-        rawTotal = 0;
-      }
       labelsEl.innerHTML = `<span style="color:#94a3b8; font-weight:600; font-size:10.5px;">⏳ 暂无撰写内容</span>`;
       barsEl.innerHTML = `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
       return;
@@ -1445,10 +1543,11 @@ function renderStage2Canvas(canvas, state, handlers) {
   let _padContentDebounceTimer = null;
   const syncPadMetrics = async () => {
     try {
-      // 1. 优先尝试同源 DOM 直读（0 延迟、0 网络开销、100% 毫秒级捕获）
-      let cleanTxt = getEtherpadTextDirect();
+      // 1. 优先尝试同源 DOM 级作者与留存字数全量精准直读
+      const authorStats = getEtherpadAuthorStats();
+      let cleanTxt = authorStats ? authorStats.cleanText : null;
       
-      // 2. 若直读暂未就绪（如 iframe 仍在握手），降级为服务端代理接口
+      // 2. 若 DOM 暂未就绪，降级尝试服务端代理接口
       if (cleanTxt === null) {
         const res = await fetch(`sync.php?action=get_pad_text&padId=${encodeURIComponent(padName)}`).then(r => r.json()).catch(() => null);
         if (res && res.success && typeof res.text === 'string') {
@@ -1479,36 +1578,12 @@ function renderStage2Canvas(canvas, state, handlers) {
           }, 2000);
         }
 
-        // 动态贡献度计算（支持乐观立即更新与服务端持久化）：
-        if (!state.stage2.memberContributions) state.stage2.memberContributions = {};
-        const contribs = state.stage2.memberContributions;
-        let rawTotal = 0;
-        membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
-
-        const prevLen = state.stage2._prevKnownLen !== undefined ? state.stage2._prevKnownLen : 0;
-        state.stage2._prevKnownLen = wordCount;
-
-        const isLocalUserTyping = !!(window._lastLocalPadInputTime && (Date.now() - window._lastLocalPadInputTime < 3500));
-        const delta = (wordCount > prevLen && isLocalUserTyping) ? (wordCount - prevLen) : 0;
-        if (delta > 0) {
-          const matchedMember = membersList.find(m => {
-            if (!m) return false;
-            if (currUser && (m.id === currUser.id || (m.name && m.name === currUser.name))) return true;
-            if (state.currentUser && (m.id === state.currentUser || m.name === state.currentUser)) return true;
-            return false;
-          }) || membersList[0];
-
-          const curVal = getMemberContribVal(contribs, matchedMember);
-          const newVal = curVal + delta;
-
-          const keysToUpdate = [matchedMember?.id, matchedMember?.name, currUser?.id, currUserCode].filter(Boolean);
-          keysToUpdate.forEach(k => {
-            contribs[k] = newVal;
-          });
+        // 3. 根据实际文档内容精准更新各成员真实贡献度
+        if (authorStats && authorStats.memberCounts) {
+          state.stage2.memberContributions = authorStats.memberCounts;
           updateContribDom();
 
           // 📡 异步持久化到服务端双表
-          const reportCode = matchedMember?.id || matchedMember?.studentCode || matchedMember?.name || currUser?.id || currUserCode;
           fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1516,17 +1591,8 @@ function renderStage2Canvas(canvas, state, handlers) {
               taskId: activeTaskId,
               classId: userClassId,
               groupId: userGroupId,
-              userCode: reportCode,
-              delta: delta
+              contribs: authorStats.memberCounts
             })
-          }).then(r => r.json()).then(res => {
-            if (res && res.success && res.contribs) {
-              keysToUpdate.forEach(k => {
-                res.contribs[k] = newVal;
-              });
-              state.stage2.memberContributions = res.contribs;
-              updateContribDom();
-            }
           }).catch(() => {});
         } else {
           updateContribDom();
@@ -1538,6 +1604,7 @@ function renderStage2Canvas(canvas, state, handlers) {
   // 立即启动/重置高频轮询器
   if (window._stage2WordCountTimer) clearInterval(window._stage2WordCountTimer);
   window._stage2WordCountTimer = setInterval(syncPadMetrics, 1500);
+  setTimeout(syncPadMetrics, 300);
   setTimeout(syncPadMetrics, 300);
 
   // 🛡️ 极致单例保护：若 Etherpad 协同编辑器或富文本编辑器已经在当前画布上活跃运行，严禁 innerHTML 销毁重绘！
