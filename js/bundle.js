@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2722
+ * Version: 20260905_v2723
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2722';
+  const APP_VERSION = '20260905_v2723';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5610,6 +5610,18 @@
             if (remoteTitle !== '' || topicInp.value === '') {
               if (topicInp.value !== remoteTitle) {
                 topicInp.value = remoteTitle;
+              }
+            }
+          }
+        }
+
+        if (remoteS1.contract?.overview !== undefined || remoteS1.researchOverview !== undefined) {
+          const remoteOv = remoteS1.contract?.overview || remoteS1.researchOverview || '';
+          const overviewInp = document.getElementById('contract-overview-input');
+          if (overviewInp && document.activeElement !== overviewInp) {
+            if (remoteOv !== '' || overviewInp.value === '') {
+              if (overviewInp.value !== remoteOv) {
+                overviewInp.value = remoteOv;
               }
             }
           }
@@ -18090,15 +18102,12 @@
       if (typeof renderChat === 'function') renderChat(this.state);
 
       const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-      // 💡 局部精准切片：只截取投票结果出炉之后（学生集中讨论方案）的研讨记录，严格控制 token 花销
-      const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('投票结果出炉') || m.text.includes('全票推选') || m.text.includes('投票已完成') || m.text.includes('投票完成')));
-      const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs.slice(-15);
-      const validUserLogs = relevantLogs.filter(m => {
+      const validUserLogs = s1ChatLogs.filter(m => {
         if (!m || !m.text) return false;
         if (m.isThinking) return false;
         if (m.sender === 'system' || AgentProfiles[m.sender]) return false;
-        if (m.text.startsWith('[IMG_DATA]:')) return false;
-        if (m.text.includes('【投票结果出炉】') || m.text.includes('【公约草案就绪】')) return false;
+        if (typeof m.text === 'string' && m.text.startsWith('[IMG_DATA]:')) return false;
+        if (typeof m.text === 'string' && (m.text.includes('【投票结果】') || m.text.includes('【公约草案就绪】') || m.text.includes('【全盘公约就绪】'))) return false;
         return true;
       });
       const chatSnippet = validUserLogs.map(m => {
@@ -18120,23 +18129,26 @@
       const currentCandidate = s1.mergedTitle || s1.contract?.topic || (propList[0] ? propList[0].title : defaultCandidateFallback);
       const allPropTitles = propList.map(p => `《${p.title}》`).join('、');
 
-      const extractPrompt = `【任务指令：请为小组成员提炼规范${isInst ? '教学课题名称' : '论文题目'}与结构化${isInst ? '教学方案概述' : '研究方案概述'}】
+      const extractPrompt = `【任务指令：请为小组成员提炼规范${isInst ? '教学课题名称' : '研究论文题目'}与 120~200 字结构化${isInst ? '教学方案概述' : '研究方案概述'}】
 
-  【小组成员在讨论区的全部真实研讨发言（核心事实依据，组员发言为自然非制式交流）】:
-  ${chatSnippet || (isInst ? '组员正在商讨具体学情、教学情境与探究建构方法' : '组员正在商讨具体情境、案例与研究方法')}
+  【小组成员在讨论区的全部真实研讨发言（核心事实依据，小组成员已在讨论区商讨了具体思路、活动情境或研究方法）】:
+  ${chatSnippet || (isInst ? '组员主要围绕教学设计课题与教学活动设想展开了研讨' : '组员主要围绕学术研究课题与具体实施方案展开了研讨')}
 
   【小组成员提交的提案参考】:
-  ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员未单独提交文本提案，主要通过上述聊天区直接研讨）')}
+  ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员主要通过讨论区直接交流）')}
 
-  【提炼与提取核心要求（最高优先级：高度忠实于组员真实非制式研讨）】：
-  1. 真实研讨洞察：小组成员研讨往往是非制式、口语化的，且通常未在提案框中撰写详细文本说明。请务必从上述全部对话记录中，敏锐捕捉组员讨论的实际${isInst ? '教学情境、课文/知识点、活动设想、学情与突破思路' : '研究对象、实践情境、核心问题与实证方法'}；
-  2. 规范提炼【${isInst ? '教学课题' : '论文题目'}】：若组员在聊天或提案中有讨论聚焦的方向，提炼为学术/教学规范的课题名称；
-  3. 忠实提炼 120~200 字【${isInst ? '教学方案概述' : '研究方案概述'}】：必须直接反映组员在聊天中提出的具体想法与研讨要点，严禁脱离组员真实发言输出千篇一律的通用模板套话！
+  【提炼与提取核心要求（最高优先级：深度结合组员真实发言提取出具体方案）】：
+  1. 真实研讨萃取：小组成员在讨论区交流了具体的思路、情境、案例或方法。请通读全部发言与提案，准确提炼出具体方案！
+  2. 规范提炼【${isInst ? '教学课题' : '论文题目'}】(topic)：以已选出的课题《${currentCandidate}》为核心基础，规范润色或沿用此题目；
+  3. 忠实提炼 120~200 字【${isInst ? '教学方案概述' : '研究方案概述'}】(overview)：
+     ${isInst 
+       ? '必须涵盖：① 针对的学情与核心情境；② 教学目标与重难点突破；③ 核心探究活动链与学法设计。必须有充实的具体内容，绝不能输出空字符串或简短套话！' 
+       : '必须涵盖：① 研究背景与实践情境；② 核心研究问题与假设；③ 拟采用的研究设计与具体方法（如实验、问卷、访谈、案例分析等）。必须有充实的具体内容，绝不能输出空字符串或简短套话！'}
 
-  请务必按以下 JSON 格式输出（或严格包含对应字段）：
+  请务必按以下 JSON 格式输出：
   {
-    "topic": "提炼后的规范${isInst ? '教学课题' : '论文题目'}",
-    "overview": "根据上述组员真实讨论提炼的${isInst ? '教学方案概述（涵盖学情情境、教学目标重难点与探究建构活动）' : '研究方案概述（涵盖情境案例、核心科学问题与实证研究方法）'}",
+    "topic": "${currentCandidate}",
+    "overview": "根据上述组员真实讨论提炼的 120~200 字${isInst ? '教学方案概述（涵盖学情情境、教学目标重难点与探究建构活动）' : '研究方案概述（涵盖情境案例、核心科学问题与实证研究方法）'}",
     "guideText": "${isInst ? '教学课题与教学方案概述' : '论文主题与研究方案概述'}已成功生成并录入公约看板！接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定后点击【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！"
   }`;
 
@@ -18228,6 +18240,11 @@
         s1.contract.overview = finalOverview;
         s1.researchOverview = finalOverview;
         s1.contractStep = 'time'; // 顺推至时间分配阶段
+
+        const overviewInp = document.getElementById('contract-overview-input');
+        if (overviewInp) overviewInp.value = finalOverview;
+        const topicInp = document.getElementById('contract-topic-input');
+        if (topicInp) topicInp.value = finalTopic;
 
         guideSpeech = guideSpeech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师|备课引导师|引导师)[·\s]*(?:方案确立|主题与方案确立|方案提炼)?】[：:]\s*/g, '');
         const noticeText = `🏛️ 【${agentRole}·主题与方案确立】：全组${isInst ? '教学论题' : '研究论题'}《${finalTopic}》与方案概述已成功提炼并录入公约看板！👉 接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定完成后点击左侧【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！`;
@@ -18837,7 +18854,7 @@
                 if (!hasExistingTopic && matchedTopic && typeof matchedTopic === 'string' && matchedTopic.trim().length > 0) {
                   finalTopic = matchedTopic.trim().replace(/^《|》$/g, '');
                 }
-                if (!hasExistingTopic && matchedOverview && typeof matchedOverview === 'string' && matchedOverview.trim().length > 0) {
+                if (!hasExistingOverview && matchedOverview && typeof matchedOverview === 'string' && matchedOverview.trim().length > 0) {
                   finalOverview = matchedOverview.trim();
                 }
                 if (!hasExistingTime && parsed.timeAllocations && typeof parsed.timeAllocations === 'object') {
@@ -18861,7 +18878,7 @@
                 finalTopic = tMatch[1].replace(/["'《》]/g, '').trim();
               }
               const oMatch = resp.match(/(?:【(?:教学)?(?:研究)?方案概述】|【方案设计】|【总体构想】|(?:方案概述|教学方案|研究方案|总体构想|方案设计|overview)[：:\s]*)([\s\S]+?)(?=\n\s*【|\n\s*[234]\.|\n\s*guideText|\n\s*"|$)/i);
-              if (oMatch && oMatch[1] && !hasExistingTopic && oMatch[1].trim().length > 10) {
+              if (oMatch && oMatch[1] && !hasExistingOverview && oMatch[1].trim().length > 10) {
                 finalOverview = oMatch[1].replace(/^["'：:\s]+|["'，,。;\s]+$/g, '').trim();
                 isSuccess = true;
               }
@@ -18942,6 +18959,11 @@
       s1.contract._draftedTime = Date.now();
       s1.contractStep = 'completed'; // 提炼全部完成，左侧3个分步按钮全部退场
       s1.flowStep = 'refining';
+
+      const overviewInp = document.getElementById('contract-overview-input');
+      if (overviewInp) overviewInp.value = finalOverview;
+      const topicInp = document.getElementById('contract-topic-input');
+      if (topicInp) topicInp.value = finalTopic;
 
       const noticeText = `🏛️ 【${agentRole}·全盘公约就绪】：全篇${isInst ? '教学课题' : '研究主题'}《${finalTopic}》、方案概述、时间规划与组员分工已全部提炼生成并录入左侧公约看板！👉 请全组成员在左侧公约看板仔细审查核对，如对论题、方案、时间或分工有异议，可直接在左侧看板修改调整或在讨论区商议；确认无误后请在公约下方点击【✍️ 签署确认${contractTitle}】！全员签署后将正式解锁【${stage2Title}】！`;
       const noticeMsg = {

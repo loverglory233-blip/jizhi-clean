@@ -521,9 +521,13 @@ if ($action === 'patch_contract_field' && $_SERVER['REQUEST_METHOD'] === 'POST')
         $s1 = ($row && !empty($row['stage1_data'])) ? json_decode($row['stage1_data'], true) : [];
         if (!isset($s1['contract']) || !is_array($s1['contract'])) $s1['contract'] = [];
 
-        if ($field === 'mergedTitle') {
+        if ($field === 'mergedTitle' || $field === 'topic' || $field === 'topic_title') {
             $s1['mergedTitle'] = (string)$val;
+            $s1['contract']['topic'] = (string)$val;
             $s1['contract']['mergedTitle'] = (string)$val;
+        } elseif ($field === 'overview' || $field === 'research_overview' || $field === 'researchOverview') {
+            $s1['contract']['overview'] = (string)$val;
+            $s1['researchOverview'] = (string)$val;
         } elseif ($field === 'timeAllocations' && $subKey !== '') {
             if (!isset($s1['contract']['timeAllocations'])) $s1['contract']['timeAllocations'] = [];
             $s1['contract']['timeAllocations'][$subKey] = intval($val);
@@ -3098,9 +3102,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $incomingS1 = (isset($data['stage1']) && is_array($data['stage1'])) ? $data['stage1'] : [];
             $mergedS1 = array_merge($existingS1, $incomingS1);
             if (!empty($existingS1)) {
-                // 🛡️ 选题主题防空覆盖：若传入的主题为空，严格保留已有主题
+                // 🛡️ 选题主题与方案概述防空覆盖：若传入为空，严格保留已有数据
                 if (empty(trim($incomingS1['mergedTitle'] ?? '')) && !empty(trim($existingS1['mergedTitle'] ?? ''))) {
                     $mergedS1['mergedTitle'] = $existingS1['mergedTitle'];
+                }
+                if (!isset($mergedS1['contract']) || !is_array($mergedS1['contract'])) $mergedS1['contract'] = [];
+                if (is_array($existingS1['contract'] ?? null)) {
+                    $mergedS1['contract'] = array_merge($existingS1['contract'], $mergedS1['contract']);
+                }
+                if (empty(trim($incomingS1['contract']['overview'] ?? '')) && !empty(trim($existingS1['contract']['overview'] ?? ''))) {
+                    $mergedS1['contract']['overview'] = $existingS1['contract']['overview'];
+                }
+                if (empty(trim($incomingS1['contract']['topic'] ?? '')) && !empty(trim($existingS1['contract']['topic'] ?? ''))) {
+                    $mergedS1['contract']['topic'] = $existingS1['contract']['topic'];
+                }
+                if (empty(trim($incomingS1['researchOverview'] ?? '')) && !empty(trim($existingS1['researchOverview'] ?? ''))) {
+                    $mergedS1['researchOverview'] = $existingS1['researchOverview'];
                 }
 
                 $exProps = isset($existingS1['proposals']) && is_array($existingS1['proposals']) ? $existingS1['proposals'] : [];

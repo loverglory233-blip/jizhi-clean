@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2722';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2722';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2723';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2723';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1355,6 +1355,18 @@ export class CloudSyncEngine {
           if (remoteTitle !== '' || topicInp.value === '') {
             if (topicInp.value !== remoteTitle) {
               topicInp.value = remoteTitle;
+            }
+          }
+        }
+      }
+
+      if (remoteS1.contract?.overview !== undefined || remoteS1.researchOverview !== undefined) {
+        const remoteOv = remoteS1.contract?.overview || remoteS1.researchOverview || '';
+        const overviewInp = document.getElementById('contract-overview-input');
+        if (overviewInp && document.activeElement !== overviewInp) {
+          if (remoteOv !== '' || overviewInp.value === '') {
+            if (overviewInp.value !== remoteOv) {
+              overviewInp.value = remoteOv;
             }
           }
         }
