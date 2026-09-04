@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260904_v2228';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260904_v2228';
+import { InitialState } from './constants.js?v=20260904_v2229';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260904_v2229';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -700,18 +700,52 @@ export class CloudSyncEngine {
 
         let baseLogs = remoteLogs;
         if (stg === 'stage1') {
-          // 🛡️ 阶段一清洗重复套娃前缀
-          baseLogs = baseLogs.map(m => {
-            if (!m || typeof m.text !== 'string') return m;
-            let t = m.text;
+          // 🛡️ 阶段一清洗重复套娃前缀与去重
+          const seenPropEvals = new Set();
+          const successfulTitles = new Set();
+
+          // 1. 先统计所有已成功生成的评估标题
+          remoteLogs.forEach(m => {
+            if (m && m.sender === 'auctioneer' && (m.text || '').includes('提案评估') && !((m.text || '').includes('网络提醒'))) {
+              const match = (m.text || '').match(/《([^》]+)》/);
+              if (match) successfulTitles.add(match[1]);
+            }
+          });
+
+          // 2. 过滤掉已被成功替代的旧网络提醒气泡，并对多余的同提案速评进行去重
+          baseLogs = [];
+          for (let i = remoteLogs.length - 1; i >= 0; i--) {
+            const m = remoteLogs[i];
+            if (!m) continue;
+            let t = m.text || '';
+
+            // 如果该提案已经评估成功，清除历史的网络提醒
+            if (m.sender === 'auctioneer' && t.includes('网络提醒')) {
+              const match = t.match(/《([^》]+)》/);
+              if (match && successfulTitles.has(match[1])) {
+                continue; // 彻底隐藏过期的错误重试气泡
+              }
+            }
+
             if (t.includes('【拍卖师·选题速评】') && t.includes('【学术拍卖师·提案')) {
               t = t.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:选题速评|提案速评|提案评估|落槌与方案研讨)?】[：:]\s*/g, '');
               t = t.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:选题速评|提案速评|提案评估|落槌与方案研讨)?】[：:]\s*/g, '');
               t = `🏛️ 【学术拍卖师·提案评估】：${t.trim()}`;
-              return { ...m, text: t };
+              m.text = t;
             }
-            return m;
-          });
+
+            // 同一提案标题的成功速评只保留最新一条
+            if (m.sender === 'auctioneer' && t.includes('提案评估') && !t.includes('网络提醒')) {
+              const match = t.match(/《([^》]+)》/);
+              const propKey = match ? match[1] : t.substring(0, 30);
+              if (seenPropEvals.has(propKey)) {
+                continue;
+              }
+              seenPropEvals.add(propKey);
+            }
+
+            baseLogs.unshift(m);
+          }
         } else if (stg === 'stage2') {
           const deduped = [];
           let seenFirstReview = false;
