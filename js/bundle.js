@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2522
+ * Version: 20260904_v2523
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2522';
+  const APP_VERSION = '20260904_v2523';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11251,7 +11251,12 @@
               if (window.app && typeof window.app.checkAgentTriggersOnContent === 'function') {
                 window.app.checkAgentTriggersOnContent(cleanTxt);
               }
-            }, 2000);
+            }, 1500);
+          } else {
+            if (!window._firstPadScanTriggered && window.app && typeof window.app.checkAgentTriggersOnContent === 'function') {
+              window._firstPadScanTriggered = true;
+              window.app.checkAgentTriggersOnContent(cleanTxt);
+            }
           }
 
           // 3. 根据实际文档内容精准更新各成员真实贡献度
@@ -19252,14 +19257,29 @@
         return true;
       };
 
-      let hasFirstReviewInLogs = s2ChatList.some(isRealFirstReviewMsg) || (s2.reviewMilestone === 'first_review_done' && !!s2.firstReviewText);
+      let hasFirstReviewInLogs = s2ChatList.some(isRealFirstReviewMsg);
 
-      if (hasFirstReviewInLogs && (s2.reviewMilestone === 'none' || s2.reviewMilestone === 'first_review_in_progress')) {
-        s2.reviewMilestone = 'first_review_done';
-        this.syncStage2();
+      if (!hasFirstReviewInLogs && s2.firstReviewText && s2.reviewMilestone === 'first_review_done') {
+        // 已经生成过一审文本但当前 chatLogs 丢失：立即补入 chatLogs
+        const taskType = this.getCurrentTaskType();
+        const isInstTask = (taskType === 'instructional');
+        const reviewerRoleName = isInstTask ? '备课组长' : '审稿编辑';
+        const formattedFirstReview = (s2.firstReviewText.includes('一审') || s2.firstReviewText.includes('初审') || s2.firstReviewText.includes('破题把脉')) ? s2.firstReviewText : `📝 【${reviewerRoleName}·一审破题把脉】：\n${s2.firstReviewText}`;
+        const firstReviewMsg = {
+          sender: 'reviewingEditor',
+          senderName: `学术质量 · ${reviewerRoleName}`,
+          text: formattedFirstReview,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+        this.state.chatLogs.stage2.push(firstReviewMsg);
+        this.syncChatLogs();
+        renderChat(this.state);
+        hasFirstReviewInLogs = true;
       }
 
-      if (!hasFirstReviewInLogs && (s2.reviewMilestone === 'none' || s2.reviewMilestone === undefined) && isReview1Due && !this._isTriggeringFirstReview) {
+      if (!hasFirstReviewInLogs && isReview1Due && !this._isTriggeringFirstReview) {
         this._isTriggeringFirstReview = true;
         s2.reviewMilestone = 'first_review_in_progress';
         this.syncStage2();
