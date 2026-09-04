@@ -86,11 +86,20 @@ export function parseMsgTime(m) {
   if (m.timestamp) {
     const s = String(m.timestamp).trim();
     if (/^\d{10,13}$/.test(s)) return Number(s);
+    if (s.includes('-') || s.includes('/') || s.includes('T')) {
+      const parsedDate = new Date(s.replace(/-/g, '/'));
+      if (!isNaN(parsedDate.getTime())) return parsedDate.getTime();
+    }
     const parts = s.split(':');
     if (parts.length >= 2) {
-      const d = new Date();
-      d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), parseInt(parts[2] || '0', 10), 0);
-      return d.getTime();
+      const h = parseInt(parts[0], 10);
+      const min = parseInt(parts[1], 10);
+      const sec = parseInt(parts[2] || '0', 10);
+      if (!isNaN(h) && !isNaN(min)) {
+        const d = new Date();
+        d.setHours(h, min, isNaN(sec) ? 0 : sec, 0);
+        return d.getTime();
+      }
     }
   }
   return 0;

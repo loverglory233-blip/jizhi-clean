@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2687";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2687";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2687";
-import { AuthManager } from "./auth.js?v=20260905_v2687";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2687";
-import { renderLoginView } from "./login.js?v=20260905_v2687";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2687";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2687";
+} from "./constants.js?v=20260905_v2688";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2688";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2688";
+import { AuthManager } from "./auth.js?v=20260905_v2688";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2688";
+import { renderLoginView } from "./login.js?v=20260905_v2688";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2688";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2688";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2687";
+} from "./editor.js?v=20260905_v2688";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1620,18 +1620,11 @@ export class App {
             const lastStudentMsgAfterChecklistTime = parseMsgTime(lastStudentMsgAfterChecklist);
             const silenceAfterChecklist = lastStudentMsgAfterChecklistTime ? Math.max(0, now - lastStudentMsgAfterChecklistTime) : checklistElapsed;
 
-            // 🛡️ 学生有发言即解除静默，重置讨论计数
-            if (lastStudentMsgAfterChecklistTime > (this._lastNudgeActivityTime?.['s2_consistency'] || 0)) {
-              this._nudgeCounts['s2_consistency_silence_3m'] = 0;
-              this._nudgeCounts['s2_consistency_silence_6m'] = 0;
-              if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
-              this._lastNudgeActivityTime['s2_consistency'] = lastStudentMsgAfterChecklistTime;
-            }
-
             // ── ① 3 分钟没讨论：责任编辑一致性研讨破冰点拨 ──
             const exist3mNudge = s2Chats.some(m => m && (m.text?.includes('一致性研讨点拨') || m.text?.includes('自查研讨点拨') || m.text?.includes('一致性协同研讨')));
             if (studentMsgAfterChecklist.length > 0) {
               this._nudgeCounts['s2_consistency_silence_3m'] = 1;
+              this._nudgeCounts['s2_checklist_silence_3m'] = 1;
             } else if (!exist3mNudge && checklistElapsed >= 180000 && !s2.isDraftConfirmed && (s2.pendingReviewing || this.state.stage2PendingReviewing)) {
               this._nudgeCounts['s2_consistency_silence_3m'] = 1;
               const msg = {
