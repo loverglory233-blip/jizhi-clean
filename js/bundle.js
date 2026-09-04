@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2415
+ * Version: 20260904_v2420
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2415';
+  const APP_VERSION = '20260904_v2420';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -19034,9 +19034,9 @@
       if (this._isTriggeringContribCare) return;
       const now = Date.now();
       const isLargeTask = this.state.activeTaskScale === 'large';
-      const ssrlCooldownMs = isLargeTask ? 600000 : 480000;
+      const ssrlCooldownMs = isLargeTask ? 480000 : 360000;
 
-      // 🛡️ 贡献比协同关怀自身冷却（中任务 8 分钟 / 大任务 10 分钟）：若最近已下发过协同关怀，等待冷却结束
+      // 🛡️ 贡献比协同关怀自身的 6~8 分钟常规冷却：若最近已下发过协同关怀，等待冷却结束
       const recentSsrlMsg = [...(logs || [])].reverse().find(m => m && m.sender === 'managingEditor' && m.text?.includes('协同关怀'));
       if (recentSsrlMsg && (now - Number(recentSsrlMsg._timeMs || 0) < ssrlCooldownMs)) return;
       if (this.lastS2ContribNudgeTime && (now - this.lastS2ContribNudgeTime < ssrlCooldownMs)) return;
