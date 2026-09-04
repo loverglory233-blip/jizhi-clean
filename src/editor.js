@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2370";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2370";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2370";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2375";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2375";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2375";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1352,8 +1352,9 @@ function renderStage2Canvas(canvas, state, handlers) {
   const meetingSubs = s2.meetingSubmissions || {};
   const isStage2MeetingLocked = s2.isMeetingLocked || (Object.keys(meetingSubs).length >= actualTotalCount && actualTotalCount > 0);
   // 🛡️ 阶段二只读严格判定：任务截止过期、全组最终提交终稿、已推进到阶段三、或初稿全员确认完成时锁定为只读归档
-  const isEditorReadonly = state.isFinalSubmitted || isTaskDeadlineExpired || (state.groupMaxStage === 'stage3') || isDraftFullyConfirmed;
-  const plainTextLen = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
+  const livePadText = (typeof getEtherpadTextDirect === 'function') ? getEtherpadTextDirect() : null;
+  const actualContent = (livePadText !== null) ? livePadText : (s2.unifiedContent || '');
+  const plainTextLen = actualContent.replace(/<[^>]*>/g, '').trim().length;
   const targetWordCount = (currentTask && currentTask.targetWordCount) ? Number(currentTask.targetWordCount) : 3000;
 
   const padName = `jizhi_${activeTaskId}_${userGroupId}`;
