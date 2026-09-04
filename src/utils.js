@@ -967,25 +967,17 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
         }
       }
 
-      // 4. 安全注入 pad.myUserInfo 并广播至 Etherpad 协同服务器
-      if (userName && padWin.pad) {
-        if (padWin.pad.myUserInfo) {
-          padWin.pad.myUserInfo.name = userName;
-          padWin.pad.myUserInfo.colorId = color;
-        }
-        if (typeof padWin.pad.notifyChangeName === 'function') {
-          try { padWin.pad.notifyChangeName(userName); } catch(e){}
-        }
-        if (typeof padWin.pad.changeUserName === 'function') {
-          try { padWin.pad.changeUserName(userName); } catch(e){}
-        }
-        if (typeof padWin.pad.notifyChangeColor === 'function') {
-          try { padWin.pad.notifyChangeColor(color); } catch(e){}
-        }
-        if (typeof padWin.pad.changeUserColor === 'function') {
-          try { padWin.pad.changeUserColor(color); } catch(e){}
-        }
+      // 4. 安全注入 pad.myUserInfo 与原生用户名输入框
+      if (userName && padWin.pad && padWin.pad.myUserInfo) {
+        padWin.pad.myUserInfo.name = userName;
+        padWin.pad.myUserInfo.colorId = color;
       }
+      try {
+        const nameInput = padWin.document && padWin.document.getElementById('myusernameedit');
+        if (nameInput && nameInput.value !== userName) {
+          nameInput.value = userName;
+        }
+      } catch(e) {}
     } catch(err) {}
   };
 
