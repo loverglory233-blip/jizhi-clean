@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2340
+ * Version: 20260904_v2345
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2340';
+  const APP_VERSION = '20260904_v2345';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4170,6 +4170,7 @@
               baseLogs.unshift(m);
             }
           } else if (stg === 'stage2') {
+            const s2TextLen = (this.app.state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
             const deduped = [];
             let seenFirstReview = false;
             let seenMeetingCall = false;
@@ -4179,15 +4180,18 @@
               if (!m) return;
               const snd = m.sender || '';
               const txt = m.text || '';
-              if (snd === 'reviewingEditor' && (txt.includes('初审') || txt.includes('初审微调') || txt.includes('Research Gap'))) {
+              if (snd === 'reviewingEditor' && (txt.includes('初审') || txt.includes('初审微调') || txt.includes('破题把脉') || txt.includes('Research Gap'))) {
+                if (s2TextLen < 50) return; // 自动清洗早产一审脏数据
                 if (seenFirstReview) return;
                 seenFirstReview = true;
               }
-              if (snd === 'managingEditor' && txt.includes('半程会议号召')) {
+              if (snd === 'managingEditor' && (txt.includes('半程会议号召') || txt.includes('半程研讨号召'))) {
+                if (s2TextLen < 50) return; // 自动清洗早产半程会议脏数据
                 if (seenMeetingCall) return;
                 seenMeetingCall = true;
               }
               if (snd === 'reviewingEditor' && txt.includes('终稿行文扫描')) {
+                if (s2TextLen < 50) return;
                 if (seenFinalReview) return;
                 seenFinalReview = true;
               }
@@ -4543,7 +4547,12 @@
           this.app.state.stage2PendingReviewing = remoteData.stage2.pendingReviewing;
         }
         if (remoteData.stage2.reviewMilestone) {
-          this.app.state.stage2.reviewMilestone = remoteData.stage2.reviewMilestone;
+          const s2TextLen = (this.app.state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
+          if (s2TextLen < 50 && (remoteData.stage2.reviewMilestone === 'first_review_done' || remoteData.stage2.reviewMilestone === 'first_review_in_progress' || remoteData.stage2.reviewMilestone === 'meeting_called')) {
+            this.app.state.stage2.reviewMilestone = 'none';
+          } else {
+            this.app.state.stage2.reviewMilestone = remoteData.stage2.reviewMilestone;
+          }
         }
 
         if (remoteData.stage2.unifiedContent !== undefined) {
