@@ -4,7 +4,7 @@
  * Version: 2.1.0 (2026-08-23)
  */
 
-export const APP_VERSION = '20260905_v2721';
+export const APP_VERSION = '20260905_v2722';
 export const APP_BUILD_DATE = '2026-09-05';
 
 export const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -68,12 +68,12 @@ export const InitialState = {
       isConfirmed: false,
       confirmedMembers: {},
       timeAllocations: {
-        background: 25,
-        literature: 30,
-        questions: 25,
-        method: 40,
-        reflection: 20,
-        references: 10
+        background: 0,
+        literature: 0,
+        questions: 0,
+        method: 0,
+        reflection: 0,
+        references: 0
       },
       taskAssignments: {}
     }
@@ -126,12 +126,12 @@ export const TASK_GENRE_CONFIGS = {
       neutral: '中间委员'
     },
     modules: [
-      { key: 'background', title: '一、研究背景与意义', color: '#2563eb', defaultMinutes: 15 },
-      { key: 'literature', title: '二、文献综述', color: '#0284c7', defaultMinutes: 20 },
-      { key: 'questions', title: '三、研究问题与假设', color: '#059669', defaultMinutes: 15 },
-      { key: 'method', title: '四、研究设计与方法', color: '#7c3aed', defaultMinutes: 35 },
-      { key: 'reflection', title: '五、研究设计的不足与反思', color: '#d97706', defaultMinutes: 15 },
-      { key: 'references', title: '六、参考文献', color: '#475569', defaultMinutes: 10 }
+      { key: 'background', title: '一、研究背景与意义', color: '#2563eb', defaultMinutes: 0 },
+      { key: 'literature', title: '二、文献综述', color: '#0284c7', defaultMinutes: 0 },
+      { key: 'questions', title: '三、研究问题与假设', color: '#059669', defaultMinutes: 0 },
+      { key: 'method', title: '四、研究设计与方法', color: '#7c3aed', defaultMinutes: 0 },
+      { key: 'reflection', title: '五、研究设计的不足与反思', color: '#d97706', defaultMinutes: 0 },
+      { key: 'references', title: '六、参考文献', color: '#475569', defaultMinutes: 0 }
     ]
   },
   instructional: {
@@ -153,12 +153,12 @@ export const TASK_GENRE_CONFIGS = {
       neutral: '答辩委员会主席'
     },
     modules: [
-      { key: 'background', title: '一、教材与学情分析', color: '#2563eb', defaultMinutes: 15 },
-      { key: 'literature', title: '二、教学目标与重难点', color: '#0284c7', defaultMinutes: 20 },
-      { key: 'questions', title: '三、情境创设与导入', color: '#059669', defaultMinutes: 15 },
-      { key: 'method', title: '四、新知探究与建构', color: '#7c3aed', defaultMinutes: 35 },
-      { key: 'reflection', title: '五、巩固练习与评价', color: '#d97706', defaultMinutes: 15 },
-      { key: 'references', title: '六、板书设计与反思', color: '#475569', defaultMinutes: 10 }
+      { key: 'background', title: '一、教材与学情分析', color: '#2563eb', defaultMinutes: 0 },
+      { key: 'literature', title: '二、教学目标与重难点', color: '#0284c7', defaultMinutes: 0 },
+      { key: 'questions', title: '三、情境创设与导入', color: '#059669', defaultMinutes: 0 },
+      { key: 'method', title: '四、新知探究与建构', color: '#7c3aed', defaultMinutes: 0 },
+      { key: 'reflection', title: '五、巩固练习与评价', color: '#d97706', defaultMinutes: 0 },
+      { key: 'references', title: '六、板书设计与反思', color: '#475569', defaultMinutes: 0 }
     ]
   }
 };
