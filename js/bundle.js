@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2295
+ * Version: 20260904_v2300
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2295';
+  const APP_VERSION = '20260904_v2300';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9369,8 +9369,8 @@
       state.groupMaxStage === 'stage2' || 
       state.groupMaxStage === 'stage3'
     );
-    const isDraftDone = !!(s2.isDraftConfirmed || (s2.meetingSubmissions && Object.keys(s2.meetingSubmissions).length > 0) || state.groupMaxStage === 'stage3' || state.isFinalSubmitted);
-    const isStage3Active = !!(state.groupMaxStage === 'stage3' || state.isFinalSubmitted || isDraftDone || (s3.confirmedMembers && Object.keys(s3.confirmedMembers).length > 0) || (s3.finalSubmittedMembers && Object.keys(s3.finalSubmittedMembers).length > 0));
+    const isDraftDone = !!(s2.isDraftConfirmed || state.groupMaxStage === 'stage3' || state.isFinalSubmitted);
+    const isStage3Active = !!(state.groupMaxStage === 'stage3' || state.isFinalSubmitted || isDraftDone);
 
     let currentMaxStage = state.groupMaxStage || 'stage1';
     if (isStage3Active) currentMaxStage = 'stage3';
@@ -15566,9 +15566,20 @@
       const userKeys = [primaryKey, user, currUserObj?.id, currUserObj?.name].filter(Boolean);
 
       let members = [];
-      if (Array.isArray(this.state.members)) members = this.state.members;
-      else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
-      const totalCount = members.length || 2;
+      if (this.authManager) {
+        const u = this.authManager.getCurrentUser();
+        const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
+        const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
+        const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null, effClassId);
+        const authMembers = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+        if (authMembers.length > 0) members = authMembers;
+      }
+      if (members.length === 0) {
+        if (Array.isArray(this.state.members)) members = this.state.members;
+        else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
+      }
+      if (!Array.isArray(members)) members = Object.values(members || {});
+      const totalCount = Math.max(members.length, 2);
 
       const isMemberDone = (map, m) => {
         if (!map || !m) return false;
@@ -17602,8 +17613,8 @@
         this.state.groupMaxStage === 'stage2' || 
         this.state.groupMaxStage === 'stage3'
       );
-      const isDraftDone = !!(s2.isDraftConfirmed || (s2.meetingSubmissions && Object.keys(s2.meetingSubmissions).length > 0) || this.state.groupMaxStage === 'stage3' || this.state.isFinalSubmitted);
-      const isStage3Active = !!(this.state.groupMaxStage === 'stage3' || this.state.isFinalSubmitted || isDraftDone || (s3.confirmedMembers && Object.keys(s3.confirmedMembers).length > 0) || (s3.finalSubmittedMembers && Object.keys(s3.finalSubmittedMembers).length > 0));
+      const isDraftDone = !!(s2.isDraftConfirmed || this.state.groupMaxStage === 'stage3' || this.state.isFinalSubmitted);
+      const isStage3Active = !!(this.state.groupMaxStage === 'stage3' || this.state.isFinalSubmitted || isDraftDone);
 
       let currentGroupMax = this.state.groupMaxStage || 'stage1';
       if (isStage3Active) {
@@ -18179,19 +18190,22 @@
           const isInst = (taskType === 'instructional');
 
           let memberArr = [];
-          if (Array.isArray(this.state.members)) memberArr = this.state.members;
-          else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
-          if (memberArr.length === 0 && this.authManager) {
+          if (this.authManager) {
             const u = this.authManager.getCurrentUser();
             const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
             const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-            const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
-            memberArr = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+            const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null, effClassId);
+            const authMembers = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+            if (authMembers.length > 0) memberArr = authMembers;
+          }
+          if (memberArr.length === 0) {
+            if (Array.isArray(this.state.members)) memberArr = this.state.members;
+            else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
           }
           if (!Array.isArray(memberArr)) {
             memberArr = Object.values(memberArr || {});
           }
-          const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
+          const totalMembersCount = Math.max(memberArr.length, 2);
 
           // 🛡️ 守卫拦截：必须先走完二审半程自查与会议全流程（全员打卡完成），或者总时间临近截止（<= 5分钟），才允许点击确认初稿！
           const subs = s2.meetingSubmissions || {};
@@ -18291,19 +18305,22 @@
           const user = this.state.currentUser;
           const s3 = this.state.stage3;
           let memberArr = [];
-          if (Array.isArray(this.state.members)) memberArr = this.state.members;
-          else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
-          if (memberArr.length === 0 && this.authManager) {
+          if (this.authManager) {
             const u = this.authManager.getCurrentUser();
             const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
             const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-            const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
-            memberArr = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+            const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null, effClassId);
+            const authMembers = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+            if (authMembers.length > 0) memberArr = authMembers;
+          }
+          if (memberArr.length === 0) {
+            if (Array.isArray(this.state.members)) memberArr = this.state.members;
+            else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
           }
           if (!Array.isArray(memberArr)) {
             memberArr = Object.values(memberArr || {});
           }
-          const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
+          const totalMembersCount = Math.max(memberArr.length, 2);
 
           // 🛡️ 守卫拦截：必须先完成全部答辩质询陈述，或者总时间临近截止（<= 5分钟），才允许点击确认答辩！
           const items = s3.feedbackItems || [];
@@ -18492,19 +18509,22 @@
           const user = this.state.currentUser;
           const s3 = this.state.stage3;
           let memberArr = [];
-          if (Array.isArray(this.state.members)) memberArr = this.state.members;
-          else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
-          if (memberArr.length === 0 && this.authManager) {
+          if (this.authManager) {
             const u = this.authManager.getCurrentUser();
             const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
             const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-            const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
-            memberArr = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+            const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null, effClassId);
+            const authMembers = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+            if (authMembers.length > 0) memberArr = authMembers;
+          }
+          if (memberArr.length === 0) {
+            if (Array.isArray(this.state.members)) memberArr = this.state.members;
+            else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
           }
           if (!Array.isArray(memberArr)) {
             memberArr = Object.values(memberArr || {});
           }
-          const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
+          const totalMembersCount = Math.max(memberArr.length, 2);
 
           if (!s3.finalSubmittedMembers) s3.finalSubmittedMembers = {};
           s3.finalSubmittedMembers[user] = true;
