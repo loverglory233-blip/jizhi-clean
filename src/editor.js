@@ -2999,8 +2999,16 @@ export function renderChatActionBar(state) {
   const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
 
   if (curStage === 'stage1') {
-    const s1 = state.stage1 || {};
-    const elapsedSec = (state.timer && state.timer.elapsedSeconds) ? state.timer.elapsedSeconds : 0;
+    const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
+    const curTask = allTasks.find(t => t.id === state.activeTaskId);
+    let elapsedSec = (state.timer && state.timer.elapsedSeconds) ? state.timer.elapsedSeconds : 0;
+    if (elapsedSec < 13 * 60 && curTask && curTask.startTime) {
+      const sDate = new Date(String(curTask.startTime).replace(/-/g, '/'));
+      if (!isNaN(sDate.getTime())) {
+        const diffS = Math.floor((Date.now() - sDate.getTime()) / 1000);
+        if (diffS > elapsedSec) elapsedSec = diffS;
+      }
+    }
     const hasTopic = !!(s1.mergedTitle || s1.contract?.topic);
     const hasTime = !!(s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6);
     const hasTasks = !!(s1.contract?.taskAssignments && Object.keys(s1.contract.taskAssignments).length >= totalCount && totalCount > 0);
