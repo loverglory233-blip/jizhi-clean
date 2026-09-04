@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2229
+ * Version: 20260904_v2230
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2229';
+  const APP_VERSION = '20260904_v2230';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -16304,7 +16304,6 @@
           return keys.some(k => map[k] || map[String(k)]);
         }).length;
       };
-
       const confirmedCount = isDoneHelper(s2.confirmations.s2_managing);
 
       // 立即同步并更新聊天框底栏按钮展示
@@ -16423,8 +16422,10 @@
         if (respReviewing && respReviewing.trim().length > 0) {
           reviewingText = respReviewing.trim();
           if (!reviewingText.startsWith('📝')) reviewingText = `📝 【审稿编辑·二审修正清单】：${reviewingText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '')}`;
+          // 🛡️ 清理历史残留的网络提醒错误气泡
+          this.state.chatLogs.stage2 = (this.state.chatLogs.stage2 || []).filter(m => !m || !(m.sender === 'reviewingEditor' && (m.text || '').includes('网络提醒')));
         } else {
-          reviewingText = `📝 【审稿编辑·网络提醒】：📡 正在深度审阅正文草稿，网络连接稍有延迟未获取到清单。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary()" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新下发《二审修正清单》</button>`;
+          reviewingText = `📝 【审稿编辑·网络提醒】：📡 正在深度审阅正文草稿，网络连接稍有延迟未获取到清单。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新下发《二审修正清单》</button>`;
         }
 
         const msgReviewing = {
@@ -16635,8 +16636,10 @@
         if (respSummary && respSummary.trim().length > 0) {
           summaryText = respSummary.trim();
           if (!summaryText.startsWith('📝')) summaryText = `📝 【审稿编辑·修改确认与写作冲刺】：${summaryText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '')}`;
+          // 🛡️ 清理历史残留的网络提醒错误气泡
+          this.state.chatLogs.stage2 = (this.state.chatLogs.stage2 || []).filter(m => !m || !(m.sender === 'reviewingEditor' && (m.text || '').includes('网络提醒')));
         } else {
-          summaryText = `📝 【审稿编辑·网络提醒】：📡 网络连接稍有延迟，未获取到即时决议。<br><button class="btn-retry-ai" onclick="window.app.handleS2ReviewingSummary()" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成修改落实决议</button>`;
+          summaryText = `📝 【审稿编辑·网络提醒】：📡 网络连接稍有延迟，未能获取到即时决议。<br><button class="btn-retry-ai" onclick="window.app.handleS2ReviewingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成修改落实决议</button>`;
         }
 
         const msgSummary = {
@@ -16668,10 +16671,16 @@
     /**
      * 🎓 阶段三队列式逐条研讨：一键提炼当前质询答辩词，自动回填左侧矩阵，并顺推下一题/终审裁决
      */
-    async handleS3InquirySummary(targetInquiry) {
+    async handleS3InquirySummary(btnElement = null, targetInquiry = null) {
+      if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
+        btnElement.disabled = true;
+        btnElement.style.opacity = '0.6';
+        btnElement.style.cursor = 'not-allowed';
+        btnElement.innerHTML = `⏳ 正在重新生成答辩定案...`;
+      }
       const s3 = this.state.stage3 || {};
       const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
-      const currentInquiry = targetInquiry || feedbacks.find(f => f.role === 'opponent' && (!f.response || !f.response.trim()));
+      const currentInquiry = (targetInquiry && targetInquiry.role) ? targetInquiry : feedbacks.find(f => f.role === 'opponent' && (!f.response || !f.response.trim()));
       if (!currentInquiry) return;
 
       const inqIndex = feedbacks.indexOf(currentInquiry);
@@ -16732,8 +16741,13 @@
           currentInquiry.response = extractedResponse;
           currentInquiry.isFinalized = true;
           currentInquiry.status = 'finalized';
+
+          // 🛡️ 清理历史残留的网络提醒错误气泡
+          if (this.state.chatLogs.stage3) {
+            this.state.chatLogs.stage3 = this.state.chatLogs.stage3.filter(m => !m || !(m.sender === 'neutral' && (m.text || '').includes('网络提醒')));
+          }
         } else {
-          chairSpeech = `🟡 【中间委员·网络提醒】：📡 答辩审阅网络连接稍有延迟，未获取到定案。<br><button class="btn-retry-ai" onclick="window.app.handleS3InquirySummary()" style="margin-top:6px; background:#d97706; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成答辩定案</button>`;
+          chairSpeech = `🟡 【中间委员·网络提醒】：📡 答辩审阅网络连接稍有延迟，未能获取到针对【${inqLabel}】的定案。<br><button class="btn-retry-ai" onclick="window.app.handleS3InquirySummary(this)" style="margin-top:6px; background:#d97706; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成【${inqLabel}】答辩定案</button>`;
         }
 
         if (!chairSpeech.startsWith('🟡')) {
@@ -16903,7 +16917,13 @@
       }
     }
 
-    async runStage3CommitteePipeline() {
+    async runStage3CommitteePipeline(btnElement = null) {
+      if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
+        btnElement.disabled = true;
+        btnElement.style.opacity = '0.6';
+        btnElement.style.cursor = 'not-allowed';
+        btnElement.innerHTML = `⏳ 正在重新生成专家评审...`;
+      }
       if (this._isStage3PipelineRunning) return;
       this._isStage3PipelineRunning = true;
 
@@ -17027,7 +17047,7 @@
               id: 'msg_s3_pipeline_err_' + Date.now(),
               sender: 'neutral',
               senderName: '答辩委员会主席 · 中间委员',
-              text: `⚖️ 【答辩委员会·网络提醒】：📡 专家评审生成遇到网络波动，尚未全部就绪。<br><button class="btn-retry-ai" onclick="window.app.runStage3CommitteePipeline()" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成委员会评审</button>`,
+              text: `⚖️ 【答辩委员会·网络提醒】：📡 专家评审生成遇到网络波动，尚未全部就绪。<br><button class="btn-retry-ai" onclick="window.app.runStage3CommitteePipeline(this)" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成委员会评审</button>`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now()
             };
@@ -17038,6 +17058,9 @@
             this.renderStudentWorkspace();
             return;
           }
+
+          // 🛡️ 清理历史残留的网络提醒错误气泡
+          this.state.chatLogs.stage3 = (this.state.chatLogs.stage3 || []).filter(m => !m || !(m.text || '').includes('网络提醒'));
 
           if (!hasProp) {
             const propMsg = {
@@ -17140,7 +17163,7 @@
               id: 'msg_s3_chair_err_' + Date.now(),
               sender: 'neutral',
               senderName: '答辩委员会主席 · 中间委员',
-              text: `🟡 【中间委员·网络提醒】：📡 答辩思路引导生成稍有延迟。<br><button class="btn-retry-ai" onclick="window.app.runStage3CommitteePipeline()" style="margin-top:6px; background:#d97706; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成答辩思路引导</button>`,
+              text: `🟡 【中间委员·网络提醒】：📡 答辩思路引导生成稍有延迟。<br><button class="btn-retry-ai" onclick="window.app.runStage3CommitteePipeline(this)" style="margin-top:6px; background:#d97706; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成答辩思路引导</button>`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now()
             };
@@ -17151,6 +17174,9 @@
             this.renderStudentWorkspace();
             return;
           }
+
+          // 🛡️ 清理历史残留的网络提醒错误气泡
+          this.state.chatLogs.stage3 = (this.state.chatLogs.stage3 || []).filter(m => !m || !(m.text || '').includes('网络提醒'));
 
           const chairMsg = {
             sender: 'neutral',
