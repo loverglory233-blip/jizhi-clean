@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2676';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2676';
+import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2677';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2677';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -745,6 +745,7 @@ export class CloudSyncEngine {
     }
 
     const user = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
+    const isTeacher = user && (user.isTeacher || user.role === 'teacher');
     const myGroupId = this.getEffectiveGroupId();
 
     if (remoteData.groupId && remoteData.groupId !== myGroupId && user?.role === 'student') return;
@@ -1625,8 +1626,9 @@ export class CloudSyncEngine {
       (document.getElementById('canvas-panel')?.contains(activeEl) || document.querySelector('.contract-card')?.contains(activeEl) || document.querySelector('.matrix-workspace-container')?.contains(activeEl))
     ) || window._isGlobalComposing;
 
+    const isFirstPull = !this._hasRenderedInitialWorkspace;
     if (!isTypingInWorkspace) {
-      if (needWorkspaceRender && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+      if ((isFirstPull || needWorkspaceRender) && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
         this._hasRenderedInitialWorkspace = true;
         this.app.renderStudentWorkspace();
       }
