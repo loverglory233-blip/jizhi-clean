@@ -843,6 +843,94 @@ export function liftEtherpadReadonly(iframe) {
 }
 
 /**
+ * 👤 权威 Etherpad 用户身份强绑定注入器：
+ * 彻底消除 Etherpad 默认未同步真实姓名导致显示为“组员/学术组员”的问题
+ */
+export function ensureEtherpadUserSync(iframe, userName, userColor) {
+  if (!iframe || !userName) return;
+  const color = userColor || '#2563eb';
+
+  const doSync = () => {
+    try {
+      const padWin = iframe.contentWindow;
+      if (!padWin) return;
+
+      // 1. 设置 iframe 内 cookie name
+      try {
+        if (padWin.document) {
+          padWin.document.cookie = `name=${encodeURIComponent(userName)}; path=/; max-age=86400`;
+        }
+      } catch(e) {}
+
+      // 2. 注入 clientVars
+      if (padWin.clientVars) {
+        padWin.clientVars.userName = userName;
+        padWin.clientVars.userColor = color;
+        const uId = padWin.clientVars.userId || (padWin.pad && padWin.pad.getUserId && padWin.pad.getUserId());
+        if (uId) {
+          if (!padWin.clientVars.historicalAuthorData) padWin.clientVars.historicalAuthorData = {};
+          if (!padWin.clientVars.authorData) padWin.clientVars.authorData = {};
+          padWin.clientVars.historicalAuthorData[uId] = { name: userName, colorId: color };
+          padWin.clientVars.authorData[uId] = { name: userName, colorId: color };
+        }
+      }
+
+      // 3. 权威注入 pad.myUserInfo 并广播给所有组员
+      if (padWin.pad) {
+        if (padWin.pad.myUserInfo) {
+          padWin.pad.myUserInfo.name = userName;
+          padWin.pad.myUserInfo.colorId = color;
+        }
+        if (padWin.pad.collabClient) {
+          if (typeof padWin.pad.collabClient.tellPadNameAndColor === 'function') {
+            padWin.pad.collabClient.tellPadNameAndColor(userName, color);
+          }
+          if (typeof padWin.pad.collabClient.sendClientMessage === 'function') {
+            padWin.pad.collabClient.sendClientMessage({
+              type: 'USERINFO_UPDATE',
+              userInfo: {
+                name: userName,
+                colorId: color
+              }
+            });
+          }
+        }
+        if (typeof padWin.pad.notifyChangeColorAndName === 'function') {
+          padWin.pad.notifyChangeColorAndName({ name: userName, colorId: color });
+        }
+      }
+
+      // 4. Etherpad 原生 DOM 名字输入框 (如果有)
+      const doc = iframe.contentDocument;
+      if (doc) {
+        const nameInput = doc.querySelector('#myusernameedit') || doc.querySelector('#custom-user-name');
+        if (nameInput && nameInput.value !== userName) {
+          nameInput.value = userName;
+          nameInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+    } catch(err) {}
+  };
+
+  doSync();
+  iframe.addEventListener('load', () => {
+    doSync();
+    let attempts = 0;
+    const iv = setInterval(() => {
+      attempts++;
+      doSync();
+      if (attempts >= 10) clearInterval(iv);
+    }, 250);
+  });
+  let attempts = 0;
+  const iv = setInterval(() => {
+    attempts++;
+    doSync();
+    if (attempts >= 8) clearInterval(iv);
+  }, 300);
+}
+
+/**
  * 🌐 全局统一教学范围匹配器 (Universal Educational Scope Matcher)
  * 彻底消除因全等与死板判定导致的通知/问卷/范文“误杀遗漏”
  */

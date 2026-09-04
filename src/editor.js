@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2470";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2470";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2470";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2475";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2475";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2475";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2240,12 +2240,16 @@ function renderStage2Canvas(canvas, state, handlers) {
     if (s2Frame) enforceEtherpadReadonly(s2Frame);
   } else {
     const s2Frame = canvas.querySelector('#stage2-etherpad-frame');
-    if (s2Frame) liftEtherpadReadonly(s2Frame);
+    if (s2Frame) {
+      liftEtherpadReadonly(s2Frame);
+      ensureEtherpadUserSync(s2Frame, currUserName, currUserColor);
+    }
   }
   setTimeout(() => {
     const s2f = canvas.querySelector('#stage2-etherpad-frame');
-    if (s2f && !s2f.getAttribute('src')) {
-      s2f.src = padUrl;
+    if (s2f) {
+      if (!s2f.getAttribute('src')) s2f.src = padUrl;
+      ensureEtherpadUserSync(s2f, currUserName, currUserColor);
     }
   }, 50);
 
@@ -2727,7 +2731,10 @@ function renderStage3Canvas(canvas, state, handlers) {
     if (s3Frame) enforceEtherpadReadonly(s3Frame);
   } else {
     const s3Frame = canvas.querySelector('#stage3-etherpad-frame');
-    if (s3Frame) liftEtherpadReadonly(s3Frame);
+    if (s3Frame) {
+      liftEtherpadReadonly(s3Frame);
+      ensureEtherpadUserSync(s3Frame, currUserName, currUserColor);
+    }
   }
 
   const tabDefense = canvas.querySelector('#tab-btn-defense');

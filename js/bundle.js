@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2470
+ * Version: 20260904_v2475
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2470';
+  const APP_VERSION = '20260904_v2475';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1046,6 +1046,94 @@
       tryUnlock();
       if (attempts >= 10) clearInterval(iv);
     }, 200);
+  }
+
+  /**
+   * 👤 权威 Etherpad 用户身份强绑定注入器：
+   * 彻底消除 Etherpad 默认未同步真实姓名导致显示为“组员/学术组员”的问题
+   */
+  function ensureEtherpadUserSync(iframe, userName, userColor) {
+    if (!iframe || !userName) return;
+    const color = userColor || '#2563eb';
+
+    const doSync = () => {
+      try {
+        const padWin = iframe.contentWindow;
+        if (!padWin) return;
+
+        // 1. 设置 iframe 内 cookie name
+        try {
+          if (padWin.document) {
+            padWin.document.cookie = `name=${encodeURIComponent(userName)}; path=/; max-age=86400`;
+          }
+        } catch(e) {}
+
+        // 2. 注入 clientVars
+        if (padWin.clientVars) {
+          padWin.clientVars.userName = userName;
+          padWin.clientVars.userColor = color;
+          const uId = padWin.clientVars.userId || (padWin.pad && padWin.pad.getUserId && padWin.pad.getUserId());
+          if (uId) {
+            if (!padWin.clientVars.historicalAuthorData) padWin.clientVars.historicalAuthorData = {};
+            if (!padWin.clientVars.authorData) padWin.clientVars.authorData = {};
+            padWin.clientVars.historicalAuthorData[uId] = { name: userName, colorId: color };
+            padWin.clientVars.authorData[uId] = { name: userName, colorId: color };
+          }
+        }
+
+        // 3. 权威注入 pad.myUserInfo 并广播给所有组员
+        if (padWin.pad) {
+          if (padWin.pad.myUserInfo) {
+            padWin.pad.myUserInfo.name = userName;
+            padWin.pad.myUserInfo.colorId = color;
+          }
+          if (padWin.pad.collabClient) {
+            if (typeof padWin.pad.collabClient.tellPadNameAndColor === 'function') {
+              padWin.pad.collabClient.tellPadNameAndColor(userName, color);
+            }
+            if (typeof padWin.pad.collabClient.sendClientMessage === 'function') {
+              padWin.pad.collabClient.sendClientMessage({
+                type: 'USERINFO_UPDATE',
+                userInfo: {
+                  name: userName,
+                  colorId: color
+                }
+              });
+            }
+          }
+          if (typeof padWin.pad.notifyChangeColorAndName === 'function') {
+            padWin.pad.notifyChangeColorAndName({ name: userName, colorId: color });
+          }
+        }
+
+        // 4. Etherpad 原生 DOM 名字输入框 (如果有)
+        const doc = iframe.contentDocument;
+        if (doc) {
+          const nameInput = doc.querySelector('#myusernameedit') || doc.querySelector('#custom-user-name');
+          if (nameInput && nameInput.value !== userName) {
+            nameInput.value = userName;
+            nameInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        }
+      } catch(err) {}
+    };
+
+    doSync();
+    iframe.addEventListener('load', () => {
+      doSync();
+      let attempts = 0;
+      const iv = setInterval(() => {
+        attempts++;
+        doSync();
+        if (attempts >= 10) clearInterval(iv);
+      }, 250);
+    });
+    let attempts = 0;
+    const iv = setInterval(() => {
+      attempts++;
+      doSync();
+      if (attempts >= 8) clearInterval(iv);
+    }, 300);
   }
 
   /**
@@ -11595,12 +11683,16 @@
       if (s2Frame) enforceEtherpadReadonly(s2Frame);
     } else {
       const s2Frame = canvas.querySelector('#stage2-etherpad-frame');
-      if (s2Frame) liftEtherpadReadonly(s2Frame);
+      if (s2Frame) {
+        liftEtherpadReadonly(s2Frame);
+        ensureEtherpadUserSync(s2Frame, currUserName, currUserColor);
+      }
     }
     setTimeout(() => {
       const s2f = canvas.querySelector('#stage2-etherpad-frame');
-      if (s2f && !s2f.getAttribute('src')) {
-        s2f.src = padUrl;
+      if (s2f) {
+        if (!s2f.getAttribute('src')) s2f.src = padUrl;
+        ensureEtherpadUserSync(s2f, currUserName, currUserColor);
       }
     }, 50);
 
@@ -12082,7 +12174,10 @@
       if (s3Frame) enforceEtherpadReadonly(s3Frame);
     } else {
       const s3Frame = canvas.querySelector('#stage3-etherpad-frame');
-      if (s3Frame) liftEtherpadReadonly(s3Frame);
+      if (s3Frame) {
+        liftEtherpadReadonly(s3Frame);
+        ensureEtherpadUserSync(s3Frame, currUserName, currUserColor);
+      }
     }
 
     const tabDefense = canvas.querySelector('#tab-btn-defense');
