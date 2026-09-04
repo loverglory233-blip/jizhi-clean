@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2522";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2522";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2522";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2523";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2523";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2523";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1706,7 +1706,12 @@ function renderStage2Canvas(canvas, state, handlers) {
             if (window.app && typeof window.app.checkAgentTriggersOnContent === 'function') {
               window.app.checkAgentTriggersOnContent(cleanTxt);
             }
-          }, 2000);
+          }, 1500);
+        } else {
+          if (!window._firstPadScanTriggered && window.app && typeof window.app.checkAgentTriggersOnContent === 'function') {
+            window._firstPadScanTriggered = true;
+            window.app.checkAgentTriggersOnContent(cleanTxt);
+          }
         }
 
         // 3. 根据实际文档内容精准更新各成员真实贡献度
