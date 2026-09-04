@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2671
+ * Version: 20260905_v2672
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2671';
+  const APP_VERSION = '20260905_v2672';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -15029,28 +15029,12 @@
               const s1 = this.state.stage1 || {};
               const propList = s1.proposals || [];
               const propCount = propList.length;
-              // ① 挂机防堆叠守卫：若已经超过 6 分钟，直接发送 6 分钟全员催促，自动跳过过时的 3 分钟破冰
-              const lastNudgeTime = this.state._lastInactivityNudgeTimeMs || 0;
-              const canSendInactivityMsg = (nowMs - lastNudgeTime > 120000);
+              // ① 开场 3 分钟【左侧无提案 且 右侧无讨论交流】双静默破冰启发
+              const s1Chats = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
+              const studentChatsCount = s1Chats.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system').length;
 
-              if (canSendInactivityMsg && elapsedSec >= 360 && propCount === 0 && !this.state.s1_6minNoPropSent) {
+              if (!this.state.s1_3minBreakSent && elapsedSec >= 180 && propCount === 0 && studentChatsCount === 0) {
                 this.state.s1_3minBreakSent = true;
-                this.state.s1_6minNoPropSent = true;
-                this.state._lastInactivityNudgeTimeMs = nowMs;
-                const msgNoProp = {
-                  sender: 'auctioneer',
-                  senderName: '头脑风暴 · 学术拍卖师',
-                  text: `🎪 【学术拍卖师·全员提案催促】：头脑风暴已进行 6 分钟啦！目前全组尚未收到任何成员提交的初步提案。请各位研究者加紧构思，尽快在左侧卡片提交您的课题初步设想，开启组内协同研讨！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: nowMs
-                };
-                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-                this.state.chatLogs.stage1.push(msgNoProp);
-                this.syncChatLogs(msgNoProp, 'stage1');
-                renderChat(this.state);
-              } else if (canSendInactivityMsg && elapsedSec >= 180 && elapsedSec < 360 && propCount === 0 && studentChatsCount === 0 && !this.state.s1_3minBreakSent) {
-                this.state.s1_3minBreakSent = true;
-                this.state._lastInactivityNudgeTimeMs = nowMs;
                 const msg3Min = {
                   sender: 'auctioneer',
                   senderName: '头脑风暴 · 学术拍卖师',
@@ -15061,6 +15045,22 @@
                 if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
                 this.state.chatLogs.stage1.push(msg3Min);
                 this.syncChatLogs(msg3Min, 'stage1');
+                renderChat(this.state);
+              }
+
+              // ② 开场 6 分钟全员无提案催促（全组 0 篇提案时提醒全组，不点名）
+              if (!this.state.s1_6minNoPropSent && elapsedSec >= 360 && propCount === 0) {
+                this.state.s1_6minNoPropSent = true;
+                const msgNoProp = {
+                  sender: 'auctioneer',
+                  senderName: '头脑风暴 · 学术拍卖师',
+                  text: `🎪 【学术拍卖师·全员提案催促】：头脑风暴已进行 6 分钟啦！目前全组尚未收到任何成员提交的初步提案。请各位研究者加紧构思，尽快在左侧卡片提交您的课题初步设想，开启组内协同研讨！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: nowMs
+                };
+                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+                this.state.chatLogs.stage1.push(msgNoProp);
+                this.syncChatLogs(msgNoProp, 'stage1');
                 renderChat(this.state);
               }
 
@@ -16849,8 +16849,8 @@
     }
 
     renderHeader() {
-      const currentUser = this.authManager.getCurrentUser();
-      const headerEl = document.querySelector('.header-wrapper') || document.querySelector('.header');
+      const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
+      const headerEl = document.getElementById('app-header') || document.querySelector('.app-header') || document.querySelector('.header-wrapper') || document.querySelector('.header');
       if (!headerEl) return;
       renderHeader(
         this.state, currentUser, this.authManager.getAnnouncements(),
