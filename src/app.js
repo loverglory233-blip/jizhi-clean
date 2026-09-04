@@ -4662,11 +4662,15 @@ ${chatSnippet}
     }
     if (newStage === 'stage2') {
       if (!this.state.stage2) this.state.stage2 = {};
-      if (!this.state.stage2.stageStartTime) this.state.stage2.stageStartTime = Date.now();
+      if (!this.state.stage2.startTime) this.state.stage2.startTime = Date.now();
+      if (!this.state.stage2.stageStartTime) this.state.stage2.stageStartTime = this.state.stage2.startTime;
+      if (!this.stage2StartTime) this.stage2StartTime = this.state.stage2.startTime;
     }
     if (newStage === 'stage3') {
       if (!this.state.stage3) this.state.stage3 = {};
-      if (!this.state.stage3.stageStartTime) this.state.stage3.stageStartTime = Date.now();
+      if (!this.state.stage3.startTime) this.state.stage3.startTime = Date.now();
+      if (!this.state.stage3.stageStartTime) this.state.stage3.stageStartTime = this.state.stage3.startTime;
+      if (!this.stage3StartTime) this.stage3StartTime = this.state.stage3.startTime;
       const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
       const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
       const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
@@ -5574,7 +5578,8 @@ ${chatSnippet}
     const wordProgress = targetWordCount > 0 ? (rawDoc.length / targetWordCount) : 0;
 
     const totalPlannedMs = Math.max(totalPlannedMin * 60 * 1000, stage2BudgetMin * 60 * 1000);
-    const stage2DurationMs = s2.startTime ? (now - s2.startTime) : (this.stage2StartTime ? (now - this.stage2StartTime) : 0);
+    const s2EntryTime = s2.startTime || s2.stageStartTime || this.stage2StartTime;
+    const stage2DurationMs = s2EntryTime ? Math.max(0, now - s2EntryTime) : 0;
     const timeProgress = totalPlannedMs > 0 ? (stage2DurationMs / totalPlannedMs) : 0;
 
     const s2ChatList = this.state.chatLogs?.stage2 || [];
