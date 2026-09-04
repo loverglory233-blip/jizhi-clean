@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2550
+ * Version: 20260905_v2555
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2550';
+  const APP_VERSION = '20260905_v2555';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4851,9 +4851,6 @@
 
         if (remoteData.stage2.unifiedContent !== undefined) {
           let remoteHtml = remoteData.stage2.unifiedContent || '';
-          if (remoteHtml.includes('请在此处撰写正文') && remoteHtml.replace(/<[^>]*>/g, '').trim().length < 50) {
-            remoteHtml = '';
-          }
           const isLocalPadActive = !!document.getElementById('stage2-etherpad-frame');
           const localLen = (this.app.state.stage2?.unifiedContent || '').length;
           if (!isLocalPadActive || remoteHtml.length >= localLen || localLen === 0) {
@@ -11125,9 +11122,6 @@
   function renderStage2Canvas(canvas, state, handlers) {
     if (!canvas) return;
     const s2 = state.stage2;
-    if (s2.unifiedContent && s2.unifiedContent.includes('请在此处撰写正文') && s2.unifiedContent.replace(/<[^>]*>/g, '').trim().length < 50) {
-      s2.unifiedContent = '';
-    }
     const actionPlan = s2.actionPlan;
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
     let userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
