@@ -81,9 +81,15 @@ body.app-student-workspace-mode #app {
   background: #f0f4f9;
 }
 
-.card, .canvas-area, .chat-stream, .chat-panel, .panel, .editor-container, .student-workspace-container {
+.card, .canvas-area, .chat-stream, .chat-panel, .panel, .editor-container, .student-workspace-container, .teacher-etherpad-container, .teacher-chat-stream, .etherpad-readonly-shield {
+  overscroll-behavior: contain;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
+}
+
+.teacher-etherpad-container iframe {
+  overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
 }
 
 /* ==========================================================================
