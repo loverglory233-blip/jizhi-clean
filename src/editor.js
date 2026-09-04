@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2502";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2502";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2502";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2503";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2503";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2503";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1702,6 +1702,28 @@ function renderStage2Canvas(canvas, state, handlers) {
           }
         } else {
           updateContribDom();
+        }
+      }
+
+      // 🛡️ 工具栏守护者：只要任务处于可编辑状态，确保 Etherpad 工具栏持续常驻
+      if (!isEditorReadonly) {
+        const s2f = document.getElementById('stage2-etherpad-frame');
+        if (s2f) {
+          if (s2f._isReadonlyEnforced) {
+            liftEtherpadReadonly(s2f);
+          } else {
+            try {
+              const doc = s2f.contentDocument;
+              if (doc) {
+                const editbar = doc.querySelector('#editbar') || doc.querySelector('.toolbar') || doc.querySelector('#toolbar');
+                if (editbar && (editbar.style.display === 'none' || editbar.style.visibility === 'hidden')) {
+                  editbar.style.removeProperty('display');
+                  editbar.style.removeProperty('visibility');
+                  editbar.style.removeProperty('opacity');
+                }
+              }
+            } catch(e) {}
+          }
         }
       }
     } catch (e) {}
