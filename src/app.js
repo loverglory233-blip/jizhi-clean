@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2723";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2723";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2723";
-import { AuthManager } from "./auth.js?v=20260905_v2723";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2723";
-import { renderLoginView } from "./login.js?v=20260905_v2723";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2723";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2723";
+} from "./constants.js?v=20260905_v2724";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2724";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2724";
+import { AuthManager } from "./auth.js?v=20260905_v2724";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2724";
+import { renderLoginView } from "./login.js?v=20260905_v2724";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2724";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2724";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2723";
+} from "./editor.js?v=20260905_v2724";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6642,10 +6642,19 @@ ${chatSnippet}
 
     const s2ChatList = this.state.chatLogs?.stage2 || [];
 
+    const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
+    const isLeaderClient = () => {
+      if (!currentUser || !Array.isArray(membersList) || membersList.length <= 1) return true;
+      const sorted = [...membersList].sort((a, b) => String(a.id || a.name).localeCompare(String(b.id || b.name)));
+      const leaderId = String(sorted[0]?.id || sorted[0]?.name);
+      const myId = String(currentUser.id || currentUser.name);
+      return myId === leaderId;
+    };
+
     // ═══════════════════════════════════════════════════════════════
-    // 🛡️ 第一次学术质检（目标字数的 35% / 阶段二起草时间水位 35% · 破题把脉）
+    // 🛡️ 第一次学术质检（已写800+字 / 目标字数的 25% / 阶段二起草时间水位 25% · 破题把脉）
     // ═══════════════════════════════════════════════════════════════
-    const isReview1Due = (wordProgress >= 0.35 || timeProgress >= 0.35 || rawDoc.length >= (targetWordCount * 0.35));
+    const isReview1Due = (rawDoc.length >= 800 || wordProgress >= 0.25 || timeProgress >= 0.25 || rawDoc.length >= Math.min(1000, targetWordCount * 0.30));
     
     // 严格判定真实一审消息（排除开场寄语、初审跟进提示、终审扫描）
     const isRealFirstReviewMsg = (m) => {
@@ -6677,7 +6686,7 @@ ${chatSnippet}
       hasFirstReviewInLogs = true;
     }
 
-    if (!hasFirstReviewInLogs && isReview1Due && !this._isTriggeringFirstReview) {
+    if (!hasFirstReviewInLogs && isReview1Due && !this._isTriggeringFirstReview && isLeaderClient()) {
       this._isTriggeringFirstReview = true;
       s2.reviewMilestone = 'first_review_in_progress';
       this.syncStage2();
@@ -6824,6 +6833,18 @@ ${contentSnippet}
 
   async checkManagingEditorContribCare(currentDocLen, membersList, logs) {
     if (this._isTriggeringContribCare) return;
+    const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
+
+    // 🛡️ 多端协同并发防护（选举单一定时触发者）：仅由在线列表中排序第一的组员发起 AI 调用，杜绝同组多端同时生成两条关怀消息
+    if (currentUser && Array.isArray(membersList) && membersList.length > 1) {
+      const sortedMembers = [...membersList].sort((a, b) => String(a.id || a.name).localeCompare(String(b.id || b.name)));
+      const leaderId = String(sortedMembers[0]?.id || sortedMembers[0]?.name);
+      const myId = String(currentUser.id || currentUser.name);
+      if (myId !== leaderId) {
+        return;
+      }
+    }
+
     const now = Date.now();
     const isLargeTask = this.state.activeTaskScale === 'large';
     const ssrlCooldownMs = isLargeTask ? 480000 : 360000;

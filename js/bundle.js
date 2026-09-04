@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2723
+ * Version: 20260905_v2724
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2723';
+  const APP_VERSION = '20260905_v2724';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -21232,10 +21232,19 @@
 
       const s2ChatList = this.state.chatLogs?.stage2 || [];
 
+      const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
+      const isLeaderClient = () => {
+        if (!currentUser || !Array.isArray(membersList) || membersList.length <= 1) return true;
+        const sorted = [...membersList].sort((a, b) => String(a.id || a.name).localeCompare(String(b.id || b.name)));
+        const leaderId = String(sorted[0]?.id || sorted[0]?.name);
+        const myId = String(currentUser.id || currentUser.name);
+        return myId === leaderId;
+      };
+
       // ═══════════════════════════════════════════════════════════════
-      // 🛡️ 第一次学术质检（目标字数的 35% / 阶段二起草时间水位 35% · 破题把脉）
+      // 🛡️ 第一次学术质检（已写800+字 / 目标字数的 25% / 阶段二起草时间水位 25% · 破题把脉）
       // ═══════════════════════════════════════════════════════════════
-      const isReview1Due = (wordProgress >= 0.35 || timeProgress >= 0.35 || rawDoc.length >= (targetWordCount * 0.35));
+      const isReview1Due = (rawDoc.length >= 800 || wordProgress >= 0.25 || timeProgress >= 0.25 || rawDoc.length >= Math.min(1000, targetWordCount * 0.30));
 
       // 严格判定真实一审消息（排除开场寄语、初审跟进提示、终审扫描）
       const isRealFirstReviewMsg = (m) => {
@@ -21267,7 +21276,7 @@
         hasFirstReviewInLogs = true;
       }
 
-      if (!hasFirstReviewInLogs && isReview1Due && !this._isTriggeringFirstReview) {
+      if (!hasFirstReviewInLogs && isReview1Due && !this._isTriggeringFirstReview && isLeaderClient()) {
         this._isTriggeringFirstReview = true;
         s2.reviewMilestone = 'first_review_in_progress';
         this.syncStage2();
@@ -21414,6 +21423,18 @@
 
     async checkManagingEditorContribCare(currentDocLen, membersList, logs) {
       if (this._isTriggeringContribCare) return;
+      const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
+
+      // 🛡️ 多端协同并发防护（选举单一定时触发者）：仅由在线列表中排序第一的组员发起 AI 调用，杜绝同组多端同时生成两条关怀消息
+      if (currentUser && Array.isArray(membersList) && membersList.length > 1) {
+        const sortedMembers = [...membersList].sort((a, b) => String(a.id || a.name).localeCompare(String(b.id || b.name)));
+        const leaderId = String(sortedMembers[0]?.id || sortedMembers[0]?.name);
+        const myId = String(currentUser.id || currentUser.name);
+        if (myId !== leaderId) {
+          return;
+        }
+      }
+
       const now = Date.now();
       const isLargeTask = this.state.activeTaskScale === 'large';
       const ssrlCooldownMs = isLargeTask ? 480000 : 360000;
