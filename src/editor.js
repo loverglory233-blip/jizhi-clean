@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2540";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2540";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2540";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2541";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2541";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2541";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1327,16 +1327,19 @@ function renderStage2Canvas(canvas, state, handlers) {
   }
   if (!currUserName) currUserName = currUserCode || '组员';
   const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
-  const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
-  const padUrl = `/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=true&showChat=false&showLineNumbers=true&lang=zh-hans`;
-
-  const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
-  const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
-
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
   const currentTask = allTasks.find(t => t.id === state.activeTaskId || (t.title && t.title === state.activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
   const taskGenreKey = currentTask?.taskType || 'experiment';
   const isTaskDeadlineExpired = isTaskExpired(currentTask);
+  const isFinalSubmitted = !!state.isFinalSubmitted;
+  const isEditorReadonly = isTaskDeadlineExpired || isFinalSubmitted;
+
+  const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
+  const padUrl = `/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans${isEditorReadonly ? '&readOnly=true' : ''}`;
+
+  const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
+  const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
+
   const confirmedDraftMap = s2.confirmedMembers || {};
   const isMemberDone = (map, m) => {
     if (!map || !m) return false;
@@ -1352,9 +1355,6 @@ function renderStage2Canvas(canvas, state, handlers) {
   const isDraftFullyConfirmed = !!s2.isDraftConfirmed && (confirmedDraftCount >= actualTotalCount && actualTotalCount > 0);
   const meetingSubs = s2.meetingSubmissions || {};
   const isStage2MeetingLocked = s2.isMeetingLocked || (Object.keys(meetingSubs).length >= actualTotalCount && actualTotalCount > 0);
-  // 🛡️ 阶段二只读严格判定：仅在任务截止过期或全组最终提交终稿时锁定为只读归档
-  const isFinalSubmitted = !!state.isFinalSubmitted;
-  const isEditorReadonly = isTaskDeadlineExpired || isFinalSubmitted;
   const livePadText = (typeof getEtherpadTextDirect === 'function') ? getEtherpadTextDirect() : null;
   const actualContent = (livePadText !== null) ? livePadText : (s2.unifiedContent || '');
   const plainTextLen = actualContent.replace(/<[^>]*>/g, '').trim().length;
@@ -2740,7 +2740,7 @@ function renderStage3Canvas(canvas, state, handlers) {
           const isEditorReadonly = isFinalSubmitted || isTaskDeadlineExpired;
 
           const targetPad = rawPadName;
-          const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=true&showChat=false&showLineNumbers=true&lang=zh-hans`;
+          const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans${isEditorReadonly ? '&readOnly=true' : ''}`;
 
           return `
             <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">

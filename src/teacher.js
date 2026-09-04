@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260904_v2540";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260904_v2540";
+} from "./constants.js?v=20260904_v2541";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260904_v2541";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -1207,13 +1207,25 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                         const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.name === m.sender);
                         const senderName = isAgent ? AgentProfiles[m.sender].name : (matchedUser ? matchedUser.name : (m.senderName || (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender)));
                         const color = isAgent ? AgentProfiles[m.sender].color : (matchedUser ? (matchedUser.color || '#2563eb') : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb'));
+                        let rawText = m.text || '';
+                        let formattedText = '';
+                        if (rawText.includes('<button') || rawText.includes('<br>') || rawText.includes('<span')) {
+                          formattedText = rawText
+                            .replace(/(@[^\s@<]+)/g, '<span style="color:#2563eb; font-weight:700;">$1</span>')
+                            .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+                        } else {
+                          let safeText = escapeHtml(rawText);
+                          formattedText = safeText
+                            .replace(/(@[^\s@]+)/g, '<span style="color:#2563eb; font-weight:700;">$1</span>')
+                            .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+                        }
                         return `
                           <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color}; box-shadow:0 1px 2px rgba(0,0,0,0.02); word-break:break-word; overflow-wrap:break-word; max-width:100%;">
                             <div style="display:flex; justify-content:space-between; margin-bottom:3px; gap:6px;">
                               <b style="color:${color}; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(senderName)}</b>
                               <span style="color:#94a3b8; font-size:10px; flex-shrink:0;">${escapeHtml(formatChatDisplayTime(m._timeMs || m.timestamp))}</span>
                             </div>
-                            <div style="color:#0f172a; line-height:1.5; word-break:break-word; overflow-wrap:break-word;">${escapeHtml(m.text || '')}</div>
+                            <div style="color:#0f172a; line-height:1.5; word-break:break-word; overflow-wrap:break-word;">${formattedText}</div>
                           </div>
                         `;
                       }).join('') : `
@@ -1446,20 +1458,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                         <!-- 4. 协同文档视口 (纯净只读阅卷 · 实时协同直连) -->
                         ${(() => {
                           const rawPadName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
-                          if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
-                          const readOnlyPadId = state._readOnlyPadMap[rawPadName];
-                          if (!readOnlyPadId) {
-                            fetch(`sync.php?action=get_readonly_pad_id&padId=${rawPadName}`).then(r => r.json()).then(res => {
-                              if (res && res.success && res.readOnlyID) {
-                                state._readOnlyPadMap[rawPadName] = res.readOnlyID;
-                                const f2 = document.querySelector('#teacher-stage2-etherpad-frame');
-                                if (f2 && !f2.src.includes(res.readOnlyID)) {
-                                  f2.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
-                                }
-                              }
-                            }).catch(() => {});
-                          }
-                          const targetPad = readOnlyPadId || rawPadName;
+                          const targetPad = rawPadName;
                           return `
                             <div class="teacher-etherpad-container" style="flex:1; min-height:560px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column;">
                               <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 12px; font-size:12px; color:#475569; flex-shrink:0;">
@@ -1539,20 +1538,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                           </div>
                           ${(() => {
                             const rawPadName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
-                            if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
-                            const readOnlyPadId = state._readOnlyPadMap[rawPadName];
-                            if (!readOnlyPadId) {
-                              fetch(`sync.php?action=get_readonly_pad_id&padId=${rawPadName}`).then(r => r.json()).then(res => {
-                                if (res && res.success && res.readOnlyID) {
-                                  state._readOnlyPadMap[rawPadName] = res.readOnlyID;
-                                  const f3 = document.querySelector('#teacher-stage3-etherpad-frame');
-                                  if (f3 && !f3.src.includes(res.readOnlyID)) {
-                                    f3.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
-                                  }
-                                }
-                              }).catch(() => {});
-                            }
-                            const targetPad = readOnlyPadId || rawPadName;
+                            const targetPad = rawPadName;
                             return `
                               <div class="teacher-etherpad-container" style="flex:1; min-height:560px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column;">
                                 <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 12px; font-size:12px; color:#475569; flex-shrink:0;">
