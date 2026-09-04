@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2659';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2659';
+} from './constants.js?v=20260905_v2660';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2660';
 
 export class AuthManager {
   constructor() {
@@ -334,7 +334,8 @@ export class AuthManager {
                 if (deletedTaskIds.has(localT.id)) return;
 
                 if (!taskMap.has(localT.id)) {
-                  const isRecent = localT.createdAt ? (Date.now() - new Date(localT.createdAt).getTime() < 60000) : false;
+                  const cMs = localT.createdMs || (localT.createdAt ? new Date(localT.createdAt).getTime() : 0);
+                  const isRecent = cMs ? (Date.now() - cMs < 60000) : false;
                   if (isRecent) {
                     taskMap.set(localT.id, localT);
                   }
@@ -1718,7 +1719,8 @@ export class AuthManager {
       startTime: defaultStart,
       deadline: defaultDeadline,
       status: 'in_progress',
-      createdAt: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      createdMs: Date.now(),
+      createdAt: defaultStart,
       instructions, resources
     };
 

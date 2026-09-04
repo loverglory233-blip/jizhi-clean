@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260905_v2659"
+TARGET_VERSION="20260905_v2660"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -456,9 +456,8 @@ php "$MAIN_DIR/sync.php" action=align_all_pads_physically >/dev/null 2>&1 || tru
 
 
 for dir in "${TARGET_DIRS[@]}"; do
-  echo '{"timestamp":0,"groupId":"group_1","presence":{},"chatLogs":{"stage1":[],"stage2":[],"stage3":[]},"stage1":{"mergedTitle":"","votes":{},"hasVoted":{},"proposals":[]},"stage2":{"unifiedContent":"","memberContributions":{"A":0,"B":0,"C":0},"actionPlan":{"isGenerated":false,"items":[]}},"stage3":{"feedbackItems":[]},"currentStage":"stage1","isFinalSubmitted":false}' > "$dir/db_task_default_group_1.json" 2>/dev/null || true
   echo '{}' > "$dir/sessions.json" 2>/dev/null || true
-  chmod 664 "$dir/db_task_default_group_1.json" "$dir/sessions.json" 2>/dev/null || true
+  chmod 664 "$dir/sessions.json" 2>/dev/null || true
   chown -R www:www "$dir" 2>/dev/null || true
 done
 

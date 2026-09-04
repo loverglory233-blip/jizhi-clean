@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2659
+ * Version: 20260905_v2660
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2659';
+  const APP_VERSION = '20260905_v2660';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1837,7 +1837,8 @@
                   if (deletedTaskIds.has(localT.id)) return;
 
                   if (!taskMap.has(localT.id)) {
-                    const isRecent = localT.createdAt ? (Date.now() - new Date(localT.createdAt).getTime() < 60000) : false;
+                    const cMs = localT.createdMs || (localT.createdAt ? new Date(localT.createdAt).getTime() : 0);
+                    const isRecent = cMs ? (Date.now() - cMs < 60000) : false;
                     if (isRecent) {
                       taskMap.set(localT.id, localT);
                     }
@@ -3221,7 +3222,8 @@
         startTime: defaultStart,
         deadline: defaultDeadline,
         status: 'in_progress',
-        createdAt: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        createdMs: Date.now(),
+        createdAt: defaultStart,
         instructions, resources
       };
 
@@ -10549,10 +10551,7 @@
               <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:50px 24px; text-align:center; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
                 <div style="font-size:42px; margin-bottom:10px;">⏳</div>
                 <div style="font-size:17px; font-weight:700; color:#1e293b;">暂无已发布的写作任务</div>
-                <div style="font-size:13px; color:#64748b; margin-top:6px;">任课教师尚未发布新任务，请等待教师在教师端发布，或点击下方直接进入协作工作台体验。</div>
-                <button id="btn-enter-default-workspace" style="margin-top:18px; background:#2563eb; color:white; border:none; padding:11px 24px; border-radius:10px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.25);">
-                  🚀 直接进入默认协作工作台
-                </button>
+                <div style="font-size:13.5px; color:#64748b; margin-top:8px;">任课教师尚未发布新任务，请等待教师在教师端发布后参与写作。</div>
               </div>
             ` : `
               <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(460px, 1fr)); gap:20px;">
@@ -10675,7 +10674,6 @@
     container.querySelector('#btn-portal-change-pwd')?.addEventListener('click', () => {
       authManager.openChangePasswordModal();
     });
-    container.querySelector('#btn-enter-default-workspace')?.addEventListener('click', () => onSelectTask(null));
     container.querySelectorAll('.btn-enter-task-workspace').forEach(btn => {
       btn.addEventListener('click', () => onSelectTask(btn.dataset.taskId));
     });
