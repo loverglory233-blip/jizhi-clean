@@ -274,7 +274,6 @@ function renderStage1Canvas(canvas, state, handlers) {
   const currentTask = allTasks.find(t => t.id === state.activeTaskId);
   const taskGenreKey = currentTask?.taskType || 'experiment';
   const isTaskDeadlineExpired = isTaskExpired(currentTask);
-  const taskGenreKey = currentTask?.taskType || 'experiment';
   const genreCfg = TASK_GENRE_CONFIGS[taskGenreKey] || TASK_GENRE_CONFIGS.experiment;
   const taskDurMin = Number(currentTask?.durationMinutes) || 150;
   const isLargeTask = currentTask && (currentTask.scale === 'large' || currentTask.type === 'large' || taskDurMin > 150 || (currentTask.targetWordCount && Number(currentTask.targetWordCount) >= 6000));
