@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2560';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2560';
+} from './constants.js?v=20260905_v2565';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2565';
 
 export class AuthManager {
   constructor() {
@@ -1970,12 +1970,87 @@ export class AuthManager {
     });
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
+    const safeGName = groupName || groupId || '协作小组';
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `${groupId}_学术对话与写作记录表_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `${safeGName}_学术对话与写作记录表_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  }
+
+  async exportAllClassGroupsChatLogsToSeparateFiles(classId, taskId = null) {
+    const curT = this.getCurrentUser();
+    const tToken = (curT && (curT.activeSessionId || curT.token)) || '';
+    const tId = (curT && (curT.id)) || '';
+
+    const curCls = this.getClasses().find(c => c.id === classId) || { name: '当前班级', id: classId };
+    const res = await fetch(`sync.php?action=get_class_all_chats&classId=${encodeURIComponent(classId)}&taskId=${encodeURIComponent(taskId || '')}&userId=${encodeURIComponent(tId)}&token=${encodeURIComponent(tToken)}`).then(r => r.json()).catch(() => null);
+
+    if (!res || !res.success || !res.groups) {
+      alert('⚠️ 获取全班研讨数据失败，请检查网络或重试');
+      return;
+    }
+
+    const groupList = Object.values(res.groups);
+    if (groupList.length === 0) {
+      alert('⚠️ 当前班级暂无分组数据');
+      return;
+    }
+
+    let exportedCount = 0;
+    const stageNames = { stage1: '阶段一：学术拍卖会', stage2: '阶段二：学术编辑部', stage3: '阶段三：答辩擂台' };
+    const users = this.getUsers();
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    groupList.forEach((grp, idx) => {
+      let csvContent = '\uFEFF阶段,发言人,时间,研讨内容\n';
+
+      ['stage1', 'stage2', 'stage3'].forEach(stageKey => {
+        const logs = grp[stageKey] || [];
+        if (logs.length > 0) {
+          logs.forEach(msg => {
+            let senderDisplayName = msg.senderName || msg.sender;
+            if (msg.sender === 'auctioneer') senderDisplayName = '拍卖师 Agent';
+            else if (msg.sender === 'managingEditor') senderDisplayName = '责任编辑 Agent';
+            else if (msg.sender === 'reviewingEditor') senderDisplayName = '审稿编辑 Agent';
+            else if (msg.sender === 'opponent') senderDisplayName = '反方委员 Agent';
+            else if (msg.sender === 'proponent') senderDisplayName = '正方委员 Agent';
+            else if (msg.sender === 'neutral') senderDisplayName = '中间委员 Agent';
+            else {
+              const foundUser = users.find(u => u.id === msg.sender || u.name === msg.sender);
+              if (foundUser && foundUser.name) senderDisplayName = foundUser.name;
+              else senderDisplayName = `小组成员 (${msg.sender})`;
+            }
+            const time = formatExportDateTime(msg._timeMs || msg.timestamp);
+            const text = (msg.text || '').replace(/"/g, '""').replace(/\n/g, ' ');
+            csvContent += `"${stageNames[stageKey]}","${senderDisplayName}","${time}","${text}"\n`;
+          });
+        }
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      const safeClassName = (res.className || curCls.name).replace(/[\\/:*?"<>|]/g, '_');
+      const safeGroupName = (grp.name || grp.id).replace(/[\\/:*?"<>|]/g, '_');
+      link.setAttribute('download', `【${safeClassName}】_${safeGroupName}_研讨记录表_${todayStr}.csv`);
+      document.body.appendChild(link);
+
+      // 错峰触发下载，防止浏览器多文件拦截
+      setTimeout(() => {
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, idx * 250);
+
+      exportedCount++;
+    });
+
+    setTimeout(() => {
+      alert(`🎉 成功导出【${res.className || curCls.name}】全班共 ${exportedCount} 个小组的独立研讨记录 CSV 文件！\n所有文件已分别下载保存。`);
+    }, groupList.length * 250 + 300);
   }
 
   async resetStudentPassword(studentAccount, newPassword = '123') {

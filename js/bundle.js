@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2560
+ * Version: 20260905_v2565
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2560';
+  const APP_VERSION = '20260905_v2565';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3485,12 +3485,87 @@
       });
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
+      const safeGName = groupName || groupId || '协作小组';
       const link = document.createElement('a');
       link.setAttribute('href', url);
-      link.setAttribute('download', `${groupId}_学术对话与写作记录表_${new Date().toISOString().slice(0, 10)}.csv`);
+      link.setAttribute('download', `${safeGName}_学术对话与写作记录表_${new Date().toISOString().slice(0, 10)}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    }
+
+    async exportAllClassGroupsChatLogsToSeparateFiles(classId, taskId = null) {
+      const curT = this.getCurrentUser();
+      const tToken = (curT && (curT.activeSessionId || curT.token)) || '';
+      const tId = (curT && (curT.id)) || '';
+
+      const curCls = this.getClasses().find(c => c.id === classId) || { name: '当前班级', id: classId };
+      const res = await fetch(`sync.php?action=get_class_all_chats&classId=${encodeURIComponent(classId)}&taskId=${encodeURIComponent(taskId || '')}&userId=${encodeURIComponent(tId)}&token=${encodeURIComponent(tToken)}`).then(r => r.json()).catch(() => null);
+
+      if (!res || !res.success || !res.groups) {
+        alert('⚠️ 获取全班研讨数据失败，请检查网络或重试');
+        return;
+      }
+
+      const groupList = Object.values(res.groups);
+      if (groupList.length === 0) {
+        alert('⚠️ 当前班级暂无分组数据');
+        return;
+      }
+
+      let exportedCount = 0;
+      const stageNames = { stage1: '阶段一：学术拍卖会', stage2: '阶段二：学术编辑部', stage3: '阶段三：答辩擂台' };
+      const users = this.getUsers();
+      const todayStr = new Date().toISOString().slice(0, 10);
+
+      groupList.forEach((grp, idx) => {
+        let csvContent = '\uFEFF阶段,发言人,时间,研讨内容\n';
+
+        ['stage1', 'stage2', 'stage3'].forEach(stageKey => {
+          const logs = grp[stageKey] || [];
+          if (logs.length > 0) {
+            logs.forEach(msg => {
+              let senderDisplayName = msg.senderName || msg.sender;
+              if (msg.sender === 'auctioneer') senderDisplayName = '拍卖师 Agent';
+              else if (msg.sender === 'managingEditor') senderDisplayName = '责任编辑 Agent';
+              else if (msg.sender === 'reviewingEditor') senderDisplayName = '审稿编辑 Agent';
+              else if (msg.sender === 'opponent') senderDisplayName = '反方委员 Agent';
+              else if (msg.sender === 'proponent') senderDisplayName = '正方委员 Agent';
+              else if (msg.sender === 'neutral') senderDisplayName = '中间委员 Agent';
+              else {
+                const foundUser = users.find(u => u.id === msg.sender || u.name === msg.sender);
+                if (foundUser && foundUser.name) senderDisplayName = foundUser.name;
+                else senderDisplayName = `小组成员 (${msg.sender})`;
+              }
+              const time = formatExportDateTime(msg._timeMs || msg.timestamp);
+              const text = (msg.text || '').replace(/"/g, '""').replace(/\n/g, ' ');
+              csvContent += `"${stageNames[stageKey]}","${senderDisplayName}","${time}","${text}"\n`;
+            });
+          }
+        });
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        const safeClassName = (res.className || curCls.name).replace(/[\\/:*?"<>|]/g, '_');
+        const safeGroupName = (grp.name || grp.id).replace(/[\\/:*?"<>|]/g, '_');
+        link.setAttribute('download', `【${safeClassName}】_${safeGroupName}_研讨记录表_${todayStr}.csv`);
+        document.body.appendChild(link);
+
+        // 错峰触发下载，防止浏览器多文件拦截
+        setTimeout(() => {
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        }, idx * 250);
+
+        exportedCount++;
+      });
+
+      setTimeout(() => {
+        alert(`🎉 成功导出【${res.className || curCls.name}】全班共 ${exportedCount} 个小组的独立研讨记录 CSV 文件！\n所有文件已分别下载保存。`);
+      }, groupList.length * 250 + 300);
     }
 
     async resetStudentPassword(studentAccount, newPassword = '123') {
@@ -6081,10 +6156,10 @@
 
               <!-- 1. 课程协作写作任务集中发布中心 (最开始) -->
               <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
-                <div class="card-title" style="margin-bottom:16px;">
-                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📌 课程写作任务发布 (${currentClassTasks.length} 项 · 当前班级: ${activeClass.name})</span>
-                  <button id="btn-v2-open-task-modal" class="teacher-action-btn indigo" style="background:#2563eb; padding:8px 18px; font-size:13px; font-weight:700;">+ 发布全新写作任务</button>
-                </div>
+                  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <button id="btn-v2-open-task-modal" class="teacher-action-btn indigo" style="background:#2563eb; padding:8px 18px; font-size:13px; font-weight:700;">+ 发布全新写作任务</button>
+                    <button id="btn-v2-export-all-class-chat" class="teacher-action-btn" style="background:#059669; color:#ffffff; padding:8px 16px; font-size:13px; font-weight:700; border-radius:8px; border:none; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(5,150,105,0.2);">📥 一键导出全班各组研讨 (分文件)</button>
+                  </div>
                 <div style="display:flex; flex-direction:column; gap:14px;">
                   ${currentClassTasks.length === 0 ? `
                     <div style="text-align:center; padding:32px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1;">
@@ -6562,8 +6637,11 @@
                       <span id="teacher-task-status-badge" style="font-size:12px; font-weight:700; padding:5px 12px; border-radius:6px; background:${isMonitorTaskExpired || state.isFinalSubmitted ? '#fef2f2' : '#ecfdf5'}; color:${isMonitorTaskExpired || state.isFinalSubmitted ? '#dc2626' : '#059669'}; border:1px solid ${isMonitorTaskExpired || state.isFinalSubmitted ? '#fecaca' : '#a7f3d0'};">
                         ${isMonitorTaskExpired ? '已截止' : (state.isFinalSubmitted ? '已归档' : '进行中')}
                       </span>
-                      <button id="btn-export-all-excel" style="background:#2563eb; color:white; border:none; padding:7px 16px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2); display:inline-flex; align-items:center; gap:6px;">
+                      <button id="btn-export-all-excel" style="background:#2563eb; color:white; border:none; padding:7px 14px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2); display:inline-flex; align-items:center; gap:5px;">
                         📊 导出本组 Excel
+                      </button>
+                      <button id="btn-export-all-class-groups-excel" style="background:#059669; color:white; border:none; padding:7px 14px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(5,150,105,0.2); display:inline-flex; align-items:center; gap:5px;">
+                        📥 一键导出全班 (分文件)
                       </button>
                     </div>
                   </div>
@@ -9351,8 +9429,25 @@
     const btnExportExcel = container.querySelector('#btn-export-all-excel');
     if (btnExportExcel) {
       btnExportExcel.addEventListener('click', () => {
-        authManager.exportGroupChatLogsToExcel(activeMonitorGId, state.chatLogs);
+        const gName = activeMonitorGroup?.name || activeMonitorGId;
+        authManager.exportGroupChatLogsToExcel(activeMonitorGId, state.chatLogs, gName);
       });
+    }
+
+    const triggerExportAllClassChat = () => {
+      const targetClassId = activeClass?.id || state.activeClassId || 'class_101';
+      const targetTaskId = state.activeTaskId || null;
+      authManager.exportAllClassGroupsChatLogsToSeparateFiles(targetClassId, targetTaskId);
+    };
+
+    const btnExportAllClass1 = container.querySelector('#btn-v2-export-all-class-chat');
+    if (btnExportAllClass1) {
+      btnExportAllClass1.addEventListener('click', triggerExportAllClassChat);
+    }
+
+    const btnExportAllClass2 = container.querySelector('#btn-export-all-class-groups-excel');
+    if (btnExportAllClass2) {
+      btnExportAllClass2.addEventListener('click', triggerExportAllClassChat);
     }
 
     // 💬 教师端研讨流滚动位置智能恢复（默认打开/首次切换在最下面；教师向上查历史时绝不强行下拉）
