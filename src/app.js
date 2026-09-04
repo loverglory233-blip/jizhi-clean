@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2524";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2524";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2524";
-import { AuthManager } from "./auth.js?v=20260904_v2524";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2524";
-import { renderLoginView } from "./login.js?v=20260904_v2524";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2524";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2524";
+} from "./constants.js?v=20260904_v2525";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2525";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2525";
+import { AuthManager } from "./auth.js?v=20260904_v2525";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2525";
+import { renderLoginView } from "./login.js?v=20260904_v2525";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2525";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2525";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2524";
+} from "./editor.js?v=20260904_v2525";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1475,7 +1475,9 @@ export class App {
 
             // ── ① 3 分钟没讨论：责任编辑一致性研讨破冰点拨 ──
             const exist3mNudge = s2Chats.some(m => m && (m.text?.includes('一致性研讨点拨') || m.text?.includes('自查研讨点拨') || m.text?.includes('一致性协同研讨')));
-            if (!exist3mNudge && silenceAfterChecklist >= 180000 && !s2.isDraftConfirmed && (s2.pendingReviewing || this.state.stage2PendingReviewing)) {
+            if (studentMsgAfterChecklist.length > 0) {
+              this._nudgeCounts['s2_consistency_silence_3m'] = 1;
+            } else if (!exist3mNudge && checklistElapsed >= 180000 && !s2.isDraftConfirmed && (s2.pendingReviewing || this.state.stage2PendingReviewing)) {
               this._nudgeCounts['s2_consistency_silence_3m'] = 1;
               const msg = {
                 sender: 'managingEditor',
@@ -1496,7 +1498,9 @@ export class App {
             // ── ② 3 分钟没讨论修正清单：审稿编辑二审修改研讨提示 ──
             const existChecklistNudge = s2Chats.some(m => m && (m.text?.includes('二审修改研讨提示') || m.text?.includes('二审协同修改研讨')));
             const isReviewingSummaryPending = s2Chats.some(m => m && m.text?.includes('二审修正清单')) && !s2Chats.some(m => m && (m.text?.includes('修改确认与写作冲刺') || m.text?.includes('二审修改落实决议')));
-            if (!existChecklistNudge && isReviewingSummaryPending && silenceAfterChecklist >= 180000 && !s2.isDraftConfirmed) {
+            if (studentMsgAfterChecklist.length > 0) {
+              this._nudgeCounts['s2_checklist_silence_3m'] = 1;
+            } else if (!existChecklistNudge && isReviewingSummaryPending && checklistElapsed >= 180000 && !s2.isDraftConfirmed) {
               this._nudgeCounts['s2_checklist_silence_3m'] = 1;
               const msg = {
                 sender: 'reviewingEditor',
@@ -1632,25 +1636,28 @@ export class App {
           const inqIndex = feedbacks.indexOf(currentPending);
           const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
 
-          // ① 挂机 3 分钟破冰启发
-          if (silenceDurationMs > 180000 && silenceDurationMs <= 360000) {
-            const count = this._nudgeCounts[`s3_silence_${currentPending.id}`] || 0;
-            if (count < 1) {
-              this._nudgeCounts[`s3_silence_${currentPending.id}`] = 1;
-              const s3SilenceMsg = {
-                sender: 'neutral',
-                senderName: '答辩委员会主席 · 中间委员',
-                text: `🟡 【中间委员·答辩协同启发】：关于【${inqLabel}】，建议全组成员集思广益、协同破局，在讨论区共同商讨出一条最有说服力的操作化补救与辩护思路；商定好后随时点击上方按钮帮全组一键提炼定案！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now
-              };
-              if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
-              this.state.chatLogs.stage3.push(s3SilenceMsg);
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-              return;
-            }
+          // ① 挂机 3 分钟破冰启发（若学生已在研讨区交流过则不再打扰）
+          const chairGuideTime = lastChairGuide ? (lastChairGuide._timeMs || 0) : 0;
+          const studentMsgAfterGuide = s3Chats.filter(m => m.sender && !['neutral', 'proponent', 'opponent', 'system', 'managingEditor', 'reviewingEditor'].includes(m.sender) && (m._timeMs || 0) > chairGuideTime);
+          const count = this._nudgeCounts[`s3_silence_${currentPending.id}`] || 0;
+
+          if (studentMsgAfterGuide.length > 0) {
+            this._nudgeCounts[`s3_silence_${currentPending.id}`] = 1; // 已发言交流，标记已响应
+          } else if (silenceDurationMs > 180000 && silenceDurationMs <= 360000 && count < 1) {
+            this._nudgeCounts[`s3_silence_${currentPending.id}`] = 1;
+            const s3SilenceMsg = {
+              sender: 'neutral',
+              senderName: '答辩委员会主席 · 中间委员',
+              text: `🟡 【中间委员·答辩协同启发】：关于【${inqLabel}】，建议全组成员集思广益、协同破局，在讨论区共同商讨出一条最有说服力的操作化补救与辩护思路；商定好后随时点击上方按钮帮全组一键提炼定案！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now
+            };
+            if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
+            this.state.chatLogs.stage3.push(s3SilenceMsg);
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+            return;
           }
         }
 
