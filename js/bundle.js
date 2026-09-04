@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2445
+ * Version: 20260904_v2450
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2445';
+  const APP_VERSION = '20260904_v2450';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10669,7 +10669,7 @@
     const padName = `jizhi_${activeTaskId}_${userGroupId}`;
 
     // 🚀 核心黑科技：扫描 Etherpad 内部 DOM 获取实际留存正文及各成员真实的撰写字数与贡献
-    const getEtherpadAuthorStats = () => {
+    function getEtherpadAuthorStats() {
       try {
         const f = document.getElementById('stage2-etherpad-frame');
         if (!f || !f.contentDocument) return null;
@@ -10805,12 +10805,12 @@
       } catch (e) {
         return null;
       }
-    };
+    }
 
-    const getEtherpadTextDirect = () => {
+    function getEtherpadTextDirect() {
       const stats = getEtherpadAuthorStats();
       return stats ? stats.cleanText : null;
-    };
+    }
 
     const getMemberContribVal = (contribs, m) => {
       if (!contribs || !m) return 0;
