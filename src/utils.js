@@ -791,6 +791,58 @@ export function enforceEtherpadReadonly(iframe) {
 }
 
 /**
+ * 🔓 解除 Etherpad 只读锁定：恢复顶部工具栏与正文编辑输入能力
+ */
+export function liftEtherpadReadonly(iframe) {
+  if (!iframe) return;
+
+  const container = iframe.parentElement;
+  if (container) {
+    const shields = container.querySelectorAll('.etherpad-readonly-shield');
+    shields.forEach(s => s.remove());
+  }
+
+  const tryUnlock = () => {
+    try {
+      const doc = iframe.contentDocument;
+      if (!doc) return;
+
+      const toolbar = doc.querySelector('.toolbar') || doc.querySelector('#editbar') || doc.querySelector('#menu_left') || doc.querySelector('#menu_right') || doc.querySelector('.menu');
+      if (toolbar) {
+        toolbar.style.removeProperty('display');
+      }
+
+      const footer = doc.querySelector('#footer') || doc.querySelector('.bottom-bar') || doc.querySelector('#chatbox');
+      if (footer) {
+        footer.style.removeProperty('display');
+      }
+
+      const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
+      if (aceOuter && aceOuter.contentDocument) {
+        const outerDoc = aceOuter.contentDocument;
+        const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
+        if (aceInner && aceInner.contentDocument) {
+          const innerDoc = aceInner.contentDocument;
+          const innerBody = innerDoc.querySelector('#innerdocbody') || innerDoc.querySelector('.innerdocbody') || innerDoc.body;
+          if (innerBody) {
+            innerBody.setAttribute('contenteditable', 'true');
+            innerBody.style.removeProperty('cursor');
+          }
+        }
+      }
+    } catch(e) {}
+  };
+
+  tryUnlock();
+  let attempts = 0;
+  const iv = setInterval(() => {
+    attempts++;
+    tryUnlock();
+    if (attempts >= 10) clearInterval(iv);
+  }, 200);
+}
+
+/**
  * 🌐 全局统一教学范围匹配器 (Universal Educational Scope Matcher)
  * 彻底消除因全等与死板判定导致的通知/问卷/范文“误杀遗漏”
  */

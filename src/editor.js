@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2465";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2465";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2465";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2470";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2470";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2470";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1369,8 +1369,36 @@ function renderStage2Canvas(canvas, state, handlers) {
 
       const padWin = f.contentWindow;
       let authorData = {};
-      if (padWin && padWin.clientVars && padWin.clientVars.collab_client_vars) {
-        authorData = padWin.clientVars.collab_client_vars.historicalAuthorData || {};
+      if (padWin && padWin.clientVars) {
+        if (padWin.clientVars.collab_client_vars && padWin.clientVars.collab_client_vars.historicalAuthorData) {
+          authorData = Object.assign({}, padWin.clientVars.collab_client_vars.historicalAuthorData);
+        }
+        if (padWin.clientVars.historicalAuthorData) {
+          authorData = Object.assign(authorData, padWin.clientVars.historicalAuthorData);
+        }
+        if (padWin.clientVars.authorData) {
+          authorData = Object.assign(authorData, padWin.clientVars.authorData);
+        }
+      }
+      if (padWin && padWin.pad) {
+        if (typeof padWin.pad.getAuthorData === 'function') {
+          try { authorData = Object.assign(authorData, padWin.pad.getAuthorData()); } catch(e){}
+        }
+        if (padWin.pad.myUserInfo) {
+          if (!padWin.pad.myUserInfo.name || padWin.pad.myUserInfo.name === '组员' || padWin.pad.myUserInfo.name === 'unnamed') {
+            padWin.pad.myUserInfo.name = currUserName;
+          }
+          if (padWin.pad.myUserInfo.userId) {
+            authorData[padWin.pad.myUserInfo.userId] = Object.assign({}, authorData[padWin.pad.myUserInfo.userId] || {}, padWin.pad.myUserInfo);
+          }
+        }
+        if (Array.isArray(padWin.pad.userList)) {
+          padWin.pad.userList.forEach(u => {
+            if (u && u.userId) {
+              authorData[u.userId] = Object.assign({}, authorData[u.userId] || {}, u);
+            }
+          });
+        }
       }
 
       const aceOuter = f.contentDocument.querySelector('iframe[name="ace_outer"]');
@@ -1445,44 +1473,92 @@ function renderStage2Canvas(canvas, state, handlers) {
       }
 
       // 匹配每个 authorClass 到真实的 membersList 成员
-      let matchedCountTotal = 0;
-      Object.keys(rawCounts).forEach(aKey => {
-        const count = rawCounts[aKey];
-        if (count <= 0) return;
+      const localAuthorId = (padWin && padWin.clientVars && (padWin.clientVars.userId || (padWin.pad && padWin.pad.getUserId && padWin.pad.getUserId()))) || (padWin && padWin.pad && padWin.pad.myUserInfo && padWin.pad.myUserInfo.userId) || '';
 
+      const assignedAuthors = new Map();
+      const unassignedKeys = [];
+
+      Object.keys(rawCounts).forEach(aKey => {
+        if (aKey === 'unassigned') {
+          unassignedKeys.push(aKey);
+          return;
+        }
         let authorName = '';
+        let authorColor = null;
         const normKey1 = aKey.replace(/[-_]/g, '.');
         const normKey2 = aKey.startsWith('a-') ? 'a.' + aKey.slice(2) : (aKey.startsWith('a_') ? 'a.' + aKey.slice(2) : aKey);
 
         for (const k of [aKey, normKey1, normKey2]) {
-          if (authorData[k] && authorData[k].name) {
-            authorName = authorData[k].name;
+          if (authorData[k]) {
+            if (authorData[k].name && authorData[k].name !== '组员' && authorData[k].name !== 'unnamed') {
+              authorName = authorData[k].name;
+            }
+            if (authorData[k].colorId !== undefined || authorData[k].color) {
+              authorColor = authorData[k].colorId !== undefined ? authorData[k].colorId : authorData[k].color;
+            }
             break;
           }
         }
 
-        const matched = membersList.find(m => {
+        // 1. 如果 authorId 是当前用户的 pad userId
+        if (localAuthorId && (aKey === localAuthorId || normKey1 === localAuthorId || normKey2 === localAuthorId)) {
+          const selfMem = membersList.find(m => currUser && (m.id === currUser.id || m.name === currUser.name)) || membersList[0];
+          if (selfMem) {
+            assignedAuthors.set(aKey, selfMem);
+            return;
+          }
+        }
+
+        // 2. 名字/ID 精准匹配
+        let matched = membersList.find(m => {
           if (!m) return false;
-          if (authorName && (m.name === authorName || m.id === authorName)) return true;
-          if (m.name && aKey.includes(m.name)) return true;
+          if (authorName && (m.name === authorName || m.id === authorName || m.studentCode === authorName)) return true;
+          if (m.name && m.name.length >= 2 && aKey.includes(m.name)) return true;
           if (m.id && aKey.includes(m.id)) return true;
           return false;
         });
 
+        // 3. 颜色匹配
+        if (!matched && authorColor !== null) {
+          matched = membersList.find(m => m.color && String(m.color).toLowerCase() === String(authorColor).toLowerCase());
+        }
+
         if (matched) {
-          memberCounts[matched.id] = (memberCounts[matched.id] || 0) + count;
-          if (matched.name) memberCounts[matched.name] = (memberCounts[matched.name] || 0) + count;
-          matchedCountTotal += count;
+          assignedAuthors.set(aKey, matched);
         } else {
-          // 未标记作者或直接粘贴的段落：归属为当前操作者或首个成员
-          const fallback = membersList.find(m => {
-            if (currUser && (m.id === currUser.id || m.name === currUser.name)) return true;
-            return false;
-          }) || membersList[0];
-          if (fallback) {
-            memberCounts[fallback.id] = (memberCounts[fallback.id] || 0) + count;
-            if (fallback.name) memberCounts[fallback.name] = (memberCounts[fallback.name] || 0) + count;
-            matchedCountTotal += count;
+          unassignedKeys.push(aKey);
+        }
+      });
+
+      // 4. 对尚未精确匹配的 authorClass，按顺序分配给尚未匹配的组内成员（避免100%误归属给单人）
+      const alreadyAssignedMemberIds = new Set(Array.from(assignedAuthors.values()).map(m => m.id));
+      const remainingMembers = membersList.filter(m => !alreadyAssignedMemberIds.has(m.id));
+
+      let remIdx = 0;
+      unassignedKeys.forEach(aKey => {
+        if (aKey === 'unassigned') return;
+        if (remIdx < remainingMembers.length) {
+          assignedAuthors.set(aKey, remainingMembers[remIdx]);
+          remIdx++;
+        } else {
+          const fallback = membersList.find(m => currUser && (m.id === currUser.id || m.name === currUser.name)) || membersList[0];
+          if (fallback) assignedAuthors.set(aKey, fallback);
+        }
+      });
+
+      // 5. 累计各成员字数
+      Object.keys(rawCounts).forEach(aKey => {
+        const count = rawCounts[aKey];
+        if (count <= 0) return;
+        const targetMember = assignedAuthors.get(aKey);
+        if (targetMember) {
+          memberCounts[targetMember.id] = (memberCounts[targetMember.id] || 0) + count;
+          if (targetMember.name) memberCounts[targetMember.name] = (memberCounts[targetMember.name] || 0) + count;
+        } else {
+          const target = membersList.find(m => currUser && (m.id === currUser.id || m.name === currUser.name)) || membersList[0];
+          if (target) {
+            memberCounts[target.id] = (memberCounts[target.id] || 0) + count;
+            if (target.name) memberCounts[target.name] = (memberCounts[target.name] || 0) + count;
           }
         }
       });
@@ -1875,7 +1951,7 @@ function renderStage2Canvas(canvas, state, handlers) {
         if (isEditorReadonly) {
           enforceEtherpadReadonly(existingFrame);
         } else {
-          canvas.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+          liftEtherpadReadonly(existingFrame);
         }
       }
 
@@ -2162,6 +2238,9 @@ function renderStage2Canvas(canvas, state, handlers) {
   if (isEditorReadonly) {
     const s2Frame = canvas.querySelector('#stage2-etherpad-frame');
     if (s2Frame) enforceEtherpadReadonly(s2Frame);
+  } else {
+    const s2Frame = canvas.querySelector('#stage2-etherpad-frame');
+    if (s2Frame) liftEtherpadReadonly(s2Frame);
   }
   setTimeout(() => {
     const s2f = canvas.querySelector('#stage2-etherpad-frame');
@@ -2446,10 +2525,10 @@ function renderStage3Canvas(canvas, state, handlers) {
     }
 
     if (existingFrame) {
-      if (isFinalSubmitted) {
+      if (isFinalSubmitted || isTaskDeadlineExpired) {
         enforceEtherpadReadonly(existingFrame);
       } else {
-        canvas.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+        liftEtherpadReadonly(existingFrame);
       }
     }
     return;
@@ -2643,9 +2722,12 @@ function renderStage3Canvas(canvas, state, handlers) {
     }
   }
 
-  if (isFinalSubmitted) {
+  if (isFinalSubmitted || isTaskDeadlineExpired) {
     const s3Frame = canvas.querySelector('#stage3-etherpad-frame');
     if (s3Frame) enforceEtherpadReadonly(s3Frame);
+  } else {
+    const s3Frame = canvas.querySelector('#stage3-etherpad-frame');
+    if (s3Frame) liftEtherpadReadonly(s3Frame);
   }
 
   const tabDefense = canvas.querySelector('#tab-btn-defense');

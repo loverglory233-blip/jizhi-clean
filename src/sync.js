@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260904_v2465';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260904_v2465';
+import { InitialState } from './constants.js?v=20260904_v2470';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260904_v2470';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1120,12 +1120,10 @@ export class CloudSyncEngine {
         this.app.state.stage2PendingReviewing = remoteData.stage2.pendingReviewing;
       }
       if (remoteData.stage2.reviewMilestone) {
-        const s2TextLen = (this.app.state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
-        if (s2TextLen < 50 && (remoteData.stage2.reviewMilestone === 'first_review_done' || remoteData.stage2.reviewMilestone === 'first_review_in_progress' || remoteData.stage2.reviewMilestone === 'meeting_called')) {
-          this.app.state.stage2.reviewMilestone = 'none';
-        } else {
-          this.app.state.stage2.reviewMilestone = remoteData.stage2.reviewMilestone;
-        }
+        this.app.state.stage2.reviewMilestone = remoteData.stage2.reviewMilestone;
+      }
+      if (remoteData.stage2.firstReviewText !== undefined && remoteData.stage2.firstReviewText) {
+        this.app.state.stage2.firstReviewText = remoteData.stage2.firstReviewText;
       }
 
       if (remoteData.stage2.unifiedContent !== undefined) {
