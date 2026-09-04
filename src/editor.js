@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2260";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2260";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2260";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2265";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2265";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2265";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -97,15 +97,18 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
   const isS2Locked = !isTaskDeadlineExpired && !state.isFinalSubmitted && (!isContractSigned && currentMaxOrder < 2);
   const isS3Locked = !isTaskDeadlineExpired && !state.isFinalSubmitted && currentMaxOrder < 3;
 
+  const genreCfg = TASK_GENRE_CONFIGS[taskGenreKey] || TASK_GENRE_CONFIGS.experiment;
+
   const newHeaderHtml = `
     <div class="brand-section">
-      <div class="brand-logo" style="display:flex; align-items:baseline; gap:6px;">集智 JIZHI <span style="font-size:10.5px; font-weight:700; color:#94a3b8; font-family:monospace;" title="系统版本号">${APP_VERSION}</span></div>
+      <div class="brand-logo">集智 JIZHI</div>
       <div class="brand-badge" style="background:#eff6ff; color:#1d4ed8; padding:3px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid #bfdbfe; display:inline-flex; align-items:center; gap:6px;">
         <span>🎓 ${escapeHtml(currentUser ? currentUser.name : '学生')}</span>
         <span style="opacity:0.35;">·</span>
         <span>👥 ${escapeHtml(groupName)}</span>
         <span style="opacity:0.35;">·</span>
         <span style="color:#1e40af; background:#ffffff; padding:1.5px 8px; border-radius:10px; border:1px solid #bfdbfe; font-weight:800;">📌 ${escapeHtml(currentTaskTitle)}</span>
+        <span style="color:${taskGenreKey === 'instructional' ? '#15803d' : '#1e40af'}; background:#ffffff; padding:1.5px 8px; border-radius:10px; border:1px solid ${taskGenreKey === 'instructional' ? '#86efac' : '#bfdbfe'}; font-weight:800;">${genreCfg.icon} ${genreCfg.label}</span>
         ${isFinalSubmitted ? '<span style="color:#059669; margin-left:3px;">(🔒已归档)</span>' : ''}
       </div>
       <button id="btn-header-back-tasks" style="background:#f8fafc; border:1px solid #cbd5e1; color:#334155; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:3px;" title="返回我的写作任务大厅">
