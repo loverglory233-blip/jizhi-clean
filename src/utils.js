@@ -77,6 +77,26 @@ export function getUserFromMap(map, user) {
 }
 
 /**
+ * 🛡️ 通用消息毫秒时间戳解析工具
+ */
+export function parseMsgTime(m) {
+  if (!m) return 0;
+  if (m._timeMs && Number(m._timeMs) > 0) return Number(m._timeMs);
+  if (m.createdAt && Number(m.createdAt) > 0) return Number(m.createdAt);
+  if (m.timestamp) {
+    const s = String(m.timestamp).trim();
+    if (/^\d{10,13}$/.test(s)) return Number(s);
+    const parts = s.split(':');
+    if (parts.length >= 2) {
+      const d = new Date();
+      d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), parseInt(parts[2] || '0', 10), 0);
+      return d.getTime();
+    }
+  }
+  return 0;
+}
+
+/**
  * ⏱️ 智能人性化时长格式化：将分钟数自动转换为 天 / 小时 / 分钟
  * 例：3081 -> "2天3小时21分", 150 -> "2小时30分", 60 -> "1小时", 45 -> "45分钟"
  */

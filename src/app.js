@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2685";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2685";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2685";
-import { AuthManager } from "./auth.js?v=20260905_v2685";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2685";
-import { renderLoginView } from "./login.js?v=20260905_v2685";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2685";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2685";
+} from "./constants.js?v=20260905_v2686";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2686";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2686";
+import { AuthManager } from "./auth.js?v=20260905_v2686";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2686";
+import { renderLoginView } from "./login.js?v=20260905_v2686";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2686";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2686";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2685";
+} from "./editor.js?v=20260905_v2686";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -749,11 +749,21 @@ export class App {
             const s1 = this.state.stage1 || {};
             const propList = s1.proposals || [];
             const propCount = propList.length;
-            // ① 开场 3 分钟【左侧无提案 且 右侧无讨论交流】双静默破冰启发
+            // ① 开场 3 分钟【左侧无提案 且 右侧无讨论交流】双静默破冰启发（严格从引导消息起算 3 分钟）
             const s1Chats = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-            const studentChatsCount = s1Chats.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system').length;
+            const introMsg = s1Chats.find(m => m && m.sender === 'auctioneer' && (m.text?.includes('拍卖师开场') || m.text?.includes('引导师开场') || m.text?.includes('阶段一')));
+            const introTime = parseMsgTime(introMsg) || (nowMs - elapsedSec * 1000);
+            const timeSinceIntroSec = Math.floor((nowMs - introTime) / 1000);
+            const studentChats = s1Chats.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && parseMsgTime(m) >= introTime);
+            const studentChatsCount = studentChats.length;
+            const exist3MinBreak = s1Chats.some(m => m && m.sender === 'auctioneer' && (m.text?.includes('协同破冰') || m.text?.includes('3 分钟')));
 
-            if (!this.state.s1_3minBreakSent && elapsedSec >= 180 && propCount === 0 && studentChatsCount === 0) {
+            // 🛡️ 只要有同学在引导后发言交流、提交提案或历史已提醒过，立即解除静默并锁定，绝不重复
+            if (studentChatsCount > 0 || propCount > 0 || exist3MinBreak) {
+              this.state.s1_3minBreakSent = true;
+            }
+
+            if (!this.state.s1_3minBreakSent && !exist3MinBreak && timeSinceIntroSec >= 180 && propCount === 0 && studentChatsCount === 0) {
               this.state.s1_3minBreakSent = true;
               const msg3Min = {
                 sender: 'auctioneer',
@@ -1508,32 +1518,38 @@ export class App {
           effectiveDocLen = Math.max(effectiveDocLen, this.lastPlainTextLength);
         }
 
-        const stage2ElapsedMs = now - (s2.startTime || this.stage2StartTime || now);
-        const silenceNudgeCount = this._nudgeCounts['s2_silence'] || 0;
+        const s2IntroMsg = s2Chats.find(m => m && (m.sender === 'managingEditor' || m.sender === 'reviewingEditor') && (m.text?.includes('开场') || m.text?.includes('阶段二') || m.text?.includes('寄语')));
+        const s2IntroTime = parseMsgTime(s2IntroMsg) || (s2.startTime || this.stage2StartTime || now);
+        const s2IntroElapsed = Math.max(0, now - s2IntroTime);
+        const studentMsgAfterIntro = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && parseMsgTime(m) >= s2IntroTime);
+        const existS2OpenNudge = s2Chats.some(m => m && m.text?.includes('进度关怀'));
 
-        if (silenceNudgeCount < 1 && stage2ElapsedMs >= 180000) {
+        // 🛡️ 只要开场后有同伴发言、正文已动笔或历史已提醒，立即解除静默并锁定，绝不重复提醒
+        if (studentMsgAfterIntro.length > 0 || effectiveDocLen >= 50 || existS2OpenNudge) {
+          this._nudgeCounts['s2_silence'] = 1;
+        }
+
+        const silenceNudgeCount = this._nudgeCounts['s2_silence'] || 0;
+        if (silenceNudgeCount < 1 && !existS2OpenNudge && s2IntroElapsed >= 180000 && studentMsgAfterIntro.length === 0 && effectiveDocLen < 50) {
           this._nudgeCounts['s2_silence'] = 1; // 满 3 分钟已完成一次性核验，无论是否发送均不再重复
-          if (effectiveDocLen < 50) {
-            // 满 3 分钟且正文字数确实少于 50 字（未动笔或字数过少），发出开场进度关怀
-            this.lastS2SilenceNudgeTime = now;
-            const taskType = this.getCurrentTaskType();
-            const isInst = (taskType === 'instructional');
-            const managingName = isInst ? '备课组长' : '责任编辑';
-            const msg = {
-              sender: 'managingEditor',
-              senderName: `协同调度 · ${managingName}`,
-              text: `🤝 【${managingName}·进度关怀】：大家已进入阶段二正文协作！\n👉 请大家在左侧协同文档中积极起草与研读，撰写同时多阅读同伴段落，在研讨区互相交流衔接，群策群力协同推进！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now
-            };
-            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-            this.state.chatLogs.stage2.push(msg);
-            this.syncChatLogs();
-            this.syncStage2();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
-            return;
-          }
+          this.lastS2SilenceNudgeTime = now;
+          const taskType = this.getCurrentTaskType();
+          const isInst = (taskType === 'instructional');
+          const managingName = isInst ? '备课组长' : '责任编辑';
+          const msg = {
+            sender: 'managingEditor',
+            senderName: `协同调度 · ${managingName}`,
+            text: `🤝 【${managingName}·进度关怀】：大家已进入阶段二正文协作！\n👉 请大家在左侧协同文档中积极起草与研读，撰写同时多阅读同伴段落，在研讨区互相交流衔接，群策群力协同推进！`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: now
+          };
+          if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+          this.state.chatLogs.stage2.push(msg);
+          this.syncChatLogs();
+          this.syncStage2();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          renderChat(this.state);
+          return;
         }
 
 
@@ -1762,9 +1778,9 @@ export class App {
         const lastStudentMsg = [...s3Chats].reverse().find(m => m.sender && !['neutral', 'proponent', 'opponent', 'system', 'managingEditor', 'reviewingEditor'].includes(m.sender));
         
         // 🛡️ 以中间委员下发答辩思路引导的时间为静默计时基准，预留充分的通读思考时间
-        const lastChairGuide = [...s3Chats].reverse().find(m => m.sender === 'neutral' && m.text?.includes('答辩思路引导'));
-        const baselineTime = lastStudentMsg ? (lastStudentMsg._timeMs || now) : (lastChairGuide ? (lastChairGuide._timeMs || now) : now);
-        const silenceDurationMs = now - baselineTime;
+        const lastChairGuide = [...s3Chats].reverse().find(m => m.sender === 'neutral' && (m.text?.includes('答辩思路引导') || m.text?.includes('答辩思路')));
+        const chairGuideTime = lastChairGuide ? (parseMsgTime(lastChairGuide) || lastChairGuide._timeMs || 0) : (s3.startTime || this.stage3StartTime || now);
+        const guideElapsed = Math.max(0, now - chairGuideTime);
 
         const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
         const pendingFeedbacks = feedbacks.filter(f => f.role !== 'proponent' && (!f.response || f.response.trim().length === 0));
@@ -1775,14 +1791,14 @@ export class App {
           const inqIndex = feedbacks.indexOf(currentPending);
           const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
 
-          // ① 挂机 3 分钟破冰启发（若学生已在研讨区交流过则不再打扰）
-          const chairGuideTime = lastChairGuide ? (lastChairGuide._timeMs || 0) : 0;
-          const studentMsgAfterGuide = s3Chats.filter(m => m.sender && !['neutral', 'proponent', 'opponent', 'system', 'managingEditor', 'reviewingEditor'].includes(m.sender) && (m._timeMs || 0) > chairGuideTime);
+          // ① 挂机 3 分钟破冰启发（严格从引导消息起算，若学生已在研讨区交流过则不再打扰）
+          const studentMsgAfterGuide = s3Chats.filter(m => m && m.sender && !['neutral', 'proponent', 'opponent', 'system', 'managingEditor', 'reviewingEditor'].includes(m.sender) && parseMsgTime(m) >= chairGuideTime);
           const count = this._nudgeCounts[`s3_silence_${currentPending.id}`] || 0;
+          const existS3Silence = s3Chats.some(m => m && m.sender === 'neutral' && (m.text?.includes('答辩协同启发') || m.text?.includes('协同破局')));
 
-          if (studentMsgAfterGuide.length > 0) {
-            this._nudgeCounts[`s3_silence_${currentPending.id}`] = 1; // 已发言交流，标记已响应
-          } else if (silenceDurationMs > 180000 && silenceDurationMs <= 360000 && count < 1) {
+          if (studentMsgAfterGuide.length > 0 || existS3Silence) {
+            this._nudgeCounts[`s3_silence_${currentPending.id}`] = 1; // 已发言交流或历史已发送，解除静默，不再提醒
+          } else if (guideElapsed >= 180000 && count < 1 && !existS3Silence) {
             this._nudgeCounts[`s3_silence_${currentPending.id}`] = 1;
             const s3SilenceMsg = {
               sender: 'neutral',
