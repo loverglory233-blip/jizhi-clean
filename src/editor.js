@@ -271,6 +271,7 @@ function renderStage1Canvas(canvas, state, handlers) {
 
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
   const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+  const taskGenreKey = currentTask?.taskType || 'experiment';
   const isTaskDeadlineExpired = isTaskExpired(currentTask);
   const taskGenreKey = currentTask?.taskType || 'experiment';
   const genreCfg = TASK_GENRE_CONFIGS[taskGenreKey] || TASK_GENRE_CONFIGS.experiment;
@@ -580,7 +581,7 @@ function renderStage1Canvas(canvas, state, handlers) {
       <div id="stage1-contract-sign-action-mount" style="margin-top:20px; text-align:center; display:flex; justify-content:center; gap:12px; flex-wrap:wrap;">
         ${isContractLocked ? `
           <button id="btn-goto-stage2" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:13px 36px; border-radius:10px; font-weight:800; cursor:pointer; font-size:15px; box-shadow:0 4px 14px rgba(37,99,235,0.3); display:inline-flex; align-items:center; gap:8px;">
-            🚀 全员已签署完毕！前往【阶段二：学术编辑部】开始论文起草 →
+            🚀 全员已签署完毕！前往【${genreConfig.stage2Title}】开始${taskGenreKey === 'instructional' ? '教学设计' : '论文'}起草 →
           </button>
         ` : `
           <button id="btn-confirm-contract" style="background:${userHasConfirmed ? '#eff6ff' : 'linear-gradient(135deg, #059669, #047857)'}; border:1px solid ${userHasConfirmed ? '#bfdbfe' : 'transparent'}; color:${userHasConfirmed ? '#1d4ed8' : 'white'}; padding:13px 32px; border-radius:10px; font-weight:800; cursor:pointer; font-size:14.5px; box-shadow:0 3px 12px rgba(5,150,105,0.25);">
@@ -1334,6 +1335,7 @@ function renderStage2Canvas(canvas, state, handlers) {
 
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
   const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+  const taskGenreKey = currentTask?.taskType || 'experiment';
   const isTaskDeadlineExpired = isTaskExpired(currentTask);
   const confirmedDraftMap = s2.confirmedMembers || {};
   const isMemberDone = (map, m) => {
@@ -1767,7 +1769,7 @@ function renderStage2Canvas(canvas, state, handlers) {
       <!-- 🌟 1. 顶部紧凑一体化协作控制台 (高度仅 36px，集成字数、范文、会议打卡与初稿确认) -->
       <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:6px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; flex-shrink:0; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
         <div style="display:flex; align-items:center; gap:8px;">
-          <span style="font-size:13.5px; font-weight:800; color:#0f172a; display:inline-flex; align-items:center; gap:4px;">📝 论文正文协同起草</span>
+          <span style="font-size:13.5px; font-weight:800; color:#0f172a; display:inline-flex; align-items:center; gap:4px;">📝 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}正文协同起草</span>
           <span style="font-size:11.5px; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px; border:1px solid #bfdbfe; font-weight:800;">字数: <b id="stage2-word-count-num">${plainTextLen}</b> 字</span>
           <button id="btn-show-case" style="background:#ffffff; border:1px solid #cbd5e1; color:#1d4ed8; padding:2px 8px; border-radius:6px; font-size:11px; cursor:pointer; font-weight:700;">${paperBtnLabel}</button>
         </div>
@@ -2118,7 +2120,7 @@ function renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitt
     return `
       <div style="background:#ffffff; border:1px solid #bfdbfe; border-radius:12px; padding:36px 24px; text-align:center; box-shadow:0 4px 12px rgba(37,99,235,0.06);">
         <div style="font-size:36px; margin-bottom:12px;">⏳</div>
-        <div style="font-size:16px; font-weight:800; color:#1e40af; margin-bottom:6px;">答辩委员会专家正在审阅全篇论文初稿...</div>
+        <div style="font-size:16px; font-weight:800; color:#1e40af; margin-bottom:6px;">答辩委员会专家正在审阅全篇${((window.app && window.app.authManager) ? (window.app.authManager.getTasks().find(t => t.id === state.activeTaskId)?.taskType || 'experiment') : (state.taskType || 'experiment')) === 'instructional' ? '教学设计' : '论文'}初稿...</div>
         <div style="font-size:13px; color:#64748b; line-height:1.6;">正方委员正在提取立论亮点，反方委员正在研拟针对实质询。<br>【答辩与终稿修改清单】即将在此生成，并同步呈现在右侧研讨区，请稍候！</div>
       </div>
     `;
@@ -2211,6 +2213,7 @@ function renderStage3Canvas(canvas, state, handlers) {
 
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
   const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+  const taskGenreKey = currentTask?.taskType || 'experiment';
   const isTaskDeadlineExpired = isTaskExpired(currentTask);
   const isFinalSubmitted = state.isFinalSubmitted || isAllFinalSubmitted || isTaskDeadlineExpired;
   const isDefenseLocked = isRevisionFullyConfirmed || isFinalSubmitted;
@@ -2279,7 +2282,7 @@ function renderStage3Canvas(canvas, state, handlers) {
       actionBtnGroup.innerHTML = (activeTab === 'defense') ? (
         isDefenseLocked ? `
           <button disabled style="background:#f1f5f9; border:1px solid #cbd5e1; color:${isFinalSubmitted ? '#94a3b8' : '#059669'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:default;">
-            ${isFinalSubmitted ? '🔒 论文终稿已归档 (只读)' : '✅ 全员已确认进入终稿修改 (答辩已锁定)'}
+            ${isFinalSubmitted ? `🔒 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿已归档 (只读)` : '✅ 全员已确认进入终稿修改 (答辩已锁定)'}
           </button>
         ` : `
           <button id="btn-confirm-stage3-revision" ${isUserRevisionConfirmed ? 'disabled' : ''} style="background:${isUserRevisionConfirmed ? '#f1f5f9' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isUserRevisionConfirmed ? '1px solid #cbd5e1' : 'none'}; color:${isUserRevisionConfirmed ? '#2563eb' : 'white'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:${isUserRevisionConfirmed ? 'default' : 'pointer'}; box-shadow:${isUserRevisionConfirmed ? 'none' : '0 2px 8px rgba(37,99,235,0.2)'};">
@@ -2289,7 +2292,7 @@ function renderStage3Canvas(canvas, state, handlers) {
       ) : (
         state.isFinalSubmitted ? `
           <button disabled style="background:#ecfdf5; border:1px solid #a7f3d0; color:#059669; padding:8px 18px; border-radius:8px; font-weight:700; cursor:default; font-size:13px;">
-            🔒 论文终稿已全员提交归档
+            🔒 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿已全员提交归档
           </button>
         ` : (isUserFinalSubmitted ? `
           <button disabled style="background:#f1f5f9; border:1px solid #cbd5e1; color:#059669; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:default;">
@@ -2297,7 +2300,7 @@ function renderStage3Canvas(canvas, state, handlers) {
           </button>
         ` : `
           <button id="btn-final-submit" style="background:linear-gradient(135deg, #059669, #047857); border:none; color:white; padding:8px 18px; border-radius:8px; font-weight:700; cursor:pointer; font-size:13px; box-shadow:0 3px 10px rgba(5,150,105,0.25);">
-            🚀 确认提交论文终稿
+            🚀 确认提交${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿
           </button>
         `)
       );
@@ -2340,7 +2343,7 @@ function renderStage3Canvas(canvas, state, handlers) {
         <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:14px 18px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; box-shadow:0 2px 8px rgba(37,99,235,0.08);">
           <div>
             <div style="font-size:14px; font-weight:800; color:#1e40af; display:flex; align-items:center; gap:8px;">
-              <span>🔒 本组论文终稿与评估报告已全员成功归档提交至教师端！</span>
+              <span>🔒 本组${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿与评估报告已全员成功归档提交至教师端！</span>
             </div>
             <div style="font-size:12px; color:#475569; margin-top:3px;">请组内每位成员点击右侧按钮进入【课程协作体验与 SSRL 效果评估问卷】填写界面。</div>
           </div>
@@ -2353,17 +2356,17 @@ function renderStage3Canvas(canvas, state, handlers) {
       <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:8px 12px; flex-shrink:0; box-shadow:0 1px 3px rgba(15,23,42,0.04); flex-wrap:wrap; gap:8px;">
         <div style="gap:10px; display:flex; flex-wrap:wrap;">
           <button id="tab-btn-defense" style="background:${activeTab === 'defense' ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : '#f1f5f9'}; border:none; color:${activeTab === 'defense' ? 'white' : '#475569'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer;">
-            🎓 答辩委员会质询与中间委员引导面板
+            🎓 答辩委员会质询与引导面板
           </button>
-          <button id="tab-btn-editor" style="background:${activeTab === 'editor' ? 'linear-gradient(135deg, #059669, #047857)' : (isRevisionFullyConfirmed ? '#f1f5f9' : '#f8fafc')}; border:${isRevisionFullyConfirmed ? 'none' : '1px dashed #cbd5e1'}; color:${activeTab === 'editor' ? 'white' : (isRevisionFullyConfirmed ? '#475569' : '#94a3b8')}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:${isRevisionFullyConfirmed ? 'pointer' : 'not-allowed'};" title="${isRevisionFullyConfirmed ? '切换至终稿协同修改' : '需组内全员确认进入终稿修改后解锁'}">
-            ${isRevisionFullyConfirmed ? '📝 修改论文终稿 (依据答辩意见完善正文)' : '📝 修改论文终稿 (🔒 需全员确认进入终稿修改后解锁)'}
+          <button id="tab-btn-editor" style="background:${activeTab === 'editor' ? 'linear-gradient(135deg, #059669, #047857)' : (isRevisionFullyConfirmed ? '#f1f5f9' : '#f8fafc')}; border:${isRevisionFullyConfirmed ? 'none' : '1px dashed #cbd5e1'}; color:${activeTab === 'editor' ? 'white' : (isRevisionFullyConfirmed ? '#475569' : '#94a3b8')}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:${isRevisionFullyConfirmed ? 'pointer' : 'not-allowed'};" title="${isRevisionFullyConfirmed ? `切换至${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿协同修改` : '需组内全员确认进入终稿修改后解锁'}">
+            ${isRevisionFullyConfirmed ? `📝 修改${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿 (依据答辩意见完善正文)` : `📝 修改${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿 (🔒 需全员确认进入终稿修改后解锁)`}
           </button>
         </div>
         <div id="stage3-action-btn-group" style="display:flex; gap:8px; align-items:center;">
           ${activeTab === 'defense' ? (
             isDefenseLocked ? `
               <button disabled style="background:#f1f5f9; border:1px solid #cbd5e1; color:${isFinalSubmitted ? '#94a3b8' : '#059669'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:default;">
-                ${isFinalSubmitted ? '🔒 论文终稿已归档 (只读)' : '✅ 全员已确认进入终稿修改 (答辩已锁定)'}
+                ${isFinalSubmitted ? `🔒 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿已归档 (只读)` : '✅ 全员已确认进入终稿修改 (答辩已锁定)'}
               </button>
             ` : `
               <button id="btn-confirm-stage3-revision" ${isUserRevisionConfirmed ? 'disabled' : ''} style="background:${isUserRevisionConfirmed ? '#f1f5f9' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isUserRevisionConfirmed ? '1px solid #cbd5e1' : 'none'}; color:${isUserRevisionConfirmed ? '#2563eb' : 'white'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:${isUserRevisionConfirmed ? 'default' : 'pointer'}; box-shadow:${isUserRevisionConfirmed ? 'none' : '0 2px 8px rgba(37,99,235,0.2)'};">
@@ -2373,7 +2376,7 @@ function renderStage3Canvas(canvas, state, handlers) {
           ) : (
             state.isFinalSubmitted ? `
               <button disabled style="background:#ecfdf5; border:1px solid #a7f3d0; color:#059669; padding:8px 18px; border-radius:8px; font-weight:700; cursor:default; font-size:13px;">
-                🔒 论文终稿已全员提交归档
+                🔒 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿已全员提交归档
               </button>
             ` : (isUserFinalSubmitted ? `
               <button disabled style="background:#f1f5f9; border:1px solid #cbd5e1; color:#059669; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:default;">
@@ -2381,7 +2384,7 @@ function renderStage3Canvas(canvas, state, handlers) {
               </button>
             ` : `
               <button id="btn-final-submit" style="background:linear-gradient(135deg, #059669, #047857); border:none; color:white; padding:8px 18px; border-radius:8px; font-weight:700; cursor:pointer; font-size:13px; box-shadow:0 3px 10px rgba(5,150,105,0.25);">
-                🚀 确认提交论文终稿
+                🚀 确认提交${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿
               </button>
             `)
           )}
@@ -2422,7 +2425,7 @@ function renderStage3Canvas(canvas, state, handlers) {
       <div class="card" id="stage3-defense-card" style="display:${activeTab === 'defense' ? 'block' : 'none'}; flex:1; overflow-y:auto; padding:20px; overscroll-behavior-y:contain; -webkit-overflow-scrolling:touch;">
         ${isRevisionFullyConfirmed && !isFinalSubmitted ? `
           <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:8px 14px; margin-bottom:12px; font-size:12.5px; color:#065f46; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
-            <span>🔒 全组已全员确认进入终稿修改！答辩裁决矩阵已锁定归档（只读查阅），请在【修改论文终稿】面板中完善正文。</span>
+            <span>🔒 全组已全员确认进入终稿修改！答辩裁决矩阵已锁定归档（只读查阅），请在【修改${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿】面板中完善正文。</span>
             <button onclick="document.getElementById('tab-btn-editor').click();" style="background:#059669; color:white; border:none; padding:4px 12px; border-radius:6px; font-size:11.5px; cursor:pointer; font-weight:700;">前往修改终稿 ➔</button>
           </div>
         ` : ''}
@@ -2472,7 +2475,7 @@ function renderStage3Canvas(canvas, state, handlers) {
 
           return `
             <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
-              <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 论文全篇终稿大正文 ${isEditorReadonly ? '<span style="font-size:11.5px; color:#059669; margin-left:6px; background:#ecfdf5; padding:2px 8px; border-radius:6px; border:1px solid #a7f3d0;">🔒 终稿已归档/截止锁定 · 100% 只读防篡改保护</span>' : '(依据答辩意见实时协同修改终稿 · Etherpad 毫秒级引擎)'}</span>
+              <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}全篇终稿大正文 ${isEditorReadonly ? '<span style="font-size:11.5px; color:#059669; margin-left:6px; background:#ecfdf5; padding:2px 8px; border-radius:6px; border:1px solid #a7f3d0;">🔒 终稿已归档/截止锁定 · 100% 只读防篡改保护</span>' : '(依据答辩意见实时协同修改终稿 · Etherpad 毫秒级引擎)'}</span>
               <div style="display:flex; align-items:center; gap:8px;">
                 <span style="font-size:11px; background:${isEditorReadonly ? '#f1f5f9' : '#ecfdf5'}; color:${isEditorReadonly ? '#64748b' : '#059669'}; border:1px solid ${isEditorReadonly ? '#cbd5e1' : '#a7f3d0'}; padding:2px 8px; border-radius:10px; font-weight:700;">${isEditorReadonly ? '🔒 只读归档' : '🟢 Etherpad 协同就绪'}</span>
                 <button onclick="const f=document.getElementById('stage3-etherpad-frame'); if(f) f.src=f.src;" style="background:transparent; color:#2563eb; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600;">🔄 刷新</button>
@@ -2481,9 +2484,9 @@ function renderStage3Canvas(canvas, state, handlers) {
             <div style="flex:1; min-height:0; position:relative; background:#f1f5f9; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1;">
               <iframe id="stage3-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; min-height:540px; border:none; display:block;" allow="clipboard-read; clipboard-write"></iframe>
               ${isFinalSubmitted ? `
-                <div style="position:absolute; top:12px; right:12px; z-index:99; pointer-events:none; display:flex; align-items:center; justify-content:center;" title="🔒 论文终稿已全员提交归档锁定">
+                <div style="position:absolute; top:12px; right:12px; z-index:99; pointer-events:none; display:flex; align-items:center; justify-content:center;" title="🔒 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿已全员提交归档锁定">
                   <div style="background:rgba(15,23,42,0.85); color:#ffffff; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; pointer-events:none; box-shadow:0 4px 12px rgba(0,0,0,0.18); display:flex; align-items:center; gap:6px;">
-                    <span>🔒 论文终稿已全员提交归档 (只读查阅模式)</span>
+                    <span>🔒 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿已全员提交归档 (只读查阅模式)</span>
                   </div>
                 </div>
               ` : ''}
@@ -2520,7 +2523,7 @@ function renderStage3Canvas(canvas, state, handlers) {
   if (tabEditor) {
     tabEditor.addEventListener('click', () => {
       if (!isRevisionFullyConfirmed) {
-        alert(`⚠️ 需组内全员确认进入终稿修改后，方可解锁进入【修改论文终稿】协同编辑！\n\n当前确认进度：${confirmedRevCount}/${totalCount} 人已确认。\n请提醒组内其他同学点击右上角【✍️ 确认进入终稿修改】！`);
+        alert(`⚠️ 需组内全员确认进入终稿修改后，方可解锁进入【修改${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿】协同编辑！\n\n当前确认进度：${confirmedRevCount}/${totalCount} 人已确认。\n请提醒组内其他同学点击右上角【✍️ 确认进入终稿修改】！`);
         return;
       }
       handlers.onSwitchStage3Tab('editor');

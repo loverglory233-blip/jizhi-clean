@@ -9549,6 +9549,7 @@
 
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
     const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+    const taskGenreKey = currentTask?.taskType || 'experiment';
     const isTaskDeadlineExpired = isTaskExpired(currentTask);
     const taskGenreKey = currentTask?.taskType || 'experiment';
     const genreCfg = TASK_GENRE_CONFIGS[taskGenreKey] || TASK_GENRE_CONFIGS.experiment;
@@ -9858,7 +9859,7 @@
         <div id="stage1-contract-sign-action-mount" style="margin-top:20px; text-align:center; display:flex; justify-content:center; gap:12px; flex-wrap:wrap;">
           ${isContractLocked ? `
             <button id="btn-goto-stage2" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:13px 36px; border-radius:10px; font-weight:800; cursor:pointer; font-size:15px; box-shadow:0 4px 14px rgba(37,99,235,0.3); display:inline-flex; align-items:center; gap:8px;">
-              🚀 全员已签署完毕！前往【阶段二：学术编辑部】开始论文起草 →
+              🚀 全员已签署完毕！前往【${genreConfig.stage2Title}】开始${taskGenreKey === 'instructional' ? '教学设计' : '论文'}起草 →
             </button>
           ` : `
             <button id="btn-confirm-contract" style="background:${userHasConfirmed ? '#eff6ff' : 'linear-gradient(135deg, #059669, #047857)'}; border:1px solid ${userHasConfirmed ? '#bfdbfe' : 'transparent'}; color:${userHasConfirmed ? '#1d4ed8' : 'white'}; padding:13px 32px; border-radius:10px; font-weight:800; cursor:pointer; font-size:14.5px; box-shadow:0 3px 12px rgba(5,150,105,0.25);">
@@ -10612,6 +10613,7 @@
 
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
     const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+    const taskGenreKey = currentTask?.taskType || 'experiment';
     const isTaskDeadlineExpired = isTaskExpired(currentTask);
     const confirmedDraftMap = s2.confirmedMembers || {};
     const isMemberDone = (map, m) => {
@@ -11045,7 +11047,7 @@
         <!-- 🌟 1. 顶部紧凑一体化协作控制台 (高度仅 36px，集成字数、范文、会议打卡与初稿确认) -->
         <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:6px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; flex-shrink:0; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
           <div style="display:flex; align-items:center; gap:8px;">
-            <span style="font-size:13.5px; font-weight:800; color:#0f172a; display:inline-flex; align-items:center; gap:4px;">📝 论文正文协同起草</span>
+            <span style="font-size:13.5px; font-weight:800; color:#0f172a; display:inline-flex; align-items:center; gap:4px;">📝 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}正文协同起草</span>
             <span style="font-size:11.5px; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px; border:1px solid #bfdbfe; font-weight:800;">字数: <b id="stage2-word-count-num">${plainTextLen}</b> 字</span>
             <button id="btn-show-case" style="background:#ffffff; border:1px solid #cbd5e1; color:#1d4ed8; padding:2px 8px; border-radius:6px; font-size:11px; cursor:pointer; font-weight:700;">${paperBtnLabel}</button>
           </div>
@@ -11396,7 +11398,7 @@
       return `
         <div style="background:#ffffff; border:1px solid #bfdbfe; border-radius:12px; padding:36px 24px; text-align:center; box-shadow:0 4px 12px rgba(37,99,235,0.06);">
           <div style="font-size:36px; margin-bottom:12px;">⏳</div>
-          <div style="font-size:16px; font-weight:800; color:#1e40af; margin-bottom:6px;">答辩委员会专家正在审阅全篇论文初稿...</div>
+          <div style="font-size:16px; font-weight:800; color:#1e40af; margin-bottom:6px;">答辩委员会专家正在审阅全篇${((window.app && window.app.authManager) ? (window.app.authManager.getTasks().find(t => t.id === state.activeTaskId)?.taskType || 'experiment') : (state.taskType || 'experiment')) === 'instructional' ? '教学设计' : '论文'}初稿...</div>
           <div style="font-size:13px; color:#64748b; line-height:1.6;">正方委员正在提取立论亮点，反方委员正在研拟针对实质询。<br>【答辩与终稿修改清单】即将在此生成，并同步呈现在右侧研讨区，请稍候！</div>
         </div>
       `;
@@ -11489,6 +11491,7 @@
 
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
     const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+    const taskGenreKey = currentTask?.taskType || 'experiment';
     const isTaskDeadlineExpired = isTaskExpired(currentTask);
     const isFinalSubmitted = state.isFinalSubmitted || isAllFinalSubmitted || isTaskDeadlineExpired;
     const isDefenseLocked = isRevisionFullyConfirmed || isFinalSubmitted;
@@ -11557,7 +11560,7 @@
         actionBtnGroup.innerHTML = (activeTab === 'defense') ? (
           isDefenseLocked ? `
             <button disabled style="background:#f1f5f9; border:1px solid #cbd5e1; color:${isFinalSubmitted ? '#94a3b8' : '#059669'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:default;">
-              ${isFinalSubmitted ? '🔒 论文终稿已归档 (只读)' : '✅ 全员已确认进入终稿修改 (答辩已锁定)'}
+              ${isFinalSubmitted ? `🔒 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿已归档 (只读)` : '✅ 全员已确认进入终稿修改 (答辩已锁定)'}
             </button>
           ` : `
             <button id="btn-confirm-stage3-revision" ${isUserRevisionConfirmed ? 'disabled' : ''} style="background:${isUserRevisionConfirmed ? '#f1f5f9' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isUserRevisionConfirmed ? '1px solid #cbd5e1' : 'none'}; color:${isUserRevisionConfirmed ? '#2563eb' : 'white'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:${isUserRevisionConfirmed ? 'default' : 'pointer'}; box-shadow:${isUserRevisionConfirmed ? 'none' : '0 2px 8px rgba(37,99,235,0.2)'};">
@@ -11567,7 +11570,7 @@
         ) : (
           state.isFinalSubmitted ? `
             <button disabled style="background:#ecfdf5; border:1px solid #a7f3d0; color:#059669; padding:8px 18px; border-radius:8px; font-weight:700; cursor:default; font-size:13px;">
-              🔒 论文终稿已全员提交归档
+              🔒 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿已全员提交归档
             </button>
           ` : (isUserFinalSubmitted ? `
             <button disabled style="background:#f1f5f9; border:1px solid #cbd5e1; color:#059669; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:default;">
@@ -11575,7 +11578,7 @@
             </button>
           ` : `
             <button id="btn-final-submit" style="background:linear-gradient(135deg, #059669, #047857); border:none; color:white; padding:8px 18px; border-radius:8px; font-weight:700; cursor:pointer; font-size:13px; box-shadow:0 3px 10px rgba(5,150,105,0.25);">
-              🚀 确认提交论文终稿
+              🚀 确认提交${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿
             </button>
           `)
         );
@@ -11618,7 +11621,7 @@
           <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:14px 18px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; box-shadow:0 2px 8px rgba(37,99,235,0.08);">
             <div>
               <div style="font-size:14px; font-weight:800; color:#1e40af; display:flex; align-items:center; gap:8px;">
-                <span>🔒 本组论文终稿与评估报告已全员成功归档提交至教师端！</span>
+                <span>🔒 本组${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿与评估报告已全员成功归档提交至教师端！</span>
               </div>
               <div style="font-size:12px; color:#475569; margin-top:3px;">请组内每位成员点击右侧按钮进入【课程协作体验与 SSRL 效果评估问卷】填写界面。</div>
             </div>
@@ -11631,17 +11634,17 @@
         <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:8px 12px; flex-shrink:0; box-shadow:0 1px 3px rgba(15,23,42,0.04); flex-wrap:wrap; gap:8px;">
           <div style="gap:10px; display:flex; flex-wrap:wrap;">
             <button id="tab-btn-defense" style="background:${activeTab === 'defense' ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : '#f1f5f9'}; border:none; color:${activeTab === 'defense' ? 'white' : '#475569'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer;">
-              🎓 答辩委员会质询与中间委员引导面板
+              🎓 答辩委员会质询与引导面板
             </button>
-            <button id="tab-btn-editor" style="background:${activeTab === 'editor' ? 'linear-gradient(135deg, #059669, #047857)' : (isRevisionFullyConfirmed ? '#f1f5f9' : '#f8fafc')}; border:${isRevisionFullyConfirmed ? 'none' : '1px dashed #cbd5e1'}; color:${activeTab === 'editor' ? 'white' : (isRevisionFullyConfirmed ? '#475569' : '#94a3b8')}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:${isRevisionFullyConfirmed ? 'pointer' : 'not-allowed'};" title="${isRevisionFullyConfirmed ? '切换至终稿协同修改' : '需组内全员确认进入终稿修改后解锁'}">
-              ${isRevisionFullyConfirmed ? '📝 修改论文终稿 (依据答辩意见完善正文)' : '📝 修改论文终稿 (🔒 需全员确认进入终稿修改后解锁)'}
+            <button id="tab-btn-editor" style="background:${activeTab === 'editor' ? 'linear-gradient(135deg, #059669, #047857)' : (isRevisionFullyConfirmed ? '#f1f5f9' : '#f8fafc')}; border:${isRevisionFullyConfirmed ? 'none' : '1px dashed #cbd5e1'}; color:${activeTab === 'editor' ? 'white' : (isRevisionFullyConfirmed ? '#475569' : '#94a3b8')}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:${isRevisionFullyConfirmed ? 'pointer' : 'not-allowed'};" title="${isRevisionFullyConfirmed ? `切换至${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿协同修改` : '需组内全员确认进入终稿修改后解锁'}">
+              ${isRevisionFullyConfirmed ? `📝 修改${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿 (依据答辩意见完善正文)` : `📝 修改${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿 (🔒 需全员确认进入终稿修改后解锁)`}
             </button>
           </div>
           <div id="stage3-action-btn-group" style="display:flex; gap:8px; align-items:center;">
             ${activeTab === 'defense' ? (
               isDefenseLocked ? `
                 <button disabled style="background:#f1f5f9; border:1px solid #cbd5e1; color:${isFinalSubmitted ? '#94a3b8' : '#059669'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:default;">
-                  ${isFinalSubmitted ? '🔒 论文终稿已归档 (只读)' : '✅ 全员已确认进入终稿修改 (答辩已锁定)'}
+                  ${isFinalSubmitted ? `🔒 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿已归档 (只读)` : '✅ 全员已确认进入终稿修改 (答辩已锁定)'}
                 </button>
               ` : `
                 <button id="btn-confirm-stage3-revision" ${isUserRevisionConfirmed ? 'disabled' : ''} style="background:${isUserRevisionConfirmed ? '#f1f5f9' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isUserRevisionConfirmed ? '1px solid #cbd5e1' : 'none'}; color:${isUserRevisionConfirmed ? '#2563eb' : 'white'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:${isUserRevisionConfirmed ? 'default' : 'pointer'}; box-shadow:${isUserRevisionConfirmed ? 'none' : '0 2px 8px rgba(37,99,235,0.2)'};">
@@ -11651,7 +11654,7 @@
             ) : (
               state.isFinalSubmitted ? `
                 <button disabled style="background:#ecfdf5; border:1px solid #a7f3d0; color:#059669; padding:8px 18px; border-radius:8px; font-weight:700; cursor:default; font-size:13px;">
-                  🔒 论文终稿已全员提交归档
+                  🔒 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿已全员提交归档
                 </button>
               ` : (isUserFinalSubmitted ? `
                 <button disabled style="background:#f1f5f9; border:1px solid #cbd5e1; color:#059669; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:default;">
@@ -11659,7 +11662,7 @@
                 </button>
               ` : `
                 <button id="btn-final-submit" style="background:linear-gradient(135deg, #059669, #047857); border:none; color:white; padding:8px 18px; border-radius:8px; font-weight:700; cursor:pointer; font-size:13px; box-shadow:0 3px 10px rgba(5,150,105,0.25);">
-                  🚀 确认提交论文终稿
+                  🚀 确认提交${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿
                 </button>
               `)
             )}
@@ -11700,7 +11703,7 @@
         <div class="card" id="stage3-defense-card" style="display:${activeTab === 'defense' ? 'block' : 'none'}; flex:1; overflow-y:auto; padding:20px; overscroll-behavior-y:contain; -webkit-overflow-scrolling:touch;">
           ${isRevisionFullyConfirmed && !isFinalSubmitted ? `
             <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:8px 14px; margin-bottom:12px; font-size:12.5px; color:#065f46; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
-              <span>🔒 全组已全员确认进入终稿修改！答辩裁决矩阵已锁定归档（只读查阅），请在【修改论文终稿】面板中完善正文。</span>
+              <span>🔒 全组已全员确认进入终稿修改！答辩裁决矩阵已锁定归档（只读查阅），请在【修改${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿】面板中完善正文。</span>
               <button onclick="document.getElementById('tab-btn-editor').click();" style="background:#059669; color:white; border:none; padding:4px 12px; border-radius:6px; font-size:11.5px; cursor:pointer; font-weight:700;">前往修改终稿 ➔</button>
             </div>
           ` : ''}
@@ -11750,7 +11753,7 @@
 
             return `
               <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 论文全篇终稿大正文 ${isEditorReadonly ? '<span style="font-size:11.5px; color:#059669; margin-left:6px; background:#ecfdf5; padding:2px 8px; border-radius:6px; border:1px solid #a7f3d0;">🔒 终稿已归档/截止锁定 · 100% 只读防篡改保护</span>' : '(依据答辩意见实时协同修改终稿 · Etherpad 毫秒级引擎)'}</span>
+                <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}全篇终稿大正文 ${isEditorReadonly ? '<span style="font-size:11.5px; color:#059669; margin-left:6px; background:#ecfdf5; padding:2px 8px; border-radius:6px; border:1px solid #a7f3d0;">🔒 终稿已归档/截止锁定 · 100% 只读防篡改保护</span>' : '(依据答辩意见实时协同修改终稿 · Etherpad 毫秒级引擎)'}</span>
                 <div style="display:flex; align-items:center; gap:8px;">
                   <span style="font-size:11px; background:${isEditorReadonly ? '#f1f5f9' : '#ecfdf5'}; color:${isEditorReadonly ? '#64748b' : '#059669'}; border:1px solid ${isEditorReadonly ? '#cbd5e1' : '#a7f3d0'}; padding:2px 8px; border-radius:10px; font-weight:700;">${isEditorReadonly ? '🔒 只读归档' : '🟢 Etherpad 协同就绪'}</span>
                   <button onclick="const f=document.getElementById('stage3-etherpad-frame'); if(f) f.src=f.src;" style="background:transparent; color:#2563eb; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600;">🔄 刷新</button>
@@ -11759,9 +11762,9 @@
               <div style="flex:1; min-height:0; position:relative; background:#f1f5f9; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1;">
                 <iframe id="stage3-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; min-height:540px; border:none; display:block;" allow="clipboard-read; clipboard-write"></iframe>
                 ${isFinalSubmitted ? `
-                  <div style="position:absolute; top:12px; right:12px; z-index:99; pointer-events:none; display:flex; align-items:center; justify-content:center;" title="🔒 论文终稿已全员提交归档锁定">
+                  <div style="position:absolute; top:12px; right:12px; z-index:99; pointer-events:none; display:flex; align-items:center; justify-content:center;" title="🔒 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿已全员提交归档锁定">
                     <div style="background:rgba(15,23,42,0.85); color:#ffffff; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; pointer-events:none; box-shadow:0 4px 12px rgba(0,0,0,0.18); display:flex; align-items:center; gap:6px;">
-                      <span>🔒 论文终稿已全员提交归档 (只读查阅模式)</span>
+                      <span>🔒 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿已全员提交归档 (只读查阅模式)</span>
                     </div>
                   </div>
                 ` : ''}
@@ -11798,7 +11801,7 @@
     if (tabEditor) {
       tabEditor.addEventListener('click', () => {
         if (!isRevisionFullyConfirmed) {
-          alert(`⚠️ 需组内全员确认进入终稿修改后，方可解锁进入【修改论文终稿】协同编辑！\n\n当前确认进度：${confirmedRevCount}/${totalCount} 人已确认。\n请提醒组内其他同学点击右上角【✍️ 确认进入终稿修改】！`);
+          alert(`⚠️ 需组内全员确认进入终稿修改后，方可解锁进入【修改${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿】协同编辑！\n\n当前确认进度：${confirmedRevCount}/${totalCount} 人已确认。\n请提醒组内其他同学点击右上角【✍️ 确认进入终稿修改】！`);
           return;
         }
         handlers.onSwitchStage3Tab('editor');
@@ -14129,13 +14132,19 @@
             remainingMs = (taskStart + totalDurMs) - now;
           }
 
+          const taskType = this.getCurrentTaskType();
+          const isInst = (taskType === 'instructional');
+          const chairSenderName = isInst ? '答辩委员会主席' : '答辩委员会主席 · 中间委员';
+          const docName = isInst ? '教学设计' : '论文';
+          const chairShortTitle = isInst ? '答辩主席' : '中间委员';
+
           const exist5mReminder = s3Chats.some(m => m && m.sender === 'neutral' && (m.text?.includes('仅剩最后 5 分钟') || m.text?.includes('5 分钟终稿') || m.text?.includes('5分钟终稿')));
           if (!exist5mReminder && remainingMs <= 300000 && remainingMs > 0 && !this.state.isFinalSubmitted) {
             this._nudgeCounts['s3_5m_deadline_reminder'] = 1;
             const msg5m = {
               sender: 'neutral',
-              senderName: '答辩委员会主席 · 中间委员',
-              text: `⏳ 【中间委员·5分钟终稿归档冲刺】：关注到本次学术任务总时间仅剩最后 5 分钟！请全组成员加快节奏，在左侧【修改论文终稿】面板将答辩共识快速落实到正文中，并点击【🎓 确认提交终稿】完成归档！`,
+              senderName: chairSenderName,
+              text: `⏳ 【${chairShortTitle}·5分钟终稿归档冲刺】：关注到本次${isInst ? '教学设计' : '学术'}任务总时间仅剩最后 5 分钟！请全组成员加快节奏，在左侧【修改${docName}终稿】面板将答辩共识快速落实到正文中，并点击【🎓 确认提交${docName}终稿】完成归档！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now
             };
@@ -15139,6 +15148,11 @@
       const normAuthor = (authorName || '').trim();
       if (!normTitle) return;
 
+      const taskType = this.getCurrentTaskType();
+      const isInst = (taskType === 'instructional');
+      const agentRole = isInst ? '备课引导师' : '学术拍卖师';
+      const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
+
       // 🛡️ 1. 并发防抖与去重锁：防止同一提案同时发起多个请求造成刷屏与 Token 浪费
       this._inFlightEvaluations = this._inFlightEvaluations || new Set();
       const evalKey = `${normTitle}__${normAuthor}`;
@@ -15168,8 +15182,8 @@
       const thinkingAiMsg = {
         id: 'thinking_eval_' + Date.now(),
         sender: 'auctioneer',
-        senderName: '头脑风暴 · 学术拍卖师',
-        text: `⏳ 拍卖师正在研读评估《${normTitle}》（作者：${normAuthor}）的学术亮点与研讨启发...`,
+        senderName: agentSenderName,
+        text: `⏳ ${agentRole}正在研读评估《${normTitle}》（作者：${normAuthor}）的${isInst ? '教学构想与设计亮点' : '学术亮点与研讨启发'}...`,
         isThinking: true,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: Date.now()
@@ -15178,22 +15192,22 @@
       renderChat(this.state);
 
       const taskPrompt = `小组成员【${normAuthor}】在选题池${isModify ? '修改完善了' : '提出了新'}提案《${normTitle}》。
-  请作为资深学术拍卖师/备课引导师：
-  【最高审查红线】：先审查文本是否为乱码、无意义字符或空洞套话。若是，严禁虚构亮点，直接回复：“当前提交内容尚未形成可研讨的实质提案”，引导其交流思路或@拍卖师；
+  请作为资深${isInst ? '备课引导师/教学设计教研专家' : '学术拍卖师/实证研究专家'}：
+  【最高审查红线】：先审查文本是否为乱码、无意义字符或空洞套话。若是，严禁虚构亮点，直接回复：“当前提交内容尚未形成可研讨的实质提案”，引导其交流思路或@${agentRole}；
   若内容真实有效，请给出 100~130 字专业点评：
-  ① 肯定其最出彩的 1~2 个具体优点（如研究切口/方法构想，或情境导入/学情破局点）；
+  ① 肯定其最出彩的 1~2 个具体优点（${isInst ? '如教材学情破题/真实情境创设/活动主线设计' : '如研究切口/方法构想，或问题界定与逻辑严密性'}）；
   ② 提出 1 个启发性落地建议。
   严禁在末尾添加任何按钮指引，纯自然语言，100~130字。`;
 
       try {
-        const resp = await callCozeAgentAPI('auctioneer', taskPrompt, { stage: 'stage1', topic: normTitle });
+        const resp = await callCozeAgentAPI('auctioneer', taskPrompt, { stage: 'stage1', topic: normTitle, taskType });
         let speech = '';
         if (resp && resp.trim().length > 0) {
-          let cleanResp = resp.trim().replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:选题速评|提案速评|提案评估|落槌与方案研讨)?】[：:]\s*/g, '');
+          let cleanResp = resp.trim().replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师|备课引导师|引导师)[·\s]*(?:选题速评|提案速评|提案评估|落槌与方案研讨)?】[：:]\s*/g, '');
           if (!cleanResp.includes(`《${normTitle}》`) && !cleanResp.includes(normTitle)) {
-            speech = `🏛️ 【学术拍卖师·提案评估】：针对《${normTitle}》（${normAuthor} 提出）—— ${cleanResp.trim()}`;
+            speech = `🏛️ 【${agentRole}·提案评估】：针对《${normTitle}》（${normAuthor} 提出）—— ${cleanResp.trim()}`;
           } else {
-            speech = `🏛️ 【学术拍卖师·提案评估】：${cleanResp.trim()}`;
+            speech = `🏛️ 【${agentRole}·提案评估】：${cleanResp.trim()}`;
           }
         } else {
           throw new Error('Empty response from AI');
@@ -15202,7 +15216,7 @@
         const finalAiMsg = {
           id: 'eval_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
           sender: 'auctioneer',
-          senderName: '头脑风暴 · 学术拍卖师',
+          senderName: agentSenderName,
           text: speech,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
@@ -15252,8 +15266,8 @@
           const allCollectedMsg = {
             id: 'all_prop_' + Date.now(),
             sender: 'auctioneer',
-            senderName: '头脑风暴 · 学术拍卖师',
-            text: `🎪 【学术拍卖师·提案集齐与协同研讨】：太棒了！全组成员的提案与专家速评均已悉数亮相！请大家先在讨论区围绕各自提案的创新亮点与互补性展开 1~2 分钟的协同交流，深入了解彼此设想，随后点击左侧卡片投出关键的一票！`,
+            senderName: agentSenderName,
+            text: `🎪 【${agentRole}·提案集齐与协同研讨】：太棒了！全组成员的提案与专家速评均已悉数亮相！请大家先在讨论区围绕各自提案的创新亮点与互补性展开 1~2 分钟的协同交流，深入了解彼此设想，随后点击左侧卡片投出关键的一票！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now() + 100
           };
@@ -15273,8 +15287,8 @@
         const fallbackAiMsg = {
           id: errId,
           sender: 'auctioneer',
-          senderName: '头脑风暴 · 学术拍卖师',
-          text: `🏛️ 【学术拍卖师·网络提醒】：📡 智能体网络连接稍有延迟，未能获取到针对《${normTitle}》（作者：${normAuthor}）的即时评估。<br><button class="btn-retry-ai" onclick="window.app.retryProposalEvaluation(this, '${errId}', '${safeTitle}', '${safeAuthor}', ${isModify})" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成《${normTitle}》评估</button>`,
+          senderName: agentSenderName,
+          text: `🏛️ 【${agentRole}·网络提醒】：📡 智能体网络连接稍有延迟，未能获取到针对《${normTitle}》（作者：${normAuthor}）的即时评估。<br><button class="btn-retry-ai" onclick="window.app.retryProposalEvaluation(this, '${errId}', '${safeTitle}', '${safeAuthor}', ${isModify})" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成《${normTitle}》评估</button>`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
         };
@@ -15596,36 +15610,42 @@
         btnElement.innerHTML = `⏳ 正在重新提炼【主题与方案】...`;
       }
       const s1 = this.state.stage1 || {};
+      const taskType = this.getCurrentTaskType();
+      const isInst = (taskType === 'instructional');
+      const agentRole = isInst ? '备课引导师' : '学术拍卖师';
+      const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
+
       const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
       const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('投票结果出炉') || m.text.includes('全票通过') || m.text.includes('计票结果') || m.text.includes('落槌')));
       const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs;
       const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在商讨具体情境、案例与研究方法';
+      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || (isInst ? '组员正在商讨具体学情、教学情境与探究建构方法' : '组员正在商讨具体情境、案例与研究方法');
 
-      const currentCandidate = s1.mergedTitle || s1.contract?.topic || s1.proposals?.[0]?.title || '学术协同研究课题';
+      const defaultCandidateFallback = isInst ? '优质课教学设计方案' : '学术协同研究课题';
+      const currentCandidate = s1.mergedTitle || s1.contract?.topic || s1.proposals?.[0]?.title || defaultCandidateFallback;
       const allPropTitles = (s1.proposals || []).map(p => `《${p.title}》`).join('、');
 
-      const extractPrompt = `小组成员已在讨论区就论文研究主题及具体的研究方案展开了研讨。
+      const extractPrompt = `小组成员已在讨论区就${isInst ? '教学设计课题及具体的教学方案' : '论文研究主题及具体的研究方案'}展开了研讨。
   【候选提案参考】: ${allPropTitles || '多方提案'}
   【组内关于主题与方案的真实讨论记录】:
   ${chatSnippet}
 
-  请通读研讨，作为资深学术拍卖师：
-  1. 【规范论文题目】：提炼或规范化润色全组最终商定的严谨学术论文题名（20~35字，极具学术规范性，无书名号）；
-  2. 【研究方案概述】：根据学生讨论的具体情境、案例载体、核心科学问题与拟采用的方法，结构化生成 120~200 字的【研究方案概述】；
-  3. 【顺承引导】：给出 1 句简明点拨，顺承引导全组在讨论区商讨 6 大章节的时间预算分配！
+  请通读研讨，作为资深${agentRole}：
+  1. 【规范${isInst ? '教学课题名称' : '论文题目'}】：提炼或规范化润色全组最终商定的严谨${isInst ? '优质课教学设计课题名称' : '学术论文题名'}（20~35字，极具${isInst ? '教学规范性与新课标导向' : '学术规范性'}，无书名号）；
+  2. 【${isInst ? '教学方案概述' : '研究方案概述'}】：根据学生讨论的具体情境、案例载体、${isInst ? '教学重难点与拟采用的教学探究活动' : '核心科学问题与拟采用的方法'}，结构化生成 120~200 字的【${isInst ? '教学方案概述' : '研究方案概述'}】；
+  3. 【顺承引导】：给出 1 句简明点拨，顺承引导全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配！
   输出格式必须为合法 JSON（严禁代码块以外的多余废话）：
   {
-    "topic": "提炼后的规范论文题目",
-    "overview": "提炼后的研究方案概述，涵盖情境案例、核心问题与方法",
-    "guideText": "论文主题与研究方案概述已成功生成并录入公约！接下来请全组在讨论区商讨 6 大章节的时间预算分配，商定后点击【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！"
+    "topic": "提炼后的规范${isInst ? '教学课题' : '论文题目'}",
+    "overview": "提炼后的${isInst ? '教学方案概述，涵盖学情情境、教学目标重难点与探究活动' : '研究方案概述，涵盖情境案例、核心问题与方法'}",
+    "guideText": "${isInst ? '教学课题与教学方案概述' : '论文主题与研究方案概述'}已成功生成并录入公约！接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定后点击【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！"
   }`;
 
       try {
-        const resp = await callCozeAgentAPI('auctioneer', extractPrompt, { stage: 'stage1', topic: currentCandidate });
+        const resp = await callCozeAgentAPI('auctioneer', extractPrompt, { stage: 'stage1', topic: currentCandidate, taskType });
         let finalTopic = currentCandidate;
-        let finalOverview = '本研究围绕具体实践情境展开，聚焦核心问题，采用定性与定量相结合的研究方法进行深入探讨。';
-        let guideSpeech = `🎪 【拍卖师·方案确立】：主题《${finalTopic}》与研究方案概述已成功确立并录入公约！👉 接下来请全组在讨论区商讨 6 大章节的时间预算分配，商定完成后点击【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！`;
+        let finalOverview = isInst ? '本教学设计围绕具体学情与情境展开，聚焦核心教学目标与重难点，采用情境创设、新知探究与多元评价相结合的教学模式。' : '本研究围绕具体实践情境展开，聚焦核心问题，采用定性与定量相结合的研究方法进行深入探讨。';
+        let guideSpeech = `🎪 【${agentRole}·方案确立】：主题《${finalTopic}》与${isInst ? '教学' : '研究'}方案概述已成功确立并录入公约！👉 接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定完成后点击【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！`;
 
         if (resp && resp.trim().length > 0) {
           try {
@@ -15653,13 +15673,13 @@
         s1.researchOverview = finalOverview;
         s1.contractStep = 'time'; // 顺推至时间分配阶段
 
-        guideSpeech = guideSpeech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:方案确立|主题与方案确立|方案提炼)?】[：:]\s*/g, '');
-        const noticeText = `🏛️ 【学术拍卖师·主题与方案确立】：全组研究论题《${finalTopic}》与方案概述已成功提炼并录入公约看板！👉 接下来请全组在讨论区商讨 6 大章节的时间预算分配，商定完成后点击左侧【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！`;
+        guideSpeech = guideSpeech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师|备课引导师|引导师)[·\s]*(?:方案确立|主题与方案确立|方案提炼)?】[：:]\s*/g, '');
+        const noticeText = `🏛️ 【${agentRole}·主题与方案确立】：全组${isInst ? '教学论题' : '研究论题'}《${finalTopic}》与方案概述已成功提炼并录入公约看板！👉 接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定完成后点击左侧【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！`;
 
         const noticeMsg = {
           id: 'msg_topic_done_' + Date.now(),
           sender: 'auctioneer',
-          senderName: '头脑风暴 · 学术拍卖师',
+          senderName: agentSenderName,
           text: noticeText,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
@@ -15679,8 +15699,8 @@
         const errTopicMsg = {
           id: 'err_topic_' + Date.now(),
           sender: 'auctioneer',
-          senderName: '头脑风暴 · 学术拍卖师',
-          text: `🏛️ 【学术拍卖师·网络提醒】：📡 提炼《研究主题与方案》时网络连接稍有延迟，未能获取到即时草案。<br><button class="btn-retry-ai" onclick="window.app._doExtractTopic(this)" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新提炼【主题与方案】</button>`,
+          senderName: agentSenderName,
+          text: `🏛️ 【${agentRole}·网络提醒】：📡 提炼《${isInst ? '教学' : '研究'}主题与方案》时网络连接稍有延迟，未能获取到即时草案。<br><button class="btn-retry-ai" onclick="window.app._doExtractTopic(this)" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新提炼【主题与方案】</button>`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
         };
@@ -15710,6 +15730,11 @@
         btnElement.innerHTML = `⏳ 正在重新提炼【时间分配】...`;
       }
       const s1 = this.state.stage1 || {};
+      const taskType = this.getCurrentTaskType();
+      const isInst = (taskType === 'instructional');
+      const agentRole = isInst ? '备课引导师' : '学术拍卖师';
+      const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
+
       const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
       const topicNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('主题确立') || m.text.includes('时间分配') || m.text.includes('时间规划')));
       const relevantLogs = (topicNoticeIdx >= 0) ? s1ChatLogs.slice(topicNoticeIdx) : s1ChatLogs;
@@ -15720,18 +15745,18 @@
       const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
       const totalDurationMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
 
-      const timePrompt = `小组成员已就学术论文 6 大章节的时间预算规划在讨论区展开了充分研讨。
-  【组内关于时间规划与各章节侧重的真实研讨记录】:
+      const timePrompt = `小组成员已就${isInst ? '教学设计方案 6 大模块' : '学术论文 6 大章节'}的时间预算规划在讨论区展开了充分研讨。
+  【组内关于时间规划与各${isInst ? '模块' : '章节'}侧重的真实研讨记录】:
   ${chatSnippet}
-  【参考论文写作总时长】: ${totalDurationMin} 分钟
+  【参考${isInst ? '备课设计' : '论文写作'}总时长】: ${totalDurationMin} 分钟
 
-  请通读上述真实讨论记录，作为资深学术拍卖师：
+  请通读上述真实讨论记录，作为资深${agentRole}：
   1. 深度分析小组成员的研讨意向与侧重：
-     - 若组员明确提到了某章节分配多少分钟，严格按照组员商定的时间分配；
-     - 若组员提到各章节“平分”或“均分”，则将总时长平分给各章；
-     - 若组员提到“重点在方法/重点在综述”，则显著增加对应章节的时间权重；
-     - 若组员未明确提及某章节具体数值，依据学术论文标准黄金比例（重点强化研究设计与方法）智能补齐，使 6 大章节总和约为 ${totalDurationMin} 分钟；
-  2. 给出 1 句专业且亲切的学术点拨（结合组员的研讨侧重点），宣布时间分配已录入公约，并顺承引导全组在讨论区商定各自负责的写作章节与任务分工！
+     - 若组员明确提到了某${isInst ? '模块' : '章节'}分配多少分钟，严格按照组员商定的时间分配；
+     - 若组员提到各${isInst ? '模块' : '章节'}“平分”或“均分”，则将总时长平分给各${isInst ? '模块' : '章'}；
+     - 若组员提到“重点在${isInst ? '新知探究与建构/情境创设' : '方法/重点在综述'}”，则显著增加对应${isInst ? '模块' : '章节'}的时间权重；
+     - 若组员未明确提及某${isInst ? '模块' : '章节'}具体数值，依据${isInst ? '教学设计方案黄金比例（重点强化新知探究与建构）' : '学术论文标准黄金比例（重点强化研究设计与方法）'}智能补齐，使 6 大${isInst ? '模块' : '章节'}总和约为 ${totalDurationMin} 分钟；
+  2. 给出 1 句专业且亲切的点拨（结合组员的研讨侧重点），宣布时间分配已录入公约，并顺承引导全组在讨论区商定各自负责的${isInst ? '撰写模块' : '写作章节'}与任务分工！
 
   输出格式必须为合法 JSON（严禁代码块以外的多余文字）：
   {
@@ -15741,13 +15766,13 @@
     "method": 40,
     "reflection": 20,
     "references": 10,
-    "guideText": "全篇 6 大章节时间预算已成功配置并录入公约看板！接下来请全组在讨论区商定各自负责认领的写作章节与任务分工！商定完成后点击左侧【👥 一键提炼任务分工】！"
+    "guideText": "全篇 6 大${isInst ? '模块' : '章节'}时间预算已成功配置并录入公约看板！接下来请全组在讨论区商定各自负责认领的${isInst ? '撰写模块' : '写作章节'}与任务分工！商定完成后点击左侧【👥 一键提炼任务分工】！"
   }`;
 
       try {
-        const resp = await callCozeAgentAPI('auctioneer', timePrompt, { stage: 'stage1', topic: s1.mergedTitle || '论文' });
+        const resp = await callCozeAgentAPI('auctioneer', timePrompt, { stage: 'stage1', topic: s1.mergedTitle || (isInst ? '教学设计' : '论文'), taskType });
         let timeAlloc = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
-        let guideSpeech = `全篇 6 大章节时间预算已成功配置并录入公约看板！👉 接下来请全组在讨论区商定各自负责认领的写作章节与任务分工！商定完成后点击左侧【👥 研讨差不多了？一键提炼任务分工】！`;
+        let guideSpeech = `全篇 6 大${isInst ? '模块' : '章节'}时间预算已成功配置并录入公约看板！👉 接下来请全组在讨论区商定各自负责认领的${isInst ? '撰写模块' : '写作章节'}与任务分工！商定完成后点击左侧【👥 研讨差不多了？一键提炼任务分工】！`;
 
         if (resp && resp.trim().length > 0) {
           try {
@@ -15776,13 +15801,13 @@
         s1.contract.timeAllocations = timeAlloc;
         s1.contractStep = 'tasks'; // 推进至第三步：任务分工
 
-        guideSpeech = guideSpeech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:时间预算确立|时间分配)?】[：:]\s*/g, '');
-        const noticeText = `🏛️ 【学术拍卖师·时间预算确立】：${guideSpeech}`;
+        guideSpeech = guideSpeech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师|备课引导师|引导师)[·\s]*(?:时间预算确立|时间分配)?】[：:]\s*/g, '');
+        const noticeText = `🏛️ 【${agentRole}·时间预算确立】：${guideSpeech}`;
 
         const noticeMsg = {
           id: 'msg_time_done_' + Date.now(),
           sender: 'auctioneer',
-          senderName: '头脑风暴 · 学术拍卖师',
+          senderName: agentSenderName,
           text: noticeText,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
@@ -15802,8 +15827,8 @@
         const errTimeMsg = {
           id: 'err_time_' + Date.now(),
           sender: 'auctioneer',
-          senderName: '头脑风暴 · 学术拍卖师',
-          text: `🏛️ 【学术拍卖师·网络提醒】：📡 提炼《时间预算分配》时网络连接稍有延迟，未能获取到即时分配方案。<br><button class="btn-retry-ai" onclick="window.app._doExtractTime(this)" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新提炼【时间分配】</button>`,
+          senderName: agentSenderName,
+          text: `🏛️ 【${agentRole}·网络提醒】：📡 提炼《时间预算分配》时网络连接稍有延迟，未能获取到即时分配方案。<br><button class="btn-retry-ai" onclick="window.app._doExtractTime(this)" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新提炼【时间分配】</button>`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
         };
@@ -15833,6 +15858,13 @@
         btnElement.innerHTML = `⏳ 正在重新提炼【任务分工】...`;
       }
       const s1 = this.state.stage1 || {};
+      const taskType = this.getCurrentTaskType();
+      const isInst = (taskType === 'instructional');
+      const agentRole = isInst ? '备课引导师' : '学术拍卖师';
+      const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
+      const stage2Title = isInst ? '阶段二：集体备课室' : '阶段二：学术编辑部';
+      const contractTitle = isInst ? '备课公约' : '学术公约';
+
       let members = [];
       if (Array.isArray(this.state.members)) members = this.state.members;
       else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
@@ -15843,32 +15875,37 @@
       const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
       const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在商定分工';
 
-      const membersInfo = members.map(m => `- ${m.name  || m.id}`).join('\n');
+      const membersInfo = members.map(m => `- ${m.name || m.id}`).join('\n');
 
-      const taskPrompt = `小组成员已在讨论区就 6 大章节的分工认领展开了商议。
+      const taskPrompt = `小组成员已在讨论区就 6 大${isInst ? '模块' : '章节'}的分工认领展开了商议。
   【小组成员名单】:
   ${membersInfo}
   【组内关于任务分工的真实研讨记录】:
   ${chatSnippet}
 
-  请通读研讨，作为资深学术拍卖师：
-  1. 提炼出每位组员具体负责的写作章节与任务描述（如“负责研究设计与方法、文献综述”）；
-  2. 给出 1 句恭喜小结，宣布公约草案已全部生成就绪，提醒全组在下方点击【✍️ 签署确认学术公约】！
+  请通读研讨，作为资深${agentRole}：
+  1. 提炼出每位组员具体负责的${isInst ? '撰写模块' : '写作章节'}与任务描述（如“${isInst ? '负责新知探究与建构、教材学情分析' : '负责研究设计与方法、文献综述'}”）；
+  2. 给出 1 句恭喜小结，宣布公约草案已全部生成就绪，提醒全组在下方点击【✍️ 签署确认${contractTitle}】！
   输出格式必须为合法 JSON（严禁多余废话）：
   {
     "assignments": {
-      "组员姓名1": "负责章节描述",
-      "组员姓名2": "负责章节描述"
+      "组员姓名1": "负责模块描述",
+      "组员姓名2": "负责模块描述"
     },
-    "guideText": "太棒了！全组成员分工已全部生成就绪！请全员核对左侧公约并在下方点击【✍️ 签署确认学术公约】！全员签署后将正式解锁【阶段二：学术编辑部】！"
+    "guideText": "太棒了！全组成员分工已全部生成就绪！请全员核对左侧公约并在下方点击【✍️ 签署确认${contractTitle}】！全员签署后将正式解锁【${stage2Title}】！"
   }`;
 
       try {
-        const resp = await callCozeAgentAPI('auctioneer', taskPrompt, { stage: 'stage1', topic: s1.mergedTitle || '论文' });
+        const resp = await callCozeAgentAPI('auctioneer', taskPrompt, { stage: 'stage1', topic: s1.mergedTitle || (isInst ? '教学设计' : '论文'), taskType });
         let taskAssignments = {};
-        let guideSpeech = `📜 【拍卖师·公约生成完毕】：🎉 太棒了！全组成员分工与公约内容已全部生成就绪！👉 请全组成员核对左侧公约内容，并在下方点击【✍️ 签署确认学术公约】！全员签署后将正式解锁【阶段二：学术编辑部】！`;
+        let guideSpeech = `📜 【${agentRole}·公约生成完毕】：🎉 太棒了！全组成员分工与公约内容已全部生成就绪！👉 请全组成员核对左侧公约内容，并在下方点击【✍️ 签署确认${contractTitle}】！全员签署后将正式解锁【${stage2Title}】！`;
 
-        const defaultTasks = [
+        const defaultTasks = isInst ? [
+          '负责“一、教材与学情分析”及“二、教学目标与重难点”起草',
+          '负责“三、情境创设与导入”及“四、新知探究与建构”方案设计',
+          '负责“五、巩固练习与评价”撰写及“六、板书设计与反思”梳理',
+          '负责教学多媒体课件与实验/活动道具设计'
+        ] : [
           '负责“一、研究背景与意义”及“二、文献综述”起草',
           '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定',
           '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对',
@@ -15876,7 +15913,7 @@
         ];
 
         members.forEach((m, idx) => {
-          const mKey = m.id   || m.name;
+          const mKey = m.id || m.name;
           taskAssignments[mKey] = defaultTasks[idx % defaultTasks.length];
         });
 
@@ -15887,7 +15924,7 @@
               const parsed = safeJsonParse(jsonMatch[0]);
               if (parsed && parsed.assignments && typeof parsed.assignments === 'object') {
                 members.forEach((m, idx) => {
-                  const mKey = m.id   || m.name;
+                  const mKey = m.id || m.name;
                   const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id] || parsed.assignments[m.id];
                   if (matchedVal) taskAssignments[mKey] = matchedVal;
                 });
@@ -15908,13 +15945,13 @@
         s1.contract._draftedTime = Date.now();
         s1.contractStep = 'completed'; // 提炼全部完成
 
-        guideSpeech = guideSpeech.replace(/^(?:📜|🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:公约生成完毕|任务分工|草案就绪)?】[：:]\s*/g, '');
-        const noticeText = `🏛️ 【学术拍卖师·公约草案就绪】：全组成员写作分工已成功配置，公约草案已全部生成就绪！👉 请全员在左侧下方点击【✍️ 签署确认学术公约】，全员签署后开启阶段二！`;
+        guideSpeech = guideSpeech.replace(/^(?:📜|🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师|备课引导师|引导师)[·\s]*(?:公约生成完毕|任务分工|草案就绪)?】[：:]\s*/g, '');
+        const noticeText = `🏛️ 【${agentRole}·公约草案就绪】：全组成员分工已成功配置，公约草案已全部生成就绪！👉 请全员在左侧下方点击【✍️ 签署确认${contractTitle}】，全员签署后开启${stage2Title}！`;
 
         const noticeMsg = {
           id: 'msg_tasks_done_' + Date.now(),
           sender: 'auctioneer',
-          senderName: '头脑风捕 · 学术拍卖师',
+          senderName: agentSenderName,
           text: noticeText,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
@@ -15934,8 +15971,8 @@
         const errTasksMsg = {
           id: 'err_tasks_' + Date.now(),
           sender: 'auctioneer',
-          senderName: '头脑风暴 · 学术拍卖师',
-          text: `🏛️ 【学术拍卖师·网络提醒】：📡 提炼《全员任务分工》时网络连接稍有延迟，未能获取到即时分工配置。<br><button class="btn-retry-ai" onclick="window.app._doExtractTasks(this)" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新提炼【任务分工】</button>`,
+          senderName: agentSenderName,
+          text: `🏛️ 【${agentRole}·网络提醒】：📡 提炼《全员任务分工》时网络连接稍有延迟，未能获取到即时分工配置。<br><button class="btn-retry-ai" onclick="window.app._doExtractTasks(this)" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新提炼【任务分工】</button>`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
         };
@@ -15997,7 +16034,19 @@
       const defaultTopic = s1.mergedTitle || s1.contract?.topic || (s1.proposals && s1.proposals[0] ? s1.proposals[0].title : (curTask?.title || '基于深度协作的学术探究与实践'));
       const membersInfo = membersList.map(m => `- 姓名: ${m.name || '组员'} (学号: ${m.id  || '无'})`).join('\n');
 
-      const defaultTasks = [
+      const taskType = this.getCurrentTaskType();
+      const isInst = (taskType === 'instructional');
+      const agentRole = isInst ? '备课引导师' : '学术拍卖师';
+      const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
+      const stage2Title = isInst ? '阶段二：集体备课室' : '阶段二：学术编辑部';
+      const contractTitle = isInst ? '备课公约' : '学术公约';
+
+      const defaultTasks = isInst ? [
+        '负责“一、教材与学情分析”及“二、教学目标与重难点”起草',
+        '负责“三、情境创设与导入”及“四、新知探究与建构”方案设计',
+        '负责“五、巩固练习与评价”撰写及“六、板书设计与反思”梳理',
+        '负责教学多媒体课件与实验/活动道具设计'
+      ] : [
         '负责“一、研究背景与意义”及“二、文献综述”起草',
         '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定',
         '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对',
@@ -16131,8 +16180,8 @@
         const errFullMsg = {
           id: 'err_full_contract_' + Date.now(),
           sender: 'auctioneer',
-          senderName: '头脑风暴 · 学术拍卖师',
-          text: `🏛️ 【学术拍卖师·网络提醒】：📡 一键生成《全套公约草案》时网络连接稍有延迟，未能获取到完整草案。<br><button class="btn-retry-ai" onclick="window.app._doOneClickGenerateContract(this)" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成【全套公约草案】</button>`,
+          senderName: agentSenderName,
+          text: `🏛️ 【${agentRole}·网络提醒】：📡 一键生成《全套公约草案》时网络连接稍有延迟，未能获取到完整草案。<br><button class="btn-retry-ai" onclick="window.app._doOneClickGenerateContract(this)" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成【全套公约草案】</button>`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
         };
@@ -16164,11 +16213,11 @@
       s1.contractStep = 'completed'; // 提炼全部完成，左侧3个分步按钮全部退场
       s1.flowStep = 'refining';
 
-      const noticeText = `🏛️ 【学术拍卖师·全盘公约就绪】：全篇研究主题《${finalTopic}》、时间规划与组员分工已全部提炼生成并录入左侧公约看板！👉 请全组成员在左侧公约卡片仔细核对自己的分工与时间，并在公约下方点击【✍️ 签署确认学术公约】！全员签署后将正式解锁【阶段二：学术编辑部】！`;
+      const noticeText = `🏛️ 【${agentRole}·全盘公约就绪】：全篇${isInst ? '教学课题' : '研究主题'}《${finalTopic}》、时间规划与组员分工已全部提炼生成并录入左侧公约看板！👉 请全组成员在左侧公约卡片仔细核对自己的分工与时间，并在公约下方点击【✍️ 签署确认${contractTitle}】！全员签署后将正式解锁【${stage2Title}】！`;
       const noticeMsg = {
         id: 'msg_full_contract_done_' + Date.now(),
         sender: 'auctioneer',
-        senderName: '头脑风暴 · 学术拍卖师',
+        senderName: agentSenderName,
         text: noticeText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: Date.now()
@@ -16255,11 +16304,18 @@
       if (confirmedCount >= totalMembersCount) {
         s1.contract.isConfirmed = true;
         this.state.groupMaxStage = 'stage2';
+        const taskType = this.getCurrentTaskType();
+        const isInst = (taskType === 'instructional');
+        const agentRole = isInst ? '备课引导师' : '学术拍卖师';
+        const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
+        const stage2Title = isInst ? '阶段二：集体备课室' : '阶段二：学术编辑部';
+        const contractTitle = isInst ? '备课合作公约' : '学术合作公约';
+
         const finalMsg = {
           id: 'msg_contract_signed_' + Date.now(),
           sender: 'auctioneer',
-          senderName: '头脑风暴 · 学术拍卖师',
-          text: `🏛️ 【学术拍卖师宣布】：🎉 恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 名成员已全部完成公约签署确认！学术合作公约正式生效锁定，阶段一圆满结束！请同学们开启阶段二开始正文协同撰写！`,
+          senderName: agentSenderName,
+          text: `🏛️ 【${agentRole}宣布】：🎉 恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 名成员已全部完成公约签署确认！${contractTitle}正式生效锁定，阶段一圆满结束！请同学们开启${stage2Title}开始正文协同${isInst ? '备课' : '撰写'}！`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
         };
@@ -16278,9 +16334,9 @@
           sessionStorage.setItem(autoKey, '1');
           this.showStageMilestoneModal({
             icon: '🎉',
-            title: '全组成员已全部签署《学术合作公约》！',
-            subtitle: `组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成公约签署确认！学术合作公约正式生效锁定，阶段一圆满结束！`,
-            targetName: '阶段二：学术编辑部',
+            title: `全组成员已全部签署《${contractTitle}》！`,
+            subtitle: `组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成公约签署确认！${contractTitle}正式生效锁定，阶段一圆满结束！`,
+            targetName: stage2Title,
             onProceed: () => {
               this.switchStage('stage2', true);
             }
@@ -16735,17 +16791,23 @@
 
       const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '论文方案';
 
+      const taskType = this.getCurrentTaskType();
+      const isInst = (taskType === 'instructional');
+      const docName = isInst ? '教学设计' : '论文';
+      const chairSenderName = isInst ? '答辩委员会主席' : '答辩委员会主席 · 中间委员';
+      const chairShort = isInst ? '答辩主席' : '中间委员';
+
       const evalInquiryPrompt = `小组成员已就核心课题《${topic}》针对【反方质询 ${inqLabel}】在研讨区展开了辩护与修改商议。
   【反方原始质询】: ${currentInquiry.comment || currentInquiry.content}
   【小组成员的真实辩护讨论记录】:
   ${chatSnippet}
 
-  请作为答辩委员会主席（中间委员），发表【答辩审阅定案与顺推裁决】：
-  1. 【提炼答辩共识与修改承诺】：精准提炼全组成员达成的核心辩护陈述、理论/实证论据与终稿具体修改对策（用于回填归档，120~180字）；
+  请作为答辩委员会主席，发表【答辩审阅定案与顺推裁决】：
+  1. 【提炼答辩共识与修改承诺】：精准提炼全组成员达成的核心辩护陈述、${isInst ? '教学设计理念/学情考量' : '理论/实证论据'}与终稿具体修改对策（用于回填归档，120~180字）；
   2. 【委员会定案与推进】：
      ${remainingOppCount > 0
        ? `① 宣布【${inqLabel}】辩护有效并予以采纳，答辩陈述已定案回填入库；\n② 【单题顺推】：顺承引导全组将焦点转向【${nextLabel}】展开深入研讨，并给出 1 条启发性思路点拨！`
-       : `① 宣布全部质询辩护完毕且均获委员会全票认可，已全部定案；\n② 发表答辩终审裁决总结，祝贺团队圆满通过学术答辩，提醒全组点击左侧【修改论文终稿】面板，将答辩修改落实到正文中准备最终归档！`}
+       : `① 宣布全部质询辩护完毕且均获委员会全票认可，已全部定案；\n② 发表答辩终审裁决总结，祝贺团队圆满通过答辩，提醒全组点击左侧【修改${docName}终稿】面板，将答辩修改落实到正文中准备最终归档！`}
   请按以下格式输出：
   答辩陈述：[提取 80~100 字逻辑严密、论据充分的正式答辩词与终稿修改对策，用于回填左侧矩阵]
   主席发言：[100~130 字自然语言点评与顺推裁决]`;
@@ -16763,8 +16825,8 @@
         const resp = await callCozeAgentAPI('neutral', evalInquiryPrompt, { stage: 'stage3', topic });
         let extractedResponse = chatSnippet.slice(0, 150);
         let chairSpeech = (remainingOppCount > 0)
-          ? `🟡 【中间委员·答辩定案与顺推】：【${inqLabel}】辩护方案已定案归档！👉 请全组将研讨焦点转向【${nextLabel}】，继续在讨论区商定对策！商定后点击上方【💡 ${nextLabel} 讨论差不多了？帮我总结并填入】！`
-          : `🟡 【中间委员·答辩终审总结与裁决】：🎉 各位研究者，全部质询均已辩护定案并获委员会全票认可！答辩圆满顺利通过！👉 请全组成员点击左侧【修改论文终稿】面板，将答辩中的修改共识落实到论文终稿正文中，准备最终归档！`;
+          ? `🟡 【${chairShort}·答辩定案与顺推】：【${inqLabel}】辩护方案已定案归档！👉 请全组将研讨焦点转向【${nextLabel}】，继续在讨论区商定对策！商定后点击上方【💡 ${nextLabel} 讨论差不多了？帮我总结并填入】！`
+          : `🟡 【${chairShort}·答辩终审总结与裁决】：🎉 各位${isInst ? '备课教师' : '研究者'}，全部质询均已辩护定案并获委员会全票认可！答辩圆满顺利通过！👉 请全组成员点击左侧【修改${docName}终稿】面板，将答辩中的修改共识落实到${docName}终稿正文中，准备最终归档！`;
 
         if (resp && resp.trim().length > 0) {
           const lines = resp.trim().split('\n');
@@ -16844,9 +16906,15 @@
       const logs = this.state.chatLogs[stage];
       const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-      // 🎪 阶段一：拍卖师欢迎开场白
+      // 🎪 阶段一：引导师/拍卖师欢迎开场白
       if (stage === 'stage1') {
-        const hasAuctioneerIntro = logs.some(m => m && (m.sender === 'auctioneer' || (m.id && String(m.id).includes('auctioneer'))) && (m.text?.includes('阶段一') || m.text?.includes('拍卖会') || m.text?.includes('拍卖师开场')));
+        const taskType = this.getCurrentTaskType();
+        const isInst = (taskType === 'instructional');
+        const agentRole = isInst ? '备课引导师' : '学术拍卖师';
+        const stage1Title = isInst ? '阶段一：备课工作坊' : '阶段一：学术拍卖会';
+        const contractTitle = isInst ? '备课公约' : '学术合作公约';
+
+        const hasAuctioneerIntro = logs.some(m => m && (m.sender === 'auctioneer' || (m.id && String(m.id).includes('auctioneer'))) && (m.text?.includes('阶段一') || m.text?.includes('拍卖会') || m.text?.includes('备课工作坊') || m.text?.includes('拍卖师开场') || m.text?.includes('引导师开场')));
         if (!hasAuctioneerIntro) {
           sessionStorage.setItem(welcomeFlagKey, '1');
           const welcomeMsg = {
@@ -16856,8 +16924,8 @@
             taskId: taskId,
             stage: 'stage1',
             sender: 'auctioneer',
-            senderName: '学术拍卖师',
-            text: `🎪 【拍卖师开场】：欢迎来到【阶段一：学术拍卖会】！我是本阶段的选题顾问拍卖师。\n请全组成员点击左侧【提交我的选题】提出各自的研究构想，并在研讨区充分交流。我们将通过拍卖投票遴选最佳提案，并在下方《学术合作公约》中商定分工与时间分配！`,
+            senderName: agentRole,
+            text: `🎪 【${isInst ? '引导师开场' : '拍卖师开场'}】：欢迎来到【${stage1Title}】！我是本阶段的${isInst ? '备课与教研顾问引导师' : '选题顾问拍卖师'}。\n请全组成员点击左侧【提交我的选题】提出各自的${isInst ? '教学设计与课题构想' : '研究构想'}，并在研讨区充分交流。我们将通过${isInst ? '研讨投票' : '拍卖投票'}遴选最佳提案，并在下方《${contractTitle}》中商定分工与时间分配！`,
             timestamp: now,
             _timeMs: Date.now()
           };
@@ -16871,8 +16939,14 @@
 
       // 🤝 阶段二：必须小组真实已推进至阶段二（groupMaxStage 为 stage2/3 或公约已确认）时才触发
       else if (stage === 'stage2' && (this.state.groupMaxStage === 'stage2' || this.state.groupMaxStage === 'stage3' || this.state.stage1?.contract?.isConfirmed)) {
-        const hasManagingIntro = logs.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('欢迎来到【阶段二：学术编辑部】') || m.text?.includes('责任编辑开场') || m.text?.includes('责任编辑·开场')));
-        const hasReviewingIntro = logs.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('审稿编辑·开场') || m.text?.includes('审稿编辑开场')));
+        const taskType = this.getCurrentTaskType();
+        const isInst = (taskType === 'instructional');
+        const managingName = isInst ? '备课组长' : '责任编辑';
+        const reviewingName = isInst ? '教研专家' : '审稿编辑';
+        const stage2Title = isInst ? '阶段二：集体备课室' : '阶段二：学术编辑部';
+
+        const hasManagingIntro = logs.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('阶段二') || m.text?.includes('开场欢迎') || m.text?.includes('开场')));
+        const hasReviewingIntro = logs.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('开场寄语') || m.text?.includes('开场')));
 
         const curClassId = this.state.activeClassId || this.state.activeStudentClassId || null;
         const availablePapers = (this.authManager) ? this.authManager.getReferencePapers(groupId, curClassId, taskId) : [];
@@ -16890,8 +16964,8 @@
             taskId: taskId,
             stage: 'stage2',
             sender: 'managingEditor',
-            senderName: '责任编辑 · 过程学伴',
-            text: `🤝 【责任编辑·开场欢迎】：各位研究者，欢迎来到【阶段二：学术编辑部】！全组已锁定研究主题《${topic}》。请大家根据公约设想展开协同起草，主动研读同伴起草的段落，共同打通前后逻辑！请进入左侧富文本编辑器开启深度协作！`,
+            senderName: isInst ? '备课组长 · 过程学伴' : '责任编辑 · 过程学伴',
+            text: `🤝 【${managingName}·开场欢迎】：各位${isInst ? '备课教师' : '研究者'}，欢迎来到【${stage2Title}】！全组已锁定${isInst ? '教学课题' : '研究主题'}《${topic}》。请大家根据公约设想展开协同${isInst ? '备课起草' : '起草'}，主动研读同伴起草的段落，共同打通前后${isInst ? '教学' : '学术'}逻辑！请进入左侧富文本编辑器开启深度协作！`,
             timestamp: now,
             _timeMs: Date.now()
           };
@@ -16899,7 +16973,7 @@
           this.sendSingleChatMessage(managingWelcome, 'stage2');
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
 
-          // 🛡️ 审稿编辑规则：必须在【责任编辑之后】发言，且【仅当当前任务下发了范文/文献】时才说开场白
+          // 🛡️ 审稿编辑/教研专家规则：必须在【责任编辑/备课组长之后】发言，且【仅当当前任务下发了范文/文献】时才说开场白
           if (hasPapers && !hasReviewingIntro) {
             setTimeout(() => {
               const reviewingWelcome = {
@@ -16909,8 +16983,8 @@
                 taskId: taskId,
                 stage: 'stage2',
                 sender: 'reviewingEditor',
-                senderName: '审稿编辑 · 质量把关',
-                text: `📝 【审稿编辑·开场寄语】：大家好！我是本阶段的审稿编辑。在大家的写作过程中，我将分别在开篇破题、半程研讨与终审定稿三个关键节点为大家提供质检把脉与修改清单，护航全篇学术质量！👉 写作遇到瓶颈时，建议大家参考顶部【学术范文】与参考文献支架，学习规范的学术行文与章节论述架构！`,
+                senderName: isInst ? '教研专家 · 质量把关' : '审稿编辑 · 质量把关',
+                text: `📝 【${reviewingName}·开场寄语】：大家好！我是本阶段的${reviewingName}。在大家的${isInst ? '教学设计' : '写作'}过程中，我将分别在开篇破题、半程${isInst ? '磨课' : '研讨'}与终审定稿三个关键节点为大家提供质检把脉与修改清单，护航全篇${isInst ? '教学设计' : '学术'}质量！👉 遇到瓶颈时，建议大家参考顶部【${isInst ? '教学范例' : '学术范文'}】与参考资料支架，学习规范的${isInst ? '教学设计与活动探究架构' : '学术行文与章节论述架构'}！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: Date.now()
               };
@@ -16920,7 +16994,6 @@
             }, 2000);
           }
         } else if (hasManagingIntro && hasPapers && !hasReviewingIntro) {
-          // 责任编辑已开场，但有文献且审稿编辑尚未开场时，紧随责任编辑之后发言
           setTimeout(() => {
             const reviewingWelcome = {
               id: `msg_welcome_${taskId}_${groupId}_stage2_reviewing`,
@@ -16929,8 +17002,8 @@
               taskId: taskId,
               stage: 'stage2',
               sender: 'reviewingEditor',
-              senderName: '审稿编辑 · 质量把关',
-              text: `📝 【审稿编辑·开场寄语】：大家好！我是本阶段的审稿编辑。在大家的写作过程中，我将分别在开篇破题、半程研讨与终审定稿三个关键节点为大家提供质检把脉与修改清单，护航全篇学术质量！👉 写作遇到瓶颈时，建议大家参考顶部【学术范文】与参考文献支架，学习规范的学术行文与章节论述架构！`,
+              senderName: isInst ? '教研专家 · 质量把关' : '审稿编辑 · 质量把关',
+              text: `📝 【${reviewingName}·开场寄语】：大家好！我是本阶段的${reviewingName}。在大家的${isInst ? '教学设计' : '写作'}过程中，我将分别在开篇破题、半程${isInst ? '磨课' : '研讨'}与终审定稿三个关键节点为大家提供质检把脉与修改清单，护航全篇${isInst ? '教学设计' : '学术'}质量！👉 遇到瓶颈时，建议大家参考顶部【${isInst ? '教学范例' : '学术范文'}】与参考资料支架，学习规范的${isInst ? '教学设计与活动探究架构' : '学术行文与章节论述架构'}！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now()
             };
@@ -16979,14 +17052,21 @@
           this.renderStudentWorkspace();
         }
 
-        // 1. 中间委员开场（如果尚未开场）
-        const hasNeutralIntro = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('欢迎来到【阶段三') || m.text?.includes('中间委员开场')));
+        const taskType = this.getCurrentTaskType();
+        const isInst = (taskType === 'instructional');
+        const chairName = isInst ? '答辩委员会主席' : '答辩委员会主席 · 中间委员';
+        const chairShort = isInst ? '答辩主席' : '中间委员';
+        const stage3Title = isInst ? '阶段三：答辩评审会' : '阶段三：答辩擂台';
+        const docName = isInst ? '教学设计' : '论文';
+
+        // 1. 中间委员/答辩主席开场（如果尚未开场）
+        const hasNeutralIntro = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('欢迎来到【阶段三') || m.text?.includes('开场')));
         if (!hasNeutralIntro) {
           const neutralWelcome = {
             id: `msg_s3_neutral_welcome_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
             sender: 'neutral',
-            senderName: '中间委员 · 裁决引导',
-            text: `🟡 【中间委员开场】：各位研究者，欢迎来到【阶段三：答辩擂台】！初稿撰写完毕，答辩委员会已就位。正反两方评审专家正在通读审阅全篇论文，请大家稍候！`,
+            senderName: chairName,
+            text: `🟡 【${chairShort}开场】：各位${isInst ? '备课教师' : '研究者'}，欢迎来到【${stage3Title}】！初稿撰写完毕，答辩评审委员会已就位。正反两方评审专家正在通读审阅全篇${docName}，请大家稍候！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now()
           };
@@ -17140,13 +17220,13 @@
           ? oppMatches.map(s => s.trim()).filter(s => s.length > 0)
           : [oppBody];
         this.state.stage3.feedbackItems = [
-          { id: 'fb_prop', role: 'proponent', speaker: '正方委员 Agent (肯定支持)', title: '立论支持', content: propText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, ''), response: '', status: 'pending' }
+          { id: 'fb_prop', role: 'proponent', speaker: isInst ? '正方评审专家 (肯定支持)' : '正方委员 Agent (肯定支持)', title: '立论支持', content: propText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, ''), response: '', status: 'pending' }
         ];
         oppQueries.forEach((q, i) => {
           this.state.stage3.feedbackItems.push({
             id: 'fb_opp_' + (i + 1),
             role: 'opponent',
-            speaker: '反方委员 Agent (尖锐质询)',
+            speaker: isInst ? '反方质询专家 (针对实质询)' : '反方委员 Agent (尖锐质询)',
             title: '质询 ' + (i + 1),
             content: q,
             response: '',
@@ -17274,13 +17354,19 @@
       const isTaskDeadlineExpired = isTaskExpired(currentTaskObj);
 
       // 🛡️ 阶段防越权门禁：未达成里程碑解锁时，禁止学生随意点击跳级（截止只读查阅模式下或已归档时全阶段自由放行浏览）
+      const currentTaskType = this.getCurrentTaskType();
+      const isInstStage = (currentTaskType === 'instructional');
+      const s2Name = isInstStage ? '【阶段二：集体备课室】' : '【阶段二：学术编辑部】';
+      const s3Name = isInstStage ? '【阶段三：答辩评审会】' : '【阶段三：答辩擂台】';
+      const contractDocName = isInstStage ? '备课公约' : '学术公约';
+
       if (!isTaskDeadlineExpired && !this.state.isFinalSubmitted && newStage === 'stage2' && !isMilestoneAdvance && !isContractSigned && currentGroupOrder < 2) {
-        alert('⚠️ 暂未解锁【阶段二：学术编辑部】！\n请先在阶段一完成学术公约的签署与分工确认，方可进入阶段二。');
+        alert(`⚠️ 暂未解锁${s2Name}！\n请先在阶段一完成${contractDocName}的签署与分工确认，方可进入阶段二。`);
         return;
       }
 
       if (!isTaskDeadlineExpired && !this.state.isFinalSubmitted && targetOrder > currentGroupOrder && !isMilestoneAdvance) {
-        const stageTitles = { stage2: '【阶段二：学术编辑部】', stage3: '【阶段三：答辩擂台】' };
+        const stageTitles = { stage2: s2Name, stage3: s3Name };
         alert(`⚠️ 暂未解锁 ${stageTitles[newStage] || newStage}！\n必须先在当前阶段完成公约签署与阶段任务后，系统将自动全组解锁推进。`);
         return;
       }
@@ -18951,8 +19037,13 @@
       this.state.stage2PendingReviewing = null;
       this.syncStage2();
 
-      // 1. 责任编辑出场做【一致性研讨小结】并交棒 (支持大模型针对具体讨论内容的深度研判总结)
-      const managingText = customManagingSummary || `🤝 【责任编辑·一致性研讨小结】：太好了，看到全组已经在讨论区对齐了修改主线！下面有请审稿编辑通读全文草稿，为大家进行深度学术质检，并下发【3 项半程修正清单】！`;
+      const taskType = this.getCurrentTaskType();
+      const isInst = (taskType === 'instructional');
+      const managingName = isInst ? '备课组长' : '责任编辑';
+      const reviewingName = isInst ? '教研专家' : '审稿编辑';
+
+      // 1. 备课组长/责任编辑出场做【一致性研讨小结】并交棒 (支持大模型针对具体讨论内容的深度研判总结)
+      const managingText = customManagingSummary || `🤝 【${managingName}·一致性研讨小结】：太好了，看到全组已经在讨论区对齐了修改主线！下面有请${reviewingName}通读全文草稿，为大家进行深度${isInst ? '教研质检' : '学术质检'}，并下发【3 项半程修正清单】！`;
       const consensusMsg = {
         sender: 'managingEditor',
         text: managingText,
@@ -18996,7 +19087,11 @@
       this.state.stage2.actionPlan = {
         isGenerated: true,
         completedMap: {},
-        items: [
+        items: isInst ? [
+          `🎯【消除前后脱节与教学分歧】(重点关注: ${ctx.transFocus}): 完善第四章新知探究与建构，确保能有效达成前文制定的教学目标与突破重难点，消除“两张皮”脱节硬伤，使教学主线一贯到底！`,
+          `✍️【统一语言文风与教学术语】(重点关注: ${ctx.styleFocus}): 通读全篇，消除口语化随意表达，润色为规范严谨的教学设计规范语体，统一全篇核心概念与活动设计命名。`,
+          `💡【攻克瓶颈与反思评价冲刺】: 按照自查瓶颈（${ctx.bAcademic}），细化教学活动实施，并在第五、六章深入完善巩固练习评价与板书反思，把控节奏，准备初稿定稿！`
+        ] : [
           `🎯【消除前后脱节与构思分歧】(重点关注: ${ctx.transFocus}): 完善第四章方法与测量工具，确保能有效检验前文提出的全部核心假设，消除“两张皮”脱节硬伤，使主线一贯到底！`,
           `✍️【统一语言文风与专业术语】(重点关注: ${ctx.styleFocus}): 通读全篇，消除口语化表达与第一人称叙述，润色为规范严谨的客观学术语体，统一全篇核心概念命名。`,
           `💡【攻克瓶颈与局限反思冲刺】: 按照自查瓶颈（${ctx.bAcademic}），细化实施设计，并在即将起草的第五章深入剖析方案潜在局限，把控节奏，准备初稿定稿！`
