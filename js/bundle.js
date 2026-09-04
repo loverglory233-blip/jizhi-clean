@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2711
+ * Version: 20260905_v2712
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2711';
+  const APP_VERSION = '20260905_v2712';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1793,6 +1793,9 @@
             this.isGlobalMetaLoaded = true;
             if (data.version !== undefined) {
               this.globalMetaVersion = parseInt(data.version, 10);
+              if (window.app && window.app.cloudSyncEngine) {
+                window.app.cloudSyncEngine._lastKnownMetaVer = this.globalMetaVersion;
+              }
             }
             if (data.unchanged) {
               return; // ⚡ 极速早退：服务端版本未变，0 开销
@@ -2108,6 +2111,19 @@
                   surveyIframe.src = newUrl;
                 }
               }
+              if (appInst && appInst.state && appInst.state.studentViewMode === 'workspace') {
+                if (document.querySelector('.modal-overlay h3')?.innerText?.includes('课程协作学习与体验问卷')) {
+                  if (typeof appInst.showQuestionnaireModal === 'function') {
+                    appInst.showQuestionnaireModal();
+                  }
+                }
+              }
+            }
+
+            // ⚡ 若学生正处于任务大厅模式，实时无感重新渲染任务列表
+            const appInst = window.app || (typeof this.app !== 'undefined' ? this.app : null);
+            if (appInst && appInst.state && appInst.state.studentViewMode === 'task_list' && typeof appInst.renderMain === 'function') {
+              appInst.renderMain();
             }
           }
         }
@@ -4666,7 +4682,19 @@
       const isTeacher = currentUser && (currentUser.isTeacher || currentUser.role === 'teacher');
       const isStudent = currentUser && (currentUser.role === 'student' || currentUser.isStudent);
       if (isStudent && (this.app.state.studentViewMode !== 'workspace' || !this.app.state.activeTaskId)) {
-        return; // 学生在大厅/登录页时，不拉取任何具体任务工作台的协同快照
+        if (this.app.authManager && typeof this.app.authManager.pullGlobalMeta === 'function') {
+          this.isPulling = true;
+          try {
+            await this.app.authManager.pullGlobalMeta();
+            if (this.app.state.studentViewMode === 'task_list' && typeof this.app.renderMain === 'function') {
+              this.app.renderMain();
+            }
+          } catch (e) {
+          } finally {
+            this.isPulling = false;
+          }
+        }
+        return; // 学生在大厅/登录页时，不拉取任何具体任务工作台的协同快照，但持续轮询全局元数据以实时感知新任务/通知
       }
       this.isPulling = true;
       this.updateScopeKeys();
@@ -5232,6 +5260,13 @@
               const newUrl = this.app.authManager.getSurveyUrl(cId, tId);
               if (newUrl && surveyIframe.src !== newUrl) {
                 surveyIframe.src = newUrl;
+              }
+            }
+            if (this.app && this.app.state && this.app.state.studentViewMode === 'workspace') {
+              if (document.querySelector('.modal-overlay h3')?.innerText?.includes('课程协作学习与体验问卷')) {
+                if (typeof this.app.showQuestionnaireModal === 'function') {
+                  this.app.showQuestionnaireModal();
+                }
               }
             }
           }

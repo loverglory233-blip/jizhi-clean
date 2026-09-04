@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2711';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2711';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2712';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2712';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -427,7 +427,19 @@ export class CloudSyncEngine {
     const isTeacher = currentUser && (currentUser.isTeacher || currentUser.role === 'teacher');
     const isStudent = currentUser && (currentUser.role === 'student' || currentUser.isStudent);
     if (isStudent && (this.app.state.studentViewMode !== 'workspace' || !this.app.state.activeTaskId)) {
-      return; // 学生在大厅/登录页时，不拉取任何具体任务工作台的协同快照
+      if (this.app.authManager && typeof this.app.authManager.pullGlobalMeta === 'function') {
+        this.isPulling = true;
+        try {
+          await this.app.authManager.pullGlobalMeta();
+          if (this.app.state.studentViewMode === 'task_list' && typeof this.app.renderMain === 'function') {
+            this.app.renderMain();
+          }
+        } catch (e) {
+        } finally {
+          this.isPulling = false;
+        }
+      }
+      return; // 学生在大厅/登录页时，不拉取任何具体任务工作台的协同快照，但持续轮询全局元数据以实时感知新任务/通知
     }
     this.isPulling = true;
     this.updateScopeKeys();
@@ -993,6 +1005,13 @@ export class CloudSyncEngine {
             const newUrl = this.app.authManager.getSurveyUrl(cId, tId);
             if (newUrl && surveyIframe.src !== newUrl) {
               surveyIframe.src = newUrl;
+            }
+          }
+          if (this.app && this.app.state && this.app.state.studentViewMode === 'workspace') {
+            if (document.querySelector('.modal-overlay h3')?.innerText?.includes('课程协作学习与体验问卷')) {
+              if (typeof this.app.showQuestionnaireModal === 'function') {
+                this.app.showQuestionnaireModal();
+              }
             }
           }
         }

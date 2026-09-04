@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2711';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice } from './utils.js?v=20260905_v2711';
+} from './constants.js?v=20260905_v2712';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice } from './utils.js?v=20260905_v2712';
 
 export class AuthManager {
   constructor() {
@@ -238,6 +238,9 @@ export class AuthManager {
           this.isGlobalMetaLoaded = true;
           if (data.version !== undefined) {
             this.globalMetaVersion = parseInt(data.version, 10);
+            if (window.app && window.app.cloudSyncEngine) {
+              window.app.cloudSyncEngine._lastKnownMetaVer = this.globalMetaVersion;
+            }
           }
           if (data.unchanged) {
             return; // ⚡ 极速早退：服务端版本未变，0 开销
@@ -553,6 +556,19 @@ export class AuthManager {
                 surveyIframe.src = newUrl;
               }
             }
+            if (appInst && appInst.state && appInst.state.studentViewMode === 'workspace') {
+              if (document.querySelector('.modal-overlay h3')?.innerText?.includes('课程协作学习与体验问卷')) {
+                if (typeof appInst.showQuestionnaireModal === 'function') {
+                  appInst.showQuestionnaireModal();
+                }
+              }
+            }
+          }
+
+          // ⚡ 若学生正处于任务大厅模式，实时无感重新渲染任务列表
+          const appInst = window.app || (typeof this.app !== 'undefined' ? this.app : null);
+          if (appInst && appInst.state && appInst.state.studentViewMode === 'task_list' && typeof appInst.renderMain === 'function') {
+            appInst.renderMain();
           }
         }
       }
