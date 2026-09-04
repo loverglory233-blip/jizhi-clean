@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2710';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2710';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2711';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2711';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -627,6 +627,25 @@ export class CloudSyncEngine {
               if (typeof this.app.checkUnreadAnnouncements === 'function') {
                 this.app.checkUnreadAnnouncements();
               }
+              // 📚 实时更新工作台参考范文按钮状态
+              const currentUser = this.app.authManager.getCurrentUser();
+              const effectiveClassId = this.app.authManager.getEffectiveStudentClassId(currentUser, this.app.state.activeTaskId);
+              const activeGroupObj = this.app.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
+              const groupId = this.app.state.activeGroupId || this.groupId || activeGroupObj?.id || currentUser?.groupId || null;
+              const available = this.app.authManager.getReferencePapers(groupId, effectiveClassId, this.app.state.activeTaskId);
+              const refBtn = document.getElementById('btn-show-case') || document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
+              if (refBtn) {
+                refBtn.innerText = available.length > 0 ? `📚 查阅参考范文 (${available.length}篇)` : '📚 查阅参考范文库';
+              }
+              if (document.querySelector('.modal-ref-papers-view') || (document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库'))) {
+                if (typeof this.app.showReferencePapersModal === 'function') {
+                  this.app.showReferencePapersModal();
+                }
+              }
+            } else if (this.app.state.studentViewMode === 'task_list') {
+              if (typeof this.app.renderMain === 'function') {
+                this.app.renderMain();
+              }
             }
           }).catch(() => {});
         }
@@ -806,14 +825,14 @@ export class CloudSyncEngine {
             this.app.authManager.sanitizeAndDeduplicateGroups();
           }
         }
-        if (Array.isArray(remoteData.announcements) && remoteData.announcements.length > 0) {
+        if (Array.isArray(remoteData.announcements)) {
           let deletedAnnIds = new Set();
           try {
             const delList = JSON.parse(localStorage.getItem('jizhi_deleted_ann_ids')) || [];
             if (Array.isArray(delList)) deletedAnnIds = new Set(delList);
           } catch (e) {}
 
-          const key = 'jizhi_pure_v10_ann_db';
+          const key = STORAGE_KEY_ANNOUNCEMENTS;
           const local = JSON.parse(localStorage.getItem(key) || '[]');
           const annMap = new Map();
 
@@ -823,13 +842,18 @@ export class CloudSyncEngine {
             }
           });
 
-          local.forEach(localAnn => {
-            if (!localAnn || !localAnn.id) return;
-            if (deletedAnnIds.has(localAnn.id)) return;
+          if (isTeacher) {
+            local.forEach(localAnn => {
+              if (!localAnn || !localAnn.id) return;
+              if (deletedAnnIds.has(localAnn.id)) return;
+              if (!annMap.has(localAnn.id)) {
+                annMap.set(localAnn.id, localAnn);
+              }
+            });
+          }
 
-            if (!annMap.has(localAnn.id)) {
-              annMap.set(localAnn.id, localAnn);
-            } else {
+          local.forEach(localAnn => {
+            if (localAnn && localAnn.id && annMap.has(localAnn.id)) {
               const remoteAnn = annMap.get(localAnn.id);
               const mergedReadStatus = { ...(remoteAnn.readStatus || {}), ...(localAnn.readStatus || {}) };
               const mergedGroupStatus = { ...(remoteAnn.readGroupStatus || {}), ...(localAnn.readGroupStatus || {}) };
@@ -857,9 +881,8 @@ export class CloudSyncEngine {
           });
 
           const merged = Array.from(annMap.values());
-          const trimmed = merged.slice(0, 15);
-          localStorage.setItem(key, JSON.stringify(trimmed));
-          localStorage.setItem('jizhi_pure_v10_announcements', JSON.stringify(trimmed));
+          localStorage.setItem(key, JSON.stringify(merged));
+          localStorage.setItem('jizhi_announcements_db', JSON.stringify(merged));
 
           // ⚡ 实时无感刷新顶部红点与未读通知弹窗
           if (this.app && typeof this.app.renderHeader === 'function') {
@@ -869,7 +892,8 @@ export class CloudSyncEngine {
             this.app.checkUnreadAnnouncements();
           }
         }
-        if (Array.isArray(remoteData.referencePapers) && remoteData.referencePapers.length > 0) {
+
+        if (Array.isArray(remoteData.referencePapers)) {
           let deletedPaperIds = new Set();
           try {
             const delList = JSON.parse(localStorage.getItem('jizhi_deleted_paper_ids')) || [];
@@ -887,33 +911,88 @@ export class CloudSyncEngine {
             }
           });
 
-          local.forEach(localP => {
-            if (localP && localP.id) {
-              if (deletedPaperIds.has(localP.id)) return;
-              if (!paperMap.has(localP.id)) {
-                paperMap.set(localP.id, localP);
+          if (isTeacher) {
+            local.forEach(localP => {
+              if (localP && localP.id) {
+                if (deletedPaperIds.has(localP.id)) return;
+                if (!paperMap.has(localP.id)) {
+                  paperMap.set(localP.id, localP);
+                }
               }
+            });
+          }
+
+          const merged = Array.from(paperMap.values());
+          localStorage.setItem(key, JSON.stringify(merged));
+          localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(merged));
+
+          // ⚡ 实时检查是否有属于当前班级/任务/小组的新文献下发并提醒
+          if (this.app && this.app.state && this.app.state.studentViewMode === 'workspace') {
+            const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
+            const effectiveClassId = this.app.authManager ? this.app.authManager.getEffectiveStudentClassId(currentUser, this.app.state.activeTaskId) : (this.app.state.activeStudentClassId || currentUser?.classId || null);
+            const activeGroupObj = this.app.authManager ? this.app.authManager.getStudentActiveGroup(currentUser, effectiveClassId) : null;
+            const groupId = this.app.state.activeGroupId || this.groupId || activeGroupObj?.id || currentUser?.groupId || null;
+            const available = this.app.authManager ? this.app.authManager.getReferencePapers(groupId, effectiveClassId, this.app.state.activeTaskId) : [];
+            const refBtn = document.getElementById('btn-show-case') || document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
+            if (refBtn) {
+              refBtn.innerText = available.length > 0 ? `📚 查阅参考范文 (${available.length}篇)` : '📚 查阅参考范文库';
+            }
+            const newRelevantPapers = available.filter(p => p && p.id && !localIds.has(p.id));
+            if (newRelevantPapers.length > 0) {
+              const newest = newRelevantPapers[0];
+              showGlobalBannerNotice(
+                '📚 收到新参考范文',
+                `任课教师刚刚发布了学术示范文献《${newest.title || '参考范文'}》，已存入范文库！可随时点击【📚 查阅参考范文】研读。`,
+                'info',
+                8000
+              );
+            }
+            if (document.querySelector('.modal-ref-papers-view') || (document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库'))) {
+              if (typeof this.app.showReferencePapersModal === 'function') {
+                this.app.showReferencePapersModal();
+              }
+            }
+          }
+        }
+
+        if (Array.isArray(remoteData.surveys)) {
+          let deletedSurveyIds = new Set();
+          try {
+            const delList = JSON.parse(localStorage.getItem('jizhi_deleted_survey_ids')) || [];
+            if (Array.isArray(delList)) deletedSurveyIds = new Set(delList);
+          } catch (e) {}
+
+          const key = 'jizhi_surveys_list_db';
+          const local = JSON.parse(localStorage.getItem(key) || '[]');
+          const surveyMap = new Map();
+
+          remoteData.surveys.forEach(s => {
+            if (s && s.id && !deletedSurveyIds.has(s.id)) {
+              surveyMap.set(s.id, s);
             }
           });
 
-          const merged = Array.from(paperMap.values());
-          const trimmed = merged.slice(0, 20);
-          localStorage.setItem(key, JSON.stringify(trimmed));
-          localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(trimmed));
+          if (isTeacher) {
+            local.forEach(localS => {
+              if (localS && localS.id) {
+                if (deletedSurveyIds.has(localS.id)) return;
+                if (!surveyMap.has(localS.id)) {
+                  surveyMap.set(localS.id, localS);
+                }
+              }
+            });
+          }
 
-          // ⚡ 实时检查是否有新文献下发并提醒
-          const newPapers = trimmed.filter(p => p && p.id && !localIds.has(p.id));
-          if (newPapers.length > 0 && this.app && this.app.state && this.app.state.studentViewMode === 'workspace') {
-            const newest = newPapers[0];
-            showGlobalBannerNotice(
-              '📚 收到新参考范文',
-              `任课教师刚刚发布了学术示范文献《${newest.title || '参考范文'}》，已存入范文库！可随时点击【📚 查阅参考范文】研读。`,
-              'info',
-              8000
-            );
-            const refBtn = document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
-            if (refBtn) {
-              refBtn.innerText = `📚 查阅参考范文 (${trimmed.length}篇)`;
+          localStorage.setItem(key, JSON.stringify(Array.from(surveyMap.values())));
+
+          const surveyIframe = document.getElementById('survey-iframe');
+          if (surveyIframe && this.app && this.app.authManager) {
+            const u = this.app.authManager.getCurrentUser();
+            const cId = this.app.state?.activeStudentClassId || u?.classId;
+            const tId = this.app.state?.activeTaskId;
+            const newUrl = this.app.authManager.getSurveyUrl(cId, tId);
+            if (newUrl && surveyIframe.src !== newUrl) {
+              surveyIframe.src = newUrl;
             }
           }
         }
@@ -963,31 +1042,6 @@ export class CloudSyncEngine {
     if (typeof window.renderChat === 'function') {
       window.renderChat(this.app.state);
     }
-
-    // ⚡ 天然随快照无缝更新通知与文献库，无损合并保留本地新增
-    if (Array.isArray(remoteData.announcements) && remoteData.announcements.length > 0) {
-      try {
-        const key = 'jizhi_pure_v10_ann_db';
-        const local = JSON.parse(localStorage.getItem(key) || '[]');
-        const remoteIds = new Set(remoteData.announcements.map(a => a.id));
-        const merged = [...remoteData.announcements];
-        local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
-        localStorage.setItem(key, JSON.stringify(merged));
-        localStorage.setItem('jizhi_announcements_db', JSON.stringify(merged));
-      } catch (e) {}
-    }
-    if (Array.isArray(remoteData.referencePapers) && remoteData.referencePapers.length > 0) {
-      try {
-        const key = 'jizhi_reference_papers_db';
-        const local = JSON.parse(localStorage.getItem(key) || '[]');
-        const remoteIds = new Set(remoteData.referencePapers.map(p => p.id));
-        const merged = [...remoteData.referencePapers];
-        local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
-        localStorage.setItem(key, JSON.stringify(merged));
-        localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(merged));
-      } catch (e) {}
-    }
-
     if (remoteData.isFinalSubmitted !== undefined) {
       const oldLockState = !!this.app.state.isFinalSubmitted;
       const newLockState = !!remoteData.isFinalSubmitted;
