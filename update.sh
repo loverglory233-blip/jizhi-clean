@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260904_v2507"
+TARGET_VERSION="20260904_v2508"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -385,7 +385,7 @@ EPSETEOF
   sleep 1
 
   cd "$EP_DIR"
-  rm -f var/minified* var/session* var/plugin-definitions.json var/plugins.json 2>/dev/null || true
+  rm -f var/minified* var/session* var/plugin-definitions.json var/plugins.json var/*.lock 2>/dev/null || true
   export NODE_ENV=production
 
   NODE_BIN=$(which node 2>/dev/null || true)
@@ -407,28 +407,32 @@ EPSETEOF
   fi
 
   EP_READY=0
-  for i in {1..20}; do
-    if curl -s -I http://127.0.0.1:9001/p/test 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
-      echo "   🟢 Etherpad 学术全插件协同引擎就绪！(耗时 $i 秒)"
+  for i in {1..12}; do
+    if curl -s -I --connect-timeout 2 --max-time 3 http://127.0.0.1:9001/p/test 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
+      echo "   🟢 Etherpad 学术协同引擎就绪！(耗时 $i 秒)"
       EP_READY=1
       break
     fi
+    echo -n "."
     sleep 1
   done
+  echo ""
 
   if [ $EP_READY -eq 0 ]; then
-    echo "   ⚠️ 首选通道拉起中，尝试 bin/run.sh 深度拉起..."
+    echo "   ⚠️ 尝试 bin/run.sh 深度通道拉起..."
     if [ -f "bin/run.sh" ]; then
       nohup bash bin/run.sh --root > /var/log/etherpad.log 2>&1 &
     fi
-    for i in {1..15}; do
-      if curl -s -I http://127.0.0.1:9001/p/test 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
-        echo "   🟢 Etherpad (bin/run.sh) 成功拉起就绪！"
+    for i in {1..8}; do
+      if curl -s -I --connect-timeout 2 --max-time 3 http://127.0.0.1:9001/p/test 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
+        echo "   🟢 Etherpad 协同引擎已成功上线！"
         EP_READY=1
         break
       fi
+      echo -n "."
       sleep 1
     done
+    echo ""
   fi
 fi
 
@@ -436,7 +440,7 @@ fi
 nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true)
 
 # 校验 Nginx 反代连通性
-NGINX_PAD_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/p/test 2>/dev/null || echo "000")
+NGINX_PAD_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 3 http://127.0.0.1/p/test 2>/dev/null || echo "000")
 echo "   📄 Nginx 协同路由 (/p/test) 连通测试状态码: $NGINX_PAD_STATUS"
 
 for dir in "${TARGET_DIRS[@]}"; do
