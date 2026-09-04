@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2410";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2410";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2410";
-import { AuthManager } from "./auth.js?v=20260904_v2410";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2410";
-import { renderLoginView } from "./login.js?v=20260904_v2410";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2410";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2410";
+} from "./constants.js?v=20260904_v2415";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2415";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2415";
+import { AuthManager } from "./auth.js?v=20260904_v2415";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2415";
+import { renderLoginView } from "./login.js?v=20260904_v2415";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2415";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2415";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2410";
+} from "./editor.js?v=20260904_v2415";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1355,8 +1355,30 @@ export class App {
           return 0;
         }
 
-        // 1. 阶段二开场进度关怀：开局达到 3 分钟完全静默且正文字数 < 50 字（全场严格最多 1 次）
-        if (silenceDurationMs >= s2SilenceThresholdMs && plainTextLen < 50) {
+        // 1. 阶段二开场进度关怀：开局进入阶段二达到 3 分钟（180秒），且全组正文字数依然 < 50 字（真正没有任何人动笔起草）
+        // 🛡️ 稳健多源实时正文字数提取（结合 DOM 实时角标、作者贡献统计与文档内容，防止单源延迟误判）
+        let effectiveDocLen = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
+        let contribSum = 0;
+        const contribs = s2.memberContributions || {};
+        Object.values(contribs).forEach(v => { contribSum += Number(v || 0); });
+        effectiveDocLen = Math.max(effectiveDocLen, contribSum);
+
+        const countBadge = (typeof document !== 'undefined') ? document.getElementById('stage2-word-count-num') : null;
+        if (countBadge && countBadge.innerText) {
+          const badgeNum = parseInt(countBadge.innerText.replace(/[^\d]/g, ''), 10);
+          if (!isNaN(badgeNum)) effectiveDocLen = Math.max(effectiveDocLen, badgeNum);
+        }
+        if (typeof this.lastPlainTextLength === 'number') {
+          effectiveDocLen = Math.max(effectiveDocLen, this.lastPlainTextLength);
+        }
+
+        // 🛡️ 若正文字数已经达到或超过 50 字（即已有同学开始起草），永久标记开场进度关怀不可触发
+        if (effectiveDocLen >= 50) {
+          this._nudgeCounts['s2_silence'] = 1;
+        }
+
+        const stage2ElapsedMs = now - (s2.startTime || this.stage2StartTime || now);
+        if (stage2ElapsedMs >= 180000 && effectiveDocLen < 50) {
           const count = this._nudgeCounts['s2_silence'] || 0;
           if (count < 1) {
             this.lastS2SilenceNudgeTime = now;
@@ -6407,8 +6429,8 @@ ${contentSnippet}
     const isLargeTask = this.state.activeTaskScale === 'large';
     const ssrlCooldownMs = isLargeTask ? 600000 : 480000;
     
-    // 🛡️ 严格聊天流去重与 8 分钟防重锁：若最近 8 分钟内已有协同关怀或进度关怀，坚决不重复发送！
-    const recentSsrlMsg = [...(logs || [])].reverse().find(m => m && m.sender === 'managingEditor' && (m.text?.includes('协同关怀') || m.text?.includes('进度关怀')));
+    // 🛡️ 贡献比协同关怀自身冷却（中任务 8 分钟 / 大任务 10 分钟）：若最近已下发过协同关怀，等待冷却结束
+    const recentSsrlMsg = [...(logs || [])].reverse().find(m => m && m.sender === 'managingEditor' && m.text?.includes('协同关怀'));
     if (recentSsrlMsg && (now - Number(recentSsrlMsg._timeMs || 0) < ssrlCooldownMs)) return;
     if (this.lastS2ContribNudgeTime && (now - this.lastS2ContribNudgeTime < ssrlCooldownMs)) return;
 
