@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2665
+ * Version: 20260905_v2666
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2665';
+  const APP_VERSION = '20260905_v2666';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3241,9 +3241,10 @@
 
       if ('BroadcastChannel' in window) {
         try {
-          const bc = new BroadcastChannel('jizhi_global_events');
-          bc.postMessage({ type: 'task_created', task: newTask });
-          bc.close();
+          if (!window._jizhiGlobalBc) {
+            window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
+          }
+          window._jizhiGlobalBc.postMessage({ type: 'task_created', task: newTask });
         } catch (e) {}
       }
 
@@ -3293,9 +3294,10 @@
 
       if ('BroadcastChannel' in window) {
         try {
-          const bc = new BroadcastChannel('jizhi_global_events');
-          bc.postMessage({ type: 'task_updated', task: tasks[taskIndex] });
-          bc.close();
+          if (!window._jizhiGlobalBc) {
+            window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
+          }
+          window._jizhiGlobalBc.postMessage({ type: 'task_updated', task: tasks[taskIndex] });
         } catch (e) {}
       }
       return tasks[taskIndex];
@@ -3346,8 +3348,10 @@
       // ⚡ 本地跨标签页 0 延迟广播
       if ('BroadcastChannel' in window) {
         try {
-          const bc = new BroadcastChannel('jizhi_global_events');
-          bc.postMessage({ type: 'task_extended', task: targetTask, prevDeadline: oldDeadline });
+          if (!window._jizhiGlobalBc) {
+            window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
+          }
+          window._jizhiGlobalBc.postMessage({ type: 'task_extended', task: targetTask, prevDeadline: oldDeadline });
         } catch (e) {}
       }
 
@@ -3417,9 +3421,10 @@
 
       if ('BroadcastChannel' in window) {
         try {
-          const bc = new BroadcastChannel('jizhi_global_events');
-          bc.postMessage({ type: 'task_deleted', taskId: taskId, title: deletedTaskTitle });
-          bc.close();
+          if (!window._jizhiGlobalBc) {
+            window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
+          }
+          window._jizhiGlobalBc.postMessage({ type: 'task_deleted', taskId: taskId, title: deletedTaskTitle });
         } catch (e) {}
       }
 
@@ -10381,6 +10386,14 @@
 
           // 3. 任务更新广播
           if (e.data && e.data.type === 'task_updated') {
+            if (authManager && e.data.task) {
+              const localTasks = authManager.getTasks();
+              const idx = localTasks.findIndex(lt => lt && lt.id === e.data.task.id);
+              if (idx >= 0) {
+                localTasks[idx] = { ...localTasks[idx], ...e.data.task };
+                try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
+              }
+            }
             renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
             return;
           }
@@ -14335,8 +14348,15 @@
             const isStudent = user && (user.role === 'student' || user.isStudent);
             if (!isStudent) return;
 
-            // 1. 教师发布全新任务：无需横幅弹窗，若学生在大厅则直接实时刷新呈现
+            // 1. 教师发布全新任务：本地同步装载并即时刷新
             if (e.data.type === 'task_created' && e.data.task) {
+              if (this.authManager) {
+                const localTasks = this.authManager.getTasks();
+                if (!localTasks.some(lt => lt && lt.id === e.data.task.id)) {
+                  localTasks.unshift(e.data.task);
+                  try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
+                }
+              }
               if (this.state.studentViewMode === 'task_list') {
                 this.renderMain();
               }
@@ -14346,6 +14366,11 @@
             if (e.data.type === 'task_deleted') {
               const delTaskId = e.data.taskId;
               const delTaskTitle = e.data.title || '写作任务';
+              if (this.authManager && delTaskId) {
+                let localTasks = this.authManager.getTasks();
+                localTasks = localTasks.filter(lt => lt && lt.id !== delTaskId);
+                try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
+              }
               // 1) 若学生刚好在被删除的任务工作台中：全屏模态弹窗强阻断，引导安全返回大厅
               if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId === delTaskId) {
                 this.showTaskRevokedModal(delTaskTitle);
@@ -14355,6 +14380,21 @@
                 this.renderMain();
               }
               // 3) 若在另一个任务工作台中：做减法，静默不打扰当前写作
+            }
+
+            // 2.5 教师更新任务
+            if (e.data.type === 'task_updated' && e.data.task) {
+              if (this.authManager) {
+                const localTasks = this.authManager.getTasks();
+                const idx = localTasks.findIndex(lt => lt && lt.id === e.data.task.id);
+                if (idx >= 0) {
+                  localTasks[idx] = { ...localTasks[idx], ...e.data.task };
+                  try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
+                }
+              }
+              if (this.state.studentViewMode === 'task_list') {
+                this.renderMain();
+              }
             }
 
             // 3. 教师发布教学通知（秒级拉取并在工作台即时弹出）
