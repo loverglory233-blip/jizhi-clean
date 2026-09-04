@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2650';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2650';
+} from './constants.js?v=20260905_v2651';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2651';
 
 export class AuthManager {
   constructor() {
@@ -300,6 +300,15 @@ export class AuthManager {
               return remoteT;
             });
             localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
+
+            // 🛡️ 核心守卫：若学生当前处于工作台模式，但所在写作任务已被教师删除，立即弹窗通知并返回任务大厅
+            if (window.app && window.app.state && window.app.state.studentViewMode === 'workspace' && window.app.state.activeTaskId) {
+              const isCurrentTaskAlive = mergedTasks.some(t => t && t.id === window.app.state.activeTaskId);
+              if (!isCurrentTaskAlive && !window.app._isHandlingTaskRevoked) {
+                window.app.showTaskRevokedModal(window.app.state.activeTaskTitle || '当前写作任务');
+                return;
+              }
+            }
 
             // ⏰ 检查任务截止时间是否延长并实时通知工作台
             if (window.app && window.app.cloudSyncEngine) {

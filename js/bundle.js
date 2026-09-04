@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2650
+ * Version: 20260905_v2651
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2650';
+  const APP_VERSION = '20260905_v2651';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1803,6 +1803,15 @@
                 return remoteT;
               });
               localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
+
+              // 🛡️ 核心守卫：若学生当前处于工作台模式，但所在写作任务已被教师删除，立即弹窗通知并返回任务大厅
+              if (window.app && window.app.state && window.app.state.studentViewMode === 'workspace' && window.app.state.activeTaskId) {
+                const isCurrentTaskAlive = mergedTasks.some(t => t && t.id === window.app.state.activeTaskId);
+                if (!isCurrentTaskAlive && !window.app._isHandlingTaskRevoked) {
+                  window.app.showTaskRevokedModal(window.app.state.activeTaskTitle || '当前写作任务');
+                  return;
+                }
+              }
 
               // ⏰ 检查任务截止时间是否延长并实时通知工作台
               if (window.app && window.app.cloudSyncEngine) {
@@ -4365,7 +4374,7 @@
       // 🌐 服务端全局教务与文献资源同步到本地（tasks/users/classes/announcements/referencePapers）
       // 教师一旦发布新范文或公告，学生端在任务工作台内 1~2 秒内自动无感对齐更新
       if (this.app.authManager) {
-        if (Array.isArray(remoteData.tasks) && remoteData.tasks.length > 0) {
+        if (Array.isArray(remoteData.tasks)) {
           const localTasks = this.app.authManager.getTasks();
           const mergedTasks = remoteData.tasks.map(remoteT => {
             const localT = localTasks.find(lt => lt.id === remoteT.id || (lt.title && lt.title === remoteT.title));
@@ -4379,6 +4388,15 @@
             return remoteT;
           });
           localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
+
+          // 🛡️ 核心守卫：若学生正在该工作台内写作，而任务已被教师在后台删除，立即弹窗引导返回大厅
+          if (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) {
+            const isCurrentTaskAlive = mergedTasks.some(t => t && t.id === this.app.state.activeTaskId);
+            if (!isCurrentTaskAlive && !this.app._isHandlingTaskRevoked) {
+              this.app.showTaskRevokedModal(this.app.state.activeTaskTitle || '当前写作任务');
+              return;
+            }
+          }
 
           mergedTasks.forEach(t => {
             if (!t || !t.id) return;
@@ -14649,6 +14667,16 @@
           return;
         }
 
+        // 🛡️ 核心守卫：如果学生处于工作台模式，但当前任务已被教师删除，立即弹窗拦截并返回任务大厅
+        const allTasks = this.authManager ? this.authManager.getTasks() : [];
+        if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
+          const isCurrentTaskAlive = allTasks.some(t => t && t.id === this.state.activeTaskId);
+          if (!isCurrentTaskAlive && !this._isHandlingTaskRevoked) {
+            this.showTaskRevokedModal(this.state.activeTaskTitle || '当前写作任务');
+            return;
+          }
+        }
+
         const membersList = Object.values(this.state.members || {});
         const curStage = this.state.currentStage || 'stage1';
         const curClassId = (this.state.activeStudentClassId || (currentUser?.classId || null));
@@ -16056,29 +16084,29 @@
       document.querySelectorAll('.modal-task-deleted-overlay').forEach(el => el.remove());
       const modal = document.createElement('div');
       modal.className = 'modal-overlay modal-task-deleted-overlay';
-      modal.style.cssText = 'z-index:999999; display:flex; align-items:center; justify-content:center; position:fixed; inset:0; background:rgba(15,23,42,0.65); backdrop-filter:blur(4px);';
+      modal.style.cssText = 'z-index:999999; display:flex; align-items:center; justify-content:center; position:fixed; inset:0; background:rgba(15,23,42,0.75); backdrop-filter:blur(6px);';
       modal.innerHTML = `
-        <div class="modal-card" style="background:#fff; border-radius:14px; max-width:440px; width:90%; padding:28px 24px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); text-align:center; animation:modalPop 0.25s cubic-bezier(0.16,1,0.3,1);">
-          <div style="width:54px; height:54px; border-radius:50%; background:#fee2e2; color:#ef4444; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:26px;">⚠️</div>
-          <h3 style="margin:0 0 10px; font-size:19px; color:#0f172a; font-weight:700;">任务已被教师撤销</h3>
-          <p style="margin:0 0 24px; font-size:14px; color:#475569; line-height:1.65;">
-            当前协作任务《<b>${escapeHtml(taskTitle)}</b>》已被任课教师从系统撤销或删除。<br/>
-            系统已为你安全返回任务大厅。
+        <div class="modal-card" style="background:#ffffff; border-radius:16px; max-width:440px; width:92%; padding:32px 26px; box-shadow:0 25px 60px -12px rgba(0,0,0,0.35); text-align:center; animation:modalPop 0.25s cubic-bezier(0.16,1,0.3,1); border:1.5px solid #fee2e2;">
+          <div style="width:60px; height:60px; border-radius:50%; background:#fee2e2; color:#ef4444; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:30px; box-shadow:0 4px 12px rgba(239,68,68,0.2);">🗑️</div>
+          <h3 style="margin:0 0 10px; font-size:20px; color:#0f172a; font-weight:800;">写作任务已被教师删除</h3>
+          <p style="margin:0 0 24px; font-size:14.5px; color:#475569; line-height:1.65;">
+            您当前所在的写作任务《<b style="color:#ef4444;">${escapeHtml(taskTitle)}</b>》已被任课教师在后台删除。<br/>
+            请点击下方按钮返回班级任务大厅。
           </p>
-          <button id="btn-return-portal-revoked" class="btn btn-primary" style="width:100%; padding:12px 18px; font-size:15px; font-weight:600; border-radius:8px; background:#2563eb; color:#fff; border:none; cursor:pointer;">我知道了</button>
+          <button id="btn-return-portal-revoked" class="btn btn-primary" style="width:100%; padding:12px 20px; font-size:15px; font-weight:700; border-radius:10px; background:linear-gradient(135deg, #2563eb, #1d4ed8); color:#fff; border:none; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.3);">🚪 返回任务大厅</button>
         </div>
       `;
       document.body.appendChild(modal);
 
       const closeModal = () => {
+        this._isHandlingTaskRevoked = false;
         if (document.body.contains(modal)) {
           modal.remove();
         }
+        this.renderMain();
       };
 
       modal.querySelector('#btn-return-portal-revoked')?.addEventListener('click', closeModal);
-      // 4 秒自动淡出关闭弹窗
-      setTimeout(closeModal, 4000);
     }
 
     renderHeader() {

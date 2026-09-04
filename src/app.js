@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2650";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2650";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2650";
-import { AuthManager } from "./auth.js?v=20260905_v2650";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2650";
-import { renderLoginView } from "./login.js?v=20260905_v2650";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2650";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2650";
+} from "./constants.js?v=20260905_v2651";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2651";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2651";
+import { AuthManager } from "./auth.js?v=20260905_v2651";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2651";
+import { renderLoginView } from "./login.js?v=20260905_v2651";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2651";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2651";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2650";
+} from "./editor.js?v=20260905_v2651";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -977,6 +977,16 @@ export class App {
           () => this.showQuestionnaireModal()
         );
         return;
+      }
+
+      // 🛡️ 核心守卫：如果学生处于工作台模式，但当前任务已被教师删除，立即弹窗拦截并返回任务大厅
+      const allTasks = this.authManager ? this.authManager.getTasks() : [];
+      if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
+        const isCurrentTaskAlive = allTasks.some(t => t && t.id === this.state.activeTaskId);
+        if (!isCurrentTaskAlive && !this._isHandlingTaskRevoked) {
+          this.showTaskRevokedModal(this.state.activeTaskTitle || '当前写作任务');
+          return;
+        }
       }
 
       const membersList = Object.values(this.state.members || {});
@@ -2386,29 +2396,29 @@ export class App {
     document.querySelectorAll('.modal-task-deleted-overlay').forEach(el => el.remove());
     const modal = document.createElement('div');
     modal.className = 'modal-overlay modal-task-deleted-overlay';
-    modal.style.cssText = 'z-index:999999; display:flex; align-items:center; justify-content:center; position:fixed; inset:0; background:rgba(15,23,42,0.65); backdrop-filter:blur(4px);';
+    modal.style.cssText = 'z-index:999999; display:flex; align-items:center; justify-content:center; position:fixed; inset:0; background:rgba(15,23,42,0.75); backdrop-filter:blur(6px);';
     modal.innerHTML = `
-      <div class="modal-card" style="background:#fff; border-radius:14px; max-width:440px; width:90%; padding:28px 24px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); text-align:center; animation:modalPop 0.25s cubic-bezier(0.16,1,0.3,1);">
-        <div style="width:54px; height:54px; border-radius:50%; background:#fee2e2; color:#ef4444; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:26px;">⚠️</div>
-        <h3 style="margin:0 0 10px; font-size:19px; color:#0f172a; font-weight:700;">任务已被教师撤销</h3>
-        <p style="margin:0 0 24px; font-size:14px; color:#475569; line-height:1.65;">
-          当前协作任务《<b>${escapeHtml(taskTitle)}</b>》已被任课教师从系统撤销或删除。<br/>
-          系统已为你安全返回任务大厅。
+      <div class="modal-card" style="background:#ffffff; border-radius:16px; max-width:440px; width:92%; padding:32px 26px; box-shadow:0 25px 60px -12px rgba(0,0,0,0.35); text-align:center; animation:modalPop 0.25s cubic-bezier(0.16,1,0.3,1); border:1.5px solid #fee2e2;">
+        <div style="width:60px; height:60px; border-radius:50%; background:#fee2e2; color:#ef4444; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:30px; box-shadow:0 4px 12px rgba(239,68,68,0.2);">🗑️</div>
+        <h3 style="margin:0 0 10px; font-size:20px; color:#0f172a; font-weight:800;">写作任务已被教师删除</h3>
+        <p style="margin:0 0 24px; font-size:14.5px; color:#475569; line-height:1.65;">
+          您当前所在的写作任务《<b style="color:#ef4444;">${escapeHtml(taskTitle)}</b>》已被任课教师在后台删除。<br/>
+          请点击下方按钮返回班级任务大厅。
         </p>
-        <button id="btn-return-portal-revoked" class="btn btn-primary" style="width:100%; padding:12px 18px; font-size:15px; font-weight:600; border-radius:8px; background:#2563eb; color:#fff; border:none; cursor:pointer;">我知道了</button>
+        <button id="btn-return-portal-revoked" class="btn btn-primary" style="width:100%; padding:12px 20px; font-size:15px; font-weight:700; border-radius:10px; background:linear-gradient(135deg, #2563eb, #1d4ed8); color:#fff; border:none; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.3);">🚪 返回任务大厅</button>
       </div>
     `;
     document.body.appendChild(modal);
 
     const closeModal = () => {
+      this._isHandlingTaskRevoked = false;
       if (document.body.contains(modal)) {
         modal.remove();
       }
+      this.renderMain();
     };
 
     modal.querySelector('#btn-return-portal-revoked')?.addEventListener('click', closeModal);
-    // 4 秒自动淡出关闭弹窗
-    setTimeout(closeModal, 4000);
   }
 
   renderHeader() {
