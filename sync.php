@@ -1511,18 +1511,39 @@ if ($action === 'get_pad_text' || $action === 'get_pad_html') {
         }
     }
 
-    // 3. 若 Etherpad 获取到的内容为空或极短，且当前小组数据库中保存有正文，作为只读兜底返回（绝不跨组抓取、绝不私自覆写 Pad）
+    // 3. 若 Etherpad 中仅包含初始默认占位符 ('啥意思捏' 或少于 10 字)，且当前小组在 MySQL 数据库中保存有真实正文，精确写回该 Pad 物理对齐
     $exactScopeKey = preg_replace('/^jizhi_/', '', $padId);
+    $extractedTid = '';
+    $extractedGid = '';
+    if (preg_match('/(task_[a-zA-Z0-9_-]+)/', $padId, $mt)) {
+        $extractedTid = $mt[1];
+    }
+    if (preg_match('/(group_\d+|group_[a-zA-Z0-9_-]+)/', $padId, $mg)) {
+        $extractedGid = $mg[1];
+    }
+
     if ((trim($retText) === '啥意思捏' || mb_strlen($retText, 'UTF-8') < 10) && $pdo) {
-        $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR scope_key = :sk2 ORDER BY updated_at DESC LIMIT 1");
-        $stmtDb->execute([':sk' => $exactScopeKey, ':sk2' => $scopeKey]);
+        if (!empty($extractedTid) && !empty($extractedGid)) {
+            $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR scope_key = :sk2 OR (task_id = :tid AND group_id = :gid) ORDER BY updated_at DESC LIMIT 1");
+            $stmtDb->execute([':sk' => $exactScopeKey, ':sk2' => $scopeKey, ':tid' => $extractedTid, ':gid' => $extractedGid]);
+        } else {
+            $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR scope_key = :sk2 ORDER BY updated_at DESC LIMIT 1");
+            $stmtDb->execute([':sk' => $exactScopeKey, ':sk2' => $scopeKey]);
+        }
         $rowDb = $stmtDb->fetch();
         if ($rowDb && !empty($rowDb['stage2_data'])) {
             $s2Data = json_decode($rowDb['stage2_data'], true);
             if (!empty($s2Data['unifiedContent'])) {
                 $uHtml = $s2Data['unifiedContent'];
                 $uStr = trim(strip_tags($uHtml));
-                if (mb_strlen($uStr, 'UTF-8') > 10) {
+                $uLen = mb_strlen($uStr, 'UTF-8');
+                if ($uLen > 10) {
+                    $setHUrl = "http://127.0.0.1:9001/api/1.2.14/setHTML?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId) . "&html=" . urlencode($uHtml);
+                    $chS = curl_init($setHUrl);
+                    curl_setopt($chS, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($chS, CURLOPT_TIMEOUT, 2);
+                    curl_exec($chS);
+                    curl_close($chS);
                     $retHtml = $uHtml;
                     $retText = $uStr;
                 }
@@ -1532,8 +1553,13 @@ if ($action === 'get_pad_text' || $action === 'get_pad_html') {
 
     // 4. 若 Etherpad 接口未获取到，从当前小组的 group_states 数据库无缝兜底获取学生回传的正文
     if (empty($retHtml) && empty($retText) && $pdo) {
-        $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR scope_key = :sk2 ORDER BY updated_at DESC LIMIT 1");
-        $stmtDb->execute([':sk' => $exactScopeKey, ':sk2' => $scopeKey]);
+        if (!empty($extractedTid) && !empty($extractedGid)) {
+            $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR scope_key = :sk2 OR (task_id = :tid AND group_id = :gid) ORDER BY updated_at DESC LIMIT 1");
+            $stmtDb->execute([':sk' => $exactScopeKey, ':sk2' => $scopeKey, ':tid' => $extractedTid, ':gid' => $extractedGid]);
+        } else {
+            $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR scope_key = :sk2 ORDER BY updated_at DESC LIMIT 1");
+            $stmtDb->execute([':sk' => $exactScopeKey, ':sk2' => $scopeKey]);
+        }
         $rowDb = $stmtDb->fetch();
         if ($rowDb && !empty($rowDb['stage2_data'])) {
             $s2Data = json_decode($rowDb['stage2_data'], true);

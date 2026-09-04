@@ -779,6 +779,22 @@ export function enforceEtherpadReadonly(iframe) {
             innerBody.style.setProperty('cursor', 'default', 'important');
             innerBody.style.setProperty('user-select', 'text', 'important');
             innerBody.style.setProperty('-webkit-user-select', 'text', 'important');
+
+            // 🛡️ 智能镜像自愈：若发现 Etherpad 渲染了默认空占位符 ('啥意思捏')，自动触发写回对齐并重载镜像
+            const rawBodyText = (innerBody.innerText || '').trim();
+            if (rawBodyText === '啥意思捏' && !iframe._hasRecoveredMirror) {
+              const currentGId = iframe.getAttribute('data-group') || window.app?.state?.activeMonitorGroupId;
+              const currentTId = iframe.getAttribute('data-task') || window.app?.state?.activeTaskId;
+              const padName = iframe.getAttribute('data-pad') || `jizhi_${currentTId}_${currentGId}`;
+              if (padName) {
+                iframe._hasRecoveredMirror = true;
+                fetch(`sync.php?action=get_pad_html&padId=${encodeURIComponent(padName)}`).then(r => r.json()).then(res => {
+                  if (res && res.success && res.text && res.text !== '啥意思捏' && res.text.length > 10) {
+                    setTimeout(() => { if (iframe.parentElement) iframe.src = iframe.src; }, 400);
+                  }
+                }).catch(() => {});
+              }
+            }
           }
 
           if (!innerDoc._jizhiReadonlyBound) {
