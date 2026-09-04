@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2535";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2535";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2535";
-import { AuthManager } from "./auth.js?v=20260904_v2535";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2535";
-import { renderLoginView } from "./login.js?v=20260904_v2535";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2535";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2535";
+} from "./constants.js?v=20260904_v2536";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2536";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2536";
+import { AuthManager } from "./auth.js?v=20260904_v2536";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2536";
+import { renderLoginView } from "./login.js?v=20260904_v2536";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2536";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2536";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2535";
+} from "./editor.js?v=20260904_v2536";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -247,6 +247,22 @@ export class App {
       }
       if (this.state.stage3?.startTime) {
         this.stage3StartTime = this.state.stage3.startTime;
+      }
+
+      // 🛡️ 阶段防越权自愈自净：若小组尚未正式确认签署阶段二初稿，严禁保留提前触发的阶段三答辩数据
+      if (!this.state.isFinalSubmitted && !this.state.stage2?.isDraftConfirmed) {
+        const correctMax = (this.state.stage1?.contract?.isConfirmed) ? 'stage2' : 'stage1';
+        this.state.groupMaxStage = correctMax;
+        if (this.state.currentStage === 'stage3') {
+          this.state.currentStage = correctMax;
+        }
+        if (this.state.stage3) {
+          this.state.stage3 = { feedbackItems: [], proponentAnalysis: null, opponentAnalysis: null, meetingSubmissions: {} };
+        }
+        if (this.state.chatLogs && this.state.chatLogs.stage3) {
+          this.state.chatLogs.stage3 = [];
+        }
+        this.state.stage3CommitteeLoading = false;
       }
     } else {
       // 🛡️ 切换到新组时，第1行代码立刻清空内存残留消息，彻底杜绝上一组的聊天残影
