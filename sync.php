@@ -1201,7 +1201,8 @@ if ($action === 'get_teacher_monitor_all_groups') {
                                 $jT = json_decode($resT, true);
                                 if (isset($jT['data']['text'])) $curPadTxt = trim($jT['data']['text']);
                             }
-                            if (empty($curPadTxt) || $curPadTxt === '啥意思捏' || mb_strlen($curPadTxt, 'UTF-8') < 10) {
+                            $isPadPlaceholder = empty($curPadTxt) || $curPadTxt === '啥意思捏' || strpos($curPadTxt, '啥意思捏') !== false || strpos($curPadTxt, 'Welcome to Etherpad') !== false || mb_strlen($curPadTxt, 'UTF-8') < 10;
+                            if ($isPadPlaceholder) {
                                 $chS = curl_init("http://127.0.0.1:9001/api/1.2.14/setHTML?apikey=" . urlencode($epApiKey) . "&padID=" . urlencode($tPid) . "&html=" . urlencode($uHtml));
                                 curl_setopt($chS, CURLOPT_RETURNTRANSFER, true);
                                 curl_setopt($chS, CURLOPT_TIMEOUT, 1);
@@ -1636,7 +1637,8 @@ if ($action === 'get_pad_text' || $action === 'get_pad_html') {
         $extractedGid = $mg[1];
     }
 
-    if ((trim($retText) === '啥意思捏' || mb_strlen($retText, 'UTF-8') < 10) && $pdo) {
+    $isPadPlaceholder = empty($retText) || trim($retText) === '啥意思捏' || strpos($retText, '啥意思捏') !== false || strpos($retText, 'Welcome to Etherpad') !== false || mb_strlen($retText, 'UTF-8') < 10;
+    if ($isPadPlaceholder && $pdo) {
         if (!empty($extractedTid) && !empty($extractedGid)) {
             $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR scope_key = :sk2 OR (task_id = :tid AND group_id = :gid) ORDER BY last_timestamp DESC LIMIT 1");
             $stmtDb->execute([':sk' => $exactScopeKey, ':sk2' => $scopeKey, ':tid' => $extractedTid, ':gid' => $extractedGid]);

@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2585
+ * Version: 20260905_v2590
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2585';
+  const APP_VERSION = '20260905_v2590';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -986,17 +986,18 @@
               innerBody.style.setProperty('user-select', 'text', 'important');
               innerBody.style.setProperty('-webkit-user-select', 'text', 'important');
 
-              // 🛡️ 智能镜像自愈：若发现 Etherpad 渲染了默认空占位符 ('啥意思捏')，自动触发写回对齐并重载镜像
+              // 🛡️ 智能镜像自愈：若发现 Etherpad 渲染了默认空占位符 ('啥意思捏' / 'Welcome to Etherpad' 等)，自动触发写回对齐并重载镜像
               const rawBodyText = (innerBody.innerText || '').trim();
-              if (rawBodyText === '啥意思捏' && !iframe._hasRecoveredMirror) {
+              const isPlaceholder = (rawBodyText === '啥意思捏' || rawBodyText.includes('啥意思捏') || rawBodyText.includes('Welcome to Etherpad') || rawBodyText.length < 5);
+              if (isPlaceholder && !iframe._hasRecoveredMirror) {
                 const currentGId = iframe.getAttribute('data-group') || window.app?.state?.activeMonitorGroupId;
                 const currentTId = iframe.getAttribute('data-task') || window.app?.state?.activeTaskId;
                 const padName = iframe.getAttribute('data-pad') || `jizhi_${currentTId}_${currentGId}`;
                 if (padName) {
                   iframe._hasRecoveredMirror = true;
                   fetch(`sync.php?action=get_pad_html&padId=${encodeURIComponent(padName)}`).then(r => r.json()).then(res => {
-                    if (res && res.success && res.text && res.text !== '啥意思捏' && res.text.length > 10) {
-                      setTimeout(() => { if (iframe.parentElement) iframe.src = iframe.src; }, 400);
+                    if (res && res.success && res.text && res.text !== '啥意思捏' && !res.text.includes('Welcome to Etherpad') && res.text.length > 10) {
+                      setTimeout(() => { if (iframe.parentElement) iframe.src = iframe.src; }, 300);
                     }
                   }).catch(() => {});
                 }
@@ -5559,7 +5560,18 @@
       }
 
       const tFrame2 = container.querySelector('#teacher-stage2-etherpad-frame');
-      if (tFrame2) enforceEtherpadReadonly(tFrame2);
+      if (tFrame2) {
+        const curTaskPid = monitorTaskObj ? monitorTaskObj.id : (state.activeTaskId || 'task_default');
+        const curGroupPid = activeMonitorGroup ? activeMonitorGroup.id : (state.activeMonitorGroupId || 'group_1');
+        const expectedPad = `jizhi_${curTaskPid}_${curGroupPid}`;
+        if (tFrame2.getAttribute('data-pad') !== expectedPad) {
+          tFrame2.setAttribute('data-pad', expectedPad);
+          tFrame2.setAttribute('data-task', curTaskPid);
+          tFrame2.setAttribute('data-group', curGroupPid);
+          tFrame2.src = `/p/${encodeURIComponent(expectedPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
+        }
+        enforceEtherpadReadonly(tFrame2);
+      }
     }
 
     // 6. 阶段三特定组件
@@ -5569,7 +5581,18 @@
       if (s3WordBadge) s3WordBadge.innerText = String(s3CleanLen);
 
       const tFrame3 = container.querySelector('#teacher-stage3-etherpad-frame');
-      if (tFrame3) enforceEtherpadReadonly(tFrame3);
+      if (tFrame3) {
+        const curTaskPid = monitorTaskObj ? monitorTaskObj.id : (state.activeTaskId || 'task_default');
+        const curGroupPid = activeMonitorGroup ? activeMonitorGroup.id : (state.activeMonitorGroupId || 'group_1');
+        const expectedPad = `jizhi_${curTaskPid}_${curGroupPid}`;
+        if (tFrame3.getAttribute('data-pad') !== expectedPad) {
+          tFrame3.setAttribute('data-pad', expectedPad);
+          tFrame3.setAttribute('data-task', curTaskPid);
+          tFrame3.setAttribute('data-group', curGroupPid);
+          tFrame3.src = `/p/${encodeURIComponent(expectedPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
+        }
+        enforceEtherpadReadonly(tFrame3);
+      }
     }
 
     // 7. 研讨聊天流实时就地增量刷新
@@ -5902,8 +5925,10 @@
     const isSameMonitorGroup = container.dataset.renderedGroupId === activeMonitorGId;
     const isSameMonitorTask = container.dataset.renderedTaskId === effectiveMonitorTaskId;
     const isSameMonitorStage = container.dataset.renderedStage === effectiveMonitorStage;
+    const isSameMode = container.dataset.renderedMode === monitorStageMode;
+    const isSameS3Tab = container.dataset.renderedS3Tab === currentS3Tab;
 
-    if (existingLayout && !isDashboard && classTab === 'live_monitor' && isSameClass && isSameTab && isSameMonitorGroup && isSameMonitorTask && isSameMonitorStage) {
+    if (existingLayout && !isDashboard && classTab === 'live_monitor' && isSameClass && isSameTab && isSameMonitorGroup && isSameMonitorTask && isSameMonitorStage && isSameMode && isSameS3Tab) {
       const monitorTaskObj = currentClassTasks.find(t => t.id === effectiveMonitorTaskId) || (currentClassTasks[0] || null);
       const isMonitorTaskExpired = isTaskExpired(monitorTaskObj);
       const genreCfg = TASK_GENRE_CONFIGS[monitorTaskObj?.taskType || 'experiment'] || TASK_GENRE_CONFIGS.experiment;
@@ -9420,7 +9445,7 @@
       if (state.monitorPanorama && state.monitorPanorama[targetGId]) {
         const gData = state.monitorPanorama[targetGId];
         state.stage1 = gData.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
-        state.stage2 = { ...(state.stage2 || {}), ...(gData.stage2 || {}), unifiedContent: gData.stage2?.unifiedContent || '' };
+        state.stage2 = { ...(gData.stage2 || {}), unifiedContent: gData.stage2?.unifiedContent || '' };
         state.stage3 = gData.stage3 || { feedbackItems: [] };
         state.chatLogs = gData.chatLogs || { stage1: [], stage2: [], stage3: [] };
         state.currentStage = gData.currentStage || 'stage1';
