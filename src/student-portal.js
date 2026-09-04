@@ -8,8 +8,8 @@ import {
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES,
   TASK_GENRE_CONFIGS
-} from "./constants.js?v=20260905_v2665";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260905_v2665";
+} from "./constants.js?v=20260905_v2666";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260905_v2666";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -53,6 +53,14 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
 
         // 3. 任务更新广播
         if (e.data && e.data.type === 'task_updated') {
+          if (authManager && e.data.task) {
+            const localTasks = authManager.getTasks();
+            const idx = localTasks.findIndex(lt => lt && lt.id === e.data.task.id);
+            if (idx >= 0) {
+              localTasks[idx] = { ...localTasks[idx], ...e.data.task };
+              try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
+            }
+          }
           renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
           return;
         }

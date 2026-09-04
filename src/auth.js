@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2665';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2665';
+} from './constants.js?v=20260905_v2666';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2666';
 
 export class AuthManager {
   constructor() {
@@ -1738,9 +1738,10 @@ export class AuthManager {
 
     if ('BroadcastChannel' in window) {
       try {
-        const bc = new BroadcastChannel('jizhi_global_events');
-        bc.postMessage({ type: 'task_created', task: newTask });
-        bc.close();
+        if (!window._jizhiGlobalBc) {
+          window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
+        }
+        window._jizhiGlobalBc.postMessage({ type: 'task_created', task: newTask });
       } catch (e) {}
     }
 
@@ -1790,9 +1791,10 @@ export class AuthManager {
     
     if ('BroadcastChannel' in window) {
       try {
-        const bc = new BroadcastChannel('jizhi_global_events');
-        bc.postMessage({ type: 'task_updated', task: tasks[taskIndex] });
-        bc.close();
+        if (!window._jizhiGlobalBc) {
+          window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
+        }
+        window._jizhiGlobalBc.postMessage({ type: 'task_updated', task: tasks[taskIndex] });
       } catch (e) {}
     }
     return tasks[taskIndex];
@@ -1843,8 +1845,10 @@ export class AuthManager {
     // ⚡ 本地跨标签页 0 延迟广播
     if ('BroadcastChannel' in window) {
       try {
-        const bc = new BroadcastChannel('jizhi_global_events');
-        bc.postMessage({ type: 'task_extended', task: targetTask, prevDeadline: oldDeadline });
+        if (!window._jizhiGlobalBc) {
+          window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
+        }
+        window._jizhiGlobalBc.postMessage({ type: 'task_extended', task: targetTask, prevDeadline: oldDeadline });
       } catch (e) {}
     }
 
@@ -1914,9 +1918,10 @@ export class AuthManager {
 
     if ('BroadcastChannel' in window) {
       try {
-        const bc = new BroadcastChannel('jizhi_global_events');
-        bc.postMessage({ type: 'task_deleted', taskId: taskId, title: deletedTaskTitle });
-        bc.close();
+        if (!window._jizhiGlobalBc) {
+          window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
+        }
+        window._jizhiGlobalBc.postMessage({ type: 'task_deleted', taskId: taskId, title: deletedTaskTitle });
       } catch (e) {}
     }
 

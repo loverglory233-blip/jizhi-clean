@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2665";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2665";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2665";
-import { AuthManager } from "./auth.js?v=20260905_v2665";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2665";
-import { renderLoginView } from "./login.js?v=20260905_v2665";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2665";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2665";
+} from "./constants.js?v=20260905_v2666";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2666";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2666";
+import { AuthManager } from "./auth.js?v=20260905_v2666";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2666";
+import { renderLoginView } from "./login.js?v=20260905_v2666";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2666";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2666";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2665";
+} from "./editor.js?v=20260905_v2666";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -123,8 +123,15 @@ export class App {
           const isStudent = user && (user.role === 'student' || user.isStudent);
           if (!isStudent) return;
 
-          // 1. 教师发布全新任务：无需横幅弹窗，若学生在大厅则直接实时刷新呈现
+          // 1. 教师发布全新任务：本地同步装载并即时刷新
           if (e.data.type === 'task_created' && e.data.task) {
+            if (this.authManager) {
+              const localTasks = this.authManager.getTasks();
+              if (!localTasks.some(lt => lt && lt.id === e.data.task.id)) {
+                localTasks.unshift(e.data.task);
+                try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
+              }
+            }
             if (this.state.studentViewMode === 'task_list') {
               this.renderMain();
             }
@@ -134,6 +141,11 @@ export class App {
           if (e.data.type === 'task_deleted') {
             const delTaskId = e.data.taskId;
             const delTaskTitle = e.data.title || '写作任务';
+            if (this.authManager && delTaskId) {
+              let localTasks = this.authManager.getTasks();
+              localTasks = localTasks.filter(lt => lt && lt.id !== delTaskId);
+              try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
+            }
             // 1) 若学生刚好在被删除的任务工作台中：全屏模态弹窗强阻断，引导安全返回大厅
             if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId === delTaskId) {
               this.showTaskRevokedModal(delTaskTitle);
@@ -143,6 +155,21 @@ export class App {
               this.renderMain();
             }
             // 3) 若在另一个任务工作台中：做减法，静默不打扰当前写作
+          }
+
+          // 2.5 教师更新任务
+          if (e.data.type === 'task_updated' && e.data.task) {
+            if (this.authManager) {
+              const localTasks = this.authManager.getTasks();
+              const idx = localTasks.findIndex(lt => lt && lt.id === e.data.task.id);
+              if (idx >= 0) {
+                localTasks[idx] = { ...localTasks[idx], ...e.data.task };
+                try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
+              }
+            }
+            if (this.state.studentViewMode === 'task_list') {
+              this.renderMain();
+            }
           }
 
           // 3. 教师发布教学通知（秒级拉取并在工作台即时弹出）
