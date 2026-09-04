@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2207
+ * Version: 20260904_v2208
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2207';
+  const APP_VERSION = '20260904_v2208';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13566,7 +13566,7 @@
           }
 
           // 2. 责任编辑过程守护：周期性读取【实际贡献百分比】与【研讨发言投入】（冷却间隔 >= 6分钟，杜绝连续打扰，随写作进程动态再次关怀）
-          const minContribThreshold = isLargeTask ? 600 : 300;
+          const minContribThreshold = 300;
           const existContribNudges = s2Chats.filter(m => m && (m.text?.includes('进度关怀') || m.text?.includes('协同关怀')));
           const lastContribMsg = existContribNudges.length > 0 ? existContribNudges[existContribNudges.length - 1] : null;
           const lastContribTime = parseMsgTime(lastContribMsg) || this.lastS2ContribNudgeTime || 0;
@@ -17940,7 +17940,7 @@
       const lastWarnLen = this.state.lastSSRLWarnLen || 0;
       const ssrlCooldownMs = isLargeTask ? 600000 : 480000;
       const minNewProgressLen = isLargeTask ? 200 : 100;
-      const minContribThreshold = isLargeTask ? 800 : 500;
+      const minContribThreshold = 300;
       const cooldownPassed = (now - lastWarnTime) >= ssrlCooldownMs;
       const hasMeaningfulProgress = (plainLen - lastWarnLen) >= minNewProgressLen;
 

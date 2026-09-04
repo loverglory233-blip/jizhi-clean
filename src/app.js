@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2207";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2207";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2207";
-import { AuthManager } from "./auth.js?v=20260904_v2207";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2207";
-import { renderLoginView } from "./login.js?v=20260904_v2207";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2207";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2207";
+} from "./constants.js?v=20260904_v2208";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2208";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2208";
+import { AuthManager } from "./auth.js?v=20260904_v2208";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2208";
+import { renderLoginView } from "./login.js?v=20260904_v2208";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2208";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2208";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2207";
+} from "./editor.js?v=20260904_v2208";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1188,7 +1188,7 @@ export class App {
         }
 
         // 2. 责任编辑过程守护：周期性读取【实际贡献百分比】与【研讨发言投入】（冷却间隔 >= 6分钟，杜绝连续打扰，随写作进程动态再次关怀）
-        const minContribThreshold = isLargeTask ? 600 : 300;
+        const minContribThreshold = 300;
         const existContribNudges = s2Chats.filter(m => m && (m.text?.includes('进度关怀') || m.text?.includes('协同关怀')));
         const lastContribMsg = existContribNudges.length > 0 ? existContribNudges[existContribNudges.length - 1] : null;
         const lastContribTime = parseMsgTime(lastContribMsg) || this.lastS2ContribNudgeTime || 0;
@@ -5562,7 +5562,7 @@ ${contentSnippet}
     const lastWarnLen = this.state.lastSSRLWarnLen || 0;
     const ssrlCooldownMs = isLargeTask ? 600000 : 480000;
     const minNewProgressLen = isLargeTask ? 200 : 100;
-    const minContribThreshold = isLargeTask ? 800 : 500;
+    const minContribThreshold = 300;
     const cooldownPassed = (now - lastWarnTime) >= ssrlCooldownMs;
     const hasMeaningfulProgress = (plainLen - lastWarnLen) >= minNewProgressLen;
 
