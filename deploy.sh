@@ -108,16 +108,19 @@ if [ "$EP_HTTP_CODE" != "000" ] || pgrep -f "node.*etherpad" >/dev/null 2>&1; th
         const m = pid.match(/(group_\d+|group_[a-zA-Z0-9_-]+)/);
         const gid = m ? m[1] : null;
 
-        const isPlace = (cleanTxt === "啥意思捏" || cleanTxt.includes("啥意思捏") || cleanTxt.startsWith("一、研究背景与意义") || cleanTxt.includes("Welcome to Etherpad") || len < 10);
-        if (gid && !isPlace && len > 50) {
+        // 严格白名单判定：只有纯粹的空模板/占位符才判定为 isPlace，学生写的任何字（即使只有几个字）一律视为宝贵正文
+        const isUntouchedTemplate = (cleanTxt.startsWith("一、研究背景与意义") && len < 80);
+        const isPlace = (cleanTxt === "啥意思捏" || cleanTxt.includes("啥意思捏") || isUntouchedTemplate || cleanTxt.includes("Welcome to Etherpad") || len === 0);
+
+        if (gid && !isPlace && len > 0) {
           if (!groupBest[gid] || groupBest[gid].len < len) {
             groupBest[gid] = { padID: pid, text: txt, len };
-            console.log("🎯 发现小组 [" + gid + "] 留存真实长文: " + len + " 字");
+            console.log("🎯 发现小组 [" + gid + "] 留存真实正文: " + len + " 字");
           }
         }
       }
 
-      // 2. 清洗或写回长文
+      // 2. 仅对纯模板/占位符 Pad 进行写回或释放，学生真实正文 100% 原样保留
       for (const pid of padIDs) {
         if (!pid.startsWith("jizhi_")) continue;
         const tRes = await epReq("getText", { padID: pid });
@@ -127,15 +130,19 @@ if [ "$EP_HTTP_CODE" != "000" ] || pgrep -f "node.*etherpad" >/dev/null 2>&1; th
         const m = pid.match(/(group_\d+|group_[a-zA-Z0-9_-]+)/);
         const gid = m ? m[1] : null;
 
-        const isPlace = (cleanTxt === "啥意思捏" || cleanTxt.includes("啥意思捏") || cleanTxt.startsWith("一、研究背景与意义") || cleanTxt.includes("Welcome to Etherpad") || len < 5);
+        const isUntouchedTemplate = (cleanTxt.startsWith("一、研究背景与意义") && len < 80);
+        const isPlace = (cleanTxt === "啥意思捏" || cleanTxt.includes("啥意思捏") || isUntouchedTemplate || cleanTxt.includes("Welcome to Etherpad") || len === 0);
+
         if (isPlace) {
           if (gid && groupBest[gid]) {
-            console.log("✨ 正在将小组 [" + gid + "] 的长文写回当前 Pad [" + pid + "]...");
+            console.log("✨ 正在将小组 [" + gid + "] 的正文 (" + groupBest[gid].len + " 字) 写回当前 Pad [" + pid + "]...");
             await epReq("setText", { padID: pid, text: groupBest[gid].text });
           } else {
-            console.log("🧹 正在清除旧模板 Pad: [" + pid + "]");
+            console.log("🧹 正在清除旧空模板 Pad: [" + pid + "]");
             await epReq("deletePad", { padID: pid });
           }
+        } else {
+          console.log("🛡️ [安全保护] Pad [" + pid + "] 含有学生真实内容 (" + len + " 字)，安全保留。");
         }
       }
       console.log("🎉 Etherpad 所有 Pad 净化与长文自动写回完成！");
