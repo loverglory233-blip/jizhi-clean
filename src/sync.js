@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260904_v2496';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260904_v2496';
+import { InitialState } from './constants.js?v=20260904_v2497';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260904_v2497';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -131,7 +131,7 @@ export class CloudSyncEngine {
     let shownEvents = {};
     try { shownEvents = JSON.parse(sessionStorage.getItem('jizhi_shown_deadline_events') || '{}'); } catch (e) {}
     const eventKey = `${t.id}_${t.deadline}`;
-    if (shownEvents[eventKey]) return;
+    const isNoticeAlreadyShown = !!shownEvents[eventKey];
     shownEvents[eventKey] = true;
     try { sessionStorage.setItem('jizhi_shown_deadline_events', JSON.stringify(shownEvents)); } catch (e) {}
 
@@ -177,29 +177,35 @@ export class CloudSyncEngine {
       if (typeof this.app.renderStudentWorkspace === 'function') {
         this.app.renderStudentWorkspace(true);
       }
-      showGlobalBannerNotice(
-        '⏳ 任务截止时间已延长',
-        `任课教师已将当前任务《${t.title || '协作写作'}》截止时间延长至 ${t.deadline} ${extDurationStr}！协作通道已畅通。`,
-        'info',
-        8000
-      );
+      if (!isNoticeAlreadyShown) {
+        showGlobalBannerNotice(
+          '⏳ 任务截止时间已延长',
+          `任课教师已将当前任务《${t.title || '协作写作'}》截止时间延长至 ${t.deadline} ${extDurationStr}！协作通道已畅通。`,
+          'info',
+          8000
+        );
+      }
     } else if (isTaskHall) {
       // 📋 场景 2：学生在任务大厅（就地刷新大厅任务卡片，滑出顶部通知横幅）
       this.app.renderMain();
-      showGlobalBannerNotice(
-        '⏳ 任务延期提醒',
-        `班级写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline} ${extDurationStr}！`,
-        'info',
-        8000
-      );
+      if (!isNoticeAlreadyShown) {
+        showGlobalBannerNotice(
+          '⏳ 任务延期提醒',
+          `班级写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline} ${extDurationStr}！`,
+          'info',
+          8000
+        );
+      }
     } else {
       // ✍️ 场景 3：学生在其他任务工作台内（当前写作 100% 保持稳定，仅顶部滑出通知横幅）
-      showGlobalBannerNotice(
-        '⏳ 其他任务延期',
-        `您的另一项写作任务《${t.title || '写作任务'}》截止时间已延长至 ${t.deadline} ${extDurationStr}。`,
-        'info',
-        8000
-      );
+      if (!isNoticeAlreadyShown) {
+        showGlobalBannerNotice(
+          '⏳ 其他任务延期',
+          `您的另一项写作任务《${t.title || '写作任务'}》截止时间已延长至 ${t.deadline} ${extDurationStr}。`,
+          'info',
+          8000
+        );
+      }
     }
   }
 

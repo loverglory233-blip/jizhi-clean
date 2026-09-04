@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2496
+ * Version: 20260904_v2497
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2496';
+  const APP_VERSION = '20260904_v2497';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -964,11 +964,16 @@
         const doc = iframe.contentDocument;
         if (!doc) return;
 
-        const toolbars = doc.querySelectorAll('.toolbar, #editbar, #menu_left, #menu_right, .menu, #toolbar, nav.navbar, .menu_left, .menu_right, .editbar, #editbar ul, .menu_left ul, .menu_right ul');
+        const toolbars = doc.querySelectorAll('.toolbar, #editbar, #menu_left, #menu_right, .menu, #toolbar, nav.navbar, .menu_left, .menu_right, .editbar, #editbar ul, .menu_left ul, .menu_right ul, .editbar ul');
         toolbars.forEach(tb => tb.style.setProperty('display', 'none', 'important'));
 
         const footers = doc.querySelectorAll('#footer, .bottom-bar, #chatbox');
         footers.forEach(ft => ft.style.setProperty('display', 'none', 'important'));
+
+        const editorBox = doc.querySelector('#editorcontainerbox');
+        if (editorBox) {
+          editorBox.style.setProperty('top', '0px', 'important');
+        }
 
         const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
         if (aceOuter && aceOuter.contentDocument) {
@@ -1033,11 +1038,39 @@
         const doc = iframe.contentDocument;
         if (!doc) return;
 
-        const toolbars = doc.querySelectorAll('.toolbar, #editbar, #menu_left, #menu_right, .menu, #toolbar, nav.navbar, .menu_left, .menu_right, .editbar, #editbar ul, .menu_left ul, .menu_right ul');
+        const toolbars = doc.querySelectorAll('.toolbar, #editbar, #menu_left, #menu_right, .menu, #toolbar, nav.navbar, .menu_left, .menu_right, .editbar, #editbar ul, .menu_left ul, .menu_right ul, .editbar ul');
         toolbars.forEach(tb => {
           tb.style.removeProperty('display');
+          tb.style.removeProperty('visibility');
+          tb.style.removeProperty('opacity');
           tb.style.display = '';
+          tb.style.visibility = 'visible';
         });
+
+        const editbar = doc.querySelector('#editbar') || doc.querySelector('.toolbar') || doc.querySelector('#toolbar');
+        if (editbar) {
+          editbar.style.removeProperty('display');
+          editbar.style.display = 'flex';
+          editbar.style.setProperty('display', 'flex', 'important');
+          editbar.style.visibility = 'visible';
+          editbar.style.opacity = '1';
+          editbar.style.position = 'relative';
+          editbar.style.zIndex = '100';
+        }
+        const menuLeft = doc.querySelector('#menu_left') || doc.querySelector('.menu_left');
+        if (menuLeft) {
+          menuLeft.style.removeProperty('display');
+          menuLeft.style.display = 'flex';
+          menuLeft.style.setProperty('display', 'flex', 'important');
+          menuLeft.style.visibility = 'visible';
+        }
+        const menuRight = doc.querySelector('#menu_right') || doc.querySelector('.menu_right');
+        if (menuRight) {
+          menuRight.style.removeProperty('display');
+          menuRight.style.display = 'flex';
+          menuRight.style.setProperty('display', 'flex', 'important');
+          menuRight.style.visibility = 'visible';
+        }
 
         const footers = doc.querySelectorAll('#footer, .bottom-bar, #chatbox');
         footers.forEach(ft => {
@@ -1047,7 +1080,18 @@
 
         const editorBox = doc.querySelector('#editorcontainerbox');
         if (editorBox) {
-          editorBox.style.removeProperty('top');
+          const ebHeight = (editbar && editbar.offsetHeight > 0) ? editbar.offsetHeight : 36;
+          editorBox.style.setProperty('top', ebHeight + 'px', 'important');
+          editorBox.style.position = 'absolute';
+          editorBox.style.zIndex = '1';
+        }
+
+        const padWin = iframe.contentWindow;
+        if (padWin) {
+          try {
+            padWin.dispatchEvent(new Event('resize'));
+            if (padWin.$) padWin.$(padWin).trigger('resize');
+          } catch(e) {}
         }
 
         const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
@@ -3699,7 +3743,7 @@
       let shownEvents = {};
       try { shownEvents = JSON.parse(sessionStorage.getItem('jizhi_shown_deadline_events') || '{}'); } catch (e) {}
       const eventKey = `${t.id}_${t.deadline}`;
-      if (shownEvents[eventKey]) return;
+      const isNoticeAlreadyShown = !!shownEvents[eventKey];
       shownEvents[eventKey] = true;
       try { sessionStorage.setItem('jizhi_shown_deadline_events', JSON.stringify(shownEvents)); } catch (e) {}
 
@@ -3745,29 +3789,35 @@
         if (typeof this.app.renderStudentWorkspace === 'function') {
           this.app.renderStudentWorkspace(true);
         }
-        showGlobalBannerNotice(
-          '⏳ 任务截止时间已延长',
-          `任课教师已将当前任务《${t.title || '协作写作'}》截止时间延长至 ${t.deadline} ${extDurationStr}！协作通道已畅通。`,
-          'info',
-          8000
-        );
+        if (!isNoticeAlreadyShown) {
+          showGlobalBannerNotice(
+            '⏳ 任务截止时间已延长',
+            `任课教师已将当前任务《${t.title || '协作写作'}》截止时间延长至 ${t.deadline} ${extDurationStr}！协作通道已畅通。`,
+            'info',
+            8000
+          );
+        }
       } else if (isTaskHall) {
         // 📋 场景 2：学生在任务大厅（就地刷新大厅任务卡片，滑出顶部通知横幅）
         this.app.renderMain();
-        showGlobalBannerNotice(
-          '⏳ 任务延期提醒',
-          `班级写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline} ${extDurationStr}！`,
-          'info',
-          8000
-        );
+        if (!isNoticeAlreadyShown) {
+          showGlobalBannerNotice(
+            '⏳ 任务延期提醒',
+            `班级写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline} ${extDurationStr}！`,
+            'info',
+            8000
+          );
+        }
       } else {
         // ✍️ 场景 3：学生在其他任务工作台内（当前写作 100% 保持稳定，仅顶部滑出通知横幅）
-        showGlobalBannerNotice(
-          '⏳ 其他任务延期',
-          `您的另一项写作任务《${t.title || '写作任务'}》截止时间已延长至 ${t.deadline} ${extDurationStr}。`,
-          'info',
-          8000
-        );
+        if (!isNoticeAlreadyShown) {
+          showGlobalBannerNotice(
+            '⏳ 其他任务延期',
+            `您的另一项写作任务《${t.title || '写作任务'}》截止时间已延长至 ${t.deadline} ${extDurationStr}。`,
+            'info',
+            8000
+          );
+        }
       }
     }
 
