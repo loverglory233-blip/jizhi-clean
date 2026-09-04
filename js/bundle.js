@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2405
+ * Version: 20260904_v2410
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2405';
+  const APP_VERSION = '20260904_v2410';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14157,6 +14157,38 @@
               return;
             }
           }
+
+          // ── ⏳ 阶段二：90% 时间收尾倒计时冲刺提醒（全场严格仅 1 次）──
+          const times = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) ? this.state.stage1.contract.timeAllocations : {};
+          const totalPlannedMin = (times.background || 25) + (times.literature || 30) + (times.questions || 25) + (times.method || 40) + (times.reflection || 20) + (times.references || 10);
+          const totalTaskMinutes = (curTask && (curTask.durationMinutes || curTask.duration)) ? Number(curTask.durationMinutes || curTask.duration) : (totalPlannedMin > 0 ? (totalPlannedMin / 0.70) : 150);
+          const s2BaseBudgetMin = totalTaskMinutes * 0.70;
+          const totalPlannedMs = Math.max(totalPlannedMin * 60 * 1000, s2BaseBudgetMin * 60 * 1000);
+          const s2EntryTime = s2.startTime || s2.stageStartTime || this.stage2StartTime;
+          const stage2DurationMs = s2EntryTime ? Math.max(0, now - s2EntryTime) : 0;
+          const timeProgress = totalPlannedMs > 0 ? (stage2DurationMs / totalPlannedMs) : 0;
+
+          const hasMeetingInLogs = s2Chats.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('半程研讨号召') || m.text?.includes('半程会议号召') || m.text?.includes('半程自查')));
+          const has90ReminderInLogs = s2Chats.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('阶段二推进提示') || m.text?.includes('90% 节点') || m.text?.includes('收尾倒计时') || m.text?.includes('冲刺')));
+
+          if (!has90ReminderInLogs && timeProgress >= 0.90 && hasMeetingInLogs && !s2.isDraftConfirmed && !this.state.s2_90ReminderSent) {
+            this.state.s2_90ReminderSent = true;
+            const taskType = this.getCurrentTaskType();
+            const isInst = (taskType === 'instructional');
+            const managingName = isInst ? '备课组长' : '责任编辑';
+            const msg90 = {
+              sender: 'managingEditor',
+              senderName: `协同调度 · ${managingName}`,
+              text: `🤝 【${managingName}·收尾倒计时冲刺】：阶段二协作时间已达 90% 冲刺节点！请全组抓紧将修改对策落实到正文中，核对无误后在上方点击【✍️ 确认初稿】，进入【🎓 阶段三：答辩评审】！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now
+            };
+            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+            this.state.chatLogs.stage2.push(msg90);
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+          }
         }
 
         // ======================================================================
@@ -18946,10 +18978,10 @@
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // 🤝 责任编辑 90% 节点推进提醒（全场严格仅 1 次）
+      // 🤝 责任编辑 90% 节点收尾倒计时推进提醒（全场严格仅 1 次）
       // ═══════════════════════════════════════════════════════════════
       const is90TimeDue = hasMeetingCalledInLogs && (timeProgress >= 0.90);
-      const has90ReminderInLogs = s2ChatList.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('阶段二推进提示') || m.text?.includes('90% 节点')));
+      const has90ReminderInLogs = s2ChatList.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('阶段二推进提示') || m.text?.includes('90% 节点') || m.text?.includes('收尾倒计时') || m.text?.includes('冲刺')));
       if (!has90ReminderInLogs && is90TimeDue && !s2.isDraftConfirmed && !this.state.s2_90ReminderSent) {
         this.state.s2_90ReminderSent = true;
         const taskType = this.getCurrentTaskType();
@@ -18958,7 +18990,7 @@
         const msg90 = {
           sender: 'managingEditor',
           senderName: `协同调度 · ${managingName}`,
-          text: `🤝 【${managingName}·阶段二推进提示】：阶段二协作时间已达 90% 节点！请全组抓紧将修改对策落实到正文中，核对无误后在上方点击【✍️ 确认初稿】，进入【🎓 阶段三：答辩评审】！`,
+          text: `🤝 【${managingName}·收尾倒计时冲刺】：阶段二协作时间已达 90% 冲刺节点！请全组抓紧将修改对策落实到正文中，核对无误后在上方点击【✍️ 确认初稿】，进入【🎓 阶段三：答辩评审】！`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: now
         };
