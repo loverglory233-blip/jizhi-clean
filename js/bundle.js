@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2535
+ * Version: 20260904_v2536
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2535';
+  const APP_VERSION = '20260904_v2536';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3790,10 +3790,23 @@
         // 🎯 场景 1：学生正处于该任务工作台内部
         // 🛡️ 严格保护：仅解除当前未完成阶段的只读锁（已完成的历史阶段如阶段一公约、阶段二初稿始终保持只读锁定）
         if (!nowExpired) {
-          const isS2Done = this.app.state.groupMaxStage === 'stage3' || (this.app.state.stage2?.isDraftConfirmed && this.app.state.currentStage === 'stage3');
-          const isS3FinalDone = this.app.state.isFinalSubmitted;
+          const isS2Done = !!(this.app.state.stage2?.isDraftConfirmed);
+          const isS3FinalDone = !!this.app.state.isFinalSubmitted;
 
           if (!isS2Done) {
+            const correctMax = (this.app.state.stage1?.contract?.isConfirmed) ? 'stage2' : 'stage1';
+            this.app.state.groupMaxStage = correctMax;
+            if (this.app.state.currentStage === 'stage3') {
+              this.app.state.currentStage = correctMax;
+            }
+            if (this.app.state.stage3) {
+              this.app.state.stage3 = { feedbackItems: [], proponentAnalysis: null, opponentAnalysis: null, meetingSubmissions: {} };
+            }
+            if (this.app.state.chatLogs && this.app.state.chatLogs.stage3) {
+              this.app.state.chatLogs.stage3 = [];
+            }
+            this.app.state.stage3CommitteeLoading = false;
+
             const f2 = document.getElementById('stage2-etherpad-frame');
             if (f2) {
               liftEtherpadReadonly(f2);
@@ -13286,6 +13299,22 @@
         }
         if (this.state.stage3?.startTime) {
           this.stage3StartTime = this.state.stage3.startTime;
+        }
+
+        // 🛡️ 阶段防越权自愈自净：若小组尚未正式确认签署阶段二初稿，严禁保留提前触发的阶段三答辩数据
+        if (!this.state.isFinalSubmitted && !this.state.stage2?.isDraftConfirmed) {
+          const correctMax = (this.state.stage1?.contract?.isConfirmed) ? 'stage2' : 'stage1';
+          this.state.groupMaxStage = correctMax;
+          if (this.state.currentStage === 'stage3') {
+            this.state.currentStage = correctMax;
+          }
+          if (this.state.stage3) {
+            this.state.stage3 = { feedbackItems: [], proponentAnalysis: null, opponentAnalysis: null, meetingSubmissions: {} };
+          }
+          if (this.state.chatLogs && this.state.chatLogs.stage3) {
+            this.state.chatLogs.stage3 = [];
+          }
+          this.state.stage3CommitteeLoading = false;
         }
       } else {
         // 🛡️ 切换到新组时，第1行代码立刻清空内存残留消息，彻底杜绝上一组的聊天残影

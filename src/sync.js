@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260904_v2535';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260904_v2535';
+import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260904_v2536';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260904_v2536';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -154,10 +154,23 @@ export class CloudSyncEngine {
       // 🎯 场景 1：学生正处于该任务工作台内部
       // 🛡️ 严格保护：仅解除当前未完成阶段的只读锁（已完成的历史阶段如阶段一公约、阶段二初稿始终保持只读锁定）
       if (!nowExpired) {
-        const isS2Done = this.app.state.groupMaxStage === 'stage3' || (this.app.state.stage2?.isDraftConfirmed && this.app.state.currentStage === 'stage3');
-        const isS3FinalDone = this.app.state.isFinalSubmitted;
+        const isS2Done = !!(this.app.state.stage2?.isDraftConfirmed);
+        const isS3FinalDone = !!this.app.state.isFinalSubmitted;
         
         if (!isS2Done) {
+          const correctMax = (this.app.state.stage1?.contract?.isConfirmed) ? 'stage2' : 'stage1';
+          this.app.state.groupMaxStage = correctMax;
+          if (this.app.state.currentStage === 'stage3') {
+            this.app.state.currentStage = correctMax;
+          }
+          if (this.app.state.stage3) {
+            this.app.state.stage3 = { feedbackItems: [], proponentAnalysis: null, opponentAnalysis: null, meetingSubmissions: {} };
+          }
+          if (this.app.state.chatLogs && this.app.state.chatLogs.stage3) {
+            this.app.state.chatLogs.stage3 = [];
+          }
+          this.app.state.stage3CommitteeLoading = false;
+
           const f2 = document.getElementById('stage2-etherpad-frame');
           if (f2) {
             liftEtherpadReadonly(f2);
