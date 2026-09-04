@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2499
+ * Version: 20260904_v2500
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2499';
+  const APP_VERSION = '20260904_v2500';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4070,11 +4070,21 @@
       // 教师一旦发布新范文或公告，学生端在任务工作台内 1~2 秒内自动无感对齐更新
       if (this.app.authManager) {
         if (Array.isArray(remoteData.tasks) && remoteData.tasks.length > 0) {
-          const key = 'jizhi_pure_v10_tasks_db';
-          const remoteStr = JSON.stringify(remoteData.tasks);
-          localStorage.setItem(key, remoteStr);
+          const localTasks = this.app.authManager.getTasks();
+          const mergedTasks = remoteData.tasks.map(remoteT => {
+            const localT = localTasks.find(lt => lt.id === remoteT.id || (lt.title && lt.title === remoteT.title));
+            if (localT && localT.lastExtension) {
+              const localExtAt = localT.lastExtension.extendedAt || 0;
+              const remoteExtAt = remoteT.lastExtension ? (remoteT.lastExtension.extendedAt || 0) : 0;
+              if (localExtAt >= remoteExtAt) {
+                return { ...remoteT, deadline: localT.deadline, durationMinutes: localT.durationMinutes, lastExtension: localT.lastExtension };
+              }
+            }
+            return remoteT;
+          });
+          localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
 
-          remoteData.tasks.forEach(t => {
+          mergedTasks.forEach(t => {
             if (!t || !t.id) return;
             const oldDeadline = this._knownTaskDeadlines[t.id];
             if (oldDeadline !== undefined && t.deadline && oldDeadline !== t.deadline) {
@@ -10797,7 +10807,7 @@
     const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
 
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-    const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+    const currentTask = allTasks.find(t => t.id === state.activeTaskId || (t.title && t.title === state.activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
     const taskGenreKey = currentTask?.taskType || 'experiment';
     const isTaskDeadlineExpired = isTaskExpired(currentTask);
     const confirmedDraftMap = s2.confirmedMembers || {};
@@ -11890,7 +11900,7 @@
     const isAllFinalSubmitted = state.isFinalSubmitted || (finalSubmittedCount >= totalCount && totalCount > 0);
 
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-    const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+    const currentTask = allTasks.find(t => t.id === state.activeTaskId || (t.title && t.title === state.activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
     const taskGenreKey = currentTask?.taskType || 'experiment';
     const isTaskDeadlineExpired = isTaskExpired(currentTask);
     const isFinalSubmitted = state.isFinalSubmitted || isAllFinalSubmitted || isTaskDeadlineExpired;

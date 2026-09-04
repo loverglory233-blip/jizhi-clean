@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2499";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2499";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2499";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2500";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2500";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2500";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1333,7 +1333,7 @@ function renderStage2Canvas(canvas, state, handlers) {
   const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
 
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-  const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+  const currentTask = allTasks.find(t => t.id === state.activeTaskId || (t.title && t.title === state.activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
   const taskGenreKey = currentTask?.taskType || 'experiment';
   const isTaskDeadlineExpired = isTaskExpired(currentTask);
   const confirmedDraftMap = s2.confirmedMembers || {};
@@ -2426,7 +2426,7 @@ function renderStage3Canvas(canvas, state, handlers) {
   const isAllFinalSubmitted = state.isFinalSubmitted || (finalSubmittedCount >= totalCount && totalCount > 0);
 
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-  const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+  const currentTask = allTasks.find(t => t.id === state.activeTaskId || (t.title && t.title === state.activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
   const taskGenreKey = currentTask?.taskType || 'experiment';
   const isTaskDeadlineExpired = isTaskExpired(currentTask);
   const isFinalSubmitted = state.isFinalSubmitted || isAllFinalSubmitted || isTaskDeadlineExpired;
