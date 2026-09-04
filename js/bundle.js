@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2250
+ * Version: 20260904_v2255
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2250';
+  const APP_VERSION = '20260904_v2255';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5896,6 +5896,7 @@
             const monitorTaskObj = currentClassTasks.find(t => t.id === currentMonitorTaskId) || (currentClassTasks[0] || null);
             const isMonitorTaskExpired = isTaskExpired(monitorTaskObj);
             const genreCfg = TASK_GENRE_CONFIGS[monitorTaskObj?.taskType || 'experiment'] || TASK_GENRE_CONFIGS.experiment;
+            const isInst = (monitorTaskObj?.taskType === 'instructional');
 
             return `
               <div style="display:flex; flex-direction:column; gap:16px; width:100%;">
@@ -6162,14 +6163,14 @@
                         <!-- 左侧卡片：以阶段一左侧为主，高度统一为 820px，内部自适应滚动 -->
                         <div class="card" style="padding:18px 20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px; min-width:0; box-sizing:border-box; height:820px; max-height:820px; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain;">
                           <div style="flex-shrink:0; font-size:16px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">
-                            <span>🎪 阶段一实操同屏: 初始提案与学术合作公约 (${activeMonitorGroup.name})</span>
+                            <span>🎪 阶段一实操同屏: 初始提案与${isInst ? '备课' : '学术'}公约 (${activeMonitorGroup.name})</span>
                             <span style="background:#eff6ff; color:#1d4ed8; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:700;">阶段一实况</span>
                           </div>
 
-                          <!-- 1. 【第一步】💡 组员初始学术提案展台 -->
+                          <!-- 1. 【第一步】💡 组员初始提案展台 -->
                           <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:12px; padding:14px; flex-shrink:0;">
                             <div style="font-size:13.5px; font-weight:800; color:#1e40af; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
-                              <span>💡 组员初始学术提案展台 (${(state.stage1?.proposals || []).length}/${monitorMembersList.length || 3} 人已提交):</span>
+                              <span>💡 组员初始${isInst ? '教学' : '学术'}提案展台 (${(state.stage1?.proposals || []).length}/${monitorMembersList.length || 3} 人已提交):</span>
                               <span style="font-size:11.5px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">
                                 共投 ${monitorMembersList.filter(m => state.stage1?.hasVoted && (state.stage1.hasVoted[m.id] || (m.name && state.stage1.hasVoted[m.name]))).length} 票
                               </span>
@@ -6204,40 +6205,41 @@
                             `}
                           </div>
 
-                          <!-- 2. 【第二步】📜 团队协同合作学术合约 (1:1 镜像学生端结构) -->
+                          <!-- 2. 【第二步】📜 团队协同合作公约 (1:1 镜像学生端结构) -->
                           <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:12px;">
                             <div style="font-size:13.5px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
-                              <span>📜 团队协同合作学术合约 (${activeMonitorGroup.name}):</span>
+                              <span>📜 团队协同合作${isInst ? '备课' : '学术'}公约 (${activeMonitorGroup.name}):</span>
                               <span style="font-size:11.5px; background:${state.stage1?.contract?.isLocked ? '#ecfdf5' : '#eff6ff'}; color:${state.stage1?.contract?.isLocked ? '#059669' : '#2563eb'}; padding:2px 8px; border-radius:6px; font-weight:700;">
                                 ${state.stage1?.contract?.isLocked ? '🔒 公约已全员签署生效' : '✍️ 协作拟定中'}
                               </span>
                             </div>
 
-                            <!-- 📌 确认融合论文研究主题 -->
+                            <!-- 📌 【槽位 1】确认融合研究/备课主题 -->
                             <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; border-left:4px solid #2563eb;">
-                              <div style="font-size:11.5px; font-weight:800; color:#1e40af; margin-bottom:3px;">📌 确认融合论文研究主题:</div>
+                              <div style="font-size:11.5px; font-weight:800; color:#1e40af; margin-bottom:3px;">📌 【槽位 1】确认${isInst ? '融合教学设计课题' : '融合论文研究主题'}:</div>
                               <div style="font-size:13.5px; font-weight:800; color:#0f172a; line-height:1.4;">${escapeHtml(state.stage1?.mergedTitle || state.stage1?.contract?.topic || '（小组暂未敲定最终论题）')}</div>
                             </div>
 
-                            <!-- 📚 6大研究方案核心模块与时间规划 (独立模块) -->
+                            <!-- 📝 【槽位 2】方案概述 / 教学构思与主线 -->
+                            <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; border-left:4px solid #059669;">
+                              <div style="font-size:11.5px; font-weight:800; color:#065f46; margin-bottom:3px;">
+                                📝 【槽位 2】${isInst ? '教学设计整体构想与主线 (核心情境、活动主线与重难点突破)' : '研究方案概述 (具体情境、案例、聚焦点与方法)'}:
+                              </div>
+                              <div style="font-size:13px; font-weight:600; color:${(state.stage1?.contract?.overview || state.stage1?.researchOverview) ? '#0f172a' : '#94a3b8'}; line-height:1.5; white-space:pre-wrap; word-break:break-word;">${escapeHtml(state.stage1?.contract?.overview || state.stage1?.researchOverview || '（小组暂未录入方案概述）')}</div>
+                            </div>
+
+                            <!-- 📚 6大核心模块与时间规划 (独立模块) -->
                             <div style="background:#ffffff; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
                               <div style="font-weight:800; color:#1e40af; margin-bottom:8px; font-size:12.5px;">
-                                📚 研究方案核心模块与时间规划:
+                                📚 ${isInst ? '教学设计' : '研究方案'}核心模块与时间规划:
                               </div>
                               <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:8px;">
-                                ${[
-                                  { key: 'background', label: '一、研究背景与意义', def: 25, color: '#2563eb' },
-                                  { key: 'literature', label: '二、文献综述', def: 30, color: '#0284c7' },
-                                  { key: 'questions', label: '三、研究问题与假设', def: 25, color: '#059669' },
-                                  { key: 'method', label: '四、研究设计与方法', def: 40, color: '#7c3aed' },
-                                  { key: 'reflection', label: '五、研究设计的不足与反思', def: 20, color: '#d97706' },
-                                  { key: 'references', label: '六、参考文献', def: 10, color: '#475569' }
-                                ].map(sec => {
+                                ${(genreCfg.modules || []).map(sec => {
                                   const timeAlloc = state.stage1?.contract?.timeAllocations || {};
-                                  const timeVal = (timeAlloc[sec.key] !== undefined) ? timeAlloc[sec.key] : sec.def;
+                                  const timeVal = (timeAlloc[sec.key] !== undefined) ? timeAlloc[sec.key] : sec.defaultMinutes;
                                   return `
                                     <div style="background:#f8fafc; border:1px solid #e2e8f0; border-left:3.5px solid ${sec.color}; border-radius:6px; padding:6px 8px; display:flex; justify-content:space-between; align-items:center;">
-                                      <span style="font-weight:700; color:#334155; font-size:11.5px;">${sec.label}</span>
+                                      <span style="font-weight:700; color:#334155; font-size:11.5px;">${sec.title}</span>
                                       <span style="font-size:11.5px; color:#2563eb; font-weight:800;">${timeVal} 分钟</span>
                                     </div>
                                   `;
