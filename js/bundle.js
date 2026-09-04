@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2565
+ * Version: 20260905_v2570
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2565';
+  const APP_VERSION = '20260905_v2570';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3546,11 +3546,12 @@
 
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.setAttribute('href', url);
         const safeClassName = (res.className || curCls.name).replace(/[\\/:*?"<>|]/g, '_');
         const safeGroupName = (grp.name || grp.id).replace(/[\\/:*?"<>|]/g, '_');
-        link.setAttribute('download', `【${safeClassName}】_${safeGroupName}_研讨记录表_${todayStr}.csv`);
+        const allTasks = this.getTasks();
+        const targetTask = taskId ? allTasks.find(t => t.id === taskId) : null;
+        const safeTaskTitle = targetTask && targetTask.title ? `_${targetTask.title.replace(/[\\/:*?"<>|]/g, '_')}` : '';
+        link.setAttribute('download', `【${safeClassName}】${safeTaskTitle}_${safeGroupName}_研讨记录表_${todayStr}.csv`);
         document.body.appendChild(link);
 
         // 错峰触发下载，防止浏览器多文件拦截
@@ -6156,10 +6157,10 @@
 
               <!-- 1. 课程协作写作任务集中发布中心 (最开始) -->
               <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
-                  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                    <button id="btn-v2-open-task-modal" class="teacher-action-btn indigo" style="background:#2563eb; padding:8px 18px; font-size:13px; font-weight:700;">+ 发布全新写作任务</button>
-                    <button id="btn-v2-export-all-class-chat" class="teacher-action-btn" style="background:#059669; color:#ffffff; padding:8px 16px; font-size:13px; font-weight:700; border-radius:8px; border:none; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(5,150,105,0.2);">📥 一键导出全班各组研讨 (分文件)</button>
-                  </div>
+                <div class="card-title" style="margin-bottom:16px;">
+                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📌 课程写作任务发布 (${currentClassTasks.length} 项 · 当前班级: ${activeClass.name})</span>
+                  <button id="btn-v2-open-task-modal" class="teacher-action-btn indigo" style="background:#2563eb; padding:8px 18px; font-size:13px; font-weight:700;">+ 发布全新写作任务</button>
+                </div>
                 <div style="display:flex; flex-direction:column; gap:14px;">
                   ${currentClassTasks.length === 0 ? `
                     <div style="text-align:center; padding:32px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1;">
@@ -6188,6 +6189,9 @@
                         </div>
                         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                           <span style="font-size:12px; color:#64748b; margin-right:4px;">🕒 发布时间: <b>${formatStandardDateDash(t.createdAt || t.startTime) || '刚刚'}</b></span>
+                          <button class="btn-export-task-chat-all" data-id="${t.id}" data-title="${t.title}" data-class="${t.classId || activeClass.id}" style="background:linear-gradient(135deg, #059669, #10b981); border:none; color:white; padding:5px 12px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(16,185,129,0.25); display:inline-flex; align-items:center; gap:4px;" title="一键导出该任务全班各小组独立研讨记录表 (分文件)">
+                            📥 导出全班研讨
+                          </button>
                           <button class="btn-extend-task-deadline" data-id="${t.id}" data-title="${t.title}" data-deadline="${t.deadline || ''}" data-duration="${t.durationMinutes || 150}" style="background:linear-gradient(135deg, #0284c7, #0ea5e9); border:none; color:white; padding:5px 12px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(2,132,199,0.25);" title="自由调整该任务截止时间（支持延期与提前回退）">
                             ⏱️ 调整时间
                           </button>
@@ -6637,11 +6641,8 @@
                       <span id="teacher-task-status-badge" style="font-size:12px; font-weight:700; padding:5px 12px; border-radius:6px; background:${isMonitorTaskExpired || state.isFinalSubmitted ? '#fef2f2' : '#ecfdf5'}; color:${isMonitorTaskExpired || state.isFinalSubmitted ? '#dc2626' : '#059669'}; border:1px solid ${isMonitorTaskExpired || state.isFinalSubmitted ? '#fecaca' : '#a7f3d0'};">
                         ${isMonitorTaskExpired ? '已截止' : (state.isFinalSubmitted ? '已归档' : '进行中')}
                       </span>
-                      <button id="btn-export-all-excel" style="background:#2563eb; color:white; border:none; padding:7px 14px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2); display:inline-flex; align-items:center; gap:5px;">
+                      <button id="btn-export-all-excel" style="background:#2563eb; color:white; border:none; padding:7px 16px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2); display:inline-flex; align-items:center; gap:6px;">
                         📊 导出本组 Excel
-                      </button>
-                      <button id="btn-export-all-class-groups-excel" style="background:#059669; color:white; border:none; padding:7px 14px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(5,150,105,0.2); display:inline-flex; align-items:center; gap:5px;">
-                        📥 一键导出全班 (分文件)
                       </button>
                     </div>
                   </div>
@@ -9434,21 +9435,13 @@
       });
     }
 
-    const triggerExportAllClassChat = () => {
-      const targetClassId = activeClass?.id || state.activeClassId || 'class_101';
-      const targetTaskId = state.activeTaskId || null;
-      authManager.exportAllClassGroupsChatLogsToSeparateFiles(targetClassId, targetTaskId);
-    };
-
-    const btnExportAllClass1 = container.querySelector('#btn-v2-export-all-class-chat');
-    if (btnExportAllClass1) {
-      btnExportAllClass1.addEventListener('click', triggerExportAllClassChat);
-    }
-
-    const btnExportAllClass2 = container.querySelector('#btn-export-all-class-groups-excel');
-    if (btnExportAllClass2) {
-      btnExportAllClass2.addEventListener('click', triggerExportAllClassChat);
-    }
+    container.querySelectorAll('.btn-export-task-chat-all').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const tId = e.currentTarget.dataset.id;
+        const cId = e.currentTarget.dataset.class || activeClass?.id || 'class_101';
+        authManager.exportAllClassGroupsChatLogsToSeparateFiles(cId, tId);
+      });
+    });
 
     // 💬 教师端研讨流滚动位置智能恢复（默认打开/首次切换在最下面；教师向上查历史时绝不强行下拉）
     container.querySelectorAll('.teacher-chat-stream').forEach(st => {
