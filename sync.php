@@ -1683,10 +1683,6 @@ if ($action === 'get_pad_text' || $action === 'get_pad_html') {
             }
         }
         if (!$foundDbContent) {
-            // 没有任何学生正文，彻底将 Pad 抹为空白
-            $setTUrl = "http://127.0.0.1:9001/api/1.2.14/setText?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId) . "&text=";
-            $chCl = curl_init($setTUrl); curl_setopt($chCl, CURLOPT_RETURNTRANSFER, true); curl_setopt($chCl, CURLOPT_TIMEOUT, 1);
-            curl_exec($chCl); curl_close($chCl);
             $retHtml = '';
             $retText = '';
         }
