@@ -1269,15 +1269,9 @@ if ($action === 'restore_pad_max_revision') {
         if (!empty($resList)) {
             $jsonList = json_decode($resList, true);
             if (isset($jsonList['data']['padIDs']) && is_array($jsonList['data']['padIDs'])) {
-                // 提取当前小组的标识（如 _10 或类似数字后缀）
-                preg_match('/_(\d+)$/', $padId, $groupMatch);
-                $grpSuffix = isset($groupMatch[1]) ? '_' . $groupMatch[1] : '';
-
                 foreach ($jsonList['data']['padIDs'] as $otherPadId) {
-                    // 如果有小组后缀，优先匹配同小组 pad；否则匹配所有 jizhi_ 开头的 pad
-                    if (!empty($grpSuffix) && !str_ends_with($otherPadId, $grpSuffix) && !str_contains($otherPadId, $grpSuffix . '_')) {
-                        continue;
-                    }
+                    if (!str_starts_with($otherPadId, 'jizhi_')) continue;
+
                     $otherHtmlUrl = "http://127.0.0.1:9001/api/1.2.14/getHTML?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($otherPadId);
                     $chO = curl_init($otherHtmlUrl);
                     curl_setopt($chO, CURLOPT_RETURNTRANSFER, true);
