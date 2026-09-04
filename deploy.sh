@@ -33,28 +33,36 @@ if pgrep nginx >/dev/null 2>&1 || systemctl is-active --quiet nginx 2>/dev/null;
 fi
 
 # 2. 净化 Etherpad 配置与历史空模板
-if [ -d "/www/wwwroot/etherpad-lite" ]; then
-  # 净化 settings.json，将 defaultPadText 置为空白
-  node -e '
-    const fs = require("fs");
-    const p = "/www/wwwroot/etherpad-lite/settings.json";
-    if (fs.existsSync(p)) {
-      try {
-        let s = JSON.parse(fs.readFileSync(p, "utf8"));
-        if (s.defaultPadText !== "") {
+EP_RUN_DIR=""
+for d in /www/wwwroot/etherpad-lite /www/wwwroot/47.99.110.230/etherpad-lite /root/etherpad-lite /opt/etherpad-lite /var/www/etherpad-lite; do
+  if [ -d "$d" ]; then
+    EP_RUN_DIR="$d"
+    # 净化 settings.json，将 defaultPadText 置为空白
+    node -e '
+      const fs = require("fs");
+      const p = "'"$d"'/settings.json";
+      if (fs.existsSync(p)) {
+        try {
+          let s = JSON.parse(fs.readFileSync(p, "utf8"));
           s.defaultPadText = "";
           fs.writeFileSync(p, JSON.stringify(s, null, 2), "utf8");
-          console.log("✅ settings.json defaultPadText 已设置为纯白空字符");
-        }
-      } catch(e) {}
-    }
-  ' 2>/dev/null || true
+          console.log("✅ [" + p + "] defaultPadText 已设置为纯白空字符");
+        } catch(e) {}
+      }
+    ' 2>/dev/null || true
+  fi
+done
 
-  # 强制彻底重启 Etherpad 以加载空白配置
-  pkill -9 -f "node.*etherpad" 2>/dev/null || true
-  sleep 1
-  cd /www/wwwroot/etherpad-lite
-  nohup ./bin/run.sh --root > /var/log/etherpad.log 2>&1 &
+# 强制彻底重启 Etherpad 以加载空白配置
+pkill -9 -f "node.*etherpad" 2>/dev/null || true
+sleep 1
+if [ -n "$EP_RUN_DIR" ]; then
+  cd "$EP_RUN_DIR"
+  if [ -f "./bin/run.sh" ]; then
+    nohup ./bin/run.sh --root > /var/log/etherpad.log 2>&1 &
+  elif [ -f "src/node/server.js" ]; then
+    nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
+  fi
   cd "$SITE_DIR"
   sleep 4
 fi
