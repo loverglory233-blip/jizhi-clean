@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2305";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2305";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2305";
-import { AuthManager } from "./auth.js?v=20260904_v2305";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2305";
-import { renderLoginView } from "./login.js?v=20260904_v2305";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2305";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2305";
+} from "./constants.js?v=20260904_v2310";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2310";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2310";
+import { AuthManager } from "./auth.js?v=20260904_v2310";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2310";
+import { renderLoginView } from "./login.js?v=20260904_v2310";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2310";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2310";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2305";
+} from "./editor.js?v=20260904_v2310";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1579,7 +1579,7 @@ export class App {
         // ======================================================================
         const existReviewFollow = s2Chats.some(m => m && (m.text?.includes('初审跟进提示') || m.text?.includes('初审协同跟进')));
         const lastReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && !m.text?.includes('初审跟进提示') && !m.text?.includes('初审协同跟进'));
-        const isFirstReviewIssued = !!lastReviewMsgObj || s2.reviewMilestone === 'first_review_done' || !!s2.firstReviewText;
+        const isFirstReviewIssued = !!lastReviewMsgObj;
         const hasPassedToSubsequentStages = s2Chats.some(m => m && (
           m.text?.includes('半程研讨号召') || 
           m.text?.includes('半程会议号召') || 
@@ -1601,7 +1601,7 @@ export class App {
             const followMsg = {
               sender: 'reviewingEditor',
               senderName: '学术质量 · 审稿编辑',
-              text: `📝 【审稿编辑·初审协同跟进】：初审破题把脉意见已送达！建议大家花 1 分钟互相通读同伴起草的开头段落，在研讨区共同交流核心研究问题与概念界定是否统一对齐，群策群力打牢全篇学术地基！`,
+              text: `📝 【审稿编辑·初审协同跟进】：初审破题把脉意见已于上方研讨区发出！建议大家花 1 分钟互相通读同伴起草的开头段落，参考审稿建议在研讨区共同交流核心研究问题与概念界定是否统一对齐，群策群力打牢全篇学术地基！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now
             };
