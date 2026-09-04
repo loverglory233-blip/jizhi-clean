@@ -9499,6 +9499,8 @@
     // 🛡️ 真正的公约生效锁定判定：服务端公约已标记生效、或全员已签、或小组已进入阶段二/三、或全盘已提交/任务已截止
     const isAllConfirmed = (totalMembersCount > 0 && confirmedCount >= totalMembersCount);
     const isContractLocked = !!(s1.contract && s1.contract.isConfirmed) || isAllConfirmed || (state.groupMaxStage === 'stage2' || state.groupMaxStage === 'stage3') || state.isFinalSubmitted || isTaskDeadlineExpired;
+    const isDraftDone = !!(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated);
+    const isInputDisabled = isContractLocked || isDraftDone;
     if (s1.contract && isAllConfirmed) s1.contract.isConfirmed = true;
 
     const userHasVoted = isMemberDone(s1.hasVoted, currUserObj || { id: currentUser, name: currentUserName });
@@ -9685,7 +9687,7 @@
           <label style="font-size:14px; font-weight:800; color:#1e40af; display:flex; align-items:center; gap:6px;">
             📌 【槽位 1】确认${(taskGenreKey === 'instructional') ? '教学设计课题 / 主题' : '研究方案课题 / 题目'}:
           </label>
-          <input type="text" id="contract-topic-input" class="large-contract-input" data-lock-key="topic_title" value="${s1.mergedTitle || s1.contract?.topic || ''}" placeholder="${s1.mergedTitle ? '在此处输入定案课题规范名称...' : '投票有分歧或待定，请在讨论区商定后点击上方一键提炼生成...'}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; padding:12px 14px; font-size:14.5px; font-weight:700; font-family:sans-serif;">
+          <input type="text" id="contract-topic-input" class="large-contract-input" data-lock-key="topic_title" value="${s1.mergedTitle || s1.contract?.topic || ''}" placeholder="${s1.mergedTitle ? '在此处输入定案课题规范名称...' : '投票有分歧或待定，请在讨论区商定后点击上方一键提炼生成...'}" ${isInputDisabled ? 'disabled readonly style="opacity:0.8; cursor:not-allowed; background:#f8fafc;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; padding:12px 14px; font-size:14.5px; font-weight:700; font-family:sans-serif;">
         </div>
 
         <!-- 槽位 2：方案概述 / 教学构思与主线 -->
@@ -9693,7 +9695,7 @@
           <label style="font-size:14px; font-weight:800; color:#0369a1; display:flex; align-items:center; gap:6px;">
             📝 【槽位 2】${(taskGenreKey === 'instructional') ? '教学设计整体构想与主线 (核心情境、活动主线与重难点突破)' : '研究方案概述 (具体情境、案例、聚焦点与方法)'}:
           </label>
-          <textarea id="contract-overview-input" class="contract-overview-textarea" data-lock-key="research_overview" placeholder="请在讨论区围绕核心主线、关键活动/方法展开研讨，点击上方按钮一键提炼生成（生成后可自由微调）..." ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; min-height:88px; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; font-size:13px; line-height:1.6; font-family:sans-serif; resize:vertical;">${s1.contract?.overview || s1.researchOverview || ''}</textarea>
+          <textarea id="contract-overview-input" class="contract-overview-textarea" data-lock-key="research_overview" placeholder="请在讨论区围绕核心主线、关键活动/方法展开研讨，点击上方按钮一键提炼生成（生成后可自由微调）..." ${isInputDisabled ? 'disabled readonly style="opacity:0.8; cursor:not-allowed; background:#f8fafc;"' : ''} style="width:100%; min-height:88px; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; font-size:13px; line-height:1.6; font-family:sans-serif; resize:vertical;">${s1.contract?.overview || s1.researchOverview || ''}</textarea>
         </div>
 
         <div style="display:flex; flex-direction:column; gap:16px; width:100%;">
@@ -9714,7 +9716,7 @@
                   <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid ${mod.color || '#2563eb'}; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
                     <span style="font-weight:800; color:#1e40af; font-size:13.5px;">${escapeHtml(mod.title)}</span>
                     <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                      用时: <input type="number" class="contract-time-input" data-key="${mod.key}" data-lock-key="time_${mod.key}" value="${currentVal}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
+                      用时: <input type="number" class="contract-time-input" data-key="${mod.key}" data-lock-key="time_${mod.key}" value="${currentVal}" ${isInputDisabled ? 'disabled readonly style="opacity:0.8; cursor:not-allowed; background:#f8fafc;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
                     </label>
                   </div>
                 `;
@@ -9738,7 +9740,7 @@
                 return `
                   <div style="display:flex; flex-direction:column; gap:6px; width:100%; background:#ffffff; padding:12px 14px; border-radius:8px; border:1px solid #e2e8f0; box-sizing:border-box;">
                     <span style="font-weight:800; color:${m.color || '#2563eb'}; font-size:13px;">${m.avatar || '👤'} ${m.name}:</span>
-                    <input type="text" class="large-contract-input task-assignment-input" data-mkey="${mKey}" data-lock-key="task_${mKey}" value="${taskVal}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:10px 14px; font-size:13px; font-family:sans-serif;" placeholder="在聊天中商定或在此录入具体负责的写作章节与任务...">
+                    <input type="text" class="large-contract-input task-assignment-input" data-mkey="${mKey}" data-lock-key="task_${mKey}" value="${taskVal}" ${isInputDisabled ? 'disabled readonly style="opacity:0.8; cursor:not-allowed; background:#f8fafc;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:10px 14px; font-size:13px; font-family:sans-serif;" placeholder="在聊天中商定或在此录入具体负责的写作章节与任务...">
                   </div>
                 `;
               }).join('')}
@@ -12195,7 +12197,11 @@
     if (curStage === 'stage1') {
       const s1 = state.stage1 || {};
       const elapsedSec = (state.timer && state.timer.elapsedSeconds) ? state.timer.elapsedSeconds : 0;
-      const isDraftDone = !!(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated);
+      const hasTopic = !!(s1.mergedTitle || s1.contract?.topic);
+      const hasTime = !!(s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6);
+      const hasTasks = !!(s1.contract?.taskAssignments && Object.keys(s1.contract.taskAssignments).length >= totalCount && totalCount > 0);
+      const isThreeDone = hasTopic && hasTime && hasTasks;
+      const isDraftDone = !!(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated || isThreeDone);
       const isContractConfirmed = !!(s1.contract?.isConfirmed || state.groupMaxStage === 'stage2' || state.groupMaxStage === 'stage3');
       const confirmedMembers = s1.contract?.confirmedMembers || {};
       const confirmedCount = membersList.filter(m => isDoneHelper({ [m.id]: confirmedMembers[m.id] || (m.name && confirmedMembers[m.name]) })).length;
@@ -12210,7 +12216,7 @@
             📜 公约草案已全部生成！👉 请全员在左侧公约下方核对并签署 (${confirmedCount}/${totalCount} 人已签)
           </div>
         `;
-      } else if (s1.contractStep !== 'completed' && !s1.contract?.isDraftGenerated && !s1.contract?.isConfirmed) {
+      } else if (elapsedSec >= 13 * 60) {
         actionBar.style.display = 'block';
         const isGenerating = !!(window.app && window.app._isGeneratingContract);
         const isFailed = !!(window.app && window.app._contractGenerateFailed);
