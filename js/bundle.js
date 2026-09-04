@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2209
+ * Version: 20260904_v2210
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2209';
+  const APP_VERSION = '20260904_v2210';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12985,18 +12985,21 @@
                 renderChat(this.state);
               }
 
-              // ④ 投票催促：提案集齐后满 2 分钟（或整体满 8 分钟）仍有同学未投票（点名未投票同学）
+              // ④ 投票催促：自第一位成员投票起满 3 分钟，仍有同学未投票（点名未投票同学）
               const totalVotesCast = membersList.filter(m => isMemberDone(s1.hasVoted, m)).length;
               const unvotedMembers = membersList.filter(m => !isMemberDone(s1.hasVoted, m));
-              const propsGatheredTime = this.state._propsGatheredTimeMs || (nowMs - 120000);
-              const timeSincePropsGathered = nowMs - propsGatheredTime;
-              if (!this.state.s1_voteNudgeSent && propCount >= membersList.length && unvotedMembers.length > 0 && totalVotesCast < membersList.length && (timeSincePropsGathered >= 120000 || elapsedSec >= 480)) {
+              if (totalVotesCast > 0 && !this.state._firstVoteTimeMs) {
+                this.state._firstVoteTimeMs = s1._firstVoteTimeMs || nowMs;
+              }
+              const firstVoteTime = this.state._firstVoteTimeMs || s1._firstVoteTimeMs || nowMs;
+              const timeSinceFirstVote = nowMs - firstVoteTime;
+              if (!this.state.s1_voteNudgeSent && totalVotesCast > 0 && unvotedMembers.length > 0 && totalVotesCast < membersList.length && timeSinceFirstVote >= 180000) {
                 this.state.s1_voteNudgeSent = true;
                 const unvotedNames = unvotedMembers.map(m => m.name || m.id).join('、');
                 const msgVoteNudge = {
                   sender: 'auctioneer',
                   senderName: '头脑风暴 · 学术拍卖师',
-                  text: `🎪 【学术拍卖师·投票推选提示】：全员提案已集齐研讨，目前全组投票进度为【${totalVotesCast}/${membersList.length} 人】，看到 ${unvotedNames} 同学尚未完成投票。请尽快在左侧卡片为您认同的课题方案投出关键一票！`,
+                  text: `🎪 【学术拍卖师·投票推选提示】：组内已有同学完成推选投票，目前全组投票进度为【${totalVotesCast}/${membersList.length} 人】，看到 ${unvotedNames} 同学尚未完成投票。请尽快在左侧卡片为您认同的课题方案投出关键一票！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: nowMs
                 };
@@ -13006,20 +13009,23 @@
                 renderChat(this.state);
               }
 
-              // ⑤ 公约草案生成后签署催促：草案就绪满 90 秒后仍有同学未签署（点名未签署同学）
+              // ⑤ 公约草案签署催促：自第一位成员签署起满 3 分钟，仍有同学未签署（点名未签署同学）
               const isDraftDone = !!(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated);
               const confirmedMembers = s1.contract?.confirmedMembers || {};
               const confirmedCount = membersList.filter(m => isMemberDone(confirmedMembers, m)).length;
               const unsignedMembers = membersList.filter(m => !isMemberDone(confirmedMembers, m));
-              const draftTime = s1.contract?._draftedTime || (nowMs - 90000);
-              const timeSinceDraft = nowMs - draftTime;
-              if (!this.state.s1_signNudgeSent && isDraftDone && unsignedMembers.length > 0 && confirmedCount < membersList.length && timeSinceDraft >= 90000) {
+              if (confirmedCount > 0 && !this.state._firstSignTimeMs) {
+                this.state._firstSignTimeMs = s1.contract?._firstSignTimeMs || nowMs;
+              }
+              const firstSignTime = this.state._firstSignTimeMs || s1.contract?._firstSignTimeMs || nowMs;
+              const timeSinceFirstSign = nowMs - firstSignTime;
+              if (!this.state.s1_signNudgeSent && isDraftDone && confirmedCount > 0 && unsignedMembers.length > 0 && confirmedCount < membersList.length && timeSinceFirstSign >= 180000) {
                 this.state.s1_signNudgeSent = true;
                 const unsignedNames = unsignedMembers.map(m => m.name || m.id).join('、');
                 const msgSignNudge = {
                   sender: 'auctioneer',
                   senderName: '头脑风暴 · 学术拍卖师',
-                  text: `🏛️ 【学术拍卖师·公约签署提示】：公约草案已全部提炼就绪，目前全组签署进度为【${confirmedCount}/${membersList.length} 人】，看到 ${unsignedNames} 同学尚未确认签署。请尽快在左侧公约下方核对分工与时间规划并点击【✍️ 确认签署】，全员签署后将正式解锁阶段二！`,
+                  text: `🏛️ 【学术拍卖师·公约签署提示】：公约草案已有成员确认签署，目前全组签署进度为【${confirmedCount}/${membersList.length} 人】，看到 ${unsignedNames} 同学尚未确认签署。请尽快在左侧公约下方核对分工与时间规划并点击【✍️ 确认签署】，全员签署后将正式解锁阶段二！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: nowMs
                 };
@@ -14981,6 +14987,7 @@
         s1.hasVoted[currUserObj.name] = true;
       }
 
+      if (!s1._firstVoteTimeMs) s1._firstVoteTimeMs = Date.now();
       s1._lastVoteTime = Date.now();
       const proposal = (s1.proposals || []).find(p => p.id === proposalId);
       const membersList = Object.values(this.state.members || {});
@@ -15848,6 +15855,8 @@
         if (currMemObj.id) s1.contract.confirmedMembers[currMemObj.id] = true;
         if (currMemObj.name) s1.contract.confirmedMembers[currMemObj.name] = true;
       }
+      if (!s1.contract._firstSignTimeMs) s1.contract._firstSignTimeMs = Date.now();
+      s1.contract._lastSignTimeMs = Date.now();
 
       // 🌐 原子同步给后端数据库
       const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(currMemObj, this.state.activeStudentClassId || currMemObj?.classId || null) : null;
