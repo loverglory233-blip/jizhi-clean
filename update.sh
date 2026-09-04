@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260904_v2508"
+TARGET_VERSION="20260904_v2509"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -382,6 +382,7 @@ EPSETEOF
   kill -9 $(lsof -t -i:9001 2>/dev/null) 2>/dev/null || true
   pkill -9 -f "node.*server\.js" 2>/dev/null || true
   pkill -9 -f "node.*etherpad" 2>/dev/null || true
+  pkill -9 -f "bin/run.sh" 2>/dev/null || true
   sleep 1
 
   cd "$EP_DIR"
@@ -398,17 +399,17 @@ EPSETEOF
     done
   fi
 
-  if [ -f "src/node/server.js" ] && [ -n "$NODE_BIN" ]; then
-    nohup "$NODE_BIN" src/node/server.js > /var/log/etherpad.log 2>&1 &
-  elif [ -f "bin/run.sh" ]; then
+  if [ -f "bin/run.sh" ]; then
     nohup bash bin/run.sh --root > /var/log/etherpad.log 2>&1 &
+  elif [ -f "src/node/server.js" ] && [ -n "$NODE_BIN" ]; then
+    nohup "$NODE_BIN" src/node/server.js > /var/log/etherpad.log 2>&1 &
   elif [ -f "node_modules/ep_etherpad-lite/node/server.js" ] && [ -n "$NODE_BIN" ]; then
     nohup "$NODE_BIN" node_modules/ep_etherpad-lite/node/server.js > /var/log/etherpad.log 2>&1 &
   fi
 
   EP_READY=0
-  for i in {1..12}; do
-    if curl -s -I --connect-timeout 2 --max-time 3 http://127.0.0.1:9001/p/test 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
+  for i in {1..25}; do
+    if curl -s -I --connect-timeout 2 --max-time 3 http://127.0.0.1:9001/ 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
       echo "   🟢 Etherpad 学术协同引擎就绪！(耗时 $i 秒)"
       EP_READY=1
       break
@@ -419,20 +420,8 @@ EPSETEOF
   echo ""
 
   if [ $EP_READY -eq 0 ]; then
-    echo "   ⚠️ 尝试 bin/run.sh 深度通道拉起..."
-    if [ -f "bin/run.sh" ]; then
-      nohup bash bin/run.sh --root > /var/log/etherpad.log 2>&1 &
-    fi
-    for i in {1..8}; do
-      if curl -s -I --connect-timeout 2 --max-time 3 http://127.0.0.1:9001/p/test 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
-        echo "   🟢 Etherpad 协同引擎已成功上线！"
-        EP_READY=1
-        break
-      fi
-      echo -n "."
-      sleep 1
-    done
-    echo ""
+    echo "   ⚠️ 初次启动等待中，查看最新运行日志:"
+    tail -n 20 /var/log/etherpad.log 2>/dev/null || true
   fi
 fi
 
