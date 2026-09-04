@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260904_v2480"
+TARGET_VERSION="20260904_v2485"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -331,8 +331,16 @@ if [ -n "$EP_DIR" ]; then
     } catch (e) {}
   });
 
-  console.log("   ✅ 已为 Etherpad 核心及 12 大学术插件全量注入高精中文翻译包！");
-  ' "$EP_DIR" 2>/dev/null || true
+  # 确保所有 12 大学术插件目录未被 ignore
+  if [ -d "$EP_DIR/node_modules" ]; then
+    cd "$EP_DIR/node_modules"
+    for d in .ignored_ep_*; do
+      if [ -d "$d" ]; then
+        target="${d#.ignored_}"
+        mv "$d" "$target" 2>/dev/null || true
+      fi
+    done
+  fi
 
   # 写入高可用无拦截且包含全套学术插件工具栏的标准 settings.json
   cat << 'EPSETEOF' > "$EP_DIR/settings.json"
