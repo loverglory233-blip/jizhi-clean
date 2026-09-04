@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2657
+ * Version: 20260905_v2658
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2657';
+  const APP_VERSION = '20260905_v2658';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13577,14 +13577,18 @@
       }
 
       const newPresenceHtml = memberList.map(m => {
-        const uid = String(m.id || m.userId || '').trim();
+        const uid = String(m.id || m.userId || m.studentCode || '').trim();
         const candidateKeys = [
           String(m.id || '').trim(),
+          String(m.userId || '').trim(),
+          String(m.studentCode || '').trim(),
+          String(m.username || '').trim(),
           String(m.name || '').trim()
         ].filter(Boolean);
 
         const isMe = (currUser && (
-          (currUser.id && (m.id === currUser.id || uid === String(currUser.id))) ||
+          (currUser.id && (m.id === currUser.id || uid === String(currUser.id) || (m.userId && String(m.userId) === String(currUser.id)))) ||
+          (currUser.studentCode && (m.studentCode === currUser.studentCode || uid === String(currUser.studentCode))) ||
           (currUser.name && m.name === currUser.name)
         )) || (uid && uid === myCode);
 
