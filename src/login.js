@@ -1,5 +1,5 @@
-import { escapeHtml } from "./utils.js?v=20260905_v2689";
-import { APP_VERSION } from "./constants.js?v=20260905_v2689";
+import { escapeHtml } from "./utils.js?v=20260905_v2690";
+import { APP_VERSION } from "./constants.js?v=20260905_v2690";
 
 export function renderLoginView(container, authManager, onLoginSuccess) {
   if (authManager && authManager.pullGlobalMeta) {
