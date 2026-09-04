@@ -8,8 +8,8 @@ import {
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES,
   TASK_GENRE_CONFIGS
-} from "./constants.js?v=20260905_v2659";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260905_v2659";
+} from "./constants.js?v=20260905_v2660";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260905_v2660";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -296,10 +296,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
             <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:50px 24px; text-align:center; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
               <div style="font-size:42px; margin-bottom:10px;">⏳</div>
               <div style="font-size:17px; font-weight:700; color:#1e293b;">暂无已发布的写作任务</div>
-              <div style="font-size:13px; color:#64748b; margin-top:6px;">任课教师尚未发布新任务，请等待教师在教师端发布，或点击下方直接进入协作工作台体验。</div>
-              <button id="btn-enter-default-workspace" style="margin-top:18px; background:#2563eb; color:white; border:none; padding:11px 24px; border-radius:10px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.25);">
-                🚀 直接进入默认协作工作台
-              </button>
+              <div style="font-size:13.5px; color:#64748b; margin-top:8px;">任课教师尚未发布新任务，请等待教师在教师端发布后参与写作。</div>
             </div>
           ` : `
             <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(460px, 1fr)); gap:20px;">
@@ -422,7 +419,6 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
   container.querySelector('#btn-portal-change-pwd')?.addEventListener('click', () => {
     authManager.openChangePasswordModal();
   });
-  container.querySelector('#btn-enter-default-workspace')?.addEventListener('click', () => onSelectTask(null));
   container.querySelectorAll('.btn-enter-task-workspace').forEach(btn => {
     btn.addEventListener('click', () => onSelectTask(btn.dataset.taskId));
   });
