@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260904_v2506"
+TARGET_VERSION="20260904_v2507"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -345,7 +345,7 @@ if [ -n "$EP_DIR" ]; then
     done
   fi
 
-  # 写入高可用无拦截且包含全套学术插件工具栏的标准 settings.json
+  # 写入高可用无拦截且让插件自动挂载的标准 settings.json (杜绝手写 toolbar 引起的 500 模板异常)
   cat << 'EPSETEOF' > "$EP_DIR/settings.json"
 {
   "title": "JIZHI Academic Etherpad",
@@ -364,24 +364,10 @@ if [ -n "$EP_DIR" ]; then
     "useMonospaceFont": false,
     "userName": "学术组员"
   },
-  "toolbar": {
-    "left": [
-      ["bold", "italic", "underline", "strikethrough"],
-      ["orderedlist", "unorderedlist", "indent", "outdent"],
-      ["heading", "font-size", "font-family", "font-color"],
-      ["left", "center", "right", "justify"],
-      ["insertTable", "imageUpload"],
-      ["undo", "redo"],
-      ["clearauthorship"]
-    ],
-    "right": [
-      ["importexport", "timeslider", "settings", "showusers"]
-    ]
-  },
   "suppressErrorsInPadText": true,
   "requireAuthentication": false,
   "requireAuthorization": false,
-  "trustProxy": 1,
+  "trustProxy": true,
   "socketTransportProtocols": ["websocket", "polling"],
   "loadTest": false,
   "exposeVersion": false,
