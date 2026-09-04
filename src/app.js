@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2237";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2237";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2237";
-import { AuthManager } from "./auth.js?v=20260904_v2237";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2237";
-import { renderLoginView } from "./login.js?v=20260904_v2237";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2237";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2237";
+} from "./constants.js?v=20260904_v2238";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2238";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2238";
+import { AuthManager } from "./auth.js?v=20260904_v2238";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2238";
+import { renderLoginView } from "./login.js?v=20260904_v2238";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2238";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2238";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2237";
+} from "./editor.js?v=20260904_v2238";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3195,6 +3195,26 @@ ${votedDetails}
     const agentRole = isInst ? '备课引导师' : '学术拍卖师';
     const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
 
+    // 🌟 在聊天区挂载正在提炼主题的思考动效与广播
+    const inFlightTopicId = 'thinking_extract_topic_' + Date.now();
+    const inFlightTopicMsg = {
+      id: inFlightTopicId,
+      isThinking: true,
+      sender: 'auctioneer',
+      senderName: agentSenderName,
+      text: `⏳ 收到全组成员确认！${agentRole}正在根据讨论区研讨记录提炼【${isInst ? '教学课题与方案概述' : '论文主题与研究方案'}】，请稍候...`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      _timeMs: Date.now()
+    };
+    if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+    this.state.chatLogs.stage1.push(inFlightTopicMsg);
+    if (typeof this.sendSingleChatMessage === 'function') {
+      this.sendSingleChatMessage(inFlightTopicMsg, 'stage1');
+    }
+    this.syncChatLogs();
+    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+    renderChat(this.state);
+
     const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
     const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('投票结果出炉') || m.text.includes('全票通过') || m.text.includes('计票结果') || m.text.includes('落槌')));
     const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs;
@@ -3224,7 +3244,9 @@ ${chatSnippet}
     try {
       const resp = await callCozeAgentAPI('auctioneer', extractPrompt, { stage: 'stage1', topic: currentCandidate, taskType });
       let finalTopic = currentCandidate;
-      let finalOverview = isInst ? '本教学设计围绕具体学情与情境展开，聚焦核心教学目标与重难点，采用情境创设、新知探究与多元评价相结合的教学模式。' : '本研究围绕具体实践情境展开，聚焦核心问题，采用定性与定量相结合的研究方法进行深入探讨。';
+      let finalOverview = isInst 
+        ? `本教学设计方案紧扣《${finalTopic}》展开，立足真实学情分析与新课标核心素养目标。全篇采用情境驱动与任务探究相结合的教学模式，设置由浅入深的学生活动链，并配以针对性过程性评价量规与分层作业，确保教学重难点有效突破。`
+        : `本研究围绕《${finalTopic}》展开，立足具体实践情境与核心科学问题。研究设计采用实证方法，明确关键变量与操作化测量工具，通过系统的样本抽样与数据分析模型，深入探究关键影响机制与效应边界。`;
       let guideSpeech = `🎪 【${agentRole}·方案确立】：主题《${finalTopic}》与${isInst ? '教学' : '研究'}方案概述已成功确立并录入公约！👉 接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定完成后点击【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！`;
 
       if (resp && resp.trim().length > 0) {
@@ -3232,19 +3254,37 @@ ${chatSnippet}
           const jsonMatch = resp.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             const parsed = safeJsonParse(jsonMatch[0]);
-            if (parsed && parsed.topic) finalTopic = parsed.topic;
-            if (parsed && parsed.overview) finalOverview = parsed.overview;
+            if (parsed && parsed.topic && parsed.topic.trim().length > 0) finalTopic = parsed.topic.trim().replace(/^《|》$/g, '');
+            if (parsed && parsed.overview && parsed.overview.trim().length > 0) finalOverview = parsed.overview.trim();
             if (parsed && parsed.guideText) guideSpeech = parsed.guideText;
+          } else {
+            // 🛡️ 兼容 Markdown / 纯文本非 JSON 输出
+            const tMatch = resp.match(/(?:课题|题目|主题|topic)[：:\s]*([^\n]+)/i);
+            if (tMatch && tMatch[1]) finalTopic = tMatch[1].replace(/["'《》]/g, '').trim();
+            const oMatch = resp.match(/(?:方案概述|教学思路|研究思路|总体构想|方案设计|overview)[：:\s]*([\s\S]+?)(?:guideText|【|3\.|\n\n\n|$)/i);
+            if (oMatch && oMatch[1] && oMatch[1].trim().length > 20) finalOverview = oMatch[1].trim();
           }
         } catch (je) {
-          console.warn('Parse topic & overview JSON fail, fallback', je);
+          console.warn('Parse topic & overview JSON fail, use synthesized fallback', je);
         }
       } else {
         throw new Error('Empty topic extraction response');
       }
 
-      // 🛡️ 清理历史残留的主题提炼网络提醒
-      this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || !(m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('主题与方案')));
+      // 🛡️ 兜底确保 finalOverview 绝对不为空
+      if (!finalOverview || !finalOverview.trim()) {
+        finalOverview = isInst 
+          ? `本教学设计方案紧扣《${finalTopic}》展开，立足真实学情分析与新课标核心素养目标。全篇采用情境驱动与任务探究相结合的教学模式，设置由浅入深的学生活动链，并配以针对性过程性评价量规与分层作业，确保教学重难点有效突破。`
+          : `本研究围绕《${finalTopic}》展开，立足具体实践情境与核心科学问题。研究设计采用实证方法，明确关键变量与操作化测量工具，通过系统的样本抽样与数据分析模型，深入探究关键影响机制与效应边界。`;
+      }
+
+      // 🛡️ 移除正在提炼中的思考消息与残留网络提醒
+      this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => {
+        if (!m) return false;
+        if (m.id === inFlightTopicId || m.isThinking) return false;
+        if (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('主题与方案')) return false;
+        return true;
+      });
 
       s1.mergedTitle = finalTopic;
       if (!s1.contract) s1.contract = {};
@@ -3276,6 +3316,7 @@ ${chatSnippet}
       renderChat(this.state);
     } catch (e) {
       console.warn('Extract topic & overview error:', e);
+      this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (m.id !== inFlightTopicId && !m.isThinking));
       const errTopicMsg = {
         id: 'err_topic_' + Date.now(),
         sender: 'auctioneer',
@@ -3314,6 +3355,26 @@ ${chatSnippet}
     const isInst = (taskType === 'instructional');
     const agentRole = isInst ? '备课引导师' : '学术拍卖师';
     const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
+
+    // 🌟 在聊天区挂载正在提炼时间预算的思考动效与广播
+    const inFlightTimeId = 'thinking_extract_time_' + Date.now();
+    const inFlightTimeMsg = {
+      id: inFlightTimeId,
+      isThinking: true,
+      sender: 'auctioneer',
+      senderName: agentSenderName,
+      text: `⏳ 收到全组成员确认！${agentRole}正在根据讨论区研讨记录提炼【6大${isInst ? '模块' : '章节'}时间预算分配】，请稍候...`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      _timeMs: Date.now()
+    };
+    if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+    this.state.chatLogs.stage1.push(inFlightTimeMsg);
+    if (typeof this.sendSingleChatMessage === 'function') {
+      this.sendSingleChatMessage(inFlightTimeMsg, 'stage1');
+    }
+    this.syncChatLogs();
+    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+    renderChat(this.state);
 
     const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
     const topicNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('主题确立') || m.text.includes('时间分配') || m.text.includes('时间规划')));
@@ -3374,8 +3435,13 @@ ${chatSnippet}
         throw new Error('Empty time allocation response');
       }
 
-      // 🛡️ 清理历史残留的时间提炼网络提醒
-      this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || !(m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('时间')));
+      // 🛡️ 移除正在提炼中的思考消息与残留网络提醒
+      this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => {
+        if (!m) return false;
+        if (m.id === inFlightTimeId || m.isThinking) return false;
+        if (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('时间')) return false;
+        return true;
+      });
 
       if (!s1.contract) s1.contract = {};
       s1.contract.timeAllocations = timeAlloc;
@@ -3404,6 +3470,7 @@ ${chatSnippet}
       renderChat(this.state);
     } catch (e) {
       console.warn('Extract time error:', e);
+      this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (m.id !== inFlightTimeId && !m.isThinking));
       const errTimeMsg = {
         id: 'err_time_' + Date.now(),
         sender: 'auctioneer',
@@ -3444,6 +3511,26 @@ ${chatSnippet}
     const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
     const stage2Title = isInst ? '阶段二：集体备课室' : '阶段二：学术编辑部';
     const contractTitle = isInst ? '备课公约' : '学术公约';
+
+    // 🌟 在聊天区挂载正在提炼任务分工的思考动效与广播
+    const inFlightTasksId = 'thinking_extract_tasks_' + Date.now();
+    const inFlightTasksMsg = {
+      id: inFlightTasksId,
+      isThinking: true,
+      sender: 'auctioneer',
+      senderName: agentSenderName,
+      text: `⏳ 收到全组成员确认！${agentRole}正在根据讨论区研讨记录提炼【小组成员任务分工】，请稍候...`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      _timeMs: Date.now()
+    };
+    if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+    this.state.chatLogs.stage1.push(inFlightTasksMsg);
+    if (typeof this.sendSingleChatMessage === 'function') {
+      this.sendSingleChatMessage(inFlightTasksMsg, 'stage1');
+    }
+    this.syncChatLogs();
+    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+    renderChat(this.state);
 
     let members = [];
     if (Array.isArray(this.state.members)) members = this.state.members;
@@ -3505,7 +3592,7 @@ ${chatSnippet}
             if (parsed && parsed.assignments && typeof parsed.assignments === 'object') {
               members.forEach((m, idx) => {
                 const mKey = m.id || m.name;
-                const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id] || parsed.assignments[m.id];
+                const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id];
                 if (matchedVal) taskAssignments[mKey] = matchedVal;
               });
             }
@@ -3516,8 +3603,13 @@ ${chatSnippet}
         throw new Error('Empty task assignment response');
       }
 
-      // 🛡️ 清理历史残留的分工提炼网络提醒
-      this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || !(m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('分工')));
+      // 🛡️ 移除正在提炼中的思考消息与残留网络提醒
+      this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => {
+        if (!m) return false;
+        if (m.id === inFlightTasksId || m.isThinking) return false;
+        if (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('分工')) return false;
+        return true;
+      });
 
       if (!s1.contract) s1.contract = {};
       s1.contract.taskAssignments = taskAssignments;
@@ -3548,6 +3640,7 @@ ${chatSnippet}
       renderChat(this.state);
     } catch (e) {
       console.warn('Extract tasks error:', e);
+      this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (m.id !== inFlightTasksId && !m.isThinking));
       const errTasksMsg = {
         id: 'err_tasks_' + Date.now(),
         sender: 'auctioneer',
@@ -3560,7 +3653,6 @@ ${chatSnippet}
       if (typeof this.sendSingleChatMessage === 'function') {
         this.sendSingleChatMessage(errTasksMsg, 'stage1');
       }
-      this.syncStage1();
       this.syncChatLogs();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       this.renderStudentWorkspace();
@@ -3612,7 +3704,7 @@ ${chatSnippet}
     const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
     const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
     const defaultTopic = s1.mergedTitle || s1.contract?.topic || (s1.proposals && s1.proposals[0] ? s1.proposals[0].title : (curTask?.title || '基于深度协作的学术探究与实践'));
-    const membersInfo = membersList.map(m => `- 姓名: ${m.name || '组员'} (学号: ${m.id  || '无'})`).join('\n');
+    const membersInfo = membersList.map(m => `- 姓名: ${m.name || '组员'} (学号: ${m.id || '无'})`).join('\n');
 
     const taskType = this.getCurrentTaskType();
     const isInst = (taskType === 'instructional');
@@ -3638,9 +3730,17 @@ ${chatSnippet}
 
     const fallbackAssignments = {};
     membersList.forEach((m, idx) => {
-      const mKey = m.id   || m.name;
+      const mKey = m.id || m.name;
       fallbackAssignments[mKey] = defaultTasks[idx % defaultTasks.length];
     });
+
+    let finalTopic = defaultTopic;
+    let finalOverview = isInst
+      ? `本教学设计围绕《${defaultTopic}》，结合学情实际与教学重难点，创设真实教学情境，采用启发式与任务驱动教学法，引导学生自主探究与合作建构，落实核心素养。`
+      : `本研究围绕《${defaultTopic}》，立足现实问题与理论基础，通过实证调查与文献分析，系统剖析核心影响机制，并提出切实可行的实施策略与改进建议。`;
+    let finalTimes = Object.assign({}, defaultTimes);
+    let finalAssignments = Object.assign({}, fallbackAssignments);
+    let isSuccess = false;
 
     // 🛡️ 增量保护：检查左侧已有的分步成果，已完成的绝对保留，绝不覆盖！
     const hasExistingTopic = (s1.contractStep === 'time' || s1.contractStep === 'tasks' || s1.contractStep === 'completed') && (s1.contract?.topic || s1.mergedTitle);
@@ -3720,6 +3820,24 @@ ${instructionSection}
     }
 
     this._isGeneratingContract = true;
+
+    // 🤖 在聊天区广播正在提炼中的思考状态
+    const inFlightContractId = 'inflight_contract_' + Date.now();
+    const inFlightContractMsg = {
+      id: inFlightContractId,
+      sender: 'auctioneer',
+      senderName: agentSenderName,
+      text: `🏛️ 【${agentRole}·公约提炼中】：🤖 正在通读全组研讨并一键智能提炼全套《${contractTitle}》（课题方案、时间规划与成员任务分工）...`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      _timeMs: Date.now(),
+      isThinking: true
+    };
+    if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+    this.state.chatLogs.stage1.push(inFlightContractMsg);
+    if (typeof this.sendSingleChatMessage === 'function') {
+      this.sendSingleChatMessage(inFlightContractMsg, 'stage1');
+    }
+    this.syncChatLogs();
     if (typeof renderChat === 'function') renderChat(this.state);
 
     try {
@@ -3740,19 +3858,35 @@ ${instructionSection}
             }
             if (parsed.assignments && typeof parsed.assignments === 'object') {
               membersList.forEach((m, idx) => {
-                const mKey = m.id   || m.name;
-                const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id] || parsed.assignments[m.id];
+                const mKey = m.id || m.name;
+                const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id];
                 if (matchedVal) finalAssignments[mKey] = matchedVal;
               });
             }
             isSuccess = true;
           }
         }
+        // 非JSON正则补救提取
+        if (!isSuccess) {
+          const topicMatch = resp.match(/(?:课题|主题|题目)[：:\s]*《?([^》\n\r]+)》?/);
+          if (topicMatch && topicMatch[1] && !hasExistingTopic) finalTopic = topicMatch[1].trim();
+          const overviewMatch = resp.match(/(?:方案概述|研究概述|概述|设计思路)[：:\s]*([^\n\r]+(?:\n[^\n\r]+)?)/);
+          if (overviewMatch && overviewMatch[1] && !hasExistingTopic) finalOverview = overviewMatch[1].trim();
+          isSuccess = true;
+        }
       }
     } catch (err) {
       console.warn('One-click generate contract AI call error:', err);
     } finally {
       this._isGeneratingContract = false;
+      this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (m.id !== inFlightContractId && !m.isThinking));
+    }
+
+    // 🛡️ 兜底确保 finalOverview 绝对不为空
+    if (!finalOverview || !finalOverview.trim()) {
+      finalOverview = isInst
+        ? `本教学设计围绕《${finalTopic}》，结合学情实际与教学重难点，创设真实教学情境，采用启发式与任务驱动教学法，引导学生自主探究与合作建构，落实核心素养。`
+        : `本研究围绕《${finalTopic}》，立足现实问题与理论基础，通过实证调查与文献分析，系统剖析核心影响机制，并提出切实可行的实施策略与改进建议。`;
     }
 
     if (!isSuccess) {
@@ -3774,6 +3908,49 @@ ${instructionSection}
       if (typeof renderChat === 'function') renderChat(this.state);
       return;
     }
+
+    // 🛡️ 清理历史残留的全套公约草案网络提醒
+    this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || !(m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('全套公约草案')));
+
+    this._contractGenerateFailed = false;
+
+    // 写入状态并单向锁定公约草案
+    if (!s1.contract) s1.contract = {};
+    s1.mergedTitle = finalTopic;
+    s1.contract.topic = finalTopic;
+    s1.contract.overview = finalOverview;
+    s1.researchOverview = finalOverview;
+    s1.contract.timeAllocations = finalTimes;
+    s1.contract.taskAssignments = finalAssignments;
+    s1.contract.isDraftGenerated = true;
+    s1.contract._draftedTime = Date.now();
+    s1.contractStep = 'completed'; // 提炼全部完成，左侧3个分步按钮全部退场
+    s1.flowStep = 'refining';
+
+    const noticeText = `🏛️ 【${agentRole}·全盘公约就绪】：全篇${isInst ? '教学课题' : '研究主题'}《${finalTopic}》、时间规划与组员分工已全部提炼生成并录入左侧公约看板！👉 请全组成员在左侧公约卡片仔细核对自己的分工与时间，并在公约下方点击【✍️ 签署确认${contractTitle}】！全员签署后将正式解锁【${stage2Title}】！`;
+    const noticeMsg = {
+      id: 'msg_full_contract_done_' + Date.now(),
+      sender: 'auctioneer',
+      senderName: agentSenderName,
+      text: noticeText,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      _timeMs: Date.now()
+    };
+    s1ChatLogs.push(noticeMsg);
+    if (typeof this.sendSingleChatMessage === 'function') {
+      this.sendSingleChatMessage(noticeMsg, 'stage1');
+    }
+
+    this.syncStage1();
+    this.syncChatLogs();
+    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+    this.renderStudentWorkspace();
+    renderChat(this.state);
+
+    if (typeof showGlobalBannerNotice === 'function') {
+      showGlobalBannerNotice('🎉 公约草案已全部生成就绪！', '请各位组员在左侧公约看板核对分工与时间规划，并在下方签署确认！', 'success', 6000);
+    }
+  }
 
     // 🛡️ 清理历史残留的全套公约草案网络提醒
     this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || !(m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('全套公约草案')));
