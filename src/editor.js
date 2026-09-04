@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2345";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2345";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2345";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2350";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2350";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2350";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1405,10 +1405,22 @@ function renderStage2Canvas(canvas, state, handlers) {
     const barsEl = document.getElementById('stage2-contrib-bars');
     if (!labelsEl || !barsEl) return;
     
+    const docLen = (state.stage2 && state.stage2.unifiedContent) ? state.stage2.unifiedContent.length : 0;
     const contribs = (state.stage2 && state.stage2.memberContributions) ? state.stage2.memberContributions : {};
     let rawTotal = 0;
     membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
     
+    // 🛡️ 严格联动：若当前文档为空（0字），贡献度状态条与标签必须清空归零
+    if (docLen === 0 || rawTotal === 0) {
+      if (docLen === 0 && rawTotal > 0) {
+        state.stage2.memberContributions = {};
+        rawTotal = 0;
+      }
+      labelsEl.innerHTML = `<span style="color:#94a3b8; font-weight:600; font-size:10.5px;">⏳ 暂无撰写内容</span>`;
+      barsEl.innerHTML = `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
+      return;
+    }
+
     const newLabelsHtml = membersList.map((m) => {
       const rawVal = getMemberContribVal(contribs, m);
       const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
@@ -1419,16 +1431,11 @@ function renderStage2Canvas(canvas, state, handlers) {
       labelsEl.innerHTML = newLabelsHtml;
     }
 
-    let newBarsHtml = '';
-    if (rawTotal === 0) {
-      newBarsHtml = `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
-    } else {
-      newBarsHtml = membersList.map((m) => {
-        const rawVal = getMemberContribVal(contribs, m);
-        const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
-        return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}% (${rawVal}字)"></div>`;
-      }).join('');
-    }
+    const newBarsHtml = membersList.map((m) => {
+      const rawVal = getMemberContribVal(contribs, m);
+      const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
+      return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}% (${rawVal}字)"></div>`;
+    }).join('');
 
     if (barsEl.innerHTML !== newBarsHtml) {
       barsEl.innerHTML = newBarsHtml;
@@ -2016,14 +2023,16 @@ function renderStage2Canvas(canvas, state, handlers) {
           ${(() => {
             const contribs = s2.memberContributions || {};
             let rawTotal = 0;
-            membersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
-            if (rawTotal === 0) {
+            if (plainTextLen > 0) {
+              membersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
+            }
+            if (plainTextLen === 0 || rawTotal === 0) {
               return `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
             }
             return membersList.map((m) => {
               const rawVal = Number(contribs[m.id] || 0);
               const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
-              return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}%"></div>`;
+              return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}% (${rawVal}字)"></div>`;
             }).join('');
           })()}
         </div>
@@ -2031,11 +2040,16 @@ function renderStage2Canvas(canvas, state, handlers) {
           ${(() => {
             const contribs = s2.memberContributions || {};
             let rawTotal = 0;
-            membersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
+            if (plainTextLen > 0) {
+              membersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
+            }
+            if (plainTextLen === 0 || rawTotal === 0) {
+              return `<span style="color:#94a3b8; font-size:10.5px; font-weight:600;">⏳ 暂无撰写内容</span>`;
+            }
             return membersList.map((m) => {
               const rawVal = Number(contribs[m.id] || 0);
               const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
-              return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'};">● ${m.name}: ${pct}%</span>`;
+              return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'};">● ${m.name}: ${pct}% (${rawVal}字)</span>`;
             }).join('');
           })()}
         </div>
