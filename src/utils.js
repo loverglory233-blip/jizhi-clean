@@ -1023,21 +1023,24 @@ export function isScopeMatch(target = {}, context = {}) {
   const { classId: tClassId, targetGroupId: tGroupId, taskId: tTaskId, targetClassIds: tClassIds, targetGroupIds: tGroupIds, className: tClassName } = target;
   const { userClassId, userGroupId, currentTaskId, userClassName } = context;
 
-  // 1. 班级范围匹配：必须严格锁定在学生所在的当前班级（严禁跨班级泄漏）
-  const matchClass = !!(userClassId && (
-    tClassId === userClassId ||
-    (Array.isArray(tClassIds) && tClassIds.includes(userClassId)) ||
-    (userClassName && tClassName && tClassName === userClassName)
-  ));
+  // 1. 班级范围匹配 (支持全校广播 all / class_all / 空值 / 数组包含 all，或班级ID/班级名匹配)
+  const matchClass = !tClassId || tClassId === 'all' || tClassId === 'class_all' ||
+                     (!userClassId) ||
+                     (userClassId && (
+                       tClassId === userClassId ||
+                       (Array.isArray(tClassIds) && (tClassIds.includes('all') || tClassIds.includes('class_all') || tClassIds.includes(userClassId))) ||
+                       (userClassName && tClassName && tClassName === userClassName)
+                     ));
 
   // 2. 小组范围匹配 (支持 all / 空值 / 小组ID一致 / 小组ID数组包含)
   const matchGroup = !tGroupId || tGroupId === 'all' || tGroupId === 'group_all' ||
+                     (!userGroupId) ||
                      (userGroupId && tGroupId === userGroupId) ||
                      (Array.isArray(tGroupIds) && (tGroupIds.includes('all') || tGroupIds.includes('group_all') || (userGroupId && tGroupIds.includes(userGroupId))));
 
   // 3. 任务范围匹配 (支持 all / task_all / task_default / 空值 / 任务ID一致)
   const matchTask = !tTaskId || tTaskId === 'all' || tTaskId === 'task_all' || tTaskId === 'task_default' ||
-                    (!currentTaskId) || (currentTaskId && tTaskId === currentTaskId);
+                    (!currentTaskId) || (currentTaskId && (tTaskId === currentTaskId || tTaskId.includes(currentTaskId) || currentTaskId.includes(tTaskId)));
 
   return !!(matchClass && matchGroup && matchTask);
 }

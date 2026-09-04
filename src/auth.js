@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2666';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2666';
+} from './constants.js?v=20260905_v2667';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2667';
 
 export class AuthManager {
   constructor() {
@@ -1998,9 +1998,10 @@ export class AuthManager {
 
     if ('BroadcastChannel' in window) {
       try {
-        const bc = new BroadcastChannel('jizhi_global_events');
-        bc.postMessage({ type: 'announcement_created', announcement: newAnn });
-        bc.close();
+        if (!window._jizhiGlobalBc) {
+          window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
+        }
+        window._jizhiGlobalBc.postMessage({ type: 'announcement_created', announcement: newAnn });
       } catch (e) {}
     }
     return newAnn;
@@ -2022,9 +2023,10 @@ export class AuthManager {
 
     if ('BroadcastChannel' in window) {
       try {
-        const bc = new BroadcastChannel('jizhi_global_events');
-        bc.postMessage({ type: 'announcement_deleted', annId: annId });
-        bc.close();
+        if (!window._jizhiGlobalBc) {
+          window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
+        }
+        window._jizhiGlobalBc.postMessage({ type: 'announcement_deleted', annId: annId });
       } catch (e) {}
     }
   }

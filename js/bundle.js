@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2666
+ * Version: 20260905_v2667
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2666';
+  const APP_VERSION = '20260905_v2667';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1229,21 +1229,24 @@
     const { classId: tClassId, targetGroupId: tGroupId, taskId: tTaskId, targetClassIds: tClassIds, targetGroupIds: tGroupIds, className: tClassName } = target;
     const { userClassId, userGroupId, currentTaskId, userClassName } = context;
 
-    // 1. 班级范围匹配：必须严格锁定在学生所在的当前班级（严禁跨班级泄漏）
-    const matchClass = !!(userClassId && (
-      tClassId === userClassId ||
-      (Array.isArray(tClassIds) && tClassIds.includes(userClassId)) ||
-      (userClassName && tClassName && tClassName === userClassName)
-    ));
+    // 1. 班级范围匹配 (支持全校广播 all / class_all / 空值 / 数组包含 all，或班级ID/班级名匹配)
+    const matchClass = !tClassId || tClassId === 'all' || tClassId === 'class_all' ||
+                       (!userClassId) ||
+                       (userClassId && (
+                         tClassId === userClassId ||
+                         (Array.isArray(tClassIds) && (tClassIds.includes('all') || tClassIds.includes('class_all') || tClassIds.includes(userClassId))) ||
+                         (userClassName && tClassName && tClassName === userClassName)
+                       ));
 
     // 2. 小组范围匹配 (支持 all / 空值 / 小组ID一致 / 小组ID数组包含)
     const matchGroup = !tGroupId || tGroupId === 'all' || tGroupId === 'group_all' ||
+                       (!userGroupId) ||
                        (userGroupId && tGroupId === userGroupId) ||
                        (Array.isArray(tGroupIds) && (tGroupIds.includes('all') || tGroupIds.includes('group_all') || (userGroupId && tGroupIds.includes(userGroupId))));
 
     // 3. 任务范围匹配 (支持 all / task_all / task_default / 空值 / 任务ID一致)
     const matchTask = !tTaskId || tTaskId === 'all' || tTaskId === 'task_all' || tTaskId === 'task_default' ||
-                      (!currentTaskId) || (currentTaskId && tTaskId === currentTaskId);
+                      (!currentTaskId) || (currentTaskId && (tTaskId === currentTaskId || tTaskId.includes(currentTaskId) || currentTaskId.includes(tTaskId)));
 
     return !!(matchClass && matchGroup && matchTask);
   }
@@ -3501,9 +3504,10 @@
 
       if ('BroadcastChannel' in window) {
         try {
-          const bc = new BroadcastChannel('jizhi_global_events');
-          bc.postMessage({ type: 'announcement_created', announcement: newAnn });
-          bc.close();
+          if (!window._jizhiGlobalBc) {
+            window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
+          }
+          window._jizhiGlobalBc.postMessage({ type: 'announcement_created', announcement: newAnn });
         } catch (e) {}
       }
       return newAnn;
@@ -3525,9 +3529,10 @@
 
       if ('BroadcastChannel' in window) {
         try {
-          const bc = new BroadcastChannel('jizhi_global_events');
-          bc.postMessage({ type: 'announcement_deleted', annId: annId });
-          bc.close();
+          if (!window._jizhiGlobalBc) {
+            window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
+          }
+          window._jizhiGlobalBc.postMessage({ type: 'announcement_deleted', annId: annId });
         } catch (e) {}
       }
     }
@@ -10599,6 +10604,33 @@
              (t.className && t.className === userClass.name) ||
              (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.includes(userClass.id)));
     });
+    const isAnnRead = (a) => {
+      if (!a) return false;
+      try {
+        const localReadMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
+        if (localReadMap[a.id]) return true;
+      } catch (e) {}
+      if (currentUser) {
+        if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
+        if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
+        if (Array.isArray(a.confirmedMembers)) {
+          if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || (currentUser.name && m.name === currentUser.name)))) return true;
+        }
+      }
+      return false;
+    };
+
+    const portalRelevantAnns = (announcements || []).filter(a => {
+      if (!a || a.isExtension || a.title?.includes('延期') || a.title?.includes('延长至')) return false;
+      return isScopeMatch(a, {
+        userClassId: userClass.id,
+        userGroupId: groupId,
+        currentTaskId: null,
+        userClassName: userClass.name
+      });
+    });
+    const unreadAnnCount = portalRelevantAnns.filter(a => !isAnnRead(a)).length;
+
     container.innerHTML = `
       <div class="student-task-portal" style="min-height:100vh; background:#f0f4f9; display:flex; flex-direction:column;">
         <header class="app-header" style="height:60px; background:#ffffff; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; padding:0 24px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
@@ -10609,6 +10641,9 @@
             </div>
           </div>
           <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
+            <button id="btn-portal-announcements" style="position:relative; background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px;" title="查看课程公告与教师通知">
+              📢 课程通知 ${unreadAnnCount > 0 ? `<span style="background:#ef4444; color:white; padding:1px 6px; border-radius:10px; font-size:10px; font-weight:800; box-shadow:0 1px 3px rgba(239,68,68,0.4);">${unreadAnnCount}</span>` : ''}
+            </button>
             <button id="btn-portal-change-pwd" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="修改登录密码">🔑 修改密码</button>
             <button id="btn-portal-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
           </div>
@@ -10770,6 +10805,9 @@
       });
     }
 
+    container.querySelector('#btn-portal-announcements')?.addEventListener('click', () => {
+      if (onOpenAnnModal) onOpenAnnModal();
+    });
     container.querySelector('#btn-portal-logout')?.addEventListener('click', () => onLogout());
     container.querySelector('#btn-portal-change-pwd')?.addEventListener('click', () => {
       authManager.openChangePasswordModal();
@@ -10860,7 +10898,6 @@
       if (currentUser) {
         if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
         if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
-        if (groupId && a.readGroupStatus && a.readGroupStatus[groupId]) return true;
         if (Array.isArray(a.confirmedMembers)) {
           if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || (currentUser.name && m.name === currentUser.name)))) return true;
         }
@@ -14399,13 +14436,31 @@
 
             // 3. 教师发布教学通知（秒级拉取并在工作台即时弹出）
             if (e.data.type === 'announcement_created') {
+              if (e.data.announcement) {
+                try {
+                  let localAnns = this.authManager ? this.authManager.getAnnouncements() : [];
+                  if (!localAnns.some(a => a.id === e.data.announcement.id)) {
+                    localAnns.unshift(e.data.announcement);
+                    localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(localAnns));
+                  }
+                } catch (err) {}
+              }
               if (this.authManager && this.authManager.pullGlobalMeta) {
                 this.authManager.pullGlobalMeta().then(() => {
                   if (this.state.studentViewMode === 'workspace') {
                     this.checkUnreadAnnouncements();
+                  } else if (this.state.studentViewMode === 'task_list') {
+                    this.renderMain();
                   }
                   this.renderHeader();
                 }).catch(() => {});
+              } else {
+                if (this.state.studentViewMode === 'workspace') {
+                  this.checkUnreadAnnouncements();
+                } else if (this.state.studentViewMode === 'task_list') {
+                  this.renderMain();
+                }
+                this.renderHeader();
               }
             }
 
@@ -14414,7 +14469,10 @@
               const delAnnId = e.data.annId;
               let localAnns = this.authManager ? this.authManager.getAnnouncements() : [];
               localAnns = localAnns.filter(a => a.id !== delAnnId);
-              localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(localAnns));
+              try { localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(localAnns)); } catch (err) {}
+              if (this.state.studentViewMode === 'task_list') {
+                this.renderMain();
+              }
               this.renderHeader();
             }
 
