@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2707';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice } from './utils.js?v=20260905_v2707';
+} from './constants.js?v=20260905_v2708';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice } from './utils.js?v=20260905_v2708';
 
 export class AuthManager {
   constructor() {
@@ -652,16 +652,16 @@ export class AuthManager {
     });
     if (exactMatch) return exactMatch.url;
 
-    // 2. 第二优先级：匹配班级全局问卷 (taskId 为 all / task_all / task_default 或为空)
+    // 2. 第二优先级：匹配班级全局问卷 (taskId 为 all / task_all 或为空)
     const classGlobalMatch = list.find(s => {
       const matchCls = !s.classId || s.classId === 'all' || s.classId === classId;
-      const matchTsk = !s.taskId || s.taskId === 'all' || s.taskId === 'task_all' || s.taskId === 'task_default';
+      const matchTsk = !s.taskId || s.taskId === 'all' || s.taskId === 'task_all';
       return matchCls && matchTsk && s.url && s.url.startsWith('http');
     });
     if (classGlobalMatch) return classGlobalMatch.url;
 
-    // 3. 第三优先级：全校通用兜底问卷
-    const universalMatch = list.find(s => s.url && s.url.startsWith('http'));
+    // 3. 第三优先级：全校通用兜底问卷 (仅限 classId 为 all 或空，且 taskId 为 all 或空的问卷)
+    const universalMatch = list.find(s => (!s.classId || s.classId === 'all') && (!s.taskId || s.taskId === 'all' || s.taskId === 'task_all') && s.url && s.url.startsWith('http'));
     return universalMatch ? universalMatch.url : '';
   }
   pushGlobalMeta() {
