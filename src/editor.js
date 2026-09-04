@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260904_v2226";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2226";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2226";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260904_v2227";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2227";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2227";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -702,36 +702,6 @@ function renderStage1Canvas(canvas, state, handlers) {
           // 💡 统一异步触发学术拍卖师即时学术速评（无缝生成单条纯净速评气泡）
           if (typeof window.app.handleProposalSubmittedAIFeedback === 'function') {
             window.app.handleProposalSubmittedAIFeedback(title, authorName, isModify);
-          }
-        }
-
-        // 检查全员提案集齐提醒
-        const isSubstantive = (t) => {
-          const str = (t || '').trim();
-          if (str.length < 4) return false;
-          if (/^\d+$/.test(str)) return false; 
-          if (/^([a-zA-Z0-9\u4e00-\u9fa5])\1+$/.test(str)) return false; 
-          return true;
-        };
-        const currentProps = s1.proposals || [];
-        const validProps = currentProps.filter(p => isSubstantive(p.title));
-        const validAuthors = new Set(validProps.map(p => p.author || p.authorName));
-
-        if (totalMembersCount >= 2 && validAuthors.size >= totalMembersCount && !s1._allProposalsPrompted) {
-          s1._allProposalsPrompted = true;
-          const allCollectedMsg = {
-            id: 'all_prop_' + Date.now(),
-            sender: 'auctioneer',
-            senderName: '头脑风暴 · 学术拍卖师',
-            text: `🎪 【拍卖师·全员提案已集齐】：🎉 小组成员的选题提案已悉数亮相！👉 请大家先不要急于投票，先在右侧讨论区充分交流各个方案的研究看点与实施可行性；💬 研讨达成初步共识后，再在上方为最终认可的方案进行投票！`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now() + 100
-          };
-          state.chatLogs[currentStage].push(allCollectedMsg);
-          if (window.app && typeof window.app.sendSingleChatMessage === 'function') {
-            window.app.sendSingleChatMessage(allCollectedMsg, currentStage);
-          }
-          renderChat(state);
         }
       });
     });

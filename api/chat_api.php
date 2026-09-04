@@ -231,7 +231,7 @@ $payload = [
     'bot_id' => $botId,
     'user_id' => $userId,
     'stream' => false,
-    'auto_save_history' => false,
+    'auto_save_history' => true,
     'additional_messages' => [
         [
             'role' => 'user',
