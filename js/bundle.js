@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2537
+ * Version: 20260904_v2538
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2537';
+  const APP_VERSION = '20260904_v2538';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1398,6 +1398,11 @@
 
 
   async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
+    // 🛡️ 终极只读熔断器：一旦任务截止进入只读模式或已终稿归档，底层彻底熔断任何大模型调用与智能体生成
+    if (typeof window !== 'undefined' && window.app && typeof window.app.isCurrentTaskReadOnly === 'function' && window.app.isCurrentTaskReadOnly()) {
+      return '';
+    }
+
     const profile = AgentProfiles[botKey] || { name: '智能体专家', avatar: '🤖' };
     const botId = profile && profile.cozeBotId ? profile.cozeBotId : '7673571806476828713';
 

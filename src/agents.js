@@ -3,9 +3,14 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260904_v2537';
+import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260904_v2538';
 
 export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
+  // 🛡️ 终极只读熔断器：一旦任务截止进入只读模式或已终稿归档，底层彻底熔断任何大模型调用与智能体生成
+  if (typeof window !== 'undefined' && window.app && typeof window.app.isCurrentTaskReadOnly === 'function' && window.app.isCurrentTaskReadOnly()) {
+    return '';
+  }
+
   const profile = AgentProfiles[botKey] || { name: '智能体专家', avatar: '🤖' };
   const botId = profile && profile.cozeBotId ? profile.cozeBotId : '7673571806476828713';
 
