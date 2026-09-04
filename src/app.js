@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2804";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260905_v2804";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2804";
-import { AuthManager } from "./auth.js?v=20260905_v2804";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2804";
-import { renderLoginView } from "./login.js?v=20260905_v2804";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2804";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2804";
+} from "./constants.js?v=20260905_v2805";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260905_v2805";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2805";
+import { AuthManager } from "./auth.js?v=20260905_v2805";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2805";
+import { renderLoginView } from "./login.js?v=20260905_v2805";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2805";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2805";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2804";
+} from "./editor.js?v=20260905_v2805";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6611,9 +6611,9 @@ ${chatSnippet}
     const s2ChatList = this.state.chatLogs?.stage2 || [];
 
     // ═══════════════════════════════════════════════════════════════
-    // 🛡️ 第一次学术质检（破题把脉）：字数达到要求（800+字 / 目标字数的 25% / 阶段二起草时间水位 25%）
+    // 🛡️ 第一次学术质检（破题把脉）：达到目标字数的 35%（或阶段二起草时间水位 35%）
     // ═══════════════════════════════════════════════════════════════
-    const isReview1Due = (rawDoc.length >= 800 || wordProgress >= 0.25 || timeProgress >= 0.25 || rawDoc.length >= Math.min(1000, targetWordCount * 0.30));
+    const isReview1Due = (wordProgress >= 0.35 || rawDoc.length >= Math.round(targetWordCount * 0.35) || timeProgress >= 0.35);
     
     // 严格判定真实一审消息（必须包含一审/初审/破题把脉，排除开场寄语、初审跟进提示、终审扫描）
     const isRealFirstReviewMsg = (m) => {

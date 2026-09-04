@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2804
+ * Version: 20260905_v2805
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2804';
+  const APP_VERSION = '20260905_v2805';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -21343,9 +21343,9 @@
       const s2ChatList = this.state.chatLogs?.stage2 || [];
 
       // ═══════════════════════════════════════════════════════════════
-      // 🛡️ 第一次学术质检（破题把脉）：字数达到要求（800+字 / 目标字数的 25% / 阶段二起草时间水位 25%）
+      // 🛡️ 第一次学术质检（破题把脉）：达到目标字数的 35%（或阶段二起草时间水位 35%）
       // ═══════════════════════════════════════════════════════════════
-      const isReview1Due = (rawDoc.length >= 800 || wordProgress >= 0.25 || timeProgress >= 0.25 || rawDoc.length >= Math.min(1000, targetWordCount * 0.30));
+      const isReview1Due = (wordProgress >= 0.35 || rawDoc.length >= Math.round(targetWordCount * 0.35) || timeProgress >= 0.35);
 
       // 严格判定真实一审消息（必须包含一审/初审/破题把脉，排除开场寄语、初审跟进提示、终审扫描）
       const isRealFirstReviewMsg = (m) => {
