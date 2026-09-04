@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2360
+ * Version: 20260904_v2365
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2360';
+  const APP_VERSION = '20260904_v2365';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -17379,7 +17379,53 @@
         if (!hasManagingIntro) {
           sessionStorage.setItem(welcomeFlagKey, '1');
           const s1 = this.state.stage1 || {};
-          const topic = s1.mergedTitle || '未定课题';
+          const topic = s1.contract?.topic || s1.mergedTitle || '未定课题';
+
+          // 📋 提炼第一阶段公约中全组已确认的分工与时间规划
+          const membersList = (this.getMemberList ? this.getMemberList(groupId) : []) || [];
+          const taskMap = s1.contract?.taskAssignments || {};
+          const taskList = [];
+          membersList.forEach(m => {
+            const mKey = m.id || m.name;
+            const val = taskMap[mKey] || (m.id && taskMap[m.id]) || (m.name && taskMap[m.name]) || '';
+            if (val) {
+              taskList.push(`${m.name}（负责：${val}）`);
+            } else {
+              taskList.push(`${m.name}`);
+            }
+          });
+          const taskSummaryStr = taskList.length > 0 ? taskList.join('、') : '全员协同撰写';
+
+          const timeMap = s1.contract?.timeAllocations || {};
+          let totalPlannedMinutes = 0;
+          const timeModuleList = [];
+          const defaultModules = isInst ? [
+            { key: 'intro', label: '教材与学情' },
+            { key: 'target', label: '教学目标' },
+            { key: 'keypoint', label: '重难点' },
+            { key: 'process', label: '教学过程' },
+            { key: 'activity', label: '活动探究' },
+            { key: 'eval', label: '板书与作业' }
+          ] : [
+            { key: 'intro', label: '引言与背景' },
+            { key: 'lit', label: '核心概念' },
+            { key: 'theory', label: '理论与假设' },
+            { key: 'method', label: '研究方法' },
+            { key: 'analysis', label: '数据分析' },
+            { key: 'discuss', label: '讨论与建议' }
+          ];
+          defaultModules.forEach(mod => {
+            const t = parseInt(timeMap[mod.key] || 0);
+            if (t > 0) {
+              totalPlannedMinutes += t;
+              timeModuleList.push(`${mod.label}${t}m`);
+            }
+          });
+          const timeSummaryStr = totalPlannedMinutes > 0 
+            ? `各章节规划总用时约 ${totalPlannedMinutes} 分钟（${timeModuleList.join('、')}）` 
+            : '按阶段二标准时间节奏推进';
+
+          const welcomeText = `🤝 【${managingName}·开场欢迎】：各位${isInst ? '备课教师' : '研究者'}，欢迎来到【${stage2Title}】！全组已锁定${isInst ? '教学课题' : '研究主题'}《${topic}》。\n📋 【本组公约分工与时间规划】：\n• 成员分工：${taskSummaryStr}\n• 时间分配：${timeSummaryStr}\n👉 请大家对照公约设想展开协同起草，主动研读同伴起草的段落，共同打通前后${isInst ? '教学' : '学术'}逻辑！请进入左侧富文本编辑器开启深度协作！`;
 
           const managingWelcome = {
             id: `msg_welcome_${taskId}_${groupId}_stage2_managing`,
@@ -17389,7 +17435,7 @@
             stage: 'stage2',
             sender: 'managingEditor',
             senderName: isInst ? '备课组长 · 过程学伴' : '责任编辑 · 过程学伴',
-            text: `🤝 【${managingName}·开场欢迎】：各位${isInst ? '备课教师' : '研究者'}，欢迎来到【${stage2Title}】！全组已锁定${isInst ? '教学课题' : '研究主题'}《${topic}》。请大家根据公约设想展开协同${isInst ? '备课起草' : '起草'}，主动研读同伴起草的段落，共同打通前后${isInst ? '教学' : '学术'}逻辑！请进入左侧富文本编辑器开启深度协作！`,
+            text: welcomeText,
             timestamp: now,
             _timeMs: Date.now()
           };
@@ -19021,7 +19067,7 @@
             const ssrlWarningMsg = {
               sender: 'managingEditor',
               senderName: `协同调度 · ${managingName}`,
-              text: `🤝 【${managingName}·协同关怀】：关注到当前正文撰写推进中，${lowNames} 同学负责章节的推进略显滞后（字数投入占比偏低）。建议全组同学在讨论区主动沟通交流、提供思路支架并协助分工推进，群策群力完成高质量学术成稿哦~`,
+              text: `🤝 【${managingName}·协同关怀】：关注到当前正文撰写推进中，${lowNames} 同学负责章节的推进略显滞后（字数投入占比偏低）。建议全组同学在讨论区主动沟通交流、提供思路支架并协助衔接推进，群策群力完成高质量${isInst ? '教学设计' : '学术'}成稿哦~`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now
             };
