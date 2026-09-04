@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2688
+ * Version: 20260905_v2689
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2688';
+  const APP_VERSION = '20260905_v2689';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -15057,19 +15057,18 @@
                 renderChat(this.state);
               }
 
-              // ③ 提案全齐且每个人的速评均已生成成功、尚未投票：提示先交流 1~2 分钟再投票
+              // ③ 提案全齐且尚未投票：提示先交流 1~2 分钟再投票
               const s1Logs = this.state.chatLogs?.stage1 || [];
-              const allPropsEvaluated = propCount >= membersList.length && (s1.proposals || []).every(p => {
-                return s1Logs.some(m => m && m.sender === 'auctioneer' && (m.text || '').includes('提案评估') && !((m.text || '').includes('网络提醒')) && ((m.text || '').includes(p.title) || (m.text || '').includes(p.authorName || '')));
-              });
-              if (!this.state.s1_allPropsGatheredSent && propCount >= membersList.length && propCount > 0 && allPropsEvaluated) {
+              const hasGatheredNudge = s1Logs.some(m => m && (m.text || '').includes('提案集齐与协同研讨'));
+              const effMembersCount = membersList.length || (this.state.members ? Object.keys(this.state.members).length : 2);
+              if (!this.state.s1_allPropsGatheredSent && !hasGatheredNudge && propCount >= effMembersCount && propCount > 0) {
                 this.state.s1_allPropsGatheredSent = true;
                 this.state._propsGatheredTimeMs = nowMs;
                 const msgPropsAll = {
                   id: 'all_prop_' + nowMs,
                   sender: 'auctioneer',
                   senderName: '头脑风暴 · 学术拍卖师',
-                  text: `🎪 【学术拍卖师·提案集齐与协同研讨】：太棒了！全组成员的提案与专家速评均已悉数亮相！请大家先在讨论区围绕各自提案的创新亮点与互补性展开 1~2 分钟的协同交流，深入了解彼此设想，随后点击左侧卡片投出关键的一票！`,
+                  text: `🎪 【学术拍卖师·提案集齐与协同研讨】：太棒了！全组成员的提案均已悉数亮相！请大家先在讨论区围绕各自提案的创新亮点与互补性展开 1~2 分钟的协同交流，深入了解彼此设想，随后点击左侧卡片投出关键的一票！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: nowMs
                 };
@@ -17188,26 +17187,15 @@
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         renderChat(this.state);
 
-        // 🛡️ 若本次评估成功，检查是否全员提案与对应的每位成员速评均已就绪，若是则唤起协同研讨提示
+        // 🛡️ 检查是否全员提案已集齐，若是则唤起协同研讨提示
         const s1 = this.state.stage1 || {};
         const currentProps = s1.proposals || [];
-        const isSubstantive = (t) => {
-          const str = (t || '').trim();
-          if (str.length < 4) return false;
-          if (/^\d+$/.test(str)) return false; 
-          if (/^([a-zA-Z0-9\u4e00-\u9fa5])\1+$/.test(str)) return false; 
-          return true;
-        };
-        const validProps = currentProps.filter(p => isSubstantive(p.title));
         const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
         const totalMembersCount = membersList.length || 2;
         const curS1Logs = this.state.chatLogs?.stage1 || [];
+        const hasGatheredMsg = curS1Logs.some(m => m && (m.text || '').includes('提案集齐与协同研讨'));
 
-        const allEvaluated = validProps.length >= totalMembersCount && validProps.every(p => {
-          return curS1Logs.some(m => m && m.sender === 'auctioneer' && (m.text || '').includes('提案评估') && !((m.text || '').includes('网络提醒')) && ((m.text || '').includes(p.title) || (m.text || '').includes(p.authorName || '')));
-        });
-
-        if (validProps.length >= totalMembersCount && allEvaluated && !s1._allProposalsPrompted && !this.state.s1_allPropsGatheredSent) {
+        if (currentProps.length >= totalMembersCount && currentProps.length > 0 && !hasGatheredMsg && !s1._allProposalsPrompted && !this.state.s1_allPropsGatheredSent) {
           s1._allProposalsPrompted = true;
           this.state.s1_allPropsGatheredSent = true;
           this.state._propsGatheredTimeMs = Date.now();
@@ -17215,7 +17203,7 @@
             id: 'all_prop_' + Date.now(),
             sender: 'auctioneer',
             senderName: agentSenderName,
-            text: `🎪 【${agentRole}·提案集齐与协同研讨】：太棒了！全组成员的提案与专家速评均已悉数亮相！请大家先在讨论区围绕各自提案的创新亮点与互补性展开 1~2 分钟的协同交流，深入了解彼此设想，随后点击左侧卡片投出关键的一票！`,
+            text: `🎪 【${agentRole}·提案集齐与协同研讨】：太棒了！全组成员的提案均已悉数亮相！请大家先在讨论区围绕各自提案的创新亮点与互补性展开 1~2 分钟的协同交流，深入了解彼此设想，随后点击左侧卡片投出关键的一票！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now() + 100
           };
