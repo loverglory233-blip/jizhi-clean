@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260904_v2227";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2227";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2227";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260904_v2228";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2228";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2228";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -702,10 +702,11 @@ function renderStage1Canvas(canvas, state, handlers) {
           // 💡 统一异步触发学术拍卖师即时学术速评（无缝生成单条纯净速评气泡）
           if (typeof window.app.handleProposalSubmittedAIFeedback === 'function') {
             window.app.handleProposalSubmittedAIFeedback(title, authorName, isModify);
+          }
         }
       });
     });
-  }
+  };
 
   const getLockPayload = (fieldKey, value = null) => {
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
