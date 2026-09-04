@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2514
+ * Version: 20260904_v2515
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2514';
+  const APP_VERSION = '20260904_v2515';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1110,43 +1110,102 @@
               padWin.document.cookie = `name=${encodeURIComponent(userName)}; path=/; max-age=86400`;
             }
 
-            // 🛡️ 注入强力工具栏与布局保护 CSS，根治 Etherpad 渲染时工具栏被遮盖或隐藏
+            // 🛡️ 注入专业优雅的 Word 级工具栏与自适应布局 CSS
             const doc = padWin.document;
             let guardStyle = doc.getElementById('jizhi-etherpad-guard-style');
             if (!guardStyle) {
               guardStyle = doc.createElement('style');
               guardStyle.id = 'jizhi-etherpad-guard-style';
               guardStyle.textContent = `
-                #editbar, .toolbar, #menu_left, #menu_right, .menu_left, .menu_right {
+                #editbar, .toolbar {
                   display: flex !important;
                   visibility: visible !important;
                   opacity: 1 !important;
                   position: relative !important;
-                  z-index: 9999 !important;
-                  min-height: 34px !important;
+                  z-index: 1000 !important;
+                  background: #f8fafc !important;
+                  border-bottom: 1px solid #e2e8f0 !important;
+                  padding: 4px 8px !important;
+                  min-height: 36px !important;
                   height: auto !important;
-                  overflow: visible !important;
-                }
-                #editbar ul, .menu_left ul, .menu_right ul {
-                  display: flex !important;
-                  visibility: visible !important;
-                  opacity: 1 !important;
+                  box-sizing: border-box !important;
+                  align-items: center !important;
+                  justify-content: space-between !important;
                   flex-wrap: wrap !important;
+                  gap: 4px 8px !important;
                 }
-                #editbar li, .menu_left li, .menu_right li, .toolbar li {
+                #menu_left, .menu_left {
+                  display: flex !important;
+                  align-items: center !important;
+                  flex-wrap: wrap !important;
+                  gap: 3px 6px !important;
+                  float: none !important;
+                  flex: 1 1 auto !important;
+                }
+                #menu_right, .menu_right {
+                  display: flex !important;
+                  align-items: center !important;
+                  flex-wrap: nowrap !important;
+                  gap: 3px !important;
+                  float: none !important;
+                  margin-left: auto !important;
+                  flex-shrink: 0 !important;
+                }
+                #menu_left > ul, #menu_right > ul, .menu_left > ul, .menu_right > ul {
                   display: inline-flex !important;
-                  visibility: visible !important;
-                  opacity: 1 !important;
+                  align-items: center !important;
+                  flex-wrap: wrap !important;
+                  list-style: none !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  gap: 2px !important;
+                }
+                #menu_left li, #menu_right li, .toolbar li {
+                  display: inline-flex !important;
+                  align-items: center !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                }
+                #editbar select {
+                  height: 26px !important;
+                  line-height: 26px !important;
+                  font-size: 11.5px !important;
+                  padding: 1px 4px !important;
+                  border: 1px solid #cbd5e1 !important;
+                  border-radius: 4px !important;
+                  background: #ffffff !important;
+                  color: #1e293b !important;
+                  margin: 0 2px !important;
+                  max-width: 105px !important;
+                  cursor: pointer !important;
+                }
+                #editbar .buttonicon, #editbar a.buttonicon, #editbar button {
+                  height: 26px !important;
+                  min-width: 26px !important;
+                  display: inline-flex !important;
+                  align-items: center !important;
+                  justify-content: center !important;
+                  border-radius: 4px !important;
+                  margin: 0 1px !important;
+                  cursor: pointer !important;
                 }
                 #editorcontainerbox {
-                  top: 36px !important;
                   position: absolute !important;
                   bottom: 0px !important;
                   left: 0px !important;
                   right: 0px !important;
+                  width: 100% !important;
                 }
               `;
               (doc.head || doc.documentElement).appendChild(guardStyle);
+            }
+
+            // 📐 动态自适应调节 editorcontainerbox 的顶部间距，杜绝双行工具栏与正文发生重叠
+            const editbarEl = doc.getElementById('editbar') || doc.querySelector('.toolbar');
+            const editorBoxEl = doc.getElementById('editorcontainerbox');
+            if (editbarEl && editorBoxEl) {
+              const h = editbarEl.offsetHeight || 38;
+              editorBoxEl.style.setProperty('top', `${h}px`, 'important');
             }
           }
         } catch(e) {}
