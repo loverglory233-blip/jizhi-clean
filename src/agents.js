@@ -3,7 +3,7 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260905_v2803';
+import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260905_v2804';
 
 export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
   // 🛡️ 终极只读熔断器：一旦任务截止进入只读模式或已终稿归档，底层彻底熔断任何大模型调用与智能体生成
@@ -45,7 +45,11 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
           query: enrichedQuery,
           stage: currentContext.stage || '',
           topic: currentContext.topic || '',
-          actual_doc: currentContext.actualDoc || currentContext.actual_doc || ''
+          actual_doc: currentContext.actualDoc || currentContext.actual_doc || '',
+          prior_review: currentContext.priorReview || currentContext.prior_review || '',
+          task_type: currentContext.taskType || currentContext.task_type || '',
+          milestone_key: currentContext.milestoneKey || currentContext.milestone_key || '',
+          scope_key: currentContext.scopeKey || currentContext.scope_key || (typeof window !== 'undefined' && window.app && typeof window.app.getGroupScopeKey === 'function' ? window.app.getGroupScopeKey() : '')
         })
       });
 

@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2803
+ * Version: 20260905_v2804
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2803';
+  const APP_VERSION = '20260905_v2804';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1598,7 +1598,11 @@
             query: enrichedQuery,
             stage: currentContext.stage || '',
             topic: currentContext.topic || '',
-            actual_doc: currentContext.actualDoc || currentContext.actual_doc || ''
+            actual_doc: currentContext.actualDoc || currentContext.actual_doc || '',
+            prior_review: currentContext.priorReview || currentContext.prior_review || '',
+            task_type: currentContext.taskType || currentContext.task_type || '',
+            milestone_key: currentContext.milestoneKey || currentContext.milestone_key || '',
+            scope_key: currentContext.scopeKey || currentContext.scope_key || (typeof window !== 'undefined' && window.app && typeof window.app.getGroupScopeKey === 'function' ? window.app.getGroupScopeKey() : '')
           })
         });
 
@@ -20398,6 +20402,25 @@
       return currentTask?.taskType || 'experiment';
     }
 
+    getGroupScopeKey() {
+      const user = this.authManager ? this.authManager.getCurrentUser() : null;
+      const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
+      const classId = this.authManager ? this.authManager.getEffectiveStudentClassId(user, activeTaskId) : (this.state.activeStudentClassId || user?.classId || 'class_default');
+      const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(user, classId) : null;
+      const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj?.id || user?.groupId || 'group_default';
+      return `${classId}_${activeTaskId}_${groupId}`;
+    }
+
+    isGroupMilestoneInitiator() {
+      const user = this.authManager ? this.authManager.getCurrentUser() : null;
+      if (!user) return true;
+      const myId = String(user.id || user.name || '').trim().toLowerCase();
+      const presenceKeys = Object.keys(this.state.presence || {}).filter(Boolean);
+      if (presenceKeys.length <= 1) return true;
+      const sortedPresence = presenceKeys.map(k => String(k).trim().toLowerCase()).sort();
+      return sortedPresence[0] === myId;
+    }
+
     getAgentSenderName(key) {
       return getAgentDisplayName(key, this.getCurrentTaskType());
     }
@@ -21358,8 +21381,12 @@
         }
       }
 
-      // 🛡️ 如果之前触发中途因异常未完成且已超过 15 秒，允许重置重试
-      const isReview1InProgressTimedOut = (s2.reviewMilestone === 'first_review_in_progress' && (!s2._review1StartTime || (now - s2._review1StartTime > 15000)));
+      // 🛡️ 组内主发起人选举与非首选客户端退避（避免多人并发调用大模型消耗双倍 Token）
+      const isInitiator = this.isGroupMilestoneInitiator();
+      const delayMs = isInitiator ? 500 : 3000;
+
+      // 🛡️ 如果之前触发中途因异常未完成且已超过 20 秒，允许重置重试
+      const isReview1InProgressTimedOut = (s2.reviewMilestone === 'first_review_in_progress' && (!s2._review1StartTime || (now - s2._review1StartTime > 20000)));
       const canTriggerReview1 = !hasFirstReviewInLogs && isReview1Due && !this._isTriggeringFirstReview && (s2.reviewMilestone !== 'first_review_done' && (s2.reviewMilestone !== 'first_review_in_progress' || isReview1InProgressTimedOut));
 
       if (canTriggerReview1) {
@@ -21387,7 +21414,16 @@
 
         setTimeout(async () => {
           try {
-            await new Promise(r => setTimeout(r, 1000));
+            // 🛡️ 严格二次守卫：在退避等待后，检测是否已有同伴完成了一审
+            const latestS2ChatList = this.state.chatLogs?.stage2 || [];
+            if (latestS2ChatList.some(isRealFirstReviewMsg) || (this.state.stage2?.firstReviewText && this.state.stage2?.reviewMilestone === 'first_review_done')) {
+              this._isTriggeringFirstReview = false;
+              this.state.activeAgentAnalyzing = null;
+              renderChat(this.state);
+              this.renderStudentWorkspace();
+              return;
+            }
+
             const genreDocName = isInstTask ? '教学设计' : '论文';
             const genreDesc = getGenrePromptDescriptor(taskType);
             const firstReviewPrompt = `${genreDesc}
@@ -21408,7 +21444,14 @@
   输出格式：清晰列出 1~2 条核心质检条目（每条包含：· 诊断问题：指出哪里有什么问题；· 改进建议：指出具体怎么改）。纯自然语言输出，120~160字。`;
             let firstReviewText = '';
             try {
-              firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic, actualDoc: contentSnippet, taskType });
+              firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, {
+                stage: 'stage2',
+                topic,
+                actualDoc: contentSnippet,
+                taskType,
+                milestoneKey: 'stage2_first_review',
+                scopeKey: this.getGroupScopeKey()
+              });
             } catch (apiErr) {
               console.warn('[FirstReview] Coze API error, switching to prompt fallback:', apiErr);
             }
@@ -21447,7 +21490,7 @@
             renderChat(this.state);
             this.renderStudentWorkspace();
           }
-        }, 500);
+        }, delayMs);
         return;
       }
 
