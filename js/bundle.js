@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2720
+ * Version: 20260905_v2721
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2720';
+  const APP_VERSION = '20260905_v2721';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5056,6 +5056,10 @@
               this._knownTaskDeadlines[t.id] = t.deadline;
             }
           });
+
+          if (this.app && this.app.state && this.app.state.studentViewMode === 'task_list' && typeof this.app.renderMain === 'function') {
+            this.app.renderMain();
+          }
         }
         if (Array.isArray(remoteData.users) && remoteData.users.length > 0) {
           let deletedUserIds = new Set();
@@ -5182,11 +5186,16 @@
             localStorage.setItem('jizhi_announcements_db', JSON.stringify(merged));
 
             // ⚡ 实时无感刷新顶部红点与未读通知弹窗
-            if (this.app && typeof this.app.renderHeader === 'function') {
-              this.app.renderHeader();
-            }
-            if (this.app && typeof this.app.checkUnreadAnnouncements === 'function') {
-              this.app.checkUnreadAnnouncements();
+            if (this.app) {
+              if (this.app.state && this.app.state.studentViewMode === 'task_list' && typeof this.app.renderMain === 'function') {
+                this.app.renderMain();
+              }
+              if (typeof this.app.renderHeader === 'function') {
+                this.app.renderHeader();
+              }
+              if (typeof this.app.checkUnreadAnnouncements === 'function') {
+                this.app.checkUnreadAnnouncements();
+              }
             }
           }
 
@@ -14775,10 +14784,15 @@
               let localAnns = this.authManager ? this.authManager.getAnnouncements() : [];
               localAnns = localAnns.filter(a => a.id !== delAnnId);
               try { localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(localAnns)); } catch (err) {}
+              const openModal = document.querySelector('.modal-announcement-popup');
+              if (openModal && openModal.dataset.annId === delAnnId) {
+                openModal.remove();
+              }
               if (this.state.studentViewMode === 'task_list') {
                 this.renderMain();
               }
               this.renderHeader();
+              this.checkUnreadAnnouncements();
             }
 
             // 4. 教师更新或删除问卷配置（秒级同步问卷地址）
@@ -16467,11 +16481,22 @@
           .sort((a, b) => (b.id > a.id ? 1 : -1));
 
         // 📢 教师发布的教学指示/课堂通知在工作台自动弹窗提示学生阅读并确认
-        if (unreadList.length > 0) {
-          if (document.querySelector('.modal-announcement-popup')) {
-            return;
+        const openModal = document.querySelector('.modal-announcement-popup');
+        if (openModal) {
+          const openAnnId = openModal.dataset.annId;
+          if (openAnnId && openAnnId !== 'list') {
+            const annStillExists = allAnns.some(a => a.id === openAnnId);
+            if (!annStillExists) {
+              openModal.remove();
+            }
           }
-          this.showAnnouncementModal(unreadList[0], true);
+        }
+
+        const currentOpenModal = document.querySelector('.modal-announcement-popup');
+        if (unreadList.length > 0) {
+          if (!currentOpenModal) {
+            this.showAnnouncementModal(unreadList[0], true);
+          }
         }
       };
 
@@ -16556,6 +16581,7 @@
 
       const modal = document.createElement('div');
       modal.className = 'modal-overlay modal-announcement-popup';
+      modal.dataset.annId = (showDetailDirectly && selectedAnn) ? selectedAnn.id : 'list';
 
       const renderListHtml = () => `
         <div style="width:680px; max-width:94vw; background:#ffffff; border-radius:16px; box-shadow:0 25px 50px -12px rgba(15,23,42,0.25); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
@@ -16782,6 +16808,7 @@
           this.authManager.markAnnouncementRead(ann.id, groupId);
         } catch (e) {}
 
+        modal.dataset.annId = ann.id;
         modal.innerHTML = renderDetailHtml(ann);
         attachDetailEvents(ann);
       };
@@ -16790,6 +16817,7 @@
         modal.querySelector('#btn-close-ann-popup')?.addEventListener('click', closeModal);
         modal.querySelector('#btn-close-ann-bottom')?.addEventListener('click', closeModal);
         modal.querySelector('#btn-back-to-list')?.addEventListener('click', () => {
+          modal.dataset.annId = 'list';
           modal.innerHTML = renderListHtml();
           attachListEvents();
         });
