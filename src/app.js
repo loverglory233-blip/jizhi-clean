@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2683";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2683";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2683";
-import { AuthManager } from "./auth.js?v=20260905_v2683";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2683";
-import { renderLoginView } from "./login.js?v=20260905_v2683";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2683";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2683";
+} from "./constants.js?v=20260905_v2684";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2684";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2684";
+import { AuthManager } from "./auth.js?v=20260905_v2684";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2684";
+import { renderLoginView } from "./login.js?v=20260905_v2684";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2684";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2684";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2683";
+} from "./editor.js?v=20260905_v2684";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1118,11 +1118,14 @@ export class App {
         return;
       }
 
-      // 🛡️ 核心守卫：如果学生处于工作台模式，但当前任务已被教师删除，立即弹窗拦截并返回任务大厅
-      const allTasks = this.authManager ? this.authManager.getTasks() : [];
+      // 🛡️ 任务撤销守卫：仅当当前任务被明确加入删除黑名单时才弹窗拦截
       if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
-        const isCurrentTaskAlive = allTasks.some(t => t && t.id === this.state.activeTaskId);
-        if (!isCurrentTaskAlive && !this._isHandlingTaskRevoked) {
+        let deletedTaskIds = new Set();
+        try {
+          const delList = JSON.parse(localStorage.getItem('jizhi_deleted_task_ids')) || [];
+          if (Array.isArray(delList)) deletedTaskIds = new Set(delList);
+        } catch (e) {}
+        if (deletedTaskIds.has(this.state.activeTaskId) && !this._isHandlingTaskRevoked) {
           this.showTaskRevokedModal(this.state.activeTaskTitle || '当前写作任务');
           return;
         }
@@ -1322,17 +1325,7 @@ export class App {
         try { await this.authManager.pullGlobalMeta(); } catch (e) {}
       }
 
-      // 🛡️ 1. 任务存在性检测：如果当前正在某个任务中，但该任务已被教师在后台删除/重置
       const allTasks = this.authManager ? this.authManager.getTasks() : [];
-      if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
-        const isCurrentTaskAlive = allTasks.some(t => t.id === this.state.activeTaskId);
-        if (!isCurrentTaskAlive && !this._isHandlingTaskRevoked) {
-          this.showTaskRevokedModal(this.state.activeTaskTitle || '当前写作任务');
-          return;
-        }
-      }
-
-      // 🛡️ 2. 全局新任务发布感知与顶部横幅通知（严格仅限实时在线期间感知的新增任务，初次登录/离线重新进入绝不弹历史提示）
       const effClassId = this.state.activeStudentClassId || currUserObj.classId || null;
       const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUserObj, effClassId) : null;
       const visibleTasks = allTasks.filter(t => {
@@ -1343,16 +1336,6 @@ export class App {
 
       const currentTaskIds = new Set(visibleTasks.map(t => t.id));
       this._knownTaskIdsSet = currentTaskIds;
-
-      // 🛡️ 2.5 工作台任务存活检测：仅当学生当前正在该工作台内写作时，若任务被教师实时删除才弹窗引导返回
-      if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
-        const isCurrentTaskAlive = allTasks.some(t => t.id === this.state.activeTaskId);
-        if (!isCurrentTaskAlive && !this._isHandlingTaskRevoked) {
-          this._isHandlingTaskRevoked = true;
-          this.showTaskRevokedModal(this.state.activeTaskTitle || '当前写作任务');
-          return;
-        }
-      }
 
       // 若处于任务大厅，感知任务变动后自动刷新大厅卡片
       if (!this.state.activeTaskId) {

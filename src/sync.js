@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2683';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2683';
+import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2684';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2684';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -709,10 +709,9 @@ export class CloudSyncEngine {
         const mergedTasks = Array.from(taskMap.values());
         localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
 
-        // 🛡️ 核心守卫：若学生正在该工作台内写作，而任务已被教师在后台删除，立即弹窗引导返回大厅
+        // 🛡️ 核心守卫：仅当当前任务被教师明确删除时才弹窗引导返回大厅
         if (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) {
-          const isCurrentTaskAlive = mergedTasks.some(t => t && t.id === this.app.state.activeTaskId);
-          if (!isCurrentTaskAlive && !this.app._isHandlingTaskRevoked) {
+          if (deletedTaskIds.has(this.app.state.activeTaskId) && !this.app._isHandlingTaskRevoked) {
             this.app.showTaskRevokedModal(this.app.state.activeTaskTitle || '当前写作任务');
             return;
           }
