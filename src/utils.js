@@ -556,19 +556,47 @@ export function filterAndDeduplicateChatLogs(messages) {
       txt.includes('【论证分析师')
     );
 
-    // 1. 智能体连发防重：智能体若因网络重试/定时器/刷新连发了完全相同或同类型的引导提示，自动去重仅保留 1 条
+    // 1. 智能体连发防重：智能体若因多端并发/网络重试/定时器连发了同类型的里程碑意见，自动去重仅保留 1 条
     if (isAgent) {
       const normTxt = txt.replace(/\s+/g, " ").trim();
       const opKey = `${sender}_${normTxt}`;
-      const isSecondChecklist = txt.includes('二审修正清单') || txt.includes('二审修改落实要点');
-      if (isSecondChecklist && seenAgentOpenings.has(`${sender}_second_checklist`)) {
-        continue;
+
+      // 🛡️ 关键里程碑消息单例防护：同一阶段内同类型里程碑全局严格仅保留第一条
+      const isFirstReview = txt.includes('一审破题把脉') || txt.includes('初审破题把脉') || txt.includes('一审破题') || txt.includes('初审质检');
+      if (isFirstReview) {
+        if (seenAgentOpenings.has('stage2_first_review_singleton')) continue;
+        seenAgentOpenings.add('stage2_first_review_singleton');
       }
+
+      const isSecondChecklist = txt.includes('二审修正清单') || txt.includes('二审修改落实要点');
+      if (isSecondChecklist) {
+        if (seenAgentOpenings.has('stage2_second_checklist_singleton')) continue;
+        seenAgentOpenings.add('stage2_second_checklist_singleton');
+      }
+
+      const isMeetingCall = txt.includes('半程会议号召') || txt.includes('半程研讨号召') || txt.includes('半程磨课会议') || txt.includes('半程编辑会议');
+      if (isMeetingCall) {
+        if (seenAgentOpenings.has('stage2_meeting_call_singleton')) continue;
+        seenAgentOpenings.add('stage2_meeting_call_singleton');
+      }
+
+      const isMeetingSummary = txt.includes('一致性研讨小结') || txt.includes('半程研讨小结') || txt.includes('磨课会议小结') || txt.includes('编辑会议小结');
+      if (isMeetingSummary) {
+        if (seenAgentOpenings.has('stage2_meeting_summary_singleton')) continue;
+        seenAgentOpenings.add('stage2_meeting_summary_singleton');
+      }
+
+      const isOpeningGreeting = txt.includes('开场寄语');
+      if (isOpeningGreeting) {
+        const greetKey = `stage2_opening_${sender}`;
+        if (seenAgentOpenings.has(greetKey)) continue;
+        seenAgentOpenings.add(greetKey);
+      }
+
       if (seenAgentOpenings.has(opKey)) {
         continue;
       }
       seenAgentOpenings.add(opKey);
-      if (isSecondChecklist) seenAgentOpenings.add(`${sender}_second_checklist`);
     }
 
     // 2. 严格按数据库主键/唯一标识防重，绝不按文本做模糊误杀
