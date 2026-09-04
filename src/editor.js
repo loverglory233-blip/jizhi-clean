@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2539";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2539";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2539";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2540";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2540";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2540";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1686,21 +1686,6 @@ function renderStage2Canvas(canvas, state, handlers) {
 
       if (cleanTxt !== null) {
         const wordCount = cleanTxt.length;
-
-        // 🛡️ 静默自动保底守护：若当前打开的 Pad 为初始空状态 (<30字)，且尚未尝试自愈，静默检索云端/同组最长正文自动填入
-        if (wordCount < 30 && !window._hasAttemptedPadSilentAutoHeal) {
-          window._hasAttemptedPadSilentAutoHeal = true;
-          fetch(`sync.php?action=restore_pad_max_revision&padId=${encodeURIComponent(rawPadName)}&classId=${encodeURIComponent(userClassId)}&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}`)
-            .then(r => r.json())
-            .then(res => {
-              if (res && res.success && res.textLength > 50) {
-                const s2f = document.getElementById('stage2-etherpad-frame');
-                if (s2f) { s2f.src = s2f.src; }
-              }
-            })
-            .catch(() => {});
-        }
-        
         // 实时更新字数角标
         const countBadge = document.getElementById('stage2-word-count-num');
         if (countBadge && countBadge.innerText !== String(wordCount)) {
