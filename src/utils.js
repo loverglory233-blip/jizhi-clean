@@ -719,7 +719,7 @@ export function enforceEtherpadReadonly(iframe) {
   if (!iframe) return;
   iframe._isReadonlyEnforced = true;
 
-  // 🛡️ 1. 物理级点击拦截遮罩：pointer-events:auto 彻底阻断任何鼠标点击、聚焦与键盘光标进入 iframe
+  // 🛡️ 1. 物理级点击拦截遮罩：pointer-events:auto 阻断任何鼠标点击、聚焦与键盘光标进入 iframe
   const container = iframe.parentElement;
   if (container) {
     let shield = container.querySelector('.etherpad-readonly-shield');
@@ -764,11 +764,6 @@ export function enforceEtherpadReadonly(iframe) {
       const footers = doc.querySelectorAll('#footer, .bottom-bar, #chatbox');
       footers.forEach(ft => ft.style.setProperty('display', 'none', 'important'));
 
-      const editorBox = doc.querySelector('#editorcontainerbox');
-      if (editorBox) {
-        editorBox.style.setProperty('top', '0px', 'important');
-      }
-
       const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
       if (aceOuter && aceOuter.contentDocument) {
         const outerDoc = aceOuter.contentDocument;
@@ -790,13 +785,6 @@ export function enforceEtherpadReadonly(iframe) {
     iframe.addEventListener('load', () => {
       if (iframe._isReadonlyEnforced) {
         tryLock();
-        let attempts = 0;
-        const iv = setInterval(() => {
-          attempts++;
-          if (!iframe._isReadonlyEnforced) { clearInterval(iv); return; }
-          tryLock();
-          if (attempts >= 15) clearInterval(iv);
-        }, 200);
       } else {
         liftEtherpadReadonly(iframe);
       }
@@ -804,13 +792,6 @@ export function enforceEtherpadReadonly(iframe) {
   }
 
   tryLock();
-  let attempts = 0;
-  const iv = setInterval(() => {
-    attempts++;
-    if (!iframe._isReadonlyEnforced) { clearInterval(iv); return; }
-    tryLock();
-    if (attempts >= 10) clearInterval(iv);
-  }, 200);
 }
 
 /**
@@ -820,12 +801,15 @@ export function liftEtherpadReadonly(iframe) {
   if (!iframe) return;
   iframe._isReadonlyEnforced = false;
 
+  // 1. 彻底清除所有的只读拦截遮罩（包括 container 和 document 中的所有残留遮罩）
   const container = iframe.parentElement;
   if (container) {
     const shields = container.querySelectorAll('.etherpad-readonly-shield');
     shields.forEach(s => s.remove());
   }
+  document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
 
+  // 2. 清除 iframe 内部 DOM 上的只读限制，让 Etherpad 恢复原生渲染
   const tryUnlock = () => {
     if (iframe._isReadonlyEnforced) return;
     try {
@@ -837,55 +821,19 @@ export function liftEtherpadReadonly(iframe) {
         tb.style.removeProperty('display');
         tb.style.removeProperty('visibility');
         tb.style.removeProperty('opacity');
-        tb.style.display = '';
-        tb.style.visibility = 'visible';
       });
-
-      const editbar = doc.querySelector('#editbar') || doc.querySelector('.toolbar') || doc.querySelector('#toolbar');
-      if (editbar) {
-        editbar.style.removeProperty('display');
-        editbar.style.display = 'flex';
-        editbar.style.setProperty('display', 'flex', 'important');
-        editbar.style.visibility = 'visible';
-        editbar.style.opacity = '1';
-        editbar.style.position = 'relative';
-        editbar.style.zIndex = '100';
-      }
-      const menuLeft = doc.querySelector('#menu_left') || doc.querySelector('.menu_left');
-      if (menuLeft) {
-        menuLeft.style.removeProperty('display');
-        menuLeft.style.display = 'flex';
-        menuLeft.style.setProperty('display', 'flex', 'important');
-        menuLeft.style.visibility = 'visible';
-      }
-      const menuRight = doc.querySelector('#menu_right') || doc.querySelector('.menu_right');
-      if (menuRight) {
-        menuRight.style.removeProperty('display');
-        menuRight.style.display = 'flex';
-        menuRight.style.setProperty('display', 'flex', 'important');
-        menuRight.style.visibility = 'visible';
-      }
 
       const footers = doc.querySelectorAll('#footer, .bottom-bar, #chatbox');
       footers.forEach(ft => {
         ft.style.removeProperty('display');
-        ft.style.display = '';
+        ft.style.removeProperty('visibility');
       });
 
       const editorBox = doc.querySelector('#editorcontainerbox');
       if (editorBox) {
-        const ebHeight = (editbar && editbar.offsetHeight > 0) ? editbar.offsetHeight : 36;
-        editorBox.style.setProperty('top', ebHeight + 'px', 'important');
-        editorBox.style.position = 'absolute';
-        editorBox.style.zIndex = '1';
-      }
-
-      const padWin = iframe.contentWindow;
-      if (padWin) {
-        try {
-          padWin.dispatchEvent(new Event('resize'));
-          if (padWin.$) padWin.$(padWin).trigger('resize');
-        } catch(e) {}
+        editorBox.style.removeProperty('top');
+        editorBox.style.removeProperty('position');
+        editorBox.style.removeProperty('z-index');
       }
 
       const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
@@ -898,9 +846,15 @@ export function liftEtherpadReadonly(iframe) {
           if (innerBody) {
             innerBody.setAttribute('contenteditable', 'true');
             innerBody.style.removeProperty('cursor');
-            innerBody.style.cursor = 'text';
           }
         }
+      }
+
+      const padWin = iframe.contentWindow;
+      if (padWin) {
+        try {
+          padWin.dispatchEvent(new Event('resize'));
+        } catch(e) {}
       }
     } catch(e) {}
   };
@@ -910,25 +864,11 @@ export function liftEtherpadReadonly(iframe) {
     iframe.addEventListener('load', () => {
       if (!iframe._isReadonlyEnforced) {
         tryUnlock();
-        let a = 0;
-        const ivLoad = setInterval(() => {
-          a++;
-          if (iframe._isReadonlyEnforced) { clearInterval(ivLoad); return; }
-          tryUnlock();
-          if (a >= 20) clearInterval(ivLoad);
-        }, 200);
       }
     });
   }
 
   tryUnlock();
-  let attempts = 0;
-  const iv = setInterval(() => {
-    attempts++;
-    if (iframe._isReadonlyEnforced) { clearInterval(iv); return; }
-    tryUnlock();
-    if (attempts >= 15) clearInterval(iv);
-  }, 200);
 }
 
 /**
