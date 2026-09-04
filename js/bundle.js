@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2682
+ * Version: 20260905_v2683
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2682';
+  const APP_VERSION = '20260905_v2683';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1772,8 +1772,9 @@
                     userMap.set(k, u);
                   } else {
                     const rUser = userMap.get(k);
+                    const preservedPassword = (u.password && u.password !== '123') ? u.password : (rUser.password || u.password || '123');
                     const mergedClassIds = Array.from(new Set([...(rUser.classIds || [rUser.classId].filter(Boolean)), ...(u.classIds || [u.classId].filter(Boolean))]));
-                    userMap.set(k, { ...rUser, ...u, classIds: mergedClassIds });
+                    userMap.set(k, { ...rUser, ...u, password: preservedPassword, classIds: mergedClassIds });
                   }
                 }
               });
@@ -1814,7 +1815,7 @@
               this.sanitizeAndDeduplicateGroups();
             }
 
-            // 3. 写作任务：以教师端权威发布的云端数据为准（学生端绝不反向复活已删任务，教师端保留刚建未推任务）
+            // 3. 写作任务：以教师端权威发布的云端数据为准（学生端绝不反向复活已删任务，教师端保留本地已建任务）
             if (Array.isArray(data.tasks)) {
               const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
               let deletedTaskIds = new Set();
@@ -1833,18 +1834,14 @@
                 }
               });
 
-              // 2) 仅教师端在本地有刚创建（60秒内）尚未完成云端持久化的任务时保留，严防短暂网络延迟冲刷！学生端绝不复活已删任务！
+              // 2) 教师端保留本地有效任务，学生端绝不复活已删任务
               if (isTeacher) {
                 localTasks.forEach(localT => {
                   if (!localT || !localT.id) return;
                   if (deletedTaskIds.has(localT.id)) return;
 
                   if (!taskMap.has(localT.id)) {
-                    const cMs = localT.createdMs || (localT.createdAt ? new Date(localT.createdAt).getTime() : 0);
-                    const isRecent = cMs ? (Date.now() - cMs < 60000) : false;
-                    if (isRecent) {
-                      taskMap.set(localT.id, localT);
-                    }
+                    taskMap.set(localT.id, localT);
                   } else {
                     const remoteT = taskMap.get(localT.id);
                     if (localT.lastExtension) {
@@ -4876,17 +4873,14 @@
             }
           });
 
-          // 2) 仅教师端在本地有刚创建（60秒内）尚未完成云端持久化的任务时保留，学生端绝不复活已删任务
+          // 2) 教师端保留本地有效任务，学生端绝不复活已删任务
           if (isTeacher) {
             localTasks.forEach(localT => {
               if (!localT || !localT.id) return;
               if (deletedTaskIds.has(localT.id)) return;
 
               if (!taskMap.has(localT.id)) {
-                const isRecent = localT.createdAt ? (Date.now() - new Date(localT.createdAt).getTime() < 60000) : false;
-                if (isRecent) {
-                  taskMap.set(localT.id, localT);
-                }
+                taskMap.set(localT.id, localT);
               } else {
                 const remoteT = taskMap.get(localT.id);
                 if (localT.lastExtension) {

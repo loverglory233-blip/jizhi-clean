@@ -257,8 +257,6 @@ function autoSyncAllUsersFromMeta($pdo) {
                 $inClause = implode(',', array_fill(0, count($validUids), '?'));
                 $stmtCleanUsers = $pdo->prepare("DELETE FROM `users` WHERE `role` != 'teacher' AND `id` NOT IN ($inClause)");
                 $stmtCleanUsers->execute($validUids);
-            } else {
-                $pdo->exec("DELETE FROM `users` WHERE `role` != 'teacher'");
             }
 
             // 2. 自动同步 classes 班级实体表
@@ -282,7 +280,7 @@ function autoSyncAllUsersFromMeta($pdo) {
                 }
             }
 
-            // 3. 自动同步 tasks 任务实体表（物理删除已移除的任务）
+            // 3. 自动同步 tasks 任务实体表
             if (isset($gm['tasks']) && is_array($gm['tasks'])) {
                 $validTids = [];
                 $stmtTaskUpsert = $pdo->prepare("INSERT INTO `tasks` (`id`, `title`, `desc`, `created_at_str`, `deadline`, `duration_minutes`, `target_class_ids`, `attachments`, `status`)
@@ -308,12 +306,10 @@ function autoSyncAllUsersFromMeta($pdo) {
                     $inClause = implode(',', array_fill(0, count($validTids), '?'));
                     $stmtCleanTasks = $pdo->prepare("DELETE FROM `tasks` WHERE `id` NOT IN ($inClause)");
                     $stmtCleanTasks->execute($validTids);
-                } else {
-                    $pdo->exec("DELETE FROM `tasks`");
                 }
             }
 
-            // 4. 自动同步 announcements 通知实体表（物理删除已撤回的通知）
+            // 4. 自动同步 announcements 通知实体表
             if (isset($gm['announcements']) && is_array($gm['announcements'])) {
                 $validAids = [];
                 $stmtAnnUpsert = $pdo->prepare("INSERT INTO `announcements` (`id`, `title`, `content`, `created_at_str`, `target_class_ids`, `is_pinned`)
@@ -333,8 +329,6 @@ function autoSyncAllUsersFromMeta($pdo) {
                     $inClause = implode(',', array_fill(0, count($validAids), '?'));
                     $stmtCleanAnn = $pdo->prepare("DELETE FROM `announcements` WHERE `id` NOT IN ($inClause)");
                     $stmtCleanAnn->execute($validAids);
-                } else {
-                    $pdo->exec("DELETE FROM `announcements`");
                 }
             }
 
@@ -362,8 +356,6 @@ function autoSyncAllUsersFromMeta($pdo) {
                     $inClause = implode(',', array_fill(0, count($validPids), '?'));
                     $stmtCleanPapers = $pdo->prepare("DELETE FROM `reference_papers` WHERE `id` NOT IN ($inClause)");
                     $stmtCleanPapers->execute($validPids);
-                } else {
-                    $pdo->exec("DELETE FROM `reference_papers`");
                 }
             }
         } catch (Exception $e) {}
@@ -2486,6 +2478,29 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                             }
                         }
 
+                        // 🛡️ 保护用户密码：如果数据库中已有修改过的自定义密码或哈希，绝不允许被前端上报的默认 123 冲刷！
+                        if (isset($cleanDecoded['users']) && is_array($cleanDecoded['users'])) {
+                            $stmtExistingUsers = $pdo->query("SELECT id, password FROM users");
+                            $existingPwdMap = [];
+                            if ($stmtExistingUsers) {
+                                while ($r = $stmtExistingUsers->fetch(PDO::FETCH_ASSOC)) {
+                                    if (!empty($r['password'])) {
+                                        $existingPwdMap[strtolower(trim($r['id']))] = $r['password'];
+                                    }
+                                }
+                            }
+                            foreach ($cleanDecoded['users'] as &$cu) {
+                                $cuid = strtolower(trim($cu['id'] ?? ''));
+                                if (isset($existingPwdMap[$cuid])) {
+                                    $dbPwd = $existingPwdMap[$cuid];
+                                    if ($dbPwd !== '123' && ($cu['password'] === '123' || empty($cu['password']))) {
+                                        $cu['password'] = $dbPwd;
+                                    }
+                                }
+                            }
+                            unset($cu);
+                        }
+
                         $cleanJson = json_encode($cleanDecoded, JSON_UNESCAPED_UNICODE);
                     }
                 } catch (Exception $e) {}
@@ -2522,7 +2537,7 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                // 🛡️ 实体表实时入库：将所有任务 tasks 100% 同步 upsert 至 tasks 实体表（物理清理已删除任务）
+                // 🛡️ 实体表实时入库：将所有任务 tasks 100% 同步 upsert 至 tasks 实体表
                 if (isset($decoded['tasks']) && is_array($decoded['tasks'])) {
                     $stmtTaskUpsert = $pdo->prepare("INSERT INTO `tasks` (`id`, `title`, `desc`, `created_at_str`, `deadline`, `duration_minutes`, `target_class_ids`, `attachments`, `status`)
                         VALUES (:id, :title, :desc, :created_at, :deadline, :duration, :cids, :att, :status)
@@ -2548,8 +2563,6 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         $inClause = implode(',', array_fill(0, count($validTids), '?'));
                         $stmtCleanTasks = $pdo->prepare("DELETE FROM `tasks` WHERE `id` NOT IN ($inClause)");
                         $stmtCleanTasks->execute($validTids);
-                    } else {
-                        $pdo->exec("DELETE FROM `tasks`");
                     }
                 }
 
