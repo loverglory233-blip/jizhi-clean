@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2235
+ * Version: 20260904_v2236
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2235';
+  const APP_VERSION = '20260904_v2236';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -15418,9 +15418,7 @@
           const prefixTag = isInst ? '备课引导师·方案研讨' : '学术拍卖师·落槌与方案研讨';
           const docThemeNoun = isInst ? '教学主题与备课方案' : '主题与研究方案';
 
-          const tallyText = isUnanimous 
-            ? `📊 【投票结果出炉】：全组成员已全票推选《${winningProposal.title}》（共 ${totalMembersCount} 票）！`
-            : `📊 【投票结果出炉】：全员投票已完成！各方案得票分布：${proposalSummaryList}。`;
+          const tallyText = `📊 【投票结果】：${proposalSummaryList}`;
 
           const tallySysMsg = {
             id: 'vote_tally_' + Date.now(),
