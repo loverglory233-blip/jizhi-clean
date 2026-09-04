@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2500";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2500";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2500";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2501";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2501";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2501";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1351,9 +1351,9 @@ function renderStage2Canvas(canvas, state, handlers) {
   const isDraftFullyConfirmed = !!s2.isDraftConfirmed && (confirmedDraftCount >= actualTotalCount && actualTotalCount > 0);
   const meetingSubs = s2.meetingSubmissions || {};
   const isStage2MeetingLocked = s2.isMeetingLocked || (Object.keys(meetingSubs).length >= actualTotalCount && actualTotalCount > 0);
-  // 🛡️ 阶段二只读严格判定：任务截止过期、全组最终提交终稿、已推进到阶段三、或初稿全员确认完成时锁定为只读归档
+  // 🛡️ 阶段二只读严格判定：仅在任务截止过期或全组最终提交终稿时锁定为只读归档
   const isFinalSubmitted = !!state.isFinalSubmitted;
-  const isEditorReadonly = isTaskDeadlineExpired || isFinalSubmitted || (state.currentStage === 'stage3') || isDraftFullyConfirmed;
+  const isEditorReadonly = isTaskDeadlineExpired || isFinalSubmitted;
   const livePadText = (typeof getEtherpadTextDirect === 'function') ? getEtherpadTextDirect() : null;
   const actualContent = (livePadText !== null) ? livePadText : (s2.unifiedContent || '');
   const plainTextLen = actualContent.replace(/<[^>]*>/g, '').trim().length;

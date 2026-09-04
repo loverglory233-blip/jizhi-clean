@@ -182,7 +182,16 @@ export function formatStandardDateDash(val) {
 export function isTaskExpired(task) {
   if (!task) return false;
   try {
-    const raw = String(typeof task === 'object' && task !== null ? (task.deadline || '') : task).trim();
+    let raw = '';
+    if (typeof task === 'object' && task !== null) {
+      if (task.lastExtension && task.lastExtension.newDeadline) {
+        raw = String(task.lastExtension.newDeadline).trim();
+      } else {
+        raw = String(task.deadline || '').trim();
+      }
+    } else {
+      raw = String(task).trim();
+    }
     if (!raw || raw.includes('无') || raw.includes('随时') || raw.includes('结课前') || raw.includes('不限')) return false;
     const deadlineStr = raw.replace(/-/g, '/');
     const deadlineTime = new Date(deadlineStr).getTime();
