@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260904_v2513"
+TARGET_VERSION="20260904_v2514"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -414,17 +414,18 @@ EPSETEOF
   fi
 
   export NODE_PATH="$EP_DIR/node_modules:$EP_DIR/src/node_modules:$NODE_PATH"
+  export NODE_ENV=production
 
-  if [ -f "src/node/server.js" ]; then
+  if [ -f "src/node/server.ts" ]; then
+    nohup "$NODE_BIN" --require tsx/cjs src/node/server.ts > /var/log/etherpad.log 2>&1 &
+  elif [ -f "src/node/server.js" ]; then
     nohup "$NODE_BIN" src/node/server.js > /var/log/etherpad.log 2>&1 &
   elif [ -f "node_modules/ep_etherpad-lite/node/server.js" ]; then
     nohup "$NODE_BIN" node_modules/ep_etherpad-lite/node/server.js --root > /var/log/etherpad.log 2>&1 &
-  elif [ -f "ep_etherpad-lite/node/server.js" ]; then
-    nohup "$NODE_BIN" ep_etherpad-lite/node/server.js > /var/log/etherpad.log 2>&1 &
   fi
 
   EP_READY=0
-  for i in {1..15}; do
+  for i in {1..20}; do
     if curl -s -I --connect-timeout 2 --max-time 3 http://127.0.0.1:9001/ 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
       echo "   🟢 Etherpad 学术协同引擎就绪！(耗时 $i 秒)"
       EP_READY=1
