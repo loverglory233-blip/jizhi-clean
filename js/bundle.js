@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2649
+ * Version: 20260905_v2650
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2649';
+  const APP_VERSION = '20260905_v2650';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -8322,40 +8322,59 @@
                   <input type="datetime-local" id="modal-edit-task-start" class="teacher-input fancy" value="${currentStart}" style="width:100%; font-size:12.5px; padding:8px 10px; border:1.5px solid #cbd5e1; border-radius:8px;">
                 </div>
                 <div class="teacher-form-group">
-                  <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;"><span class="req" style="color:#dc2626;">*</span> ⌛ 截止时间</label>
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <label style="font-size:12.5px; font-weight:700; color:#334155; margin:0;"><span class="req" style="color:#dc2626;">*</span> ⌛ 截止时间</label>
+                    <span id="modal-edit-task-duration-badge" style="font-size:11px; font-weight:800; color:#1d4ed8; background:#eff6ff; border:1px solid #bfdbfe; padding:2px 8px; border-radius:6px;">⏱️ 总时长: ${formatDurationHuman(task.durationMinutes || 120)}</span>
+                  </div>
                   <input type="datetime-local" id="modal-edit-task-deadline" class="teacher-input fancy" value="${currentDeadline}" style="width:100%; font-size:12.5px; padding:8px 10px; border:1.5px solid #cbd5e1; border-radius:8px;">
                 </div>
               </div>
 
-              <!-- ⚡ 快捷延长截止时间工具条（支持自定义数值与单位：分钟/小时/天/周） -->
-              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px;">
-                <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
-                  <span>⚡ 快捷延长截止时间:</span>
-                  <span style="font-size:11px; color:#64748b; font-weight:normal;">(支持自由输入数字，选择单位快速后延)</span>
+              <!-- 🕒 核心功能区：一键设定任务总时长（从开始时间起算，支持任意短时长与长周期） -->
+              <div style="background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:10px; padding:12px 14px;">
+                <div style="font-size:12px; font-weight:700; color:#1e293b; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    <span>🕒 一键设定任务总时长</span>
+                    <span style="font-size:11px; color:#64748b; font-weight:normal;">(从开始时间直接起算，支持小于2小时快速设定):</span>
+                  </div>
                 </div>
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
-                  <span style="font-size:12.5px; color:#475569; font-weight:600;">延长数值:</span>
-                  <input type="number" id="modal-edit-extend-num" value="1" min="0.1" step="any" style="width:75px; padding:6px 10px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:13px; font-weight:700; text-align:center; outline:none;">
-                  <select id="modal-edit-extend-unit" style="padding:6px 10px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12.5px; font-weight:700; background:#ffffff; cursor:pointer; outline:none;">
-                    <option value="minute">分钟</option>
-                    <option value="hour" selected>小时</option>
-                    <option value="day">天 (24h)</option>
+
+                <!-- 快捷总时长预设胶囊 -->
+                <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:10px;">
+                  <button type="button" class="btn-edit-set-duration" data-mins="15" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">15分钟</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="30" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">30分钟</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="45" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">45分钟</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="60" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1小时</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="90" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1.5小时</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="120" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">2小时</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="180" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">3小时</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="720" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">半天(12h)</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="1440" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1天</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="4320" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">3天</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="10080" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1周</button>
+                </div>
+
+                <!-- 自定义时长数值 + 单位输入 -->
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-top:8px; border-top:1px dashed #cbd5e1;">
+                  <span style="font-size:12px; color:#475569; font-weight:700;">自定义总时长:</span>
+                  <input type="number" id="modal-edit-custom-dur-num" value="2" min="0.1" step="any" style="width:65px; padding:4px 6px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12.5px; font-weight:700; text-align:center; outline:none;">
+                  <select id="modal-edit-custom-dur-unit" style="padding:4px 6px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12px; font-weight:700; background:#ffffff; cursor:pointer; outline:none;">
+                    <option value="minute">分钟 (如15/30分)</option>
+                    <option value="hour" selected>小时 (如0.5/1/2小时)</option>
+                    <option value="day">天 (24小时)</option>
                     <option value="week">周 (7天)</option>
                   </select>
-                  <button type="button" id="btn-edit-apply-custom-extend" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:6px 14px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
-                    ⚡ 确认延长
+                  <button type="button" id="btn-edit-apply-custom-dur" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:5px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
+                    ⚡ 设定截止时间
                   </button>
-                </div>
-                <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
-                  <span style="font-size:11px; color:#64748b;">快速选择:</span>
-                  <button type="button" class="btn-quick-extend" data-num="15" data-unit="minute" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+15分钟</button>
-                  <button type="button" class="btn-quick-extend" data-num="30" data-unit="minute" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+30分钟</button>
-                  <button type="button" class="btn-quick-extend" data-num="45" data-unit="minute" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+45分钟</button>
-                  <button type="button" class="btn-quick-extend" data-num="1" data-unit="hour" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1小时</button>
-                  <button type="button" class="btn-quick-extend" data-num="2" data-unit="hour" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+2小时</button>
-                  <button type="button" class="btn-quick-extend" data-num="1" data-unit="day" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1天</button>
-                  <button type="button" class="btn-quick-extend" data-num="3" data-unit="day" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+3天</button>
-                  <button type="button" class="btn-quick-extend" data-num="1" data-unit="week" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1周</button>
+
+                  <div style="margin-left:auto; display:flex; align-items:center; gap:4px;">
+                    <span style="font-size:11px; color:#64748b;">微调:</span>
+                    <button type="button" class="btn-edit-nudge" data-diff="15" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">+15分</button>
+                    <button type="button" class="btn-edit-nudge" data-diff="30" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">+30分</button>
+                    <button type="button" class="btn-edit-nudge" data-diff="-15" style="background:#fff1f2; border:1px solid #fecdd3; color:#be123c; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">-15分</button>
+                    <button type="button" class="btn-edit-nudge" data-diff="-30" style="background:#fff1f2; border:1px solid #fecdd3; color:#be123c; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">-30分</button>
+                  </div>
                 </div>
               </div>
 
@@ -8387,53 +8406,124 @@
 
         const deadlineInput = modal.querySelector('#modal-edit-task-deadline');
         const startInput = modal.querySelector('#modal-edit-task-start');
+        const durationBadge = modal.querySelector('#modal-edit-task-duration-badge');
 
-        const doExtend = (numVal, unitVal) => {
-          const num = parseFloat(numVal) || 0;
-          if (num <= 0) return;
-          let msMultiplier = 3600 * 1000;
-          if (unitVal === 'minute') msMultiplier = 60 * 1000;
-          else if (unitVal === 'hour') msMultiplier = 3600 * 1000;
-          else if (unitVal === 'day') msMultiplier = 24 * 3600 * 1000;
-          else if (unitVal === 'week') msMultiplier = 7 * 24 * 3600 * 1000;
+        const pad = (n) => String(n).padStart(2, '0');
+        const formatLocal = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
-          let baseDate = new Date();
-          if (deadlineInput && deadlineInput.value) {
-            const parsed = new Date(deadlineInput.value);
-            if (!isNaN(parsed.getTime())) baseDate = parsed;
-          } else if (startInput && startInput.value) {
-            const parsed = new Date(startInput.value);
-            if (!isNaN(parsed.getTime())) baseDate = parsed;
-          }
-          const newDate = new Date(baseDate.getTime() + num * msMultiplier);
-          const pad = (n) => String(n).padStart(2, '0');
-          const newDateStr = `${newDate.getFullYear()}-${pad(newDate.getMonth() + 1)}-${pad(newDate.getDate())}T${pad(newDate.getHours())}:${pad(newDate.getMinutes())}`;
-          if (deadlineInput) {
-            deadlineInput.value = newDateStr;
-            deadlineInput.style.borderColor = '#2563eb';
-            setTimeout(() => { if (deadlineInput) deadlineInput.style.borderColor = '#cbd5e1'; }, 600);
+        const updateDurationBadge = () => {
+          if (!startInput || !deadlineInput) return;
+          const s = new Date(startInput.value);
+          const d = new Date(deadlineInput.value);
+          if (!isNaN(s.getTime()) && !isNaN(d.getTime())) {
+            const diffMins = Math.round((d.getTime() - s.getTime()) / (60 * 1000));
+            if (diffMins > 0) {
+              if (durationBadge) {
+                durationBadge.innerHTML = `⏱️ 总时长: <b style="color:#1d4ed8;">${formatDurationHuman(diffMins)}</b>`;
+                durationBadge.style.color = '#1d4ed8';
+                durationBadge.style.background = '#eff6ff';
+                durationBadge.style.borderColor = '#bfdbfe';
+              }
+              modal.querySelectorAll('.btn-edit-set-duration').forEach(btn => {
+                const m = parseInt(btn.dataset.mins, 10);
+                if (m === diffMins) {
+                  btn.style.background = '#eff6ff';
+                  btn.style.borderColor = '#2563eb';
+                  btn.style.color = '#1d4ed8';
+                  btn.style.fontWeight = '800';
+                  btn.style.boxShadow = '0 1px 4px rgba(37,99,235,0.2)';
+                } else {
+                  btn.style.background = '#ffffff';
+                  btn.style.borderColor = '#cbd5e1';
+                  btn.style.color = '#1e293b';
+                  btn.style.fontWeight = '700';
+                  btn.style.boxShadow = 'none';
+                }
+              });
+            } else {
+              if (durationBadge) {
+                durationBadge.innerHTML = `⚠️ 截止时间不能早于开始时间`;
+                durationBadge.style.color = '#dc2626';
+                durationBadge.style.background = '#fee2e2';
+                durationBadge.style.borderColor = '#fca5a5';
+              }
+            }
           }
         };
 
-        // ⚡ 确认自定义延长
-        modal.querySelector('#btn-edit-apply-custom-extend')?.addEventListener('click', () => {
-          const n = modal.querySelector('#modal-edit-extend-num')?.value;
-          const u = modal.querySelector('#modal-edit-extend-unit')?.value;
-          doExtend(n, u);
-        });
-
-        // ⚡ 点击快速选择胶囊
-        modal.querySelectorAll('.btn-quick-extend').forEach(btn => {
+        // 🕒 点击一键设定任务总时长胶囊（从开始时间起算）
+        modal.querySelectorAll('.btn-edit-set-duration').forEach(btn => {
           btn.addEventListener('click', () => {
-            const n = btn.dataset.num;
-            const u = btn.dataset.unit;
-            const inputNum = modal.querySelector('#modal-edit-extend-num');
-            const selectUnit = modal.querySelector('#modal-edit-extend-unit');
-            if (inputNum) inputNum.value = n;
-            if (selectUnit) selectUnit.value = u;
-            doExtend(n, u);
+            const mins = parseInt(btn.dataset.mins, 10);
+            if (!mins || mins <= 0) return;
+            let s = new Date();
+            if (startInput && startInput.value) {
+              const p = new Date(startInput.value);
+              if (!isNaN(p.getTime())) s = p;
+            }
+            const newD = new Date(s.getTime() + mins * 60 * 1000);
+            if (deadlineInput) {
+              deadlineInput.value = formatLocal(newD);
+              deadlineInput.style.borderColor = '#2563eb';
+              setTimeout(() => { if (deadlineInput) deadlineInput.style.borderColor = '#cbd5e1'; }, 400);
+            }
+            updateDurationBadge();
           });
         });
+
+        // ⚡ 自定义设定总时长（从开始时间起算）
+        modal.querySelector('#btn-edit-apply-custom-dur')?.addEventListener('click', () => {
+          const num = parseFloat(modal.querySelector('#modal-edit-custom-dur-num')?.value) || 0;
+          const unit = modal.querySelector('#modal-edit-custom-dur-unit')?.value || 'hour';
+          if (num <= 0) {
+            alert('请输入大于 0 的有效时长数值！');
+            return;
+          }
+          let msMultiplier = 3600 * 1000;
+          if (unit === 'minute') msMultiplier = 60 * 1000;
+          else if (unit === 'hour') msMultiplier = 3600 * 1000;
+          else if (unit === 'day') msMultiplier = 24 * 3600 * 1000;
+          else if (unit === 'week') msMultiplier = 7 * 24 * 3600 * 1000;
+
+          let s = new Date();
+          if (startInput && startInput.value) {
+            const p = new Date(startInput.value);
+            if (!isNaN(p.getTime())) s = p;
+          }
+          const newD = new Date(s.getTime() + num * msMultiplier);
+          if (deadlineInput) {
+            deadlineInput.value = formatLocal(newD);
+            deadlineInput.style.borderColor = '#2563eb';
+            setTimeout(() => { if (deadlineInput) deadlineInput.style.borderColor = '#cbd5e1'; }, 400);
+          }
+          updateDurationBadge();
+        });
+
+        // 微调按钮
+        modal.querySelectorAll('.btn-edit-nudge').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const diff = parseInt(btn.dataset.diff, 10) || 0;
+            if (!diff) return;
+            let curD = new Date();
+            if (deadlineInput && deadlineInput.value) {
+              const p = new Date(deadlineInput.value);
+              if (!isNaN(p.getTime())) curD = p;
+            }
+            const newD = new Date(curD.getTime() + diff * 60 * 1000);
+            if (deadlineInput) {
+              deadlineInput.value = formatLocal(newD);
+              deadlineInput.style.borderColor = diff > 0 ? '#2563eb' : '#be123c';
+              setTimeout(() => { if (deadlineInput) deadlineInput.style.borderColor = '#cbd5e1'; }, 400);
+            }
+            updateDurationBadge();
+          });
+        });
+
+        startInput?.addEventListener('input', updateDurationBadge);
+        startInput?.addEventListener('change', updateDurationBadge);
+        deadlineInput?.addEventListener('input', updateDurationBadge);
+        deadlineInput?.addEventListener('change', updateDurationBadge);
+        updateDurationBadge();
 
         modal.querySelector('#btn-submit-edit-task').addEventListener('click', () => {
           const newTitle = modal.querySelector('#modal-edit-task-title').value.trim();
@@ -8672,13 +8762,13 @@
 
         const now = new Date();
         const startStr = formatLocal(now);
-        const deadlineDate = new Date(now.getTime() + 60 * 60 * 1000); // 默认 1 小时后，可自由设定任意时长
+        const deadlineDate = new Date(now.getTime() + 120 * 60 * 1000); // 默认 2 小时
         const deadlineStr = formatLocal(deadlineDate);
 
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
-          <div class="teacher-modal-card fancy-task-modal" style="width:520px;">
+          <div class="teacher-modal-card fancy-task-modal" style="width:530px; max-width:94vw;">
             <div class="teacher-modal-header task-theme-gradient">
               <div class="modal-header-title"><div class="modal-icon-badge task">📌</div><div><h3>发布全新写作任务</h3></div></div>
               <button class="modal-close-btn" id="btn-close-task-modal">✕</button>
@@ -8698,40 +8788,59 @@
                   <input type="datetime-local" id="modal-task-start" class="teacher-input fancy" value="${startStr}">
                 </div>
                 <div class="teacher-form-group">
-                  <label><span class="req">*</span> ⌛ 任务截止时间 <span style="font-weight:normal; color:#64748b; font-size:11.5px;">(支持自由选择任意时间)</span></label>
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <label style="margin:0;"><span class="req">*</span> ⌛ 任务截止时间</label>
+                    <span id="modal-task-duration-badge" style="font-size:11px; font-weight:800; color:#1d4ed8; background:#eff6ff; border:1px solid #bfdbfe; padding:2px 8px; border-radius:6px;">⏱️ 总时长: 2小时</span>
+                  </div>
                   <input type="datetime-local" id="modal-task-deadline" class="teacher-input fancy" value="${deadlineStr}">
                 </div>
               </div>
 
-              <!-- ⚡ 快捷设定截止时间工具条（支持自定义数值与单位：分钟/小时/天/周） -->
-              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; margin-top:8px;">
-                <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
-                  <span>⚡ 快捷设定截止时间:</span>
-                  <span style="font-size:11px; color:#64748b; font-weight:normal;">(支持自由输入数字，选择单位快速后延)</span>
+              <!-- 🕒 核心功能区：一键设定任务总时长（从开始时间起算，支持任意短时长与长周期） -->
+              <div style="background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:10px; padding:12px 14px; margin-top:8px;">
+                <div style="font-size:12px; font-weight:700; color:#1e293b; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    <span>🕒 一键设定任务总时长</span>
+                    <span style="font-size:11px; color:#64748b; font-weight:normal;">(从开始时间直接起算，支持小于2小时快速设定):</span>
+                  </div>
                 </div>
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
-                  <span style="font-size:12.5px; color:#475569; font-weight:600;">延长数值:</span>
-                  <input type="number" id="modal-create-extend-num" value="1" min="0.1" step="any" style="width:75px; padding:6px 10px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:13px; font-weight:700; text-align:center; outline:none;">
-                  <select id="modal-create-extend-unit" style="padding:6px 10px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12.5px; font-weight:700; background:#ffffff; cursor:pointer; outline:none;">
-                    <option value="minute">分钟</option>
-                    <option value="hour" selected>小时</option>
-                    <option value="day">天 (24h)</option>
+
+                <!-- 快捷总时长预设胶囊（包含 <2小时 以及常规长时长） -->
+                <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:10px;" id="modal-create-duration-capsules">
+                  <button type="button" class="btn-create-set-duration" data-mins="15" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">15分钟</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="30" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">30分钟</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="45" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">45分钟</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="60" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1小时</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="90" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1.5小时</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="120" style="background:#eff6ff; border:1.5px solid #2563eb; color:#1d4ed8; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:800; cursor:pointer; box-shadow:0 1px 4px rgba(37,99,235,0.2);">2小时 (默认)</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="180" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">3小时</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="720" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">半天(12h)</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="1440" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1天</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="4320" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">3天</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="10080" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1周</button>
+                </div>
+
+                <!-- 自定义时长数值 + 单位输入 -->
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-top:8px; border-top:1px dashed #cbd5e1;">
+                  <span style="font-size:12px; color:#475569; font-weight:700;">自定义总时长:</span>
+                  <input type="number" id="modal-create-custom-dur-num" value="2" min="0.1" step="any" style="width:65px; padding:4px 6px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12.5px; font-weight:700; text-align:center; outline:none;">
+                  <select id="modal-create-custom-dur-unit" style="padding:4px 6px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12px; font-weight:700; background:#ffffff; cursor:pointer; outline:none;">
+                    <option value="minute">分钟 (如15/30分)</option>
+                    <option value="hour" selected>小时 (如0.5/1/2小时)</option>
+                    <option value="day">天 (24小时)</option>
                     <option value="week">周 (7天)</option>
                   </select>
-                  <button type="button" id="btn-create-apply-custom-extend" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:6px 14px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
-                    ⚡ 确认延长
+                  <button type="button" id="btn-create-apply-custom-dur" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:5px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
+                    ⚡ 设定截止时间
                   </button>
-                </div>
-                <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
-                  <span style="font-size:11px; color:#64748b;">快速选择:</span>
-                  <button type="button" class="btn-create-quick-extend" data-num="15" data-unit="minute" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+15分钟</button>
-                  <button type="button" class="btn-create-quick-extend" data-num="30" data-unit="minute" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+30分钟</button>
-                  <button type="button" class="btn-create-quick-extend" data-num="45" data-unit="minute" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+45分钟</button>
-                  <button type="button" class="btn-create-quick-extend" data-num="1" data-unit="hour" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1小时</button>
-                  <button type="button" class="btn-create-quick-extend" data-num="2" data-unit="hour" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+2小时</button>
-                  <button type="button" class="btn-create-quick-extend" data-num="1" data-unit="day" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1天</button>
-                  <button type="button" class="btn-create-quick-extend" data-num="3" data-unit="day" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+3天</button>
-                  <button type="button" class="btn-create-quick-extend" data-num="1" data-unit="week" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1周</button>
+
+                  <div style="margin-left:auto; display:flex; align-items:center; gap:4px;">
+                    <span style="font-size:11px; color:#64748b;">微调:</span>
+                    <button type="button" class="btn-create-nudge" data-diff="15" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">+15分</button>
+                    <button type="button" class="btn-create-nudge" data-diff="30" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">+30分</button>
+                    <button type="button" class="btn-create-nudge" data-diff="-15" style="background:#fff1f2; border:1px solid #fecdd3; color:#be123c; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">-15分</button>
+                    <button type="button" class="btn-create-nudge" data-diff="-30" style="background:#fff1f2; border:1px solid #fecdd3; color:#be123c; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">-30分</button>
+                  </div>
                 </div>
               </div>
 
@@ -8806,53 +8915,121 @@
 
         const deadlineInput = modal.querySelector('#modal-task-deadline');
         const startInput = modal.querySelector('#modal-task-start');
+        const durationBadge = modal.querySelector('#modal-task-duration-badge');
 
-        const doCreateExtend = (numVal, unitVal) => {
-          const num = parseFloat(numVal) || 0;
-          if (num <= 0) return;
-          let msMultiplier = 3600 * 1000;
-          if (unitVal === 'minute') msMultiplier = 60 * 1000;
-          else if (unitVal === 'hour') msMultiplier = 3600 * 1000;
-          else if (unitVal === 'day') msMultiplier = 24 * 3600 * 1000;
-          else if (unitVal === 'week') msMultiplier = 7 * 24 * 3600 * 1000;
-
-          let baseDate = new Date();
-          if (deadlineInput && deadlineInput.value) {
-            const parsed = new Date(deadlineInput.value);
-            if (!isNaN(parsed.getTime())) baseDate = parsed;
-          } else if (startInput && startInput.value) {
-            const parsed = new Date(startInput.value);
-            if (!isNaN(parsed.getTime())) baseDate = parsed;
-          }
-          const newDate = new Date(baseDate.getTime() + num * msMultiplier);
-          const pad = (n) => String(n).padStart(2, '0');
-          const newDateStr = `${newDate.getFullYear()}-${pad(newDate.getMonth() + 1)}-${pad(newDate.getDate())}T${pad(newDate.getHours())}:${pad(newDate.getMinutes())}`;
-          if (deadlineInput) {
-            deadlineInput.value = newDateStr;
-            deadlineInput.style.borderColor = '#2563eb';
-            setTimeout(() => { if (deadlineInput) deadlineInput.style.borderColor = '#cbd5e1'; }, 600);
+        const updateDurationBadge = () => {
+          if (!startInput || !deadlineInput) return;
+          const s = new Date(startInput.value);
+          const d = new Date(deadlineInput.value);
+          if (!isNaN(s.getTime()) && !isNaN(d.getTime())) {
+            const diffMins = Math.round((d.getTime() - s.getTime()) / (60 * 1000));
+            if (diffMins > 0) {
+              if (durationBadge) {
+                durationBadge.innerHTML = `⏱️ 总时长: <b style="color:#1d4ed8;">${formatDurationHuman(diffMins)}</b>`;
+                durationBadge.style.color = '#1d4ed8';
+                durationBadge.style.background = '#eff6ff';
+                durationBadge.style.borderColor = '#bfdbfe';
+              }
+              modal.querySelectorAll('.btn-create-set-duration').forEach(btn => {
+                const m = parseInt(btn.dataset.mins, 10);
+                if (m === diffMins) {
+                  btn.style.background = '#eff6ff';
+                  btn.style.borderColor = '#2563eb';
+                  btn.style.color = '#1d4ed8';
+                  btn.style.fontWeight = '800';
+                  btn.style.boxShadow = '0 1px 4px rgba(37,99,235,0.2)';
+                } else {
+                  btn.style.background = '#ffffff';
+                  btn.style.borderColor = '#cbd5e1';
+                  btn.style.color = '#1e293b';
+                  btn.style.fontWeight = '700';
+                  btn.style.boxShadow = 'none';
+                }
+              });
+            } else {
+              if (durationBadge) {
+                durationBadge.innerHTML = `⚠️ 截止时间不能早于开始时间`;
+                durationBadge.style.color = '#dc2626';
+                durationBadge.style.background = '#fee2e2';
+                durationBadge.style.borderColor = '#fca5a5';
+              }
+            }
           }
         };
 
-        // ⚡ 确认自定义延长
-        modal.querySelector('#btn-create-apply-custom-extend')?.addEventListener('click', () => {
-          const n = modal.querySelector('#modal-create-extend-num')?.value;
-          const u = modal.querySelector('#modal-create-extend-unit')?.value;
-          doCreateExtend(n, u);
-        });
-
-        // ⚡ 点击快速选择胶囊
-        modal.querySelectorAll('.btn-create-quick-extend').forEach(btn => {
+        // 🕒 点击一键设定任务总时长胶囊（从开始时间起算）
+        modal.querySelectorAll('.btn-create-set-duration').forEach(btn => {
           btn.addEventListener('click', () => {
-            const n = btn.dataset.num;
-            const u = btn.dataset.unit;
-            const inputNum = modal.querySelector('#modal-create-extend-num');
-            const selectUnit = modal.querySelector('#modal-create-extend-unit');
-            if (inputNum) inputNum.value = n;
-            if (selectUnit) selectUnit.value = u;
-            doCreateExtend(n, u);
+            const mins = parseInt(btn.dataset.mins, 10);
+            if (!mins || mins <= 0) return;
+            let s = new Date();
+            if (startInput && startInput.value) {
+              const p = new Date(startInput.value);
+              if (!isNaN(p.getTime())) s = p;
+            }
+            const newD = new Date(s.getTime() + mins * 60 * 1000);
+            if (deadlineInput) {
+              deadlineInput.value = formatLocal(newD);
+              deadlineInput.style.borderColor = '#2563eb';
+              setTimeout(() => { if (deadlineInput) deadlineInput.style.borderColor = '#cbd5e1'; }, 400);
+            }
+            updateDurationBadge();
           });
         });
+
+        // ⚡ 自定义设定总时长（从开始时间起算）
+        modal.querySelector('#btn-create-apply-custom-dur')?.addEventListener('click', () => {
+          const num = parseFloat(modal.querySelector('#modal-create-custom-dur-num')?.value) || 0;
+          const unit = modal.querySelector('#modal-create-custom-dur-unit')?.value || 'hour';
+          if (num <= 0) {
+            alert('请输入大于 0 的有效时长数值！');
+            return;
+          }
+          let msMultiplier = 3600 * 1000;
+          if (unit === 'minute') msMultiplier = 60 * 1000;
+          else if (unit === 'hour') msMultiplier = 3600 * 1000;
+          else if (unit === 'day') msMultiplier = 24 * 3600 * 1000;
+          else if (unit === 'week') msMultiplier = 7 * 24 * 3600 * 1000;
+
+          let s = new Date();
+          if (startInput && startInput.value) {
+            const p = new Date(startInput.value);
+            if (!isNaN(p.getTime())) s = p;
+          }
+          const newD = new Date(s.getTime() + num * msMultiplier);
+          if (deadlineInput) {
+            deadlineInput.value = formatLocal(newD);
+            deadlineInput.style.borderColor = '#2563eb';
+            setTimeout(() => { if (deadlineInput) deadlineInput.style.borderColor = '#cbd5e1'; }, 400);
+          }
+          updateDurationBadge();
+        });
+
+        // 微调按钮
+        modal.querySelectorAll('.btn-create-nudge').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const diff = parseInt(btn.dataset.diff, 10) || 0;
+            if (!diff) return;
+            let curD = new Date();
+            if (deadlineInput && deadlineInput.value) {
+              const p = new Date(deadlineInput.value);
+              if (!isNaN(p.getTime())) curD = p;
+            }
+            const newD = new Date(curD.getTime() + diff * 60 * 1000);
+            if (deadlineInput) {
+              deadlineInput.value = formatLocal(newD);
+              deadlineInput.style.borderColor = diff > 0 ? '#2563eb' : '#be123c';
+              setTimeout(() => { if (deadlineInput) deadlineInput.style.borderColor = '#cbd5e1'; }, 400);
+            }
+            updateDurationBadge();
+          });
+        });
+
+        startInput?.addEventListener('input', updateDurationBadge);
+        startInput?.addEventListener('change', updateDurationBadge);
+        deadlineInput?.addEventListener('input', updateDurationBadge);
+        deadlineInput?.addEventListener('change', updateDurationBadge);
+        updateDurationBadge();
 
         // 🎯 快速选择字数胶囊
         modal.querySelectorAll('.btn-create-quick-words').forEach(btn => {
