@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2658';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2658';
+import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2659';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2659';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -602,30 +602,35 @@ export class CloudSyncEngine {
           }
         });
 
-        // 2) 合成本地任务：保留本地未落库新任务，继承最新延期
-        localTasks.forEach(localT => {
-          if (!localT || !localT.id) return;
-          if (deletedTaskIds.has(localT.id)) return;
+        // 2) 仅教师端在本地有刚创建（60秒内）尚未完成云端持久化的任务时保留，学生端绝不复活已删任务
+        if (isTeacher) {
+          localTasks.forEach(localT => {
+            if (!localT || !localT.id) return;
+            if (deletedTaskIds.has(localT.id)) return;
 
-          if (!taskMap.has(localT.id)) {
-            taskMap.set(localT.id, localT);
-          } else {
-            const remoteT = taskMap.get(localT.id);
-            if (localT.lastExtension) {
-              const localExtAt = localT.lastExtension.extendedAt || 0;
-              const remoteExtAt = remoteT.lastExtension ? (remoteT.lastExtension.extendedAt || 0) : 0;
-              if (localExtAt >= remoteExtAt) {
-                taskMap.set(localT.id, {
-                  ...remoteT,
-                  ...localT,
-                  deadline: localT.deadline,
-                  durationMinutes: localT.durationMinutes,
-                  lastExtension: localT.lastExtension
-                });
+            if (!taskMap.has(localT.id)) {
+              const isRecent = localT.createdAt ? (Date.now() - new Date(localT.createdAt).getTime() < 60000) : false;
+              if (isRecent) {
+                taskMap.set(localT.id, localT);
+              }
+            } else {
+              const remoteT = taskMap.get(localT.id);
+              if (localT.lastExtension) {
+                const localExtAt = localT.lastExtension.extendedAt || 0;
+                const remoteExtAt = remoteT.lastExtension ? (remoteT.lastExtension.extendedAt || 0) : 0;
+                if (localExtAt >= remoteExtAt) {
+                  taskMap.set(localT.id, {
+                    ...remoteT,
+                    ...localT,
+                    deadline: localT.deadline,
+                    durationMinutes: localT.durationMinutes,
+                    lastExtension: localT.lastExtension
+                  });
+                }
               }
             }
-          }
-        });
+          });
+        }
 
         const mergedTasks = Array.from(taskMap.values());
         localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
