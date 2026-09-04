@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2300
+ * Version: 20260904_v2305
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2300';
+  const APP_VERSION = '20260904_v2305';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9867,7 +9867,7 @@
         <div id="stage1-contract-sign-action-mount" style="margin-top:20px; text-align:center; display:flex; justify-content:center; gap:12px; flex-wrap:wrap;">
           ${isContractLocked ? `
             <button id="btn-goto-stage2" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:13px 36px; border-radius:10px; font-weight:800; cursor:pointer; font-size:15px; box-shadow:0 4px 14px rgba(37,99,235,0.3); display:inline-flex; align-items:center; gap:8px;">
-              🚀 全员已签署完毕！前往【${genreConfig.stage2Title}】开始${taskGenreKey === 'instructional' ? '教学设计' : '论文'}起草 →
+              🚀 全员已签署完毕！前往【${genreCfg.stage2Title}】开始${taskGenreKey === 'instructional' ? '教学设计' : '论文'}起草 →
             </button>
           ` : `
             <button id="btn-confirm-contract" style="background:${userHasConfirmed ? '#eff6ff' : 'linear-gradient(135deg, #059669, #047857)'}; border:1px solid ${userHasConfirmed ? '#bfdbfe' : 'transparent'}; color:${userHasConfirmed ? '#1d4ed8' : 'white'}; padding:13px 32px; border-radius:10px; font-weight:800; cursor:pointer; font-size:14.5px; box-shadow:0 3px 12px rgba(5,150,105,0.25);">
