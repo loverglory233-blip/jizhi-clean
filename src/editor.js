@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260904_v2198";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2198";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260904_v2198";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260904_v2199";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2199";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260904_v2199";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2618,6 +2618,10 @@ function renderStage3Canvas(canvas, state, handlers) {
 }
 
 export function renderChat(state) {
+  if (typeof renderChatActionBar === 'function') {
+    renderChatActionBar(state);
+  }
+
   const presenceContainer = document.getElementById('chat-member-presence-pills');
   if (presenceContainer) {
     const members = Object.values(state.members || {});
@@ -2935,193 +2939,202 @@ export function renderChat(state) {
       document.body.appendChild(box);
     };
   });
+}
 
-  // ── 🌟 阶段二/阶段三动态协同操作栏 (在表情栏正上方) ──
+/**
+ * ── 🌟 阶段一/阶段二/阶段三动态协同操作栏 (在表情栏正上方) ──
+ * 独立渲染函数：绝不被聊天流消息去重提前 return 拦截，秒级响应时间与阶段状态推进！
+ */
+export function renderChatActionBar(state) {
+  if (!state) return;
   const actionBar = document.getElementById('chat-agent-action-bar');
-  if (actionBar) {
-    const s2 = state.stage2 || {};
-    const curStage = state.currentStage;
-    const membersList = Object.values(state.members || []);
-    const totalCount = membersList.length || 3;
-    const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-    const myCode = currUser?.id || state.currentUser || '';
-    const confs = Object.assign({}, state.stepConfirmations || {}, s2.confirmations || {});
+  if (!actionBar) return;
 
-    const isDoneHelper = (map) => {
-      if (!map) return 0;
-      return membersList.filter(m => {
-        let fullUser = (typeof m === 'object') ? m : null;
-        if (!fullUser && window.app && window.app.authManager && window.app.authManager.findUserByKey) {
-          fullUser = window.app.authManager.findUserByKey(m);
-        }
-        const keys = [
-          typeof m === 'string' ? m : null,
-          m?.id, m?.name,
-          fullUser?.id, fullUser?.name
-        ].filter(Boolean).map(k => String(k).trim().toLowerCase());
-        return keys.some(k => map[k] || map[String(k)]);
-      }).length;
-    };
+  const s2 = state.stage2 || {};
+  const curStage = state.currentStage || 'stage1';
+  const membersList = Object.values(state.members || []);
+  const totalCount = membersList.length || 3;
+  const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
+  const myCode = currUser?.id || state.currentUser || '';
+  const confs = Object.assign({}, state.stepConfirmations || {}, s2.confirmations || {});
 
-    const isMyDoneHelper = (map) => {
-      if (!map) return false;
-      let fullUser = currUser;
+  const isDoneHelper = (map) => {
+    if (!map) return 0;
+    return membersList.filter(m => {
+      let fullUser = (typeof m === 'object') ? m : null;
       if (!fullUser && window.app && window.app.authManager && window.app.authManager.findUserByKey) {
-        fullUser = window.app.authManager.findUserByKey(myCode);
+        fullUser = window.app.authManager.findUserByKey(m);
       }
       const keys = [
-        myCode, currUser?.id, currUser?.name,
+        typeof m === 'string' ? m : null,
+        m?.id, m?.name,
         fullUser?.id, fullUser?.name
       ].filter(Boolean).map(k => String(k).trim().toLowerCase());
       return keys.some(k => map[k] || map[String(k)]);
-    };
+    }).length;
+  };
 
-    const s2Subs = s2.meetingSubmissions || {};
-    const s2SubCount = Object.keys(s2Subs).length;
-    const isS2MeetingDone = s2SubCount >= totalCount && totalCount > 0;
+  const isMyDoneHelper = (map) => {
+    if (!map) return false;
+    let fullUser = currUser;
+    if (!fullUser && window.app && window.app.authManager && window.app.authManager.findUserByKey) {
+      fullUser = window.app.authManager.findUserByKey(myCode);
+    }
+    const keys = [
+      myCode, currUser?.id, currUser?.name,
+      fullUser?.id, fullUser?.name
+    ].filter(Boolean).map(k => String(k).trim().toLowerCase());
+    return keys.some(k => map[k] || map[String(k)]);
+  };
 
-    const s2Chats = state.chatLogs?.stage2 || [];
-    const hasFinalChecklistSummary = s2Chats.some(m => m && m.text && (m.text.includes('二审修改落实决议') || m.text.includes('修改确认与写作冲刺') || m.text.includes('修改落实确认')));
+  const s2Subs = s2.meetingSubmissions || {};
+  const s2SubCount = Object.keys(s2Subs).length;
+  const isS2MeetingDone = s2SubCount >= totalCount && totalCount > 0;
 
-    const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
+  const s2Chats = state.chatLogs?.stage2 || [];
+  const hasFinalChecklistSummary = s2Chats.some(m => m && m.text && (m.text.includes('二审修改落实决议') || m.text.includes('修改确认与写作冲刺') || m.text.includes('修改落实确认')));
 
-    if (curStage === 'stage1') {
-      const s1 = state.stage1 || {};
-      const elapsedSec = (state.timer && state.timer.elapsedSeconds) ? state.timer.elapsedSeconds : 0;
-      const isDraftDone = !!(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated);
-      const isContractConfirmed = !!(s1.contract?.isConfirmed || state.groupMaxStage === 'stage2' || state.groupMaxStage === 'stage3');
-      const confirmedMembers = s1.contract?.confirmedMembers || {};
-      const confirmedCount = membersList.filter(m => isDoneHelper({ [m.id]: confirmedMembers[m.id] || (m.name && confirmedMembers[m.name]) })).length;
+  const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
 
-      if (isContractConfirmed) {
-        actionBar.style.display = 'none';
-        actionBar.innerHTML = '';
-      } else if (isDraftDone) {
-        actionBar.style.display = 'block';
+  if (curStage === 'stage1') {
+    const s1 = state.stage1 || {};
+    const elapsedSec = (state.timer && state.timer.elapsedSeconds) ? state.timer.elapsedSeconds : 0;
+    const isDraftDone = !!(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated);
+    const isContractConfirmed = !!(s1.contract?.isConfirmed || state.groupMaxStage === 'stage2' || state.groupMaxStage === 'stage3');
+    const confirmedMembers = s1.contract?.confirmedMembers || {};
+    const confirmedCount = membersList.filter(m => isDoneHelper({ [m.id]: confirmedMembers[m.id] || (m.name && confirmedMembers[m.name]) })).length;
+
+    if (isContractConfirmed) {
+      actionBar.style.display = 'none';
+      actionBar.innerHTML = '';
+    } else if (isDraftDone) {
+      actionBar.style.display = 'block';
+      actionBar.innerHTML = `
+        <div style="background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; padding:6px 14px; border-radius:16px; font-weight:700; font-size:12px; display:inline-flex; align-items:center; gap:6px;">
+          📜 公约草案已全部生成！👉 请全员在左侧公约下方核对并签署 (${confirmedCount}/${totalCount} 人已签)
+        </div>
+      `;
+    } else if (elapsedSec >= 13 * 60 && s1.contractStep !== 'completed' && !s1.contract?.isDraftGenerated && !s1.contract?.isConfirmed) {
+      actionBar.style.display = 'block';
+      const isGenerating = !!(window.app && window.app._isGeneratingContract);
+      const isFailed = !!(window.app && window.app._contractGenerateFailed);
+
+      if (isGenerating) {
         actionBar.innerHTML = `
-          <div style="background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; padding:6px 14px; border-radius:16px; font-weight:700; font-size:12px; display:inline-flex; align-items:center; gap:6px;">
-            📜 公约草案已全部生成！👉 请全员在左侧公约下方核对并签署 (${confirmedCount}/${totalCount} 人已签)
-          </div>
-        `;
-      } else if (elapsedSec >= 13 * 60 && s1.contractStep !== 'completed' && !s1.contract?.isDraftGenerated && !s1.contract?.isConfirmed) {
-        actionBar.style.display = 'block';
-        const isGenerating = !!(window.app && window.app._isGeneratingContract);
-        const isFailed = !!(window.app && window.app._contractGenerateFailed);
-
-        if (isGenerating) {
-          actionBar.innerHTML = `
-            <button id="btn-s1-auto-generate-contract" disabled style="background:#94a3b8; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px;">
-              ⏳ 拍卖师正在通读研讨并提炼公约草案...
-            </button>
-          `;
-        } else if (isFailed) {
-          actionBar.innerHTML = `
-            <button id="btn-s1-auto-generate-contract" style="background:linear-gradient(135deg, #ea580c, #c2410c); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(234,88,12,0.3); transition:all 0.2s;">
-              🔄 提炼遇阻，点此重新提炼生成公约草案
-            </button>
-          `;
-        } else {
-          actionBar.innerHTML = `
-            <button id="btn-s1-auto-generate-contract" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(124,58,237,0.25); transition:all 0.2s;">
-              💡 [ 📋 研讨差不多了？一键提炼生成公约草案 ]
-            </button>
-          `;
-        }
-
-        actionBar.querySelector('#btn-s1-auto-generate-contract')?.addEventListener('click', () => {
-          if (!isGenerating && window.app && typeof window.app.handleOneClickGenerateContract === 'function') {
-            window.app.handleOneClickGenerateContract();
-          }
-        });
-      } else {
-        actionBar.style.display = 'none';
-        actionBar.innerHTML = '';
-      }
-    } else if (curStage === 'stage2') {
-      if (s2.meetingStep === 'completed' || hasFinalChecklistSummary || hasFinalReviewInLogs) {
-        actionBar.style.display = 'none';
-        actionBar.innerHTML = '';
-      } else {
-        actionBar.style.display = 'block';
-        const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-        const currentTask = allTasks.find(t => t.id === state.activeTaskId);
-        const taskGenreKey = currentTask?.taskType || 'experiment';
-        const isInst = (taskGenreKey === 'instructional');
-        const managingTitle = isInst ? '备课组长' : '责任编辑';
-        const reviewingTitle = isInst ? '教研专家' : '审稿编辑';
-        const meetingName = isInst ? '磨课会议' : '编辑会议';
-
-        if (!isS2MeetingDone) {
-          actionBar.innerHTML = `
-            <button id="btn-s2-locked-notice" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
-              🔒 请先全员参与【${meetingName}】打卡 (${s2SubCount}/${totalCount} 人已打卡)
-            </button>
-          `;
-          actionBar.querySelector('#btn-s2-locked-notice')?.addEventListener('click', () => {
-            alert(`🔒 请先在正文上方点击【📢 参与【${meetingName}】】完成半程自查打卡！\n\n当前打卡进度：${s2SubCount}/${totalCount} 人。\n全员打卡完成后，${managingTitle}将主持会议，届时方可点击总结。`);
-          });
-        } else if (!s2.meetingStep || s2.meetingStep === 'discussing_divergence' || s2.meetingStep === 'initial' || s2.meetingStep === 'discussing_agreement') {
-          const count = isDoneHelper(confs.s2_managing);
-          const isMe = isMyDoneHelper(confs.s2_managing);
-          actionBar.innerHTML = `
-            <button id="btn-s2-managing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
-              ${isMe ? `✅ 您已确认总结共识 (${count}/${totalCount} 等待组员)` : `🤝 讨论差不多了？让${managingTitle}总结 (${count}/${totalCount})`}
-            </button>
-          `;
-          actionBar.querySelector('#btn-s2-managing-summary')?.addEventListener('click', () => {
-            if (window.app && typeof window.app.handleS2ManagingSummary === 'function') {
-              window.app.handleS2ManagingSummary();
-            }
-          });
-        } else if (s2.meetingStep === 'discussing_checklist') {
-          const count = isDoneHelper(confs.s2_reviewing);
-          const isMe = isMyDoneHelper(confs.s2_reviewing);
-          actionBar.innerHTML = `
-            <button id="btn-s2-reviewing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #059669, #047857)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(5,150,105,0.25); transition:all 0.2s;">
-              ${isMe ? `✅ 您已确认总结清单 (${count}/${totalCount} 等待组员)` : `📝 讨论差不多了？让${reviewingTitle}总结 (${count}/${totalCount})`}
-            </button>
-          `;
-          actionBar.querySelector('#btn-s2-reviewing-summary')?.addEventListener('click', () => {
-            if (window.app && typeof window.app.handleS2ReviewingSummary === 'function') {
-              window.app.handleS2ReviewingSummary();
-            }
-          });
-        }
-      }
-    } else if (curStage === 'stage3') {
-      const s3 = state.stage3 || {};
-      const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
-      const pendingInquiries = feedbacks.filter(f => f.role === 'opponent' && (!f.response || !f.response.trim()));
-      const currentInquiry = pendingInquiries[0];
-
-      if (currentInquiry) {
-        const inqIndex = feedbacks.indexOf(currentInquiry);
-        const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
-        const stepKey = `s3_inquiry_${inqIndex}`;
-        const count = isDoneHelper(confs[stepKey]);
-        const isMe = isMyDoneHelper(confs[stepKey]);
-
-        actionBar.style.display = 'block';
-        actionBar.innerHTML = `
-          <button id="btn-s3-inquiry-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
-            ${isMe ? `✅ 您已确认【${inqLabel}】(${count}/${totalCount} 等待组员)` : `💡 ${inqLabel} 讨论差不多了？帮我总结并填入 (${count}/${totalCount})`}
+          <button id="btn-s1-auto-generate-contract" disabled style="background:#94a3b8; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px;">
+            ⏳ 拍卖师正在通读研讨并提炼公约草案...
           </button>
         `;
-        actionBar.querySelector('#btn-s3-inquiry-summary')?.addEventListener('click', () => {
-          if (window.app && typeof window.app.handleS3InquirySummary === 'function') {
-            window.app.handleS3InquirySummary(currentInquiry);
-          }
-        });
+      } else if (isFailed) {
+        actionBar.innerHTML = `
+          <button id="btn-s1-auto-generate-contract" style="background:linear-gradient(135deg, #ea580c, #c2410c); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(234,88,12,0.3); transition:all 0.2s;">
+            🔄 提炼遇阻，点此重新提炼生成公约草案
+          </button>
+        `;
       } else {
-        // 全部答辩定案后直接收起隐藏
-        actionBar.style.display = 'none';
-        actionBar.innerHTML = '';
+        actionBar.innerHTML = `
+          <button id="btn-s1-auto-generate-contract" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(124,58,237,0.25); transition:all 0.2s;">
+            💡 [ 📋 研讨差不多了？一键提炼生成公约草案 ]
+          </button>
+        `;
       }
+
+      actionBar.querySelector('#btn-s1-auto-generate-contract')?.addEventListener('click', () => {
+        if (!isGenerating && window.app && typeof window.app.handleOneClickGenerateContract === 'function') {
+          window.app.handleOneClickGenerateContract();
+        }
+      });
     } else {
       actionBar.style.display = 'none';
       actionBar.innerHTML = '';
     }
+  } else if (curStage === 'stage2') {
+    if (s2.meetingStep === 'completed' || hasFinalChecklistSummary || hasFinalReviewInLogs) {
+      actionBar.style.display = 'none';
+      actionBar.innerHTML = '';
+    } else {
+      actionBar.style.display = 'block';
+      const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
+      const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+      const taskGenreKey = currentTask?.taskType || 'experiment';
+      const isInst = (taskGenreKey === 'instructional');
+      const managingTitle = isInst ? '备课组长' : '责任编辑';
+      const reviewingTitle = isInst ? '教研专家' : '审稿编辑';
+      const meetingName = isInst ? '磨课会议' : '编辑会议';
+
+      if (!isS2MeetingDone) {
+        actionBar.innerHTML = `
+          <button id="btn-s2-locked-notice" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
+            🔒 请先全员参与【${meetingName}】打卡 (${s2SubCount}/${totalCount} 人已打卡)
+          </button>
+        `;
+        actionBar.querySelector('#btn-s2-locked-notice')?.addEventListener('click', () => {
+          alert(`🔒 请先在正文上方点击【📢 参与【${meetingName}】】完成半程自查打卡！\n\n当前打卡进度：${s2SubCount}/${totalCount} 人。\n全员打卡完成后，${managingTitle}将主持会议，届时方可点击总结。`);
+        });
+      } else if (!s2.meetingStep || s2.meetingStep === 'discussing_divergence' || s2.meetingStep === 'initial' || s2.meetingStep === 'discussing_agreement') {
+        const count = isDoneHelper(confs.s2_managing);
+        const isMe = isMyDoneHelper(confs.s2_managing);
+        actionBar.innerHTML = `
+          <button id="btn-s2-managing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
+            ${isMe ? `✅ 您已确认总结共识 (${count}/${totalCount} 等待组员)` : `🤝 讨论差不多了？让${managingTitle}总结 (${count}/${totalCount})`}
+          </button>
+        `;
+        actionBar.querySelector('#btn-s2-managing-summary')?.addEventListener('click', () => {
+          if (window.app && typeof window.app.handleS2ManagingSummary === 'function') {
+            window.app.handleS2ManagingSummary();
+          }
+        });
+      } else if (s2.meetingStep === 'discussing_checklist') {
+        const count = isDoneHelper(confs.s2_reviewing);
+        const isMe = isMyDoneHelper(confs.s2_reviewing);
+        actionBar.innerHTML = `
+          <button id="btn-s2-reviewing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #059669, #047857)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(5,150,105,0.25); transition:all 0.2s;">
+            ${isMe ? `✅ 您已确认总结清单 (${count}/${totalCount} 等待组员)` : `📝 讨论差不多了？让${reviewingTitle}总结 (${count}/${totalCount})`}
+          </button>
+        `;
+        actionBar.querySelector('#btn-s2-reviewing-summary')?.addEventListener('click', () => {
+          if (window.app && typeof window.app.handleS2ReviewingSummary === 'function') {
+            window.app.handleS2ReviewingSummary();
+          }
+        });
+      }
+    }
+  } else if (curStage === 'stage3') {
+    const s3 = state.stage3 || {};
+    const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
+    const pendingInquiries = feedbacks.filter(f => f.role === 'opponent' && (!f.response || !f.response.trim()));
+    const currentInquiry = pendingInquiries[0];
+
+    if (currentInquiry) {
+      const inqIndex = feedbacks.indexOf(currentInquiry);
+      const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
+      const stepKey = `s3_inquiry_${inqIndex}`;
+      const count = isDoneHelper(confs[stepKey]);
+      const isMe = isMyDoneHelper(confs[stepKey]);
+
+      actionBar.style.display = 'block';
+      actionBar.innerHTML = `
+        <button id="btn-s3-inquiry-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
+          ${isMe ? `✅ 您已确认【${inqLabel}】(${count}/${totalCount} 等待组员)` : `💡 ${inqLabel} 讨论差不多了？帮我总结并填入 (${count}/${totalCount})`}
+        </button>
+      `;
+      actionBar.querySelector('#btn-s3-inquiry-summary')?.addEventListener('click', () => {
+        if (window.app && typeof window.app.handleS3InquirySummary === 'function') {
+          window.app.handleS3InquirySummary(currentInquiry);
+        }
+      });
+    } else {
+      // 全部答辩定案后直接收起隐藏
+      actionBar.style.display = 'none';
+      actionBar.innerHTML = '';
+    }
+  } else {
+    actionBar.style.display = 'none';
+    actionBar.innerHTML = '';
   }
+}
+if (typeof window !== 'undefined') {
+  window.renderChatActionBar = renderChatActionBar;
 }
 
 // 🛡️ Fail-safe compatibility exports

@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2198";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2198";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2198";
-import { AuthManager } from "./auth.js?v=20260904_v2198";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2198";
-import { renderLoginView } from "./login.js?v=20260904_v2198";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2198";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2198";
+} from "./constants.js?v=20260904_v2199";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2199";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2199";
+import { AuthManager } from "./auth.js?v=20260904_v2199";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2199";
+import { renderLoginView } from "./login.js?v=20260904_v2199";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2199";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2199";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2198";
+} from "./editor.js?v=20260904_v2199";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -491,6 +491,10 @@ export class App {
         const speed = this.state.timer.speed || 1;
         const physicalElapsedSec = Math.floor((nowMs - this.state.timer.startTimestamp) / 1000);
         this.state.timer.elapsedSeconds = Math.max(0, Math.floor(physicalElapsedSec * speed));
+
+        if (typeof window.renderChatActionBar === 'function') {
+          window.renderChatActionBar(this.state);
+        }
 
         const currentStage = this.state.currentStage || 'stage1';
         
