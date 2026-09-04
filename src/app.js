@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2728";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2728";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2728";
-import { AuthManager } from "./auth.js?v=20260905_v2728";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2728";
-import { renderLoginView } from "./login.js?v=20260905_v2728";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2728";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2728";
+} from "./constants.js?v=20260905_v2729";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2729";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2729";
+import { AuthManager } from "./auth.js?v=20260905_v2729";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2729";
+import { renderLoginView } from "./login.js?v=20260905_v2729";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2729";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2729";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2728";
+} from "./editor.js?v=20260905_v2729";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4152,45 +4152,24 @@ ${chatSnippet}
     let finalAssignments = Object.assign({}, fallbackAssignments);
     let isSuccess = false;
 
-    // 🛡️ 增量保护：检查左侧已有的分步成果，已完成的绝对保留，绝不覆盖！
-    const hasExistingTopic = (s1.contractStep === 'time' || s1.contractStep === 'tasks' || s1.contractStep === 'completed') && (s1.contract?.topic || s1.mergedTitle);
-    const hasExistingTime = (s1.contractStep === 'tasks' || s1.contractStep === 'completed') && hasAllocatedTimes;
+    // 🛡️ 严格独立解耦检测：槽位 1 题目、槽位 2 方案概述、时间分配
+    const hasExistingTopic = !!(s1.contract?.topic || s1.mergedTitle);
+    const existingTopicStr = (s1.contract?.topic || s1.mergedTitle || '').trim();
+    const hasExistingOverview = !!((s1.contract?.overview || s1.researchOverview) && (s1.contract?.overview || s1.researchOverview).trim().length >= 15);
+    const existingOverviewStr = (s1.contract?.overview || s1.researchOverview || '').trim();
+    const hasExistingTime = hasAllocatedTimes;
 
-    let existingContextSection = '';
-    let instructionSection = '';
+    let existingContextSection = `
+【已确认课题题目】: 《${existingTopicStr || defaultTopic}》${hasExistingOverview ? `\n【已确认方案概述】: ${existingOverviewStr}` : '\n【方案概述状态】: 尚未生成（本次必须根据研讨记录深度提炼 120~200 字方案概述写入槽位2）'}
+${hasExistingTime ? `【已确认时间预算】: 背景:${s1.contract.timeAllocations.background}分, 综述:${s1.contract.timeAllocations.literature}分, 问题:${s1.contract.timeAllocations.questions}分, 方法:${s1.contract.timeAllocations.method}分, 反思:${s1.contract.timeAllocations.reflection}分, 参考文献:${s1.contract.timeAllocations.references}分` : '【时间分配状态】: 尚未配置（本次请给出 6 大章节合理时间）'}`;
 
-    if (hasExistingTopic && hasExistingTime) {
-      existingContextSection = `
-【已确认锁定的研究课题（严格沿用，绝不修改）】: 《${s1.contract?.topic || s1.mergedTitle}》
-【已确认锁定的方案概述（严格沿用，绝不修改）】: ${s1.contract?.overview || s1.researchOverview || ''}
-【已确认锁定的时间预算（严格沿用，绝不修改）】: 背景:${s1.contract.timeAllocations.background}分, 综述:${s1.contract.timeAllocations.literature}分, 问题:${s1.contract.timeAllocations.questions}分, 方法:${s1.contract.timeAllocations.method}分, 反思:${s1.contract.timeAllocations.reflection}分, 参考文献:${s1.contract.timeAllocations.references}分`;
-      instructionSection = `
-【当前增量提炼任务】：
-由于课题方案与时间分配已由小组在左侧看板确认锁定，本次你只需重点提炼补齐尚未完成的【组员任务分工】！
-1. 严格沿用上述已确定的题目与时间预算；
-2. 通读研讨记录，将全篇写作章节一一对应合理分配给每位组员 (assignments: 以每位组员的真实姓名或学号为键，给出具体负责的章节与职责描述)；
-3. 给出 1 句恭喜小结提示，提醒全员核对并在下方签署公约 (guideText)。`;
-    } else if (hasExistingTopic) {
-      existingContextSection = `
-【已确认锁定的研究课题（严格沿用，绝不修改）】: 《${s1.contract?.topic || s1.mergedTitle}》
-【已确认锁定的方案概述（严格沿用，绝不修改）】: ${s1.contract?.overview || s1.researchOverview || ''}`;
-      instructionSection = `
-【当前增量提炼任务】：
-课题方案已由小组在左侧看板确认锁定（严格沿用，绝不修改），本次你只需重点提炼补齐【时间分配】与【组员任务分工】！
-1. 严格沿用上述已确定的题目与方案概述；
-2. 给出 6 大章节的合理时间分配分钟数 (timeAllocations: background, literature, questions, method, reflection, references，总计约 ${isInst ? 110 : 150} 分钟)；
-3. 将全篇写作章节一一对应合理分配给每位组员 (assignments)；
-4. 给出 1 句简短小结提示，提醒全员核对并签署公约 (guideText)。`;
-    } else {
-      existingContextSection = `
-【确定课题/候选方向】: 《${defaultTopic}》`;
-      instructionSection = `
-【当前全量提炼任务】：
-1. 深度通读研讨记录与提案，提炼精炼的课题名称 (topic) 与 120~200 字高度忠实反映组员研讨要点的方案概述 (overview，涵盖背景、核心问题、情境载体与具体方法设计)；
-2. 给出 6 大章节的合理时间分配分钟数 (timeAllocations: background, literature, questions, method, reflection, references，总计约 ${isInst ? 110 : 150} 分钟)；
-3. 将全篇写作章节一一对应合理分配给每位组员 (assignments: 以每位组员的真实姓名或学号为键，给出具体负责的章节与职责描述)；
-4. 给出 1 句简短小结提示，提醒全组在左侧公约卡片下方核对并签署确认 (guideText)。`;
-    }
+    let instructionSection = `
+【核心提炼任务】：
+1. 【槽位 1 题目】: 确认并规范化输出课题题目 (topic)；
+2. 【槽位 2 方案概述】: ${hasExistingOverview ? '沿用已有的方案概述 (overview)' : `务必通读讨论区全部研讨记录与提案，深度提炼 120~200 字结构化${isInst ? '教学方案概述（涵盖学情分析、教学目标重难点与学生活动链）' : '研究方案概述（涵盖情境案例、核心科学问题与实证研究方法）'} (overview)，绝不能输出空字符串！`}；
+3. 【时间分配】: ${hasExistingTime ? '沿用已分配的时间' : `给出 6 大章节的合理时间分配分钟数 (timeAllocations，总计约 ${isInst ? 110 : 150} 分钟)`}；
+4. 【组员任务分工】: 通读讨论区，将全篇写作章节一一对应合理分配给每位组员 (assignments: 以每位组员的真实姓名或学号为键，给出具体负责的章节与职责描述)；
+5. 给出 1 句简短小结提示，提醒全组在左侧公约卡片下方核对并签署确认 (guideText)。`;
 
     const fullContractPrompt = `小组成员已完成了选题投票，并在讨论区就公约内容展开了非制式自由研讨。
 ${existingContextSection}
@@ -4206,8 +4185,8 @@ ${instructionSection}
 
 输出格式必须为合法 JSON（严禁代码块以外的多余文字）：
 {
-  "topic": "${hasExistingTopic ? (s1.contract?.topic || s1.mergedTitle) : '最终确定的规范题目'}",
-  "overview": "${hasExistingTopic ? (s1.contract?.overview || s1.researchOverview || '方案概述') : '提炼后的方案概述，务必涵盖组员研讨中提及的具体情境、核心问题与探究活动/方法'}",
+  "topic": "${existingTopicStr || defaultTopic}",
+  "overview": "${hasExistingOverview ? existingOverviewStr : `根据组员研讨深度提炼的 120~200 字具体${isInst ? '教学' : '研究'}方案概述`}",
   "timeAllocations": {
     "background": ${hasExistingTime ? s1.contract.timeAllocations.background : (isInst ? 15 : 25)},
     "literature": ${hasExistingTime ? s1.contract.timeAllocations.literature : (isInst ? 20 : 30)},
@@ -4224,8 +4203,10 @@ ${instructionSection}
 }`;
 
     if (hasExistingTopic) {
-      finalTopic = s1.contract?.topic || s1.mergedTitle;
-      finalOverview = s1.contract?.overview || s1.researchOverview || finalOverview;
+      finalTopic = existingTopicStr || defaultTopic;
+    }
+    if (hasExistingOverview) {
+      finalOverview = existingOverviewStr;
     }
     if (hasExistingTime) {
       finalTimes = s1.contract.timeAllocations;
@@ -4261,10 +4242,10 @@ ${instructionSection}
             if (parsed) {
               const matchedTopic = parsed.topic || parsed.title || parsed.theme || parsed.name;
               const matchedOverview = parsed.overview || parsed.summary || parsed.description || parsed.scheme || parsed.plan || parsed.researchOverview || parsed.instructionalOverview;
-              if (!hasExistingTopic && matchedTopic && typeof matchedTopic === 'string' && matchedTopic.trim().length > 0) {
+              if (matchedTopic && typeof matchedTopic === 'string' && matchedTopic.trim().length > 0) {
                 finalTopic = matchedTopic.trim().replace(/^《|》$/g, '');
               }
-              if (!hasExistingOverview && matchedOverview && typeof matchedOverview === 'string' && matchedOverview.trim().length > 0) {
+              if (matchedOverview && typeof matchedOverview === 'string' && matchedOverview.trim().length > 0) {
                 finalOverview = matchedOverview.trim();
               }
               if (!hasExistingTime && parsed.timeAllocations && typeof parsed.timeAllocations === 'object') {
@@ -4284,11 +4265,11 @@ ${instructionSection}
           // 2. 若 JSON 方式未能提取出 overview，无论是否有 jsonMatch，均无缝进入多级正则容错与自然语言抽取
           if (!finalOverview || !finalOverview.trim()) {
             const tMatch = resp.match(/(?:【(?:教学)?(?:研究)?(?:课题|题目|主题|topic)】|(?:课题|题目|主题|topic)[：:\s]*)[《“"]?([^》”"\n\r]+)[》”"]?/i);
-            if (tMatch && tMatch[1] && !hasExistingTopic && tMatch[1].trim().length > 3) {
+            if (tMatch && tMatch[1] && tMatch[1].trim().length > 3) {
               finalTopic = tMatch[1].replace(/["'《》]/g, '').trim();
             }
             const oMatch = resp.match(/(?:【(?:教学)?(?:研究)?方案概述】|【方案设计】|【总体构想】|(?:方案概述|教学方案|研究方案|总体构想|方案设计|overview)[：:\s]*)([\s\S]+?)(?=\n\s*【|\n\s*[234]\.|\n\s*guideText|\n\s*"|$)/i);
-            if (oMatch && oMatch[1] && !hasExistingOverview && oMatch[1].trim().length > 10) {
+            if (oMatch && oMatch[1] && oMatch[1].trim().length > 10) {
               finalOverview = oMatch[1].replace(/^["'：:\s]+|["'，,。;\s]+$/g, '').trim();
               isSuccess = true;
             }
