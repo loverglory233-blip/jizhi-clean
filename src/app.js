@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2652";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2652";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2652";
-import { AuthManager } from "./auth.js?v=20260905_v2652";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2652";
-import { renderLoginView } from "./login.js?v=20260905_v2652";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2652";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2652";
+} from "./constants.js?v=20260905_v2653";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2653";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2653";
+import { AuthManager } from "./auth.js?v=20260905_v2653";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2653";
+import { renderLoginView } from "./login.js?v=20260905_v2653";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2653";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2653";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2652";
+} from "./editor.js?v=20260905_v2653";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -123,10 +123,8 @@ export class App {
           const isStudent = user && (user.role === 'student' || user.isStudent);
           if (!isStudent) return;
 
-          // 1. 教师发布全新任务
+          // 1. 教师发布全新任务：无需横幅弹窗，若学生在大厅则直接实时刷新呈现
           if (e.data.type === 'task_created' && e.data.task) {
-            const t = e.data.task;
-            showGlobalBannerNotice('📢 教师发布新任务', `任课教师刚刚发布了全新写作任务《${escapeHtml(t.title || '新任务')}》！`, 'info', 8000);
             if (this.state.studentViewMode === 'task_list') {
               this.renderMain();
             }
@@ -139,13 +137,12 @@ export class App {
             // 1) 若学生刚好在被删除的任务工作台中：全屏模态弹窗强阻断，引导安全返回大厅
             if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId === delTaskId) {
               this.showTaskRevokedModal(delTaskTitle);
-            } else if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId !== delTaskId) {
-              // 2) 若学生在另一个任务工作台中：弹出轻量顶部横幅提醒，当前写作空间不被强退打断
-              showGlobalBannerNotice('🗑️ 任务变更提醒', `任课教师已从系统移除班级另一项写作任务《${escapeHtml(delTaskTitle)}》。`, 'info', 6000);
             } else if (this.state.studentViewMode === 'task_list') {
-              // 3) 若学生在任务大厅中：即时刷新大厅任务卡片列表
+              // 2) 若学生在任务大厅中：大厅顶部轻量提示并即时刷新大厅卡片列表
+              showGlobalBannerNotice('🗑️ 任务已删除', `写作任务《${escapeHtml(delTaskTitle)}》已被任课教师删除。`, 'info', 4000);
               this.renderMain();
             }
+            // 3) 若在另一个任务工作台中：做减法，静默不打扰当前写作
           }
 
           // 3. 教师发布教学通知（秒级拉取并在工作台即时弹出）
@@ -1207,18 +1204,6 @@ export class App {
       });
 
       const currentTaskIds = new Set(visibleTasks.map(t => t.id));
-      if (this._knownTaskIdsSet) {
-        // 仅在页面已在线运行期间检测到增量新任务时才弹横幅
-        const newlyAddedTasks = visibleTasks.filter(t => !this._knownTaskIdsSet.has(t.id));
-        if (newlyAddedTasks.length > 0) {
-          const newestTask = newlyAddedTasks[0];
-          console.log('📢 实时在线感知到教师端发布了新任务:', newestTask.title);
-          showGlobalBannerNotice('📢 教师发布新任务', `任课教师刚刚发布了全新写作任务《${escapeHtml(newestTask.title || '新任务')}》！`, 'info', 8000);
-        }
-      } else {
-        // 首次加载/刚登录：直接建立基线，绝对不弹任何旧任务横幅
-        this._knownTaskIdsSet = currentTaskIds;
-      }
       this._knownTaskIdsSet = currentTaskIds;
 
       // 🛡️ 2.5 工作台任务存活检测：仅当学生当前正在该工作台内写作时，若任务被教师实时删除才弹窗引导返回
