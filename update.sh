@@ -331,6 +331,9 @@ if [ -n "$EP_DIR" ]; then
     } catch (e) {}
   });
 
+  console.log("   ✅ 已为 Etherpad 核心及 12 大学术插件全量注入高精中文翻译包！");
+  ' "$EP_DIR" 2>/dev/null || true
+
   # 确保所有 12 大学术插件目录未被 ignore
   if [ -d "$EP_DIR/node_modules" ]; then
     cd "$EP_DIR/node_modules"
