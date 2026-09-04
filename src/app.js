@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2729";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2729";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2729";
-import { AuthManager } from "./auth.js?v=20260905_v2729";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2729";
-import { renderLoginView } from "./login.js?v=20260905_v2729";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2729";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2729";
+} from "./constants.js?v=20260905_v2730";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2730";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2730";
+import { AuthManager } from "./auth.js?v=20260905_v2730";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2730";
+import { renderLoginView } from "./login.js?v=20260905_v2730";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2730";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2730";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2729";
+} from "./editor.js?v=20260905_v2730";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6811,16 +6811,6 @@ ${contentSnippet}
   async checkManagingEditorContribCare(currentDocLen, membersList, logs) {
     if (this._isTriggeringContribCare) return;
     const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
-
-    // 🛡️ 多端协同并发防护（选举单一定时触发者）：仅由在线列表中排序第一的组员发起 AI 调用，杜绝同组多端同时生成两条关怀消息
-    if (currentUser && Array.isArray(membersList) && membersList.length > 1) {
-      const sortedMembers = [...membersList].sort((a, b) => String(a.id || a.name).localeCompare(String(b.id || b.name)));
-      const leaderId = String(sortedMembers[0]?.id || sortedMembers[0]?.name);
-      const myId = String(currentUser.id || currentUser.name);
-      if (myId !== leaderId) {
-        return;
-      }
-    }
 
     const now = Date.now();
     const isLargeTask = this.state.activeTaskScale === 'large';
