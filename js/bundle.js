@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2534
+ * Version: 20260904_v2535
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2534';
+  const APP_VERSION = '20260904_v2535';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14115,7 +14115,7 @@
 
     // 🌐 通用智能体静默/情绪提示发射器：真 AI 生成，调用期间显示 Loading 动画，失败时采用温暖兜底或提示 @智能体 重新召唤
     async queueAgentNudge(botKey, prompt, fallbackText = '', stage = 'stage2') {
-      if (this._isHandlingAgentNudge) return; // 🛡️ 严格单飞并发锁，杜绝大模型双发
+      if (this._isHandlingAgentNudge || this.isCurrentTaskReadOnly()) return; // 🛡️ 严格单飞并发锁与只读锁，只读模式严禁触发大模型
       this._isHandlingAgentNudge = true;
 
       // 1. 在聊天框推入【正在输入/思考中...】的 Loading 状态气泡
@@ -14267,6 +14267,9 @@
             }
           }
         }
+
+        // 🛡️ 截止只读模式下彻底关闭所有静默提醒、情绪安抚与智能体干预
+        if (this.isCurrentTaskReadOnly()) return;
 
         // ⚡ 单点守护主节点动态选举：由当前在场学号最小的在线成员接管，杜绝单点失效与并发重复！
         const myCode = currUserObj?.id || this.state.currentUser || 'A';
@@ -17743,8 +17746,8 @@
     async triggerStageWelcomeSpeech(stage) {
       const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
       const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
-      // 🛡️ 铁律：教师端、后台监控、未进入学生工作区（studentViewMode !== 'workspace'）或非学生身份时绝不触发开场白！
-      if (isTeacher || this.state.isTeacherMonitorView || this.state.isTeacherView || this.state.studentViewMode !== 'workspace' || !currUser || currUser.role !== 'student') {
+      // 🛡️ 铁律：任务截止只读、教师端、后台监控、未进入学生工作区（studentViewMode !== 'workspace'）或非学生身份时绝不触发开场白！
+      if (this.isCurrentTaskReadOnly() || isTeacher || this.state.isTeacherMonitorView || this.state.isTeacherView || this.state.studentViewMode !== 'workspace' || !currUser || currUser.role !== 'student') {
         return;
       }
       if (this.cloudSyncEngine && !this.cloudSyncEngine.isInitialPullDone) {
@@ -17933,6 +17936,7 @@
     }
 
     async runStage3CommitteePipeline(btnElement = null) {
+      if (this.isCurrentTaskReadOnly()) return;
       if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
         btnElement.disabled = true;
         btnElement.style.opacity = '0.6';
@@ -18357,16 +18361,28 @@
         const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
         const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
         const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
-        if (!this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) {
-          this.state.stage3CommitteeLoading = true;
-        }
-        if ((!hasProp || !hasOpp || !this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) && !this._isStage3PipelineRunning) {
-          this.runStage3CommitteePipeline();
+        if (!this.isCurrentTaskReadOnly()) {
+          if (!this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) {
+            this.state.stage3CommitteeLoading = true;
+          }
+          if ((!hasProp || !hasOpp || !this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) && !this._isStage3PipelineRunning) {
+            this.runStage3CommitteePipeline();
+          }
         }
       }
       this.syncStageChange(newStage);
-      this.triggerStageWelcomeSpeech(newStage);
+      if (!this.isCurrentTaskReadOnly()) {
+        this.triggerStageWelcomeSpeech(newStage);
+      }
       this.renderStudentWorkspace(true);
+    }
+
+    isCurrentTaskReadOnly() {
+      if (this.state.isFinalSubmitted) return true;
+      const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
+      const curTask = allTasks.find(t => t.id === this.state.activeTaskId || (t.title && t.title === this.state.activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
+      if (curTask && isTaskExpired(curTask)) return true;
+      return false;
     }
 
     getCurrentTaskType() {
@@ -18460,17 +18476,19 @@
         });
       }
 
-      // 默认自动触发当前阶段对应智能体的开场白（如果尚未发送）
-      this.triggerStageWelcomeSpeech(this.state.currentStage || 'stage1');
+      // 默认自动触发当前阶段对应智能体的开场白与阶段三专家评审（仅在可编辑状态下触发，只读模式严禁触发任何新智能体）
+      if (!this.isCurrentTaskReadOnly()) {
+        this.triggerStageWelcomeSpeech(this.state.currentStage || 'stage1');
 
-      // 🎓 阶段三自愈守护：只要处于阶段三且答辩矩阵为空，立即自动拉起答辩委员会流水线
-      if (this.state.currentStage === 'stage3') {
-        const s3 = this.state.stage3 || {};
-        const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
-        const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
-        const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
-        if ((!hasProp || !hasOpp || !s3.feedbackItems || s3.feedbackItems.length === 0) && !this._isStage3PipelineRunning) {
-          this.runStage3CommitteePipeline();
+        // 🎓 阶段三自愈守护：只要处于阶段三且答辩矩阵为空，立即自动拉起答辩委员会流水线
+        if (this.state.currentStage === 'stage3') {
+          const s3 = this.state.stage3 || {};
+          const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
+          const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
+          const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
+          if ((!hasProp || !hasOpp || !s3.feedbackItems || s3.feedbackItems.length === 0) && !this._isStage3PipelineRunning) {
+            this.runStage3CommitteePipeline();
+          }
         }
       }
 
@@ -19236,7 +19254,7 @@
     }
 
     checkAgentTriggersOnContent(newContent) {
-      if (!newContent || this.state.isFinalSubmitted) return;
+      if (!newContent || this.state.isFinalSubmitted || this.isCurrentTaskReadOnly()) return;
       const currentStage = this.state.currentStage;
       if (currentStage !== 'stage2') return;
 
