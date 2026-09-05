@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2594
+ * Version: 20260905_v2595
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2594';
+  const APP_VERSION = '20260905_v2595';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -232,11 +232,35 @@
    */
   function getUserAllKeys(user) {
     if (!user) return [];
-    if (typeof user === 'string') return [user.trim()];
+    const genericNames = ['学生', '组员', '我', '未分配', '匿名', 'a', 'b', 'c', 'user', 'undefined', 'null'];
     const keys = new Set();
-    if (user.id) keys.add(String(user.id).trim());
-    if (user.userId) keys.add(String(user.userId).trim());
-    if (user.name) keys.add(String(user.name).trim());
+
+    const addKey = (k) => {
+      if (k === null || k === undefined) return;
+      const str = String(k).trim();
+      if (!str || genericNames.includes(str.toLowerCase())) return;
+      keys.add(str);
+      if (str.startsWith('u_') && str.length > 2) {
+        keys.add(str.slice(2));
+      } else if (/^\d+$/.test(str)) {
+        keys.add('u_' + str);
+      }
+    };
+
+    if (typeof user === 'string') {
+      addKey(user);
+      return Array.from(keys);
+    }
+
+    addKey(user.id);
+    addKey(user.userId);
+    addKey(user.studentCode);
+    addKey(user.username);
+    addKey(user.loginUser);
+    addKey(user.userCode);
+    if (user.name && !genericNames.includes(String(user.name).trim().toLowerCase())) {
+      keys.add(String(user.name).trim());
+    }
     return Array.from(keys);
   }
 
@@ -255,24 +279,26 @@
    */
   function isUserInMap(map, user) {
     if (!map || typeof map !== 'object' || !user) return false;
-    const keys = getUserAllKeys(user).map(k => String(k).trim().toLowerCase());
-    for (const [mapKey, val] of Object.entries(map)) {
-      if (Boolean(val) && keys.includes(String(mapKey).trim().toLowerCase())) {
-        return true;
-      }
-    }
-    return false;
+    return isMemberDone(map, user);
   }
 
   /**
-   * 🗺️ 从状态字典（如 votes, hasVoted, confirmedMembers）中查询某成员（对象、字符串ID或姓名）是否已完成
+   * 🗺️ 从状态字典（如 votes, hasVoted, stepConfirmations, confirmedMembers）中查询某成员（对象、字符串ID或姓名）是否已完成
    */
   function isMemberDone(map, m) {
     if (!map || typeof map !== 'object' || !m) return false;
     const keys = getUserAllKeys(m).map(k => String(k).trim().toLowerCase());
     if (keys.length === 0) return false;
     for (const [mapKey, val] of Object.entries(map)) {
-      if (Boolean(val) && keys.includes(String(mapKey).trim().toLowerCase())) {
+      if (!Boolean(val)) continue;
+      const cleanMapKey = String(mapKey).trim().toLowerCase();
+      if (keys.includes(cleanMapKey)) {
+        return true;
+      }
+      if (cleanMapKey.startsWith('u_') && keys.includes(cleanMapKey.slice(2))) {
+        return true;
+      }
+      if (/^\d+$/.test(cleanMapKey) && keys.includes('u_' + cleanMapKey)) {
         return true;
       }
     }
@@ -11274,14 +11300,7 @@
 
       const countConfirmed = (stepKey) => {
         if (!confs || !confs[stepKey]) return 0;
-        const stepConfMap = confs[stepKey];
-        let count = 0;
-        members.forEach(m => {
-          const keys = [m.id, m.userId, m.name, m.username, m.loginUser].filter(Boolean).map(k => String(k).trim().toLowerCase());
-          const hasConf = Object.entries(stepConfMap).some(([k, v]) => v && keys.includes(String(k).trim().toLowerCase()));
-          if (hasConf) count++;
-        });
-        return count;
+        return members.filter(m => isMemberDone(confs[stepKey], m)).length;
       };
 
       if (s1.contractStep === 'tasks') {
@@ -11828,22 +11847,11 @@
 
                 const isDoneHelper = (map) => {
                   if (!map) return 0;
-                  return membersList.filter(m => {
-                    if (!m) return false;
-                    const mId = String(m.id || m.userId || (typeof m === 'string' ? m : '')).trim().toLowerCase();
-                    const mName = String(m.name || '').trim().toLowerCase();
-                    if (mId && (map[mId] || map[mId.toUpperCase()])) return true;
-                    if (mName && !genericNames.includes(mName) && map[mName]) return true;
-                    return false;
-                  }).length;
+                  return membersList.filter(m => isMemberDone(map, m)).length;
                 };
                 const isMyDoneHelper = (map) => {
                   if (!map) return false;
-                  const myUid = String(currUserObj?.id || currentUser || '').trim().toLowerCase();
-                  const myName = String(currentUserName || currUserObj?.name || '').trim().toLowerCase();
-                  if (myUid && (map[myUid] || map[myUid.toUpperCase()])) return true;
-                  if (myName && !genericNames.includes(myName) && map[myName]) return true;
-                  return false;
+                  return isMemberDone(map, currUserObj || currentUser);
                 };
 
                 if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
@@ -14813,30 +14821,12 @@
 
     const isDoneHelper = (map) => {
       if (!map) return 0;
-      return membersList.filter(m => {
-        let fullUser = (typeof m === 'object') ? m : null;
-        if (!fullUser && window.app && window.app.authManager && window.app.authManager.findUserByKey) {
-          fullUser = window.app.authManager.findUserByKey(m);
-        }
-        const mId = String(m?.id || fullUser?.id || (typeof m === 'string' ? m : '')).trim().toLowerCase();
-        const mName = String(m?.name || fullUser?.name || '').trim().toLowerCase();
-        if (mId && (map[mId] || map[mId.toUpperCase()])) return true;
-        if (mName && !genericNames.includes(mName) && (map[mName] || map[mName.toUpperCase()])) return true;
-        return false;
-      }).length;
+      return membersList.filter(m => isMemberDone(map, m)).length;
     };
 
     const isMyDoneHelper = (map) => {
       if (!map) return false;
-      let fullUser = currUser;
-      if (!fullUser && window.app && window.app.authManager && window.app.authManager.findUserByKey) {
-        fullUser = window.app.authManager.findUserByKey(myCode);
-      }
-      const myId = String(currUser?.id || fullUser?.id || myCode || '').trim().toLowerCase();
-      const myName = String(currUser?.name || fullUser?.name || '').trim().toLowerCase();
-      if (myId && (map[myId] || map[myId.toUpperCase()])) return true;
-      if (myName && !genericNames.includes(myName) && (map[myName] || map[myName.toUpperCase()])) return true;
-      return false;
+      return isMemberDone(map, currUser || myCode);
     };
 
     const s2Subs = s2.meetingSubmissions || {};
@@ -18781,8 +18771,8 @@
     /**
      * 🛡️ 稳健精确统计指定步骤已确认成员人数（严格按用户唯一 ID 匹配，剔除泛化通用名，绝不单人冒充全组）
      */
-    getStepConfirmedCount(stepKey, memberList = null) {
-      let members = memberList;
+    getStepConfirmedCount(stepKey, membersList = null) {
+      let members = membersList;
       if (!members || members.length === 0) {
         if (this.authManager) {
           const u = this.authManager.getCurrentUser();
@@ -18798,16 +18788,8 @@
       }
       if (!Array.isArray(members)) members = Object.values(members || {});
       const confMap = (this.state.stepConfirmations && this.state.stepConfirmations[stepKey]) || {};
-      const genericNames = ['学生', '组员', '我', '未分配', '匿名', 'a', 'b', 'c', 'user', 'undefined', 'null'];
 
-      return members.filter(m => {
-        if (!m) return false;
-        const mId = String(m.id || m.userId || (typeof m === 'string' ? m : '')).trim().toLowerCase();
-        const mName = String(m.name || '').trim().toLowerCase();
-        if (mId && (confMap[mId] || confMap[mId.toUpperCase()])) return true;
-        if (mName && !genericNames.includes(mName) && confMap[mName]) return true;
-        return false;
-      }).length;
+      return members.filter(m => isMemberDone(confMap, m)).length;
     }
 
     /**
@@ -18829,11 +18811,7 @@
       const primaryKey = String(currUserObj?.id || user || '').trim();
       if (!primaryKey) return;
 
-      const genericNames = ['学生', '组员', '我', '未分配', '匿名', 'a', 'b', 'c', 'user', 'undefined', 'null'];
-      const userKeys = [primaryKey];
-      if (currUserObj?.name && !genericNames.includes(String(currUserObj.name).trim().toLowerCase())) {
-        userKeys.push(String(currUserObj.name).trim());
-      }
+      const userKeys = getUserAllKeys(currUserObj || user);
 
       let members = [];
       if (this.authManager) {
@@ -18851,7 +18829,7 @@
       if (!Array.isArray(members)) members = Object.values(members || {});
       const totalCount = (members && members.length > 0) ? members.length : 1;
 
-      const isAlreadyDone = userKeys.some(k => this.state.stepConfirmations[stepKey][k]);
+      const isAlreadyDone = isMemberDone(this.state.stepConfirmations[stepKey], currUserObj || user);
       if (isAlreadyDone) {
         const currentCount = this.getStepConfirmedCount(stepKey, members);
         if (currentCount < totalCount) {
@@ -18887,7 +18865,8 @@
             scopeKey: targetScopeKey,
             stepKey: stepKey,
             userKey: primaryKey,
-            userName: currUserObj?.name || primaryKey
+            userName: currUserObj?.name || primaryKey,
+            userKeys: userKeys
           })
         });
         const resData = await res.json();
