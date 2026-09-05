@@ -1211,137 +1211,27 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
       const padWin = iframe.contentWindow;
       if (!padWin) return;
 
+      const isAlreadySynced = (padWin._jizhiSyncedName === userName && padWin._jizhiSyncedColor === color);
+
       // 1. 设置 iframe 内 cookie name
       try {
-        if (padWin.document) {
-          if (userName) {
-            padWin.document.cookie = `name=${encodeURIComponent(userName)}; path=/; max-age=86400`;
-          }
-          
-          // 🛡️ 确保顶部原生 editbar 显示正常，隐藏无用 home 跳转按钮，正文保持纯净学术排版（底色透明无色块）
-          const doc = padWin.document;
-          if (doc) {
-            let styleEl = doc.getElementById('jizhi-etherpad-guard-style');
-            const guardCss = `
-              #editbar {
-                display: block !important;
-                visibility: visible !important;
-                opacity: 1 !important;
-              }
-              html, body {
-                background-color: #ffffff !important;
-                color-scheme: light !important;
-              }
-              /* 🛡️ 隐藏 Etherpad 底部的 Home 图标和根目录跳转，杜绝误点 🏠 导致在 iframe 内递归嵌套主站 */
-              #home, .home, a[href="/"], a[href="."], a[href=".."], [data-lkey="pad.home"], [data-key="home"], .menu_left .home, #menu_left .home, .bottom-bar a[href="/"], nav.navbar a[href="/"] {
-                display: none !important;
-                visibility: hidden !important;
-                pointer-events: none !important;
-              }
-            `;
-            if (!styleEl) {
-              styleEl = doc.createElement('style');
-              styleEl.id = 'jizhi-etherpad-guard-style';
-              styleEl.textContent = guardCss;
-              (doc.head || doc.documentElement).appendChild(styleEl);
-            } else {
-              styleEl.textContent = guardCss;
-            }
-
-            // 🛡️ 拦截任何点击根路径跳转的默认行为
-            if (!doc._jizhiHomeClickBlocked) {
-              doc._jizhiHomeClickBlocked = true;
-              doc.addEventListener('click', (e) => {
-                const targetLink = e.target && e.target.closest ? e.target.closest('a') : null;
-                if (targetLink) {
-                  const href = targetLink.getAttribute('href');
-                  if (href === '/' || href === '' || href === '.' || href === '..' || href === '#') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }
-                }
-              }, true);
-            }
-
-            try {
-              const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
-              if (aceOuter && aceOuter.contentDocument) {
-                const outerDoc = aceOuter.contentDocument;
-                let outerStyle = outerDoc.getElementById('jizhi-outer-guard-style');
-                const outerCss = `
-                  html, body, #outerdocbody {
-                    background-color: #ffffff !important;
-                    color-scheme: light !important;
-                  }
-                `;
-                if (!outerStyle) {
-                  outerStyle = outerDoc.createElement('style');
-                  outerStyle.id = 'jizhi-outer-guard-style';
-                  outerStyle.textContent = outerCss;
-                  (outerDoc.head || outerDoc.documentElement).appendChild(outerStyle);
-                } else {
-                  outerStyle.textContent = outerCss;
-                }
-
-                const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
-                if (aceInner && aceInner.contentDocument) {
-                  const innerDoc = aceInner.contentDocument;
-                  let innerStyle = innerDoc.getElementById('jizhi-author-white-bg-style');
-                  const innerCss = `
-                    html, body, #innerdocbody {
-                      background-color: #ffffff !important;
-                      color: #0f172a !important;
-                      color-scheme: light !important;
-                    }
-                    /* 🛡️ 保持纯净学术论文排版：文字无大块底色背景，底色设为透明，深黑字色清晰美观 */
-                    span[class*="author-"], .author {
-                      background-color: transparent !important;
-                      background: transparent !important;
-                      color: #0f172a !important;
-                    }
-                  `;
-                  if (!innerStyle) {
-                    innerStyle = innerDoc.createElement('style');
-                    innerStyle.id = 'jizhi-author-white-bg-style';
-                    innerStyle.textContent = innerCss;
-                    (innerDoc.head || innerDoc.documentElement).appendChild(innerStyle);
-                  } else {
-                    innerStyle.textContent = innerCss;
-                  }
-                }
-              }
-            } catch(e) {}
-          }
+        if (padWin.document && userName) {
+          padWin.document.cookie = `name=${encodeURIComponent(userName)}; path=/; max-age=86400`;
         }
       } catch(e) {}
 
-      // 2. 注入前端多语言兜底补丁（防止缺失翻译键中断 pad.init 初始化）
+      // 2. 注入样式守卫（仅注入一次）
       try {
-        const fallbackMap = {
-          'ep_font_size.size': '字号大小',
-          'ep_font_family.family': '字体',
-          'ep_font_family.font': '字体',
-          'ep_headings.style': '正文/标题',
-          'ep_font_color.color': '文字颜色',
-          'ep_line_spacing.spacing': '行间距',
-          'pad.settings.fadeInactiveAuthorColors': '淡化非活跃作者颜色',
-          'ep_cursortrace.settings.showRemoteCarets': '显示协作光标',
-          'pad.deletionToken.deleteWithToken': '安全删除',
-          'pad.deletionToken.tokenFieldLabel': '验证码',
-          'pad.deletionToken.modalTitle': '确认操作',
-          'pad.deletionToken.modalBody': '请输入验证码',
-          'pad.deletionToken.tokenValueLabel': '验证码'
-        };
-        if (padWin.html10n && !padWin.html10n._hasJizhiPatch) {
-          padWin.html10n._hasJizhiPatch = true;
-          const origGet = padWin.html10n.get;
-          padWin.html10n.get = function(id, args, fallback) {
-            try {
-              const res = origGet ? origGet.apply(this, arguments) : null;
-              if (res) return res;
-            } catch(e) {}
-            return fallbackMap[id] || fallback || id;
-          };
+        const doc = padWin.document;
+        if (doc && !doc.getElementById('jizhi-etherpad-guard-style')) {
+          const styleEl = doc.createElement('style');
+          styleEl.id = 'jizhi-etherpad-guard-style';
+          styleEl.textContent = `
+            #editbar { display: block !important; visibility: visible !important; opacity: 1 !important; }
+            html, body { background-color: #ffffff !important; color-scheme: light !important; }
+            #home, .home, a[href="/"], a[href="."], a[href=".."], [data-lkey="pad.home"], [data-key="home"], .menu_left .home, #menu_left .home, .bottom-bar a[href="/"], nav.navbar a[href="/"] { display: none !important; visibility: hidden !important; pointer-events: none !important; }
+          `;
+          (doc.head || doc.documentElement).appendChild(styleEl);
         }
       } catch(e) {}
 
@@ -1358,8 +1248,11 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
         }
       }
 
-      // 4. 安全注入 pad.myUserInfo 与原生用户名输入框及 collabClient
-      if (userName && padWin.pad) {
+      // 4. 仅在初次或用户名/颜色实质变动时才向 Etherpad 发送更新，杜绝高频重复调用导致断线重连
+      if (!isAlreadySynced && userName && padWin.pad) {
+        padWin._jizhiSyncedName = userName;
+        padWin._jizhiSyncedColor = color;
+
         if (padWin.pad.myUserInfo) {
           padWin.pad.myUserInfo.name = userName;
           padWin.pad.myUserInfo.colorId = color;
@@ -1374,23 +1267,17 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
           try { padWin.pad.collabClient.setUserInfo({ name: userName, colorId: color }); } catch(e){}
         }
       }
-      try {
-        const nameInput = padWin.document && padWin.document.getElementById('myusernameedit');
-        if (nameInput && nameInput.value !== userName) {
-          nameInput.value = userName;
-          nameInput.dispatchEvent(new Event('change', { bubbles: true }));
-          nameInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-      } catch(e) {}
     } catch(err) {}
   };
 
-  iframe.addEventListener('load', () => {
-    doSync();
-    setTimeout(doSync, 200);
-    setTimeout(doSync, 800);
-    setTimeout(doSync, 2000);
-  });
+  if (!iframe._jizhiLoadBound) {
+    iframe._jizhiLoadBound = true;
+    iframe.addEventListener('load', () => {
+      doSync();
+      setTimeout(doSync, 300);
+      setTimeout(doSync, 1200);
+    });
+  }
   doSync();
 }
 
