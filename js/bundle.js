@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2697
+ * Version: 20260906_v2698
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2697';
+  const APP_VERSION = '20260906_v2698';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -21494,7 +21494,7 @@
             const promises = [];
             if (!hasProp) {
               promises.push(Promise.race([
-                callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent, taskType }),
+                callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent, taskType, milestoneKey: 'stage3_prop' }),
                 timeoutPromise
               ]));
             } else {
@@ -21504,7 +21504,7 @@
 
             if (!hasOpp) {
               promises.push(Promise.race([
-                callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent, taskType }),
+                callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent, taskType, milestoneKey: 'stage3_opp' }),
                 timeoutPromise
               ]));
             } else {
