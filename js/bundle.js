@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2651
+ * Version: 20260906_v2652
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2651';
+  const APP_VERSION = '20260906_v2652';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3152,7 +3152,7 @@
         return (uId && (mStr === uId || mNameStr === uId)) || (uName && (mStr === uName || mNameStr === uName));
       };
 
-      // 1. 若指定了班级 ID，仅在指定班级内检索小组
+      // 1. 若指定了班级 ID，优先在指定班级内检索小组
       if (classId) {
         const targetClass = classes.find(c => isSameId(c.id, classId));
         if (targetClass && Array.isArray(targetClass.groups)) {
@@ -3161,10 +3161,9 @@
             if ((g.members || []).some(checkMemberMatch)) return g;
           }
         }
-        return { id: `group_unassigned_${safeUserKey}`, name: '未分组（待教师分配）' };
       }
 
-      // 2. 若未指定班级，优先在学生主班级中检索，其次在全部班级中检索
+      // 2. 优先在学生主班级中检索，其次在全部班级中检索
       const primaryClassId = user.classId || (Array.isArray(user.classIds) && user.classIds[0]) || null;
       if (primaryClassId) {
         const pClass = classes.find(c => isSameId(c.id, primaryClassId));
@@ -3187,6 +3186,7 @@
           const g = (c.groups || []).find(grp => isSameId(grp.id, user.groupId));
           if (g) return g;
         }
+        return { id: user.groupId, name: '协作小组' };
       }
 
       // 3. 确实未被分配到任何具体小组
@@ -23385,12 +23385,7 @@
         renderChat(this.state);
       }
 
-      // ═══════════════════════════════════════════════════════════════
-      // 🤝 责任编辑·协同关怀（正文展开后，基于成员实际写作贡献比的个性化点拨）
-      // ═══════════════════════════════════════════════════════════════
-      if (rawDoc.length >= 300 && membersList.length >= 2 && !hasMeetingCalledInLogs && !s2.isDraftConfirmed) {
-        this.checkManagingEditorContribCare(rawDoc.length, membersList, s2ChatList);
-      }
+      // 责任编辑贡献比关怀逻辑已遵照用户指示移除，不再触发自动点拨打扰
     }
 
     async checkManagingEditorContribCare(currentDocLen, membersList, logs) {

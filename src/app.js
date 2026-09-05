@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2651";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2651";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2651";
-import { AuthManager } from "./auth.js?v=20260906_v2651";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2651";
-import { renderLoginView } from "./login.js?v=20260906_v2651";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2651";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2651";
+} from "./constants.js?v=20260906_v2652";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2652";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2652";
+import { AuthManager } from "./auth.js?v=20260906_v2652";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2652";
+import { renderLoginView } from "./login.js?v=20260906_v2652";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2652";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2652";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2651";
+} from "./editor.js?v=20260906_v2652";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -7829,12 +7829,7 @@ ${contentSnippet}
       renderChat(this.state);
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // 🤝 责任编辑·协同关怀（正文展开后，基于成员实际写作贡献比的个性化点拨）
-    // ═══════════════════════════════════════════════════════════════
-    if (rawDoc.length >= 300 && membersList.length >= 2 && !hasMeetingCalledInLogs && !s2.isDraftConfirmed) {
-      this.checkManagingEditorContribCare(rawDoc.length, membersList, s2ChatList);
-    }
+    // 责任编辑贡献比关怀逻辑已遵照用户指示移除，不再触发自动点拨打扰
   }
 
   async checkManagingEditorContribCare(currentDocLen, membersList, logs) {
