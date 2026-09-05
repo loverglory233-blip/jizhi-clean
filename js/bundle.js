@@ -2286,8 +2286,8 @@
 
       // 2. 第二优先级：匹配班级全局问卷 (taskId 为 all / task_all 或为空)
       const classGlobalMatch = list.find(s => {
-        const matchCls = !s.classId || s.classId === 'all' || isSameId(s.classId, classId);
-        const matchTsk = !s.taskId || normalizeId(s.taskId) === 'all';
+        const matchCls = !s.classId || s.classId === 'all' || s.classId === 'class_all' || isSameId(s.classId, classId);
+        const matchTsk = !s.taskId || s.taskId === 'all' || s.taskId === 'task_all';
         return matchCls && matchTsk && s.url && s.url.startsWith('http');
       });
       if (classGlobalMatch) return classGlobalMatch.url;
@@ -2956,7 +2956,7 @@
         activeTask = tasks.find(t => isSameId(t.id, taskId)) || null;
       }
       if (!activeTask && tasks.length > 0) {
-        const clsTasks = tasks.filter(t => !t.classId || normalizeId(t.classId) === 'all' || isSameId(t.classId, activeClass.id));
+        const clsTasks = tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === 'class_all' || isSameId(t.classId, activeClass.id));
         activeTask = clsTasks.length > 0 ? clsTasks[0] : tasks[0];
       }
       const resolvedTaskId = activeTask ? activeTask.id : `task_${activeClass.id}_default`;
