@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2702
+ * Version: 20260906_v2703
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2702';
+  const APP_VERSION = '20260906_v2703';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -16969,12 +16969,12 @@
     }
 
     // 🌐 通用智能体静默/情绪提示发射器：真 AI 生成，静默直出，失败时采用温暖兜底或提示 @智能体 重新召唤
-    async queueAgentNudge(botKey, prompt, fallbackText = '', stage = 'stage2') {
+    async queueAgentNudge(botKey, prompt, fallbackText = '', stage = 'stage2', milestoneKey = '') {
       if (this._isHandlingAgentNudge || this.isCurrentTaskReadOnly()) return; // 🛡️ 严格单飞并发锁与只读锁，只读模式严禁触发大模型
       this._isHandlingAgentNudge = true;
 
       try {
-        let text = await callCozeAgentAPI(botKey, prompt, { stage });
+        let text = await callCozeAgentAPI(botKey, prompt, { stage, milestoneKey });
 
         let finalText = (text && text.trim().length > 0) ? text.trim() : '';
         if (!finalText) {
@@ -17143,7 +17143,8 @@
 
               setTimeout(async () => {
                 try {
-                  await this.queueAgentNudge(agentSender, comfortPrompt, comfortText, stage);
+                  const nudgeMilestoneKey = `nudge_${stage}_${agentSender}_${lastNegativeChat._timeMs || '0'}`;
+                  await this.queueAgentNudge(agentSender, comfortPrompt, comfortText, stage, nudgeMilestoneKey);
                 } finally {
                   this._isHandlingEmotion = false;
                 }
@@ -23270,7 +23271,7 @@
         let careText = '';
 
         try {
-          const resp = await callCozeAgentAPI('managingEditor', contribPrompt, { stage: 'stage2', topic });
+          const resp = await callCozeAgentAPI('managingEditor', contribPrompt, { stage: 'stage2', topic, milestoneKey: 'stage2_contrib_care' });
           if (resp && resp.trim().length > 0) {
             const cleanResp = resp.trim().replace(/^🤝\s*/, '').replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '').trim();
             if (cleanResp.length > 10) {

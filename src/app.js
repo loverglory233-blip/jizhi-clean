@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2702";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2702";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2702";
-import { AuthManager } from "./auth.js?v=20260906_v2702";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2702";
-import { renderLoginView } from "./login.js?v=20260906_v2702";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2702";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2702";
+} from "./constants.js?v=20260906_v2703";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2703";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2703";
+import { AuthManager } from "./auth.js?v=20260906_v2703";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2703";
+import { renderLoginView } from "./login.js?v=20260906_v2703";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2703";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2703";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2702";
+} from "./editor.js?v=20260906_v2703";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1506,12 +1506,12 @@ export class App {
   }
 
   // 🌐 通用智能体静默/情绪提示发射器：真 AI 生成，静默直出，失败时采用温暖兜底或提示 @智能体 重新召唤
-  async queueAgentNudge(botKey, prompt, fallbackText = '', stage = 'stage2') {
+  async queueAgentNudge(botKey, prompt, fallbackText = '', stage = 'stage2', milestoneKey = '') {
     if (this._isHandlingAgentNudge || this.isCurrentTaskReadOnly()) return; // 🛡️ 严格单飞并发锁与只读锁，只读模式严禁触发大模型
     this._isHandlingAgentNudge = true;
 
     try {
-      let text = await callCozeAgentAPI(botKey, prompt, { stage });
+      let text = await callCozeAgentAPI(botKey, prompt, { stage, milestoneKey });
       
       let finalText = (text && text.trim().length > 0) ? text.trim() : '';
       if (!finalText) {
@@ -1680,7 +1680,8 @@ export class App {
             
             setTimeout(async () => {
               try {
-                await this.queueAgentNudge(agentSender, comfortPrompt, comfortText, stage);
+                const nudgeMilestoneKey = `nudge_${stage}_${agentSender}_${lastNegativeChat._timeMs || '0'}`;
+                await this.queueAgentNudge(agentSender, comfortPrompt, comfortText, stage, nudgeMilestoneKey);
               } finally {
                 this._isHandlingEmotion = false;
               }
@@ -7807,7 +7808,7 @@ ${contentSnippet}
       let careText = '';
 
       try {
-        const resp = await callCozeAgentAPI('managingEditor', contribPrompt, { stage: 'stage2', topic });
+        const resp = await callCozeAgentAPI('managingEditor', contribPrompt, { stage: 'stage2', topic, milestoneKey: 'stage2_contrib_care' });
         if (resp && resp.trim().length > 0) {
           const cleanResp = resp.trim().replace(/^🤝\s*/, '').replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '').trim();
           if (cleanResp.length > 10) {
