@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2655";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2655";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2655";
-import { AuthManager } from "./auth.js?v=20260906_v2655";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2655";
-import { renderLoginView } from "./login.js?v=20260906_v2655";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2655";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2655";
+} from "./constants.js?v=20260906_v2656";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2656";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2656";
+import { AuthManager } from "./auth.js?v=20260906_v2656";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2656";
+import { renderLoginView } from "./login.js?v=20260906_v2656";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2656";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2656";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2655";
+} from "./editor.js?v=20260906_v2656";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -7829,7 +7829,12 @@ ${contentSnippet}
       renderChat(this.state);
     }
 
-    // 责任编辑贡献比关怀逻辑已遵照用户指示移除，不再触发自动点拨打扰
+    // ═══════════════════════════════════════════════════════════════
+    // 🤝 责任编辑·协同关怀（正文起草展开后，基于成员实际写作贡献比的个性化点拨）
+    // ═══════════════════════════════════════════════════════════════
+    if (rawDoc.length >= 200 && membersList.length >= 2 && !hasMeetingCalledInLogs && !s2.isDraftConfirmed) {
+      this.checkManagingEditorContribCare(rawDoc.length, membersList, s2ChatList);
+    }
   }
 
   async checkManagingEditorContribCare(currentDocLen, membersList, logs) {
@@ -7838,9 +7843,9 @@ ${contentSnippet}
 
     const now = Date.now();
     const isLargeTask = this.state.activeTaskScale === 'large';
-    const ssrlCooldownMs = isLargeTask ? 480000 : 360000;
+    const ssrlCooldownMs = isLargeTask ? 360000 : 240000;
     
-    // 🛡️ 贡献比协同关怀自身的 6~8 分钟常规冷却：若最近已下发过协同关怀，等待冷却结束
+    // 🛡️ 贡献比协同关怀自身的 4~6 分钟常规冷却：若最近已下发过协同关怀，等待冷却结束
     const recentSsrlMsg = [...(logs || [])].reverse().find(m => m && m.sender === 'managingEditor' && (m.text?.includes('协同关怀') || m.text?.includes('贡献比')));
     if (recentSsrlMsg && (now - Number(recentSsrlMsg._timeMs || 0) < ssrlCooldownMs)) return;
     if (this.lastS2ContribNudgeTime && (now - this.lastS2ContribNudgeTime < ssrlCooldownMs)) return;
@@ -7862,7 +7867,7 @@ ${contentSnippet}
     let totalContrib = 0;
     (membersList || []).forEach(m => { totalContrib += getVal(m); });
     const effectiveTotal = Math.max(totalContrib, currentDocLen || 0);
-    if (effectiveTotal < 300) return;
+    if (effectiveTotal < 200) return;
 
     // 找出写作贡献显著偏低 (<= 15%) 的组员
     const lowMembers = [];

@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2655
+ * Version: 20260906_v2656
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2655';
+  const APP_VERSION = '20260906_v2656';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -23156,7 +23156,12 @@
         renderChat(this.state);
       }
 
-      // 责任编辑贡献比关怀逻辑已遵照用户指示移除，不再触发自动点拨打扰
+      // ═══════════════════════════════════════════════════════════════
+      // 🤝 责任编辑·协同关怀（正文起草展开后，基于成员实际写作贡献比的个性化点拨）
+      // ═══════════════════════════════════════════════════════════════
+      if (rawDoc.length >= 200 && membersList.length >= 2 && !hasMeetingCalledInLogs && !s2.isDraftConfirmed) {
+        this.checkManagingEditorContribCare(rawDoc.length, membersList, s2ChatList);
+      }
     }
 
     async checkManagingEditorContribCare(currentDocLen, membersList, logs) {
@@ -23165,9 +23170,9 @@
 
       const now = Date.now();
       const isLargeTask = this.state.activeTaskScale === 'large';
-      const ssrlCooldownMs = isLargeTask ? 480000 : 360000;
+      const ssrlCooldownMs = isLargeTask ? 360000 : 240000;
 
-      // 🛡️ 贡献比协同关怀自身的 6~8 分钟常规冷却：若最近已下发过协同关怀，等待冷却结束
+      // 🛡️ 贡献比协同关怀自身的 4~6 分钟常规冷却：若最近已下发过协同关怀，等待冷却结束
       const recentSsrlMsg = [...(logs || [])].reverse().find(m => m && m.sender === 'managingEditor' && (m.text?.includes('协同关怀') || m.text?.includes('贡献比')));
       if (recentSsrlMsg && (now - Number(recentSsrlMsg._timeMs || 0) < ssrlCooldownMs)) return;
       if (this.lastS2ContribNudgeTime && (now - this.lastS2ContribNudgeTime < ssrlCooldownMs)) return;
@@ -23189,7 +23194,7 @@
       let totalContrib = 0;
       (membersList || []).forEach(m => { totalContrib += getVal(m); });
       const effectiveTotal = Math.max(totalContrib, currentDocLen || 0);
-      if (effectiveTotal < 300) return;
+      if (effectiveTotal < 200) return;
 
       // 找出写作贡献显著偏低 (<= 15%) 的组员
       const lowMembers = [];
