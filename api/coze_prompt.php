@@ -31,7 +31,8 @@ class CozePromptFactory {
         if (!empty($actualDoc)) {
             $docLen = mb_strlen($actualDoc, 'UTF-8');
             $docNoun = $isInst ? '教学设计草稿' : '正文草稿';
-            $prompt .= "【{$docNoun}(共{$docLen}字)】:\n{$actualDoc}\n";
+            $trimmedDoc = ($docLen > 2200) ? (mb_substr($actualDoc, 0, 2000, 'UTF-8') . "\n...(正文核心主体节选)...") : $actualDoc;
+            $prompt .= "【{$docNoun}(共{$docLen}字)】:\n{$trimmedDoc}\n";
         }
 
         $prompt .= "【本次指令】: {$userQuery}";
