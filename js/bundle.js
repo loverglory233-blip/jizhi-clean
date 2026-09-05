@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2588
+ * Version: 20260905_v2589
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2588';
+  const APP_VERSION = '20260905_v2589';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -18468,17 +18468,25 @@
 
     /**
      * 🛡️ 阶段一自愈守卫：若投票结果已出炉但方案研讨指引因异常中断未下发，自动即时触发补发
+     * 严格遵循“单次单条单调用”原则：杜绝多端并发调用大模型，杜绝重复发信，杜绝死循环
      */
     checkAndTriggerVoteGuidanceIfNeeded() {
       if (this._isTriggeringVoteGuidance) return;
       const s1 = this.state.stage1 || {};
+      // 🛡️ 1. 全局跨端并发锁：若任意组员客户端已在调用大模型（30秒内有效），其他端绝对不重复调用
+      if (s1._guidanceCallingTimestamp && (Date.now() - Number(s1._guidanceCallingTimestamp) < 30000)) {
+        return;
+      }
       const s1Logs = this.state.chatLogs?.stage1 || [];
       const hasTallyMsg = s1Logs.some(m => m && (m.id?.startsWith('vote_tally') || (m.text || '').includes('投票结果')));
       const hasGuideMsg = s1Logs.some(m => m && (m.id?.startsWith('vote_unanimous') || m.id?.startsWith('vote_divergence') || (m.sender === 'auctioneer' && ((m.text || '').includes('方案研讨') || (m.text || '').includes('落槌与方案研讨')))));
       const hasNetworkRetryMsg = s1Logs.some(m => m && (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('研讨指引')));
 
       if (hasTallyMsg && !hasGuideMsg && !hasNetworkRetryMsg && !this.isAnyExtracting()) {
-        console.log('🛡️ 检测到投票结果已出但研讨指引缺失，自动自愈触发 triggerVoteGuidance');
+        // 🛡️ 2. 上锁并广播，确保全组仅由单一客户端执行一次大模型调用
+        s1._guidanceCallingTimestamp = Date.now();
+        this.syncStage1();
+        console.log('🛡️ 检测到投票结果已出但研讨指引缺失，由本端执行单次自愈补发');
         this.triggerVoteGuidance();
       }
     }
@@ -18665,6 +18673,8 @@
         this.renderStudentWorkspace();
       } finally {
         this._isTriggeringVoteGuidance = false;
+        if (this.state.stage1) this.state.stage1._guidanceCallingTimestamp = null;
+        this.syncStage1();
         this.setActiveAgentAnalyzing(null);
       }
     }

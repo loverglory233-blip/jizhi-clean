@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2588";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2588";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2588";
-import { AuthManager } from "./auth.js?v=20260905_v2588";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2588";
-import { renderLoginView } from "./login.js?v=20260905_v2588";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2588";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2588";
+} from "./constants.js?v=20260905_v2589";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2589";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2589";
+import { AuthManager } from "./auth.js?v=20260905_v2589";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2589";
+import { renderLoginView } from "./login.js?v=20260905_v2589";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2589";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2589";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2588";
+} from "./editor.js?v=20260905_v2589";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3446,17 +3446,25 @@ export class App {
 
   /**
    * 🛡️ 阶段一自愈守卫：若投票结果已出炉但方案研讨指引因异常中断未下发，自动即时触发补发
+   * 严格遵循“单次单条单调用”原则：杜绝多端并发调用大模型，杜绝重复发信，杜绝死循环
    */
   checkAndTriggerVoteGuidanceIfNeeded() {
     if (this._isTriggeringVoteGuidance) return;
     const s1 = this.state.stage1 || {};
+    // 🛡️ 1. 全局跨端并发锁：若任意组员客户端已在调用大模型（30秒内有效），其他端绝对不重复调用
+    if (s1._guidanceCallingTimestamp && (Date.now() - Number(s1._guidanceCallingTimestamp) < 30000)) {
+      return;
+    }
     const s1Logs = this.state.chatLogs?.stage1 || [];
     const hasTallyMsg = s1Logs.some(m => m && (m.id?.startsWith('vote_tally') || (m.text || '').includes('投票结果')));
     const hasGuideMsg = s1Logs.some(m => m && (m.id?.startsWith('vote_unanimous') || m.id?.startsWith('vote_divergence') || (m.sender === 'auctioneer' && ((m.text || '').includes('方案研讨') || (m.text || '').includes('落槌与方案研讨')))));
     const hasNetworkRetryMsg = s1Logs.some(m => m && (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('研讨指引')));
 
     if (hasTallyMsg && !hasGuideMsg && !hasNetworkRetryMsg && !this.isAnyExtracting()) {
-      console.log('🛡️ 检测到投票结果已出但研讨指引缺失，自动自愈触发 triggerVoteGuidance');
+      // 🛡️ 2. 上锁并广播，确保全组仅由单一客户端执行一次大模型调用
+      s1._guidanceCallingTimestamp = Date.now();
+      this.syncStage1();
+      console.log('🛡️ 检测到投票结果已出但研讨指引缺失，由本端执行单次自愈补发');
       this.triggerVoteGuidance();
     }
   }
@@ -3643,6 +3651,8 @@ ${votedDetails}
       this.renderStudentWorkspace();
     } finally {
       this._isTriggeringVoteGuidance = false;
+      if (this.state.stage1) this.state.stage1._guidanceCallingTimestamp = null;
+      this.syncStage1();
       this.setActiveAgentAnalyzing(null);
     }
   }
