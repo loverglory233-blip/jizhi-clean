@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2602";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2602";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2602";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2603";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2603";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2603";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -488,7 +488,7 @@ function renderStage1Canvas(canvas, state, handlers) {
           </div>
         </div>
         <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-          ⏳ 动态分析中
+          ⏳ 动态分析中 <span class="agent-elapsed-timer" data-start="${effectiveAnalyzing._ts || Date.now()}">(已耗时 0s)</span>
         </span>
       </div>
     ` : ''}
@@ -755,7 +755,7 @@ function renderStage1Canvas(canvas, state, handlers) {
               return `
                 <div style="display:flex; flex-direction:column; gap:6px; width:100%; background:#ffffff; padding:12px 14px; border-radius:8px; border:1px solid #e2e8f0; box-sizing:border-box;">
                   <span style="font-weight:800; color:${m.color || '#2563eb'}; font-size:13px;">${m.avatar || '👤'} ${m.name}:</span>
-                  <input type="text" class="large-contract-input task-assignment-input" data-mkey="${mKey}" data-lock-key="task_${mKey}" value="${taskVal}" ${isInputDisabled ? 'disabled readonly style="opacity:0.8; cursor:not-allowed; background:#f8fafc;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:10px 14px; font-size:13px; font-family:sans-serif;" placeholder="在聊天中商定或在此录入具体负责的写作章节与任务...">
+                  <input type="text" class="large-contract-input task-assignment-input" data-mkey="${mKey}" data-id="${m.id || ''}" data-name="${m.name || ''}" data-lock-key="task_${mKey}" value="${taskVal}" ${isInputDisabled ? 'disabled readonly style="opacity:0.8; cursor:not-allowed; background:#f8fafc;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:10px 14px; font-size:13px; font-family:sans-serif;" placeholder="在聊天中商定或在此录入具体负责的写作章节与任务...">
                 </div>
               `;
             }).join('')}
@@ -2106,7 +2106,7 @@ function renderStage2Canvas(canvas, state, handlers) {
             </div>
           </div>
           <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-            ⏳ 深度质检中
+            ⏳ 深度质检中 <span class="agent-elapsed-timer" data-start="${effectiveAnalyzing._ts || Date.now()}">(已耗时 0s)</span>
           </span>
         </div>
       `;
@@ -2377,7 +2377,7 @@ function renderStage2Canvas(canvas, state, handlers) {
             </div>
           </div>
           <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-            ⏳ 深度质检中
+            ⏳ 深度质检中 <span class="agent-elapsed-timer" data-start="${effAnalyzing._ts || Date.now()}">(已耗时 0s)</span>
           </span>
         </div>
         `;
@@ -3487,7 +3487,7 @@ export function renderChat(state) {
             ${escapeHtml((analyzing.title || '智能体专家').replace(/[【】]/g, ''))}
           </span>
           <span style="font-size:10px; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:1px 6px; border-radius:10px; margin-left:6px; font-weight:700;">
-            ⏳ 正在深度研读与质检中...
+            ⏳ 正在深度研读与质检中... <span class="agent-elapsed-timer" data-start="${analyzing._ts || Date.now()}">(已耗时 0s)</span>
           </span>
         </div>
         <div class="msg-bubble thinking-bubble" style="background:#f8fafc; border:1.5px dashed #3b82f6; display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:12px; color:#1e40af; box-shadow:0 1px 3px rgba(37,99,235,0.06);">
