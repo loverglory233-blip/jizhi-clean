@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2578
+ * Version: 20260905_v2579
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2578';
+  const APP_VERSION = '20260905_v2579';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11634,9 +11634,17 @@
                   const isMe = isMyDoneHelper(confs.s1_tasks);
                   const isFull = count >= totalMembersCount && totalMembersCount > 0;
                   const isTasksRunning = !!(window.app && window.app._isExtractingTasks);
+                  const isTasksFailed = !!(s1._tasksExtractFailed);
+                  if (isTasksFailed) {
+                    return `
+                      <button id="btn-extract-tasks" disabled style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; opacity:0.95; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(217,119,6,0.3);">
+                        ⚠️ 提炼遇阻 · 全员已确认 (${count}/${totalMembersCount}) · 请在右侧讨论区点击【重新提炼】
+                      </button>
+                    `;
+                  }
                   return `
-                    <button id="btn-extract-tasks" style="background:${isTasksRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
-                      ${isTasksRunning ? `⏳ 正在提炼【任务分工】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【任务分工】` : (isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`)))}
+                    <button id="btn-extract-tasks" ${isTasksRunning || isExtractingAny || isFull ? 'disabled' : ''} style="background:${isTasksRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTasksRunning || isExtractingAny || isFull ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
+                      ${isTasksRunning ? `⏳ 正在提炼【任务分工】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 智能体提炼中...` : (isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`)))}
                     </button>
                   `;
                 } else if (s1.contractStep === 'time') {
@@ -11644,9 +11652,17 @@
                   const isMe = isMyDoneHelper(confs.s1_time);
                   const isFull = count >= totalMembersCount && totalMembersCount > 0;
                   const isTimeRunning = !!(window.app && window.app._isExtractingTime);
+                  const isTimeFailed = !!(s1._timeExtractFailed);
+                  if (isTimeFailed) {
+                    return `
+                      <button id="btn-extract-time" disabled style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; opacity:0.95; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(217,119,6,0.3);">
+                        ⚠️ 提炼遇阻 · 全员已确认 (${count}/${totalMembersCount}) · 请在右侧讨论区点击【重新提炼】
+                      </button>
+                    `;
+                  }
                   return `
-                    <button id="btn-extract-time" style="background:${isTimeRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
-                      ${isTimeRunning ? `⏳ 正在提炼【时间分配】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【时间分配】` : (isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`)))}
+                    <button id="btn-extract-time" ${isTimeRunning || isExtractingAny || isFull ? 'disabled' : ''} style="background:${isTimeRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTimeRunning || isExtractingAny || isFull ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
+                      ${isTimeRunning ? `⏳ 正在提炼【时间分配】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 智能体提炼中...` : (isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`)))}
                     </button>
                   `;
                 } else {
@@ -11654,6 +11670,7 @@
                   const isMe = isMyDoneHelper(confs.s1_topic);
                   const isFull = count >= totalMembersCount && totalMembersCount > 0;
                   const isTopicRunning = !!(window.app && window.app._isExtractingTopic);
+                  const isTopicFailed = !!(s1._topicExtractFailed);
                   if (!isVotingComplete) {
                     return `
                       <button id="btn-extract-topic" class="locked-pending-btn" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
@@ -11662,9 +11679,16 @@
                     `;
                   }
                   const extractName = (taskGenreKey === 'instructional') ? '课题与教学构想' : '主题与研究方案';
+                  if (isTopicFailed) {
+                    return `
+                      <button id="btn-extract-topic" disabled style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; opacity:0.95; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(217,119,6,0.3);">
+                        ⚠️ 提炼遇阻 · 全员已确认 (${count}/${totalMembersCount}) · 请在右侧讨论区点击【重新提炼】
+                      </button>
+                    `;
+                  }
                   return `
-                    <button id="btn-extract-topic" style="background:${isTopicRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
-                      ${isTopicRunning ? `⏳ 正在提炼【${extractName}】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【${extractName}】` : (isMe ? `✅ 您已确认提炼${extractName} (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【${extractName}】 (${count}/${totalMembersCount})`)))}
+                    <button id="btn-extract-topic" ${isTopicRunning || isExtractingAny || isFull ? 'disabled' : ''} style="background:${isTopicRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTopicRunning || isExtractingAny || isFull ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
+                      ${isTopicRunning ? `⏳ 正在提炼【${extractName}】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 智能体提炼中...` : (isMe ? `✅ 您已确认提炼${extractName} (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【${extractName}】 (${count}/${totalMembersCount})`)))}
                     </button>
                   `;
                 }
@@ -12399,6 +12423,12 @@
             alert(`🔒 请先完成全员提案提交与投票推选！\n\n当前全组投票进度：${totalVotesCast}/${totalMembersCount} 人已投票。\n投票结束后拍卖师将落槌揭晓结果，随后方可开启主题与方案提炼。`);
             return;
           }
+          if (s1._topicExtractFailed) {
+            if (typeof showGlobalBannerNotice === 'function') {
+              showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
+            }
+            return;
+          }
           if (isAnyExtracting(state)) {
             if (typeof showGlobalBannerNotice === 'function') {
               showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
@@ -12414,6 +12444,12 @@
       const btnExtractTime = canvas.querySelector('#btn-extract-time');
       if (btnExtractTime) {
         btnExtractTime.addEventListener('click', () => {
+          if (s1._timeExtractFailed) {
+            if (typeof showGlobalBannerNotice === 'function') {
+              showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
+            }
+            return;
+          }
           if (isAnyExtracting(state)) {
             if (typeof showGlobalBannerNotice === 'function') {
               showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
@@ -12429,6 +12465,12 @@
       const btnExtractTasks = canvas.querySelector('#btn-extract-tasks');
       if (btnExtractTasks) {
         btnExtractTasks.addEventListener('click', () => {
+          if (s1._tasksExtractFailed) {
+            if (typeof showGlobalBannerNotice === 'function') {
+              showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
+            }
+            return;
+          }
           if (isAnyExtracting(state)) {
             if (typeof showGlobalBannerNotice === 'function') {
               showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
@@ -18600,9 +18642,18 @@
         alert(`🔒 请先完成全员提案提交与投票推选！\n\n当前全组投票进度：${totalVotesCast}/${totalCount} 人已投票。\n投票结束后拍卖师将落槌揭晓结果，随后方可开启主题与方案提炼。`);
         return;
       }
+      if (s1._topicExtractFailed) {
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
+        }
+        return;
+      }
       const count = this.getStepConfirmedCount('s1_topic', membersList);
       if (count >= totalCount && totalCount > 0) {
-        return this._doExtractTopic();
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('⏳ 全员已确认', '全组组员均已完成确认，智能体正在分析提炼中，请稍候！', 'info', 3000);
+        }
+        return;
       }
       this.handleStepConfirmation('s1_topic', () => this._doExtractTopic(), '主题与研究方案');
     }
@@ -18610,6 +18661,7 @@
     async _doExtractTopic(btnElement = null) {
       if (this._isExtractingTopic) return;
       this._isExtractingTopic = true;
+      if (this.state.stage1) this.state.stage1._topicExtractFailed = false;
       this.renderStudentWorkspace();
 
       if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
@@ -18652,18 +18704,10 @@
       const propList = (s1.proposals && Array.isArray(s1.proposals)) ? s1.proposals : [];
       const propDetails = propList.map((p, idx) => {
         const authorStr = p.authorName ? ` (提交人: ${p.authorName})` : (p.author ? ` (提交人: ${p.author})` : '');
-        const titleStr = p.title ? p.title.replace(/["'《》]/g, '').trim() : `提案${idx + 1}`;
-        const descStr = p.description ? `\n   - 方案设想与说明: ${p.description.replace(/<[^>]+>/g, ' ').trim()}` : '';
-        return `【提案${idx + 1}】《${titleStr}》${authorStr}${descStr}`;
+        const descStr = p.description ? `\n  方案说明: ${p.description.replace(/\n+/g, ' ').trim()}` : '';
+        return `提案${idx + 1}: 《${p.title || '未命名'}》${authorStr}${descStr}`;
       }).join('\n');
 
-      const defaultCandidateFallback = isInst ? '优质课教学设计方案' : '学术协同研究课题';
-      const currentCandidate = s1.mergedTitle || s1.contract?.topic || (propList[0] ? propList[0].title : defaultCandidateFallback);
-      const allPropTitles = propList.map(p => `《${p.title}》`).join('、');
-
-      const extractPrompt = `【任务指令：请根据讨论区研讨记录，为小组成员同时提炼出【槽位1 课题名称】与 120~200 字【槽位2 方案概述】】
-
-  【小组成员在讨论区的全部真实研讨发言（从引导后至点击前的研讨切片，学生发言完全是日常口语交流、随性沟通、碎片化构想）】:
   ${chatSnippet || '（小组成员在讨论区暂无更多方案研讨发言）'}
 
   【小组成员提交的提案参考】:
@@ -18790,14 +18834,20 @@
           this.sendSingleChatMessage(noticeMsg, 'stage1');
         }
 
+        if (this.state.stage1) this.state.stage1._topicExtractFailed = false;
         await this.clearStepConfirmation('s1_topic');
         this.syncStage1();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         this.renderStudentWorkspace();
         renderChat(this.state);
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('✅ 提炼成功', '已成功提炼并录入公约看板，请继续讨论【时间分配】！', 'success', 5000);
+        }
       } catch (e) {
         console.warn('Extract topic & overview error:', e);
+        if (!this.state.stage1) this.state.stage1 = {};
+        this.state.stage1._topicExtractFailed = true;
         this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (m.id !== tempThinkingId && !m.isThinking && !String(m.id).startsWith('thinking_topic_')));
         const errTopicMsg = {
           id: 'err_topic_' + Date.now(),
@@ -18811,7 +18861,10 @@
         if (typeof this.sendSingleChatMessage === 'function') {
           this.sendSingleChatMessage(errTopicMsg, 'stage1');
         }
-        await this.clearStepConfirmation('s1_topic');
+        // ⚠️ 严禁清除确认状态！全员已确认状态保留，按键锁定禁止再次点击，重试仅限在讨论区
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('⚠️ 智能体提炼遇阻', '网络连接稍有延迟，未能即时获取草案。全员确认已锁定，请在右侧讨论区点击【重新提炼】重试！', 'warning', 7000);
+        }
         this.syncStage1();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -18838,11 +18891,20 @@
         return;
       }
       const s1 = this.state.stage1 || {};
+      if (s1._timeExtractFailed) {
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
+        }
+        return;
+      }
       const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
       const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
       const count = this.getStepConfirmedCount('s1_time', membersList);
       if (count >= totalCount && totalCount > 0) {
-        return this._doExtractTime();
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('⏳ 全员已确认', '全组组员均已完成确认，智能体正在分析提炼中，请稍候！', 'info', 3000);
+        }
+        return;
       }
       this.handleStepConfirmation('s1_time', () => this._doExtractTime(), '时间分配');
     }
@@ -18850,6 +18912,7 @@
     async _doExtractTime(btnElement = null) {
       if (this._isExtractingTime) return;
       this._isExtractingTime = true;
+      if (this.state.stage1) this.state.stage1._timeExtractFailed = false;
       this.renderStudentWorkspace();
 
       if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
@@ -19004,14 +19067,20 @@
           this.sendSingleChatMessage(noticeMsg, 'stage1');
         }
 
+        if (this.state.stage1) this.state.stage1._timeExtractFailed = false;
         await this.clearStepConfirmation('s1_time');
         this.syncStage1();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         this.renderStudentWorkspace();
         renderChat(this.state);
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('✅ 提炼成功', '已成功提炼时间分配预算！请继续在讨论区研讨【任务分工】。', 'success', 5000);
+        }
       } catch (e) {
         console.warn('Extract time error:', e);
+        if (!this.state.stage1) this.state.stage1 = {};
+        this.state.stage1._timeExtractFailed = true;
         this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (m.id !== tempThinkingId && !m.isThinking && !String(m.id).startsWith('thinking_time_')));
         const errTimeMsg = {
           id: 'err_time_' + Date.now(),
@@ -19025,7 +19094,10 @@
         if (typeof this.sendSingleChatMessage === 'function') {
           this.sendSingleChatMessage(errTimeMsg, 'stage1');
         }
-        await this.clearStepConfirmation('s1_time');
+        // ⚠️ 严禁清除确认状态！全员已确认状态保留，按键锁定禁止再次点击，重试仅限在讨论区
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('⚠️ 智能体提炼遇阻', '网络连接稍有延迟，未能即时获取分配方案。全员确认已锁定，请在右侧讨论区点击【重新提炼】重试！', 'warning', 7000);
+        }
         this.syncStage1();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -19050,11 +19122,20 @@
         return;
       }
       const s1 = this.state.stage1 || {};
+      if (s1._tasksExtractFailed) {
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
+        }
+        return;
+      }
       const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
       const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
       const count = this.getStepConfirmedCount('s1_tasks', membersList);
       if (count >= totalCount && totalCount > 0) {
-        return this._doExtractTasks();
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('⏳ 全员已确认', '全组组员均已完成确认，智能体正在分析提炼中，请稍候！', 'info', 3000);
+        }
+        return;
       }
       this.handleStepConfirmation('s1_tasks', () => this._doExtractTasks(), '任务分工');
     }
@@ -19062,6 +19143,7 @@
     async _doExtractTasks(btnElement = null) {
       if (this._isExtractingTasks) return;
       this._isExtractingTasks = true;
+      if (this.state.stage1) this.state.stage1._tasksExtractFailed = false;
       this.renderStudentWorkspace();
 
       if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
@@ -19206,14 +19288,20 @@
           this.sendSingleChatMessage(noticeMsg, 'stage1');
         }
 
+        if (this.state.stage1) this.state.stage1._tasksExtractFailed = false;
         await this.clearStepConfirmation('s1_tasks');
         this.syncStage1();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         this.renderStudentWorkspace();
         renderChat(this.state);
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('✅ 提炼成功', '公约草案已全部生成就绪，请全组成员核对并在下方签署！', 'success', 5000);
+        }
       } catch (e) {
         console.warn('Extract tasks error:', e);
+        if (!this.state.stage1) this.state.stage1 = {};
+        this.state.stage1._tasksExtractFailed = true;
         this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (m.id !== tempThinkingId && !m.isThinking && !String(m.id).startsWith('thinking_tasks_')));
         const errTasksMsg = {
           id: 'err_tasks_' + Date.now(),
@@ -19227,7 +19315,10 @@
         if (typeof this.sendSingleChatMessage === 'function') {
           this.sendSingleChatMessage(errTasksMsg, 'stage1');
         }
-        await this.clearStepConfirmation('s1_tasks');
+        // ⚠️ 严禁清除确认状态！全员已确认状态保留，按键锁定禁止再次点击，重试仅限在讨论区
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('⚠️ 智能体提炼遇阻', '网络连接稍有延迟，未能即时获取分工配置。全员确认已锁定，请在右侧讨论区点击【重新提炼】重试！', 'warning', 7000);
+        }
         this.syncStage1();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -19524,6 +19615,7 @@
 
       if (!isSuccess) {
         this._contractGenerateFailed = true;
+        if (this.state.stage1) this.state.stage1._fullContractFailed = true;
         this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (m.id !== tempThinkingId && !m.isThinking && !String(m.id).startsWith('thinking_full_contract_')));
         const errFullMsg = {
           id: 'err_full_contract_' + Date.now(),
@@ -19537,7 +19629,9 @@
         if (typeof this.sendSingleChatMessage === 'function') {
           this.sendSingleChatMessage(errFullMsg, 'stage1');
         }
-        await this.clearStepConfirmation('s1_full_contract');
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('⚠️ 提炼遇到延迟', '智能体生成公约草案未能即时返回，全员确认已锁定，请在右侧讨论区点击【重新生成】重试！', 'warning', 7000);
+        }
         this.syncStage1();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -21238,48 +21332,77 @@
             const isMe = isMyDoneHelper('s1_tasks');
             const isFull = count >= totalMembersCount && totalMembersCount > 0;
             const isTasksRunning = !!(this._isExtractingTasks);
-            contractActionBarMount.innerHTML = `
-              <button id="btn-extract-tasks" style="background:${isTasksRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
-                ${isTasksRunning ? `⏳ 正在提炼【任务分工】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【任务分工】` : (isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`)))}
-              </button>
-            `;
-            contractActionBarMount.querySelector('#btn-extract-tasks')?.addEventListener('click', () => {
-              if (this.isAnyExtracting()) {
+            const isTasksFailed = !!(s1._tasksExtractFailed);
+            if (isTasksFailed) {
+              contractActionBarMount.innerHTML = `
+                <button id="btn-extract-tasks" disabled style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; opacity:0.95; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(217,119,6,0.3);">
+                  ⚠️ 提炼遇阻 · 全员已确认 (${count}/${totalMembersCount}) · 请在右侧讨论区点击【重新提炼】
+                </button>
+              `;
+              contractActionBarMount.querySelector('#btn-extract-tasks')?.addEventListener('click', () => {
                 if (typeof showGlobalBannerNotice === 'function') {
-                  showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
-                } else {
-                  alert('⏳ 智能体当前正在分析提炼中，请稍候完成后再操作！');
+                  showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
                 }
-                return;
-              }
-              this.handleExtractTasks();
-            });
+              });
+            } else {
+              contractActionBarMount.innerHTML = `
+                <button id="btn-extract-tasks" ${isTasksRunning || isExtractingAny || isFull ? 'disabled' : ''} style="background:${isTasksRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTasksRunning || isExtractingAny || isFull ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
+                  ${isTasksRunning ? `⏳ 正在提炼【任务分工】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 智能体提炼中...` : (isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`)))}
+                </button>
+              `;
+              contractActionBarMount.querySelector('#btn-extract-tasks')?.addEventListener('click', () => {
+                if (isAnyExtracting()) {
+                  if (typeof showGlobalBannerNotice === 'function') {
+                    showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+                  } else {
+                    alert('⏳ 智能体当前正在分析提炼中，请稍候完成后再操作！');
+                  }
+                  return;
+                }
+                this.handleExtractTasks();
+              });
+            }
           } else if (s1.contractStep === 'time') {
             const count = this.getStepConfirmedCount('s1_time', membersList);
             const isMe = isMyDoneHelper('s1_time');
             const isFull = count >= totalMembersCount && totalMembersCount > 0;
             const isTimeRunning = !!(this._isExtractingTime);
-            contractActionBarMount.innerHTML = `
-              <button id="btn-extract-time" style="background:${isTimeRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
-                ${isTimeRunning ? `⏳ 正在提炼【时间分配】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【时间分配】` : (isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`)))}
-              </button>
-            `;
-            contractActionBarMount.querySelector('#btn-extract-time')?.addEventListener('click', () => {
-              if (this.isAnyExtracting()) {
+            const isTimeFailed = !!(s1._timeExtractFailed);
+            if (isTimeFailed) {
+              contractActionBarMount.innerHTML = `
+                <button id="btn-extract-time" disabled style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; opacity:0.95; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(217,119,6,0.3);">
+                  ⚠️ 提炼遇阻 · 全员已确认 (${count}/${totalMembersCount}) · 请在右侧讨论区点击【重新提炼】
+                </button>
+              `;
+              contractActionBarMount.querySelector('#btn-extract-time')?.addEventListener('click', () => {
                 if (typeof showGlobalBannerNotice === 'function') {
-                  showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
-                } else {
-                  alert('⏳ 智能体当前正在分析提炼中，请稍候完成后再操作！');
+                  showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
                 }
-                return;
-              }
-              this.handleExtractTime();
-            });
+              });
+            } else {
+              contractActionBarMount.innerHTML = `
+                <button id="btn-extract-time" ${isTimeRunning || isExtractingAny || isFull ? 'disabled' : ''} style="background:${isTimeRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTimeRunning || isExtractingAny || isFull ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
+                  ${isTimeRunning ? `⏳ 正在提炼【时间分配】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 智能体提炼中...` : (isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`)))}
+                </button>
+              `;
+              contractActionBarMount.querySelector('#btn-extract-time')?.addEventListener('click', () => {
+                if (isAnyExtracting()) {
+                  if (typeof showGlobalBannerNotice === 'function') {
+                    showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+                  } else {
+                    alert('⏳ 智能体当前正在分析提炼中，请稍候完成后再操作！');
+                  }
+                  return;
+                }
+                this.handleExtractTime();
+              });
+            }
           } else {
             const count = this.getStepConfirmedCount('s1_topic', membersList);
             const isMe = isMyDoneHelper('s1_topic');
             const isFull = count >= totalMembersCount && totalMembersCount > 0;
             const isTopicRunning = !!(this._isExtractingTopic);
+            const isTopicFailed = !!(s1._topicExtractFailed);
             if (!isVotingComplete) {
               contractActionBarMount.innerHTML = `
                 <button id="btn-extract-topic" class="locked-pending-btn" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
@@ -21289,12 +21412,23 @@
               contractActionBarMount.querySelector('#btn-extract-topic')?.addEventListener('click', () => {
                 alert(`🔒 请先完成全员提案提交与投票推选！\n\n当前全组投票进度：${totalVotesCast}/${totalMembersCount} 人已投票。\n投票结束后拍卖师将落槌揭晓结果，随后方可开启主题与方案提炼。`);
               });
+            } else if (isTopicFailed) {
+              contractActionBarMount.innerHTML = `
+                <button id="btn-extract-topic" disabled style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; opacity:0.95; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(217,119,6,0.3);">
+                  ⚠️ 提炼遇阻 · 全员已确认 (${count}/${totalMembersCount}) · 请在右侧讨论区点击【重新提炼】
+                </button>
+              `;
+              contractActionBarMount.querySelector('#btn-extract-topic')?.addEventListener('click', () => {
+                if (typeof showGlobalBannerNotice === 'function') {
+                  showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
+                }
+              });
             } else {
               const isInst = (this.getCurrentTaskType() === 'instructional');
               const extractName = isInst ? '课题与教学构想' : '主题与研究方案';
               contractActionBarMount.innerHTML = `
-                <button id="btn-extract-topic" style="background:${isTopicRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
-                  ${isTopicRunning ? `⏳ 正在提炼【${extractName}】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【${extractName}】` : (isMe ? `✅ 您已确认提炼${extractName} (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【${extractName}】 (${count}/${totalMembersCount})`)))}
+                <button id="btn-extract-topic" ${isTopicRunning || isExtractingAny || isFull ? 'disabled' : ''} style="background:${isTopicRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTopicRunning || isExtractingAny || isFull ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
+                  ${isTopicRunning ? `⏳ 正在提炼【${extractName}】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 智能体提炼中...` : (isMe ? `✅ 您已确认提炼${extractName} (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【${extractName}】 (${count}/${totalMembersCount})`)))}
                 </button>
               `;
               contractActionBarMount.querySelector('#btn-extract-topic')?.addEventListener('click', () => {
