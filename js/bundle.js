@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2681
+ * Version: 20260906_v2682
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2681';
+  const APP_VERSION = '20260906_v2682';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -21556,14 +21556,41 @@
       const s3Name = isInstStage ? '【阶段三：答辩评审会】' : '【阶段三：答辩擂台】';
       const contractDocName = isInstStage ? '备课公约' : '学术公约';
 
+      if (newStage === this.state.currentStage && !isMilestoneAdvance) {
+        return;
+      }
+
       if (!isTaskDeadlineExpired && !this.state.isFinalSubmitted && newStage === 'stage2' && !isMilestoneAdvance && !isContractSigned && currentGroupOrder < 2) {
-        alert(`⚠️ 暂未解锁${s2Name}！\n请先在阶段一完成${contractDocName}的签署与分工确认，方可进入阶段二。`);
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice(`⚠️ 暂未解锁${s2Name}`, `请先在阶段一完成${contractDocName}的签署与分工确认，全员签署后系统将自动解锁进入阶段二。`, 'warning', 4000);
+        } else {
+          alert(`⚠️ 暂未解锁${s2Name}！\n请先在阶段一完成${contractDocName}的签署与分工确认，方可进入阶段二。`);
+        }
         return;
       }
 
       if (!isTaskDeadlineExpired && !this.state.isFinalSubmitted && targetOrder > currentGroupOrder && !isMilestoneAdvance) {
         const stageTitles = { stage2: s2Name, stage3: s3Name };
-        alert(`⚠️ 暂未解锁 ${stageTitles[newStage] || newStage}！\n必须先在当前阶段完成公约签署与阶段任务后，系统将自动全组解锁推进。`);
+        if (newStage === 'stage3') {
+          const confirmedMembers = s2.confirmedMembers || [];
+          const confirmedCount = confirmedMembers.length;
+          let memberCount = 2;
+          try {
+            const activeGroup = this.authManager ? this.authManager.getStudentActiveGroup(this.authManager.getCurrentUser(), this.state.activeStudentClassId) : null;
+            if (activeGroup && Array.isArray(activeGroup.members)) memberCount = activeGroup.members.length;
+          } catch (e) {}
+          if (typeof showGlobalBannerNotice === 'function') {
+            showGlobalBannerNotice('🔒 阶段三尚未解锁', `当前正文初稿全组确认进度：${confirmedCount}/${memberCount} 人。请全组成员在正文上方点击【✍️ 确认初稿】，全员确认后系统将自动解锁并推进至阶段三！`, 'warning', 5000);
+          } else {
+            alert(`🔒 阶段三尚未解锁！\n当前正文初稿全组确认进度：${confirmedCount}/${memberCount} 人。\n请全组成员在正文上方点击【✍️ 确认初稿】，全员完成后系统将自动解锁推进。`);
+          }
+        } else {
+          if (typeof showGlobalBannerNotice === 'function') {
+            showGlobalBannerNotice(`⚠️ 暂未解锁 ${stageTitles[newStage] || newStage}`, '必须先在当前阶段完成公约签署与阶段任务后，系统将自动全组解锁推进。', 'warning', 4000);
+          } else {
+            alert(`⚠️ 暂未解锁 ${stageTitles[newStage] || newStage}！\n必须先在当前阶段完成公约签署与阶段任务后，系统将自动全组解锁推进。`);
+          }
+        }
         return;
       }
 

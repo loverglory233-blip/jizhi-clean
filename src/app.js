@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2681";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2681";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2681";
-import { AuthManager } from "./auth.js?v=20260906_v2681";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2681";
-import { renderLoginView } from "./login.js?v=20260906_v2681";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2681";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2681";
+} from "./constants.js?v=20260906_v2682";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2682";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2682";
+import { AuthManager } from "./auth.js?v=20260906_v2682";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2682";
+import { renderLoginView } from "./login.js?v=20260906_v2682";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2682";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2682";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2681";
+} from "./editor.js?v=20260906_v2682";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6218,14 +6218,41 @@ ${chatSnippet}
     const s3Name = isInstStage ? '【阶段三：答辩评审会】' : '【阶段三：答辩擂台】';
     const contractDocName = isInstStage ? '备课公约' : '学术公约';
 
+    if (newStage === this.state.currentStage && !isMilestoneAdvance) {
+      return;
+    }
+
     if (!isTaskDeadlineExpired && !this.state.isFinalSubmitted && newStage === 'stage2' && !isMilestoneAdvance && !isContractSigned && currentGroupOrder < 2) {
-      alert(`⚠️ 暂未解锁${s2Name}！\n请先在阶段一完成${contractDocName}的签署与分工确认，方可进入阶段二。`);
+      if (typeof showGlobalBannerNotice === 'function') {
+        showGlobalBannerNotice(`⚠️ 暂未解锁${s2Name}`, `请先在阶段一完成${contractDocName}的签署与分工确认，全员签署后系统将自动解锁进入阶段二。`, 'warning', 4000);
+      } else {
+        alert(`⚠️ 暂未解锁${s2Name}！\n请先在阶段一完成${contractDocName}的签署与分工确认，方可进入阶段二。`);
+      }
       return;
     }
 
     if (!isTaskDeadlineExpired && !this.state.isFinalSubmitted && targetOrder > currentGroupOrder && !isMilestoneAdvance) {
       const stageTitles = { stage2: s2Name, stage3: s3Name };
-      alert(`⚠️ 暂未解锁 ${stageTitles[newStage] || newStage}！\n必须先在当前阶段完成公约签署与阶段任务后，系统将自动全组解锁推进。`);
+      if (newStage === 'stage3') {
+        const confirmedMembers = s2.confirmedMembers || [];
+        const confirmedCount = confirmedMembers.length;
+        let memberCount = 2;
+        try {
+          const activeGroup = this.authManager ? this.authManager.getStudentActiveGroup(this.authManager.getCurrentUser(), this.state.activeStudentClassId) : null;
+          if (activeGroup && Array.isArray(activeGroup.members)) memberCount = activeGroup.members.length;
+        } catch (e) {}
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('🔒 阶段三尚未解锁', `当前正文初稿全组确认进度：${confirmedCount}/${memberCount} 人。请全组成员在正文上方点击【✍️ 确认初稿】，全员确认后系统将自动解锁并推进至阶段三！`, 'warning', 5000);
+        } else {
+          alert(`🔒 阶段三尚未解锁！\n当前正文初稿全组确认进度：${confirmedCount}/${memberCount} 人。\n请全组成员在正文上方点击【✍️ 确认初稿】，全员完成后系统将自动解锁推进。`);
+        }
+      } else {
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice(`⚠️ 暂未解锁 ${stageTitles[newStage] || newStage}`, '必须先在当前阶段完成公约签署与阶段任务后，系统将自动全组解锁推进。', 'warning', 4000);
+        } else {
+          alert(`⚠️ 暂未解锁 ${stageTitles[newStage] || newStage}！\n必须先在当前阶段完成公约签署与阶段任务后，系统将自动全组解锁推进。`);
+        }
+      }
       return;
     }
 
