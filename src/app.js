@@ -397,6 +397,20 @@ export class App {
         this.state.stage3CommitteeLoading = false;
       }
     } else {
+      // 🛡️ 教师端监控模式：如果已有全景监控数据，优先从全景快照恢复，杜绝被空默认值覆盖
+      if (isTeacher && this.state.monitorPanorama && groupId) {
+        const gData = (this.state.monitorPanorama[groupId] || Object.values(this.state.monitorPanorama).find(g => g && (g.groupId === groupId || String(g.groupId).replace(/^group_/, '') === String(groupId).replace(/^group_/, ''))));
+        if (gData) {
+          this.state.chatLogs = gData.chatLogs || { stage1: [], stage2: [], stage3: [] };
+          this.state.stage1 = gData.stage1 || JSON.parse(JSON.stringify(defaultState.stage1));
+          this.state.stage2 = gData.stage2 || JSON.parse(JSON.stringify(defaultState.stage2));
+          this.state.stage3 = gData.stage3 || JSON.parse(JSON.stringify(defaultState.stage3));
+          this.state.currentStage = gData.currentStage || 'stage1';
+          this.state.groupMaxStage = gData.currentStage || 'stage1';
+          this.state.isFinalSubmitted = !!gData.isFinalSubmitted;
+          return;
+        }
+      }
       // 🛡️ 切换到新组时，第1行代码立刻清空内存残留消息，彻底杜绝上一组的聊天残影
       this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
       this.state.stage1 = JSON.parse(JSON.stringify(defaultState.stage1));
