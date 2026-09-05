@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2686
+ * Version: 20260906_v2687
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2686';
+  const APP_VERSION = '20260906_v2687';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5980,11 +5980,10 @@
             const isMemDone = (map, m) => !!(map && (map[m.id] || (m.name && map[m.name])));
             const cCount = memberArr.filter(m => isMemDone(mergedConf, m)).length;
             const isFullyDone = (cCount >= memberArr.length && memberArr.length > 0);
-            if (this.app.state.stage2.isDraftConfirmed !== isFullyDone) {
-              this.app.state.stage2.isDraftConfirmed = isFullyDone;
-              if (isFullyDone) {
-                this.app.state.groupMaxStage = 'stage3';
-              }
+            const shouldBeConfirmed = !!(remoteData.stage2.isDraftConfirmed || this.app.state.stage2.isDraftConfirmed || isFullyDone);
+            if (shouldBeConfirmed && !this.app.state.stage2.isDraftConfirmed) {
+              this.app.state.stage2.isDraftConfirmed = true;
+              this.app.state.groupMaxStage = 'stage3';
               needWorkspaceRender = true;
             }
           }
@@ -21625,7 +21624,9 @@
         this.state.groupMaxStage === 'stage2' || 
         this.state.groupMaxStage === 'stage3'
       );
-      const isDraftDone = !!(s2.isDraftConfirmed || this.state.groupMaxStage === 'stage3' || this.state.isFinalSubmitted);
+      const s2ConfMap = s2.confirmedMembers || {};
+      const s2ConfCount = (s2ConfMap && typeof s2ConfMap === 'object') ? Object.keys(s2ConfMap).length : 0;
+      const isDraftDone = !!(s2.isDraftConfirmed || this.state.groupMaxStage === 'stage3' || this.state.isFinalSubmitted || (s2ConfCount >= 2));
       const isStage3Active = !!(this.state.groupMaxStage === 'stage3' || this.state.isFinalSubmitted || isDraftDone);
 
       let currentGroupMax = this.state.groupMaxStage || 'stage1';
@@ -21652,7 +21653,6 @@
       const contractDocName = isInstStage ? '备课公约' : '学术公约';
 
       if (newStage === this.state.currentStage && !isMilestoneAdvance) {
-        this.renderStudentWorkspace(true);
         return;
       }
 
@@ -21666,8 +21666,8 @@
       if (!isTaskDeadlineExpired && !this.state.isFinalSubmitted && targetOrder > currentGroupOrder && !isMilestoneAdvance) {
         const stageTitles = { stage2: s2Name, stage3: s3Name };
         if (newStage === 'stage3') {
-          const confirmedMembers = s2.confirmedMembers || [];
-          const confirmedCount = confirmedMembers.length;
+          const confirmedMembers = s2.confirmedMembers || {};
+          const confirmedCount = (confirmedMembers && typeof confirmedMembers === 'object') ? Object.keys(confirmedMembers).length : 0;
           let memberCount = 2;
           try {
             const activeGroup = this.authManager ? this.authManager.getStudentActiveGroup(this.authManager.getCurrentUser(), this.state.activeStudentClassId) : null;
