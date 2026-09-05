@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2591
+ * Version: 20260905_v2592
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2591';
+  const APP_VERSION = '20260905_v2592';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -18479,8 +18479,8 @@
         return;
       }
       const s1Logs = this.state.chatLogs?.stage1 || [];
-      const hasTallyMsg = s1Logs.some(m => m && (m.id?.startsWith('vote_tally') || (m.text || '').includes('投票结果')));
-      const hasGuideMsg = s1Logs.some(m => m && (m.id?.startsWith('vote_unanimous') || m.id?.startsWith('vote_divergence') || (m.sender === 'auctioneer' && ((m.text || '').includes('方案研讨') || (m.text || '').includes('落槌与方案研讨')))));
+      const hasTallyMsg = s1Logs.some(m => m && (String(m.id || '').startsWith('vote_tally') || (m.text || '').includes('投票结果')));
+      const hasGuideMsg = s1Logs.some(m => m && (String(m.id || '').startsWith('vote_unanimous') || String(m.id || '').startsWith('vote_divergence') || (m.sender === 'auctioneer' && ((m.text || '').includes('方案研讨') || (m.text || '').includes('落槌与方案研讨')))));
       const hasNetworkRetryMsg = s1Logs.some(m => m && (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('研讨指引')));
 
       if (hasTallyMsg && !hasGuideMsg && !hasNetworkRetryMsg && !this.isAnyExtracting()) {
@@ -18531,7 +18531,7 @@
 
       // 🛡️ 单次触发守卫：若非重试且已存在方案研讨指引，直接跳过避免重复调用
       const s1Logs = this.state.chatLogs?.stage1 || [];
-      const hasExistingGuide = s1Logs.some(m => m && (m.id?.startsWith('vote_unanimous') || m.id?.startsWith('vote_divergence') || (m.sender === 'auctioneer' && (m.text || '').includes('方案研讨'))));
+      const hasExistingGuide = s1Logs.some(m => m && (String(m.id || '').startsWith('vote_unanimous') || String(m.id || '').startsWith('vote_divergence') || (m.sender === 'auctioneer' && (m.text || '').includes('方案研讨'))));
       if (hasExistingGuide && !isRetry) return;
 
       // 🛡️ 清理已有的同类失败气泡与思考中占位气泡
