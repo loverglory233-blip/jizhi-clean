@@ -485,7 +485,6 @@ export class AuthManager {
 
             localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(Array.from(surveyMap.values())));
           }
-          }
 
           return { success: true, changed: true, version: this.globalMetaVersion, data };
         }
