@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2557
+ * Version: 20260905_v2558
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2557';
+  const APP_VERSION = '20260905_v2558';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -18423,27 +18423,9 @@
   }`;
 
       try {
-        let resp = null;
-        try {
-          const cozePromise = callCozeAgentAPI('auctioneer', extractPrompt, { stage: 'stage1', topic: currentCandidate, taskType });
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
-          resp = await Promise.race([cozePromise, timeoutPromise]);
-        } catch (errApi) {
-          console.warn('[ExtractTopic] Coze API 响应超时(>8s)或网络抖动，启动智能语义极速合成兜底:', errApi);
-        }
-
+        const resp = await callCozeAgentAPI('auctioneer', extractPrompt, { stage: 'stage1', topic: currentCandidate, taskType });
         if (!resp || resp.trim().length === 0) {
-          let candidateOverview = '暂无';
-          if (chatSnippet && chatSnippet.length > 5 && !chatSnippet.includes('暂无更多方案研讨发言')) {
-            candidateOverview = `基于组内讨论与研讨设想，围绕《${currentCandidate}》开展${isInst ? '教学情境创设与重难点探究' : '核心问题假设与实证研究'}，落实协同实施方案。`;
-          } else if (propList[0]?.description) {
-            candidateOverview = propList[0].description.replace(/<[^>]+>/g, ' ').trim();
-          }
-          resp = JSON.stringify({
-            topic: currentCandidate,
-            overview: candidateOverview,
-            guideText: `主题《${currentCandidate}》与方案概述已成功确立！接下来请在讨论区商讨时间预算分配。`
-          });
+          throw new Error('未能获取到主题与方案提炼结果');
         }
 
         let finalTopic = currentCandidate;
@@ -18557,6 +18539,8 @@
         if (typeof this.sendSingleChatMessage === 'function') {
           this.sendSingleChatMessage(errTopicMsg, 'stage1');
         }
+        await this.clearStepConfirmation('s1_topic');
+        this.syncStage1();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         this.renderStudentWorkspace();
@@ -18628,13 +18612,9 @@
   }`;
 
       try {
-        let resp = null;
-        try {
-          const cozePromise = callCozeAgentAPI('auctioneer', timePrompt, { stage: 'stage1', topic: s1.mergedTitle || (isInst ? '教学设计' : '论文'), taskType });
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
-          resp = await Promise.race([cozePromise, timeoutPromise]);
-        } catch (errApi) {
-          console.warn('[ExtractTime] Coze API 响应超时(>8s)或网络抖动，启动智能预算极速合成兜底:', errApi);
+        const resp = await callCozeAgentAPI('auctioneer', timePrompt, { stage: 'stage1', topic: s1.mergedTitle || (isInst ? '教学设计' : '论文'), taskType });
+        if (!resp || resp.trim().length === 0) {
+          throw new Error('未能获取到时间分配提炼结果');
         }
 
         let timeAlloc = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
@@ -18707,6 +18687,8 @@
         if (typeof this.sendSingleChatMessage === 'function') {
           this.sendSingleChatMessage(errTimeMsg, 'stage1');
         }
+        await this.clearStepConfirmation('s1_time');
+        this.syncStage1();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         this.renderStudentWorkspace();
@@ -18775,13 +18757,9 @@
   }`;
 
       try {
-        let resp = null;
-        try {
-          const cozePromise = callCozeAgentAPI('auctioneer', taskPrompt, { stage: 'stage1', topic: s1.mergedTitle || (isInst ? '教学设计' : '论文'), taskType });
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
-          resp = await Promise.race([cozePromise, timeoutPromise]);
-        } catch (errApi) {
-          console.warn('[ExtractTasks] Coze API 响应超时(>8s)或网络抖动，启动智能分工极速合成兜底:', errApi);
+        const resp = await callCozeAgentAPI('auctioneer', taskPrompt, { stage: 'stage1', topic: s1.mergedTitle || (isInst ? '教学设计' : '论文'), taskType });
+        if (!resp || resp.trim().length === 0) {
+          throw new Error('未能获取到任务分工提炼结果');
         }
 
         let taskAssignments = {};
@@ -18872,6 +18850,8 @@
         if (typeof this.sendSingleChatMessage === 'function') {
           this.sendSingleChatMessage(errTasksMsg, 'stage1');
         }
+        await this.clearStepConfirmation('s1_tasks');
+        this.syncStage1();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         this.renderStudentWorkspace();
@@ -19046,36 +19026,7 @@
       });
 
       try {
-        let resp = null;
-        try {
-          const cozePromise = callCozeAgentAPI('auctioneer', fullContractPrompt, { stage: 'stage1', topic: defaultTopic });
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
-          resp = await Promise.race([cozePromise, timeoutPromise]);
-        } catch (errApi) {
-          console.warn('[OneClickContract] Coze API 响应超时(>8s)或网络抖动，启动极速结构化智能合成:', errApi);
-        }
-
-        if (!resp || resp.trim().length === 0) {
-          let synthesizedOverview = '暂无';
-          if (chatHistorySlice && chatHistorySlice.length > 5) {
-            synthesizedOverview = `基于讨论区交流与小组共识，围绕《${defaultTopic}》开展系统设计与协作实施。`;
-          } else if (propList[0]?.description) {
-            synthesizedOverview = propList[0].description.replace(/<[^>]+>/g, ' ').trim();
-          }
-          const fallbackAssignments = {};
-          const slots = ['槽位一【引言与背景】', '槽位二【核心方案与活动】', '槽位三【总结与评估】', '槽位四【统筹与协调】'];
-          membersList.forEach((m, idx) => {
-            const mKey = m.id || m.name;
-            fallbackAssignments[mKey] = slots[idx % slots.length];
-          });
-          resp = JSON.stringify({
-            topic: defaultTopic,
-            overview: synthesizedOverview,
-            timeAllocations: defaultTimes,
-            assignments: fallbackAssignments,
-            guideText: `全套《${contractTitle}》草案已一键提炼完成，请小组成员查阅并签署！`
-          });
-        }
+        const resp = await callCozeAgentAPI('auctioneer', fullContractPrompt, { stage: 'stage1', topic: defaultTopic });
 
         if (resp && resp.trim().length > 0) {
           try {
@@ -19158,6 +19109,8 @@
         if (typeof this.sendSingleChatMessage === 'function') {
           this.sendSingleChatMessage(errFullMsg, 'stage1');
         }
+        await this.clearStepConfirmation('s1_full_contract');
+        this.syncStage1();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         if (typeof renderChat === 'function') renderChat(this.state);
