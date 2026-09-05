@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2667
+ * Version: 20260906_v2668
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2667';
+  const APP_VERSION = '20260906_v2668';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -20701,14 +20701,15 @@
 
       try {
         const taskType = this.getCurrentTaskType();
-        const genreDesc = getGenrePromptDescriptor(taskType);
-        this.setActiveAgentAnalyzing({ icon: '🤝', title: '【责任编辑】正在提炼半程研讨共识...', detail: '正在深度整合全组自查痛点与研讨记录，提炼修改共识要点并交棒审稿专家...' });
-        await new Promise(r => setTimeout(r, 1500));
-
         const isInst = (taskType === 'instructional');
         const managingName = isInst ? '备课组长' : '责任编辑';
         const reviewingName = isInst ? '教研专家' : '审稿编辑';
 
+        const genreDesc = getGenrePromptDescriptor(taskType);
+        this.setActiveAgentAnalyzing({ icon: '🤝', title: `【${managingName}】正在提炼半程研讨共识...`, detail: `正在深度整合全组自查痛点与研讨记录，提炼修改共识要点并交棒${reviewingName}...` });
+        await new Promise(r => setTimeout(r, 1200));
+
+        const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues, taskType });
         let managingText = (respManaging && respManaging.trim().length > 0) ? respManaging.trim() : '';
         if (!managingText) {
           managingText = `🤝 【${managingName}·网络提醒】：📡 正在提炼研讨共识，网络连接稍有延迟未能即时生成。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成研讨共识小结</button>`;
