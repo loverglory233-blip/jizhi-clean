@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2576";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2576";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2576";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2577";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2577";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2577";
 
 /**
  * 🛡️ 全局提炼互斥状态判定工具函数
@@ -36,7 +36,7 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
   if (!header) return;
   const activeTaskId = (state && state.activeTaskId) ? state.activeTaskId : null;
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-  const currentTask = allTasks.find(t => t.id === activeTaskId);
+  const currentTask = allTasks.find(t => t.id === activeTaskId || (t.title && t.title === activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
   const taskGenreKey = currentTask?.taskType || 'experiment';
   
   let remainingMin = 150;
@@ -295,7 +295,7 @@ function renderStage1Canvas(canvas, state, handlers) {
   if (!s1.contract.timeAllocations) s1.contract.timeAllocations = {};
 
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-  const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+  const currentTask = allTasks.find(t => t.id === state.activeTaskId || (t.title && t.title === state.activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
   const taskGenreKey = currentTask?.taskType || 'experiment';
   const isTaskDeadlineExpired = isTaskExpired(currentTask);
   const genreCfg = TASK_GENRE_CONFIGS[taskGenreKey] || TASK_GENRE_CONFIGS.experiment;
