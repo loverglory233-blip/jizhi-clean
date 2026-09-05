@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2564";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2564";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2564";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2565";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2565";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2565";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -478,24 +478,27 @@ function renderStage1Canvas(canvas, state, handlers) {
                 const count = isDoneHelper(confs.s1_tasks);
                 const isMe = isMyDoneHelper(confs.s1_tasks);
                 const isFull = count >= totalMembersCount && totalMembersCount > 0;
+                const isExtracting = !!(window.app && window.app._isExtractingTasks);
                 return `
-                  <button id="btn-extract-tasks" style="background:${isFull ? 'linear-gradient(135deg, #d97706, #b45309)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isFull ? 'wait' : 'pointer'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;" ${isFull ? 'disabled' : ''}>
-                    ${isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 正在生成公约草案...` : (isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`)}
+                  <button id="btn-extract-tasks" style="background:${isExtracting ? 'linear-gradient(135deg, #d97706, #b45309)' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)'))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isExtracting ? 'not-allowed' : 'pointer'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;" ${isExtracting ? 'disabled' : ''}>
+                    ${isExtracting ? `⏳ 正在提炼【任务分工】...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【任务分工】` : (isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`))}
                   </button>
                 `;
               } else if (s1.contractStep === 'time') {
                 const count = isDoneHelper(confs.s1_time);
                 const isMe = isMyDoneHelper(confs.s1_time);
                 const isFull = count >= totalMembersCount && totalMembersCount > 0;
+                const isExtracting = !!(window.app && window.app._isExtractingTime);
                 return `
-                  <button id="btn-extract-time" style="background:${isFull ? 'linear-gradient(135deg, #d97706, #b45309)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)')}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isFull ? 'wait' : 'pointer'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;" ${isFull ? 'disabled' : ''}>
-                    ${isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 正在提炼时间分配...` : (isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`)}
+                  <button id="btn-extract-time" style="background:${isExtracting ? 'linear-gradient(135deg, #d97706, #b45309)' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)'))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isExtracting ? 'not-allowed' : 'pointer'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;" ${isExtracting ? 'disabled' : ''}>
+                    ${isExtracting ? `⏳ 正在提炼【时间分配】...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【时间分配】` : (isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`))}
                   </button>
                 `;
               } else {
                 const count = isDoneHelper(confs.s1_topic);
                 const isMe = isMyDoneHelper(confs.s1_topic);
                 const isFull = count >= totalMembersCount && totalMembersCount > 0;
+                const isExtracting = !!(window.app && window.app._isExtractingTopic);
                 if (!isVotingComplete) {
                   return `
                     <button id="btn-extract-topic" class="locked-pending-btn" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
@@ -505,8 +508,8 @@ function renderStage1Canvas(canvas, state, handlers) {
                 }
                 const extractName = (taskGenreKey === 'instructional') ? '课题与教学构想' : '主题与研究方案';
                 return `
-                  <button id="btn-extract-topic" style="background:${isFull ? 'linear-gradient(135deg, #d97706, #b45309)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)')}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isFull ? 'wait' : 'pointer'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;" ${isFull ? 'disabled' : ''}>
-                    ${isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 正在提炼【${extractName}】...` : (isMe ? `✅ 您已确认提炼${extractName} (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【${extractName}】 (${count}/${totalMembersCount})`)}
+                  <button id="btn-extract-topic" style="background:${isExtracting ? 'linear-gradient(135deg, #d97706, #b45309)' : (isFull ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isExtracting ? 'not-allowed' : 'pointer'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;" ${isExtracting ? 'disabled' : ''}>
+                    ${isExtracting ? `⏳ 正在提炼【${extractName}】...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【${extractName}】` : (isMe ? `✅ 您已确认提炼${extractName} (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【${extractName}】 (${count}/${totalMembersCount})`))}
                   </button>
                 `;
               }
@@ -3448,8 +3451,8 @@ export function renderChatActionBar(state) {
         const isMe = isMyDoneHelper(confs.s1_full_contract);
         const isFull = count >= totalCount && totalCount > 0;
         actionBar.innerHTML = `
-          <button id="btn-s1-auto-generate-contract" style="background:${isFull ? 'linear-gradient(135deg, #d97706, #b45309)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:${isFull ? 'wait' : 'pointer'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(124,58,237,0.25); transition:all 0.2s;" ${isFull ? 'disabled' : ''}>
-            ${isFull ? `⏳ 全员已确认 (${count}/${totalCount}) · 正在生成公约草案...` : (isMe ? `✅ 您已确认提炼公约 (${count}/${totalCount} 等待组员)` : `💡 [ 📋 研讨差不多了？一键提炼生成公约草案 (${count}/${totalCount}) ]`)}
+          <button id="btn-s1-auto-generate-contract" style="background:${isFull ? 'linear-gradient(135deg, #d97706, #b45309)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(124,58,237,0.25); transition:all 0.2s;">
+            ${isFull ? `⚡ 全员已确认 (${count}/${totalCount}) · 点击提炼生成公约草案` : (isMe ? `✅ 您已确认提炼公约 (${count}/${totalCount} 等待组员)` : `💡 [ 📋 研讨差不多了？一键提炼生成公约草案 (${count}/${totalCount}) ]`)}
           </button>
         `;
       }
@@ -3489,9 +3492,10 @@ export function renderChatActionBar(state) {
       } else if (!s2.meetingStep || s2.meetingStep === 'discussing_divergence' || s2.meetingStep === 'initial' || s2.meetingStep === 'discussing_agreement') {
         const count = isDoneHelper(confs.s2_managing);
         const isMe = isMyDoneHelper(confs.s2_managing);
+        const isFull = count >= totalCount && totalCount > 0;
         actionBar.innerHTML = `
-          <button id="btn-s2-managing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
-            ${isMe ? `✅ 您已确认总结共识 (${count}/${totalCount} 等待组员)` : `🤝 讨论差不多了？让${managingTitle}总结 (${count}/${totalCount})`}
+          <button id="btn-s2-managing-summary" style="background:${isFull ? 'linear-gradient(135deg, #059669, #047857)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)')}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
+            ${isFull ? `⚡ 全员已确认 (${count}/${totalCount}) · 点击让${managingTitle}总结` : (isMe ? `✅ 您已确认总结共识 (${count}/${totalCount} 等待组员)` : `🤝 讨论差不多了？让${managingTitle}总结 (${count}/${totalCount})`)}
           </button>
         `;
         actionBar.querySelector('#btn-s2-managing-summary')?.addEventListener('click', () => {
@@ -3502,9 +3506,10 @@ export function renderChatActionBar(state) {
       } else if (s2.meetingStep === 'discussing_checklist') {
         const count = isDoneHelper(confs.s2_reviewing);
         const isMe = isMyDoneHelper(confs.s2_reviewing);
+        const isFull = count >= totalCount && totalCount > 0;
         actionBar.innerHTML = `
-          <button id="btn-s2-reviewing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #059669, #047857)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(5,150,105,0.25); transition:all 0.2s;">
-            ${isMe ? `✅ 您已确认总结清单 (${count}/${totalCount} 等待组员)` : `📝 讨论差不多了？让${reviewingTitle}总结 (${count}/${totalCount})`}
+          <button id="btn-s2-reviewing-summary" style="background:${isFull ? 'linear-gradient(135deg, #059669, #047857)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #059669, #047857)')}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(5,150,105,0.25); transition:all 0.2s;">
+            ${isFull ? `⚡ 全员已确认 (${count}/${totalCount}) · 点击让${reviewingTitle}总结` : (isMe ? `✅ 您已确认总结清单 (${count}/${totalCount} 等待组员)` : `📝 讨论差不多了？让${reviewingTitle}总结 (${count}/${totalCount})`)}
           </button>
         `;
         actionBar.querySelector('#btn-s2-reviewing-summary')?.addEventListener('click', () => {
@@ -3526,11 +3531,12 @@ export function renderChatActionBar(state) {
       const stepKey = `s3_inquiry_${inqIndex}`;
       const count = isDoneHelper(confs[stepKey]);
       const isMe = isMyDoneHelper(confs[stepKey]);
+      const isFull = count >= totalCount && totalCount > 0;
 
       actionBar.style.display = 'block';
       actionBar.innerHTML = `
-        <button id="btn-s3-inquiry-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
-          ${isMe ? `✅ 您已确认【${inqLabel}】(${count}/${totalCount} 等待组员)` : `💡 ${inqLabel} 讨论差不多了？帮我总结并填入 (${count}/${totalCount})`}
+        <button id="btn-s3-inquiry-summary" style="background:${isFull ? 'linear-gradient(135deg, #059669, #047857)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)')}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
+          ${isFull ? `⚡ 全员已确认 (${count}/${totalCount}) · 点击总结并填入` : (isMe ? `✅ 您已确认【${inqLabel}】(${count}/${totalCount} 等待组员)` : `💡 ${inqLabel} 讨论差不多了？帮我总结并填入 (${count}/${totalCount})`)}
         </button>
       `;
       actionBar.querySelector('#btn-s3-inquiry-summary')?.addEventListener('click', () => {
