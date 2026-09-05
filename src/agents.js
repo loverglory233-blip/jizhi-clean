@@ -3,7 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260906_v2684';
+import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260906_v2685';
+import { showGlobalBannerNotice } from './utils.js?v=20260906_v2685';
 
 export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
   // 🛡️ 终极只读熔断器：一旦任务截止进入只读模式或已终稿归档，底层彻底熔断任何大模型调用与智能体生成
@@ -12,10 +13,10 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
     const msg = isSubmitted 
       ? '🔒 本任务已提交终稿并归档，进入只读模式，智能体生成已锁定。' 
       : '⏰ 当前写作任务已超过预设截止时间进入只读模式！智能体提炼功能已暂停。请在教师端将本任务点击【延期任务】或【新建一个新任务】继续测试！';
-    if (typeof window.showGlobalBannerNotice === 'function') {
+    if (typeof showGlobalBannerNotice === 'function') {
+      showGlobalBannerNotice('任务已截止/只读', msg, 'warning', 7000);
+    } else if (typeof window.showGlobalBannerNotice === 'function') {
       window.showGlobalBannerNotice('任务已截止/只读', msg, 'warning', 7000);
-    } else {
-      alert(msg);
     }
     return '';
   }

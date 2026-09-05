@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2684';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2684';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2685';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2685';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -546,7 +546,9 @@ export class CloudSyncEngine {
               this.isLoggingOut = true;
               this.stopPolling();
               this.app.authManager.logout();
-              alert('⚠️ 您的账号已在另一台设备登录，当前页面已自动下线。');
+              if (typeof showGlobalBannerNotice === 'function') {
+                showGlobalBannerNotice('⚠️ 账号下线提醒', '您的账号已在另一台设备登录，当前页面已自动下线。', 'warning', 8000);
+              }
               this.app.renderMain();
               return;
             }
