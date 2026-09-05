@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2642
+ * Version: 20260906_v2643
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2642';
+  const APP_VERSION = '20260906_v2643';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14653,7 +14653,7 @@
             if (!currUserName) currUserName = currUserCode || '组员';
             const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
 
-            const isEditorReadonly = !!state.isFinalSubmitted;
+            const isEditorReadonly = isTaskDeadlineExpired || isFinalSubmitted || !!(window.app && window.app.isViewingPastStage);
 
             const targetPad = rawPadName;
             const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans`;
@@ -14677,11 +14677,105 @@
                   </div>
                 ` : ''}
               </div>
+
+              <!-- 🌟 底部超薄一体化贡献度状态条 (阶段三终稿与阶段二一致保障) -->
+              <div style="background:#ffffff; padding:4px 10px; margin-top:6px; border-radius:6px; border:1px solid #cbd5e1; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; gap:12px; box-shadow:0 1px 2px rgba(15,23,42,0.03);">
+                <span style="font-size:11px; font-weight:800; color:#1e293b; white-space:nowrap;">📊 终稿贡献:</span>
+                <div class="contrib-bars" id="stage3-contrib-bars" style="flex:1; height:8px; border-radius:4px; display:flex; overflow:hidden; background:#e2e8f0;">
+                  ${(() => {
+                    const contribs = s3.frozenContributions || state.stage2?.frozenContributions || state.stage2?.memberContributions || {};
+                    let rawTotal = 0;
+                    membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
+                    if (rawTotal === 0) {
+                      return `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改终稿将实时累计真实贡献</div>`;
+                    }
+                    return membersList.map((m) => {
+                      const rawVal = getMemberContribVal(contribs, m);
+                      const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
+                      return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}% (${rawVal}字)"></div>`;
+                    }).join('');
+                  })()}
+                </div>
+                <div class="contrib-labels" id="stage3-contrib-labels" style="display:flex; font-size:11px; font-weight:700; color:#475569; gap:8px; white-space:nowrap;">
+                  ${(() => {
+                    const contribs = s3.frozenContributions || state.stage2?.frozenContributions || state.stage2?.memberContributions || {};
+                    let rawTotal = 0;
+                    membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
+                    if (rawTotal === 0) {
+                      return `<span style="color:#94a3b8; font-size:10.5px; font-weight:600;">⏳ 暂无撰写内容</span>`;
+                    }
+                    return membersList.map((m) => {
+                      const rawVal = getMemberContribVal(contribs, m);
+                      const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
+                      return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'};">● ${m.name}: ${pct}% (${rawVal}字)</span>`;
+                    }).join('');
+                  })()}
+                </div>
+              </div>
             `;
           })()}
         </div>
       </div>
     `;
+
+    const updateStage3ContribDom = () => {
+      const labelsEl = document.getElementById('stage3-contrib-labels');
+      const barsEl = document.getElementById('stage3-contrib-bars');
+      if (!labelsEl || !barsEl) return;
+
+      const contribs = s3.frozenContributions || state.stage2?.frozenContributions || state.stage2?.memberContributions || {};
+      let rawTotal = 0;
+      membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
+
+      if (rawTotal === 0) {
+        labelsEl.innerHTML = `<span style="color:#94a3b8; font-weight:600; font-size:10.5px;">⏳ 暂无撰写内容</span>`;
+        barsEl.innerHTML = `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
+        return;
+      }
+
+      const newLabelsHtml = membersList.map((m) => {
+        const rawVal = getMemberContribVal(contribs, m);
+        const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
+        return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}% (${rawVal}字)</span>`;
+      }).join('');
+
+      if (labelsEl.innerHTML !== newLabelsHtml) {
+        labelsEl.innerHTML = newLabelsHtml;
+      }
+
+      const newBarsHtml = membersList.map((m) => {
+        const rawVal = getMemberContribVal(contribs, m);
+        const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
+        return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}% (${rawVal}字)"></div>`;
+      }).join('');
+
+      if (barsEl.innerHTML !== newBarsHtml) {
+        barsEl.innerHTML = newBarsHtml;
+      }
+    };
+
+    const syncStage3PadMetrics = async () => {
+      try {
+        const isReadonlyNow = isTaskDeadlineExpired || isFinalSubmitted || !!(window.app && window.app.isViewingPastStage);
+        if (isReadonlyNow) {
+          if (!state.stage2?.frozenContributions && state.stage2?.memberContributions && Object.keys(state.stage2.memberContributions).length > 0) {
+            state.stage2.frozenContributions = JSON.parse(JSON.stringify(state.stage2.memberContributions));
+          }
+          updateStage3ContribDom();
+          return;
+        }
+
+        const authorStats = getEtherpadAuthorStats();
+        if (authorStats && authorStats.memberCounts) {
+          state.stage2.memberContributions = authorStats.memberCounts;
+          updateStage3ContribDom();
+        }
+      } catch(e) {}
+    };
+
+    if (window._stage3WordCountTimer) clearInterval(window._stage3WordCountTimer);
+    window._stage3WordCountTimer = setInterval(syncStage3PadMetrics, 1500);
+    setTimeout(syncStage3PadMetrics, 300);
 
     // 🛡️ Safari 滚动记忆防回弹：恢复用户此前的滚动高度与聚焦输入状态
     const newDefenseCard = canvas.querySelector('#stage3-defense-card');
