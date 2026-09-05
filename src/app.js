@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2666";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2666";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2666";
-import { AuthManager } from "./auth.js?v=20260906_v2666";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2666";
-import { renderLoginView } from "./login.js?v=20260906_v2666";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2666";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2666";
+} from "./constants.js?v=20260906_v2667";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2667";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2667";
+import { AuthManager } from "./auth.js?v=20260906_v2667";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2667";
+import { renderLoginView } from "./login.js?v=20260906_v2667";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2667";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2667";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2666";
+} from "./editor.js?v=20260906_v2667";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1474,7 +1474,16 @@ export class App {
       
       let finalText = (text && text.trim().length > 0) ? text.trim() : '';
       if (!finalText) {
-        return; // 🛡️ 严格禁止静态兜底话术冒充 AI，生成失败时保持静默
+        // 🌟 情绪安抚与后台关怀：大模型为主，兜底为辅
+        if (fallbackText && fallbackText.trim().length > 0) {
+          finalText = fallbackText.trim();
+        } else {
+          const taskType = this.getCurrentTaskType();
+          const isInst = (taskType === 'instructional');
+          const roleMap = { auctioneer: isInst ? '备课引导师' : '拍卖师', managingEditor: isInst ? '备课组长' : '责任编辑', reviewingEditor: isInst ? '教研专家' : '审稿编辑', proponent: isInst ? '正方专家' : '正方委员', opponent: isInst ? '反方专家' : '反方委员', neutral: isInst ? '答辩主席' : '中间委员' };
+          const roleName = roleMap[botKey] || (isInst ? '备课组长' : '责任编辑');
+          finalText = `💡 【${roleName}】：网络响应稍微慢了一步～如果大家需要我的针对性指导，可以在讨论区输入 @${roleName} 重新召唤我！`;
+        }
       }
 
       const msg = {
@@ -1605,20 +1614,28 @@ export class App {
             this._lastNegativeHandledTime = now;
             this._isHandlingEmotion = true;
             let agentSender = 'managingEditor';
+            const taskType = this.getCurrentTaskType();
+            const isInst = (taskType === 'instructional');
             let comfortText = '';
             if (stage === 'stage1') {
               agentSender = 'auctioneer';
-              comfortText = `🎪 【拍卖师·选题启发】：遇到构思瓶颈是非常正常的学术探索过程！\n💡 建议可以从大家熟悉的真实教学场景切入，先列出 1~2 个最想解决的具体痛点，再逐步完善理论框架，全组一起出谋划策！`;
+              comfortText = isInst
+                ? `📐 【备课引导师·备课启发】：遇到教学构思瓶颈是非常正常的探索过程！\n💡 建议可以从大家熟悉的真实课堂学情切入，先列出 1~2 个最想攻克的核心重难点，再构思探究活动，全组一起出谋划策！`
+                : `🎪 【拍卖师·选题启发】：遇到构思瓶颈是非常正常的学术探索过程！\n💡 建议可以从大家熟悉的真实教学场景切入，先列出 1~2 个最想解决的具体痛点，再逐步完善理论框架，全组一起出谋划策！`;
             } else if (stage === 'stage2') {
               agentSender = 'managingEditor';
-              comfortText = `🤝 【责任编辑·暖心护航】：感到写作卡顿或疲惫时，不妨先暂停打字深呼吸！\n💡 可以先在研讨区把卡点或困惑抛给组员，大家头脑风暴互相提供思路支架，一步一步拆解难点！`;
+              comfortText = isInst
+                ? `🤝 【备课组长·暖心护航】：感到备课卡顿或疲惫时，不妨先暂停打字深呼吸！\n💡 可以先在研讨区把教学活动卡点抛给组员，大家头脑风暴互相提供思路支架，一步一步拆解难点！`
+                : `🤝 【责任编辑·暖心护航】：感到写作卡顿或疲惫时，不妨先暂停打字深呼吸！\n💡 可以先在研讨区把卡点或困惑抛给组员，大家头脑风暴互相提供思路支架，一步一步拆解难点！`;
             } else if (stage === 'stage3') {
               agentSender = 'neutral';
-              comfortText = `🟡 【中间委员·答辩启发】：学术答辩中的尖锐质询正是让方案更加严谨的宝贵契机！\n💡 反方的质询指出了可以进一步补强的空间，建议结合正方刚才提到的实践应用优势，从操作化补救的角度从容辩护！`;
+              comfortText = isInst
+                ? `🟡 【答辩主席·答辩启发】：教研答辩中的尖锐质询正是让教学方案更加扎实的宝贵契机！\n💡 评委的质询指出了可以进一步补强的空间，建议结合刚才提到的学情优势，从教学实施补救的角度从容辩护！`
+                : `🟡 【中间委员·答辩启发】：学术答辩中的尖锐质询正是让方案更加严谨的宝贵契机！\n💡 反方的质询指出了可以进一步补强的空间，建议结合正方刚才提到的实践应用优势，从操作化补救的角度从容辩护！`;
             }
 
             const negativeRaw = (lastNegativeChat.text || '').trim();
-            const comfortPrompt = `有同学在协作中流露出了挫败/疲惫情绪，原话为：「${negativeRaw}」。请以${stage === 'stage1' ? '学术拍卖师' : stage === 'stage2' ? '责任编辑' : '中间委员'}的身份，先用 2~3 句真诚安抚这份情绪（共情但不肉麻、不说教），再结合当前写作阶段给出 1 个具体、可立即照做的小建议，帮助全组重新找回节奏。80~120 字，语气温暖自然。`;
+            const comfortPrompt = `有同学在协作中流露出了挫败/疲惫情绪，原话为：「${negativeRaw}」。请以${stage === 'stage1' ? (isInst ? '备课引导师' : '学术拍卖师') : stage === 'stage2' ? (isInst ? '备课组长' : '责任编辑') : (isInst ? '答辩主席' : '中间委员')}的身份，先用 2~3 句真诚安抚这份情绪（共情但不肉麻、不说教），再结合当前${isInst ? '集体备课' : '写作'}阶段给出 1 个具体、可立即照做的小建议，帮助全组重新找回节奏。80~120 字，语气温暖自然。`;
             
             setTimeout(async () => {
               try {
@@ -4123,7 +4140,7 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
 请务必按以下 JSON 格式输出：
 {
   "topic": "${currentCandidate}",
-  "overview": "根据上述组员真实讨论尽力提炼并学术升华的 120~200 字${isInst ? '教学方案概述（涵盖学情情境、教学目标与活动链）' : '研究方案概述（涵盖情境案例、核心科学问题与实证方法）'}，若确实无相关讨论或纯无意义内容则直接明确输出'暂无'",
+  "overview": "根据上述组员真实讨论尽力提炼并学术升华的 120~200 字${isInst ? '教学方案概述（涵盖学情情境、三维教学目标【知识与技能/过程与方法/情感态度价值观】与新知探究活动链）' : '研究方案概述（涵盖情境案例、核心科学问题与实证方法）'}，若确实无相关讨论或纯无意义内容则直接明确输出'暂无'",
   "guideText": "${isInst ? '教学课题与教学方案概述' : '论文主题与研究方案概述'}已成功生成并录入公约看板！接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定后点击【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！"
 }`;
 
@@ -7532,9 +7549,9 @@ ${contentSnippet}
 请作为${reviewerRoleName}，全面通读当前学生已起草的全部内容（写到哪审到哪，具体情况具体分析，【绝对严禁出现“分工”字眼】）：
 1. 【正文实质性与进度评估】：
    - 若当前草稿字数极少（仅有零星几个字、测试字句或尚未实质性展开正文）：直接一针见血指出正文起草严重滞后，尚未形成实质性${genreDocName}框架，督促小组成员紧扣《${topic}》尽快展开开篇实质性起草；
-   - 若已有实质性起草：以开篇立意/教学目标为主线，直截了当指出【哪里有什么问题 ➔ 怎么改】（不用过于冗长，精炼务实）；
+   - 若已有实质性起草：以开篇立意/${isInstTask ? '三维教学目标' : '核心研究问题'}为主线，直截了当指出【哪里有什么问题 ➔ 怎么改】（不用过于冗长，精炼务实）；${isInstTask ? '\n   - 【教学设计质检红线】：严格审查第二部分【教学目标与重难点】是否规范落地【三维目标】（知识与技能、过程与方法、情感态度价值观），严查是否出现“使学生/让学生”等教师视角表述、过程与方法是否具备“通过...经历...学会...”三要素、动词是否具体可测；' : ''}
 2. 【分情况审查全文衔接】：
-   - 若后续章节/教学活动已有起草：明确指出开头目标/立论与后续已写段落之间是否存在脱节；
+   - 若后续章节/教学活动已有起草：明确指出开头目标/立论与后续已写段落之间是否存在脱节（如教学目标写了合作探究，活动却全是教师单向讲授）；
    - 若后续章节尚未起草：重点把关开头的问题界定与学情目标是否精准，并给出后续展开的衔接要求；
 3. 【语体规范与严密性】：若存在口语化表述或设计步骤含糊，精准指出并给出规范建议；
 
@@ -7751,7 +7768,10 @@ ${contentSnippet}
         this._isTriggeringContribCare = false;
       }
 
-      if (!careText) return; // 🛡️ 严格禁止静态兜底话术冒充 AI
+      if (!careText) {
+        // 🌟 协作贡献比关怀：以大模型为主，大模型异常时以温暖兜底为辅
+        careText = `🤝 【${managingName}·协同关怀】：大家都在按节奏推进！主要聚焦【${targetChapter}】的 ${targetName} 同学也可以逐步动笔啦。建议可以先通读同伴已起草的段落，从中汲取灵感并打通前后逻辑衔接，遇到难点随时在研讨区抛出来，全组共同思考推进！`;
+      }
 
       const msg = {
         sender: 'managingEditor',
