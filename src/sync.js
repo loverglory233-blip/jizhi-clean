@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2613';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2613';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2614';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2614';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -199,12 +199,12 @@ export class CloudSyncEngine {
     try { sessionStorage.setItem('jizhi_shown_deadline_events', JSON.stringify(shownEvents)); } catch (e) {}
 
     const prevExpired = isTaskExpired(prevDeadline);
-    const nowExpired = isTaskExpired(t.deadline);
+    const nowExpired = isTaskExpired(t);
     const isWorkspace = (this.app.state.studentViewMode === 'workspace' || !!document.getElementById('chat-stream') || !!document.querySelector('.app-layout'));
     const badgeText = document.querySelector('.brand-badge')?.innerText || '';
     const isCurrentTask = isWorkspace && (
       !this.app.state.activeTaskId ||
-      this.app.state.activeTaskId === t.id ||
+      isSameId(this.app.state.activeTaskId, t.id) ||
       (t.title && this.app.state.activeTaskId === t.title) ||
       (t.title && badgeText.includes(t.title))
     );
@@ -846,15 +846,16 @@ export class CloudSyncEngine {
 
         mergedTasks.forEach(t => {
           if (!t || !t.id) return;
-          const oldDeadline = this._knownTaskDeadlines[t.id];
-          if (oldDeadline !== undefined && t.deadline && oldDeadline !== t.deadline) {
-            this._knownTaskDeadlines[t.id] = t.deadline;
-            this.handleTaskDeadlineChange(t, oldDeadline);
-          } else if (oldDeadline === undefined && t.lastExtension && (Date.now() - (t.lastExtension.extendedAt || 0) < 180000)) {
-            this._knownTaskDeadlines[t.id] = t.deadline;
-            this.handleTaskDeadlineChange(t, '');
-          } else if (t.deadline) {
-            this._knownTaskDeadlines[t.id] = t.deadline;
+          const currentDeadlineKey = `${t.deadline || ''}_${t.lastExtension?.newDeadline || ''}_${t.lastExtension?.extendedAt || ''}`;
+          const oldDeadlineKey = this._knownTaskDeadlines[t.id];
+          if (oldDeadlineKey !== undefined && oldDeadlineKey !== currentDeadlineKey) {
+            this._knownTaskDeadlines[t.id] = currentDeadlineKey;
+            this.handleTaskDeadlineChange(t, oldDeadlineKey);
+          } else if (oldDeadlineKey === undefined) {
+            this._knownTaskDeadlines[t.id] = currentDeadlineKey;
+            if (t.lastExtension && (Date.now() - (t.lastExtension.extendedAt || 0) < 180000)) {
+              this.handleTaskDeadlineChange(t, '');
+            }
           }
         });
 
