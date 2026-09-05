@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2683";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2683";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2683";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2684";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2684";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2684";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -693,19 +693,45 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
     </div>
   `;
 
+  if (!header._hasDelegatedEvents) {
+    header._hasDelegatedEvents = true;
+    header.addEventListener('click', (e) => {
+      const stageBtn = e.target.closest('.stage-btn');
+      if (stageBtn && typeof header._onStageChange === 'function') {
+        header._onStageChange(stageBtn.dataset.stage);
+        return;
+      }
+      const logoutBtn = e.target.closest('#btn-user-logout');
+      if (logoutBtn && typeof header._onLogout === 'function') {
+        header._onLogout();
+        return;
+      }
+      const annBellBtn = e.target.closest('#btn-header-ann-bell, .nav-ann-bell-btn');
+      if (annBellBtn && typeof header._onOpenAnnModal === 'function') {
+        header._onOpenAnnModal();
+        return;
+      }
+      const backTasksBtn = e.target.closest('#btn-header-back-tasks');
+      if (backTasksBtn && typeof header._onBackToTaskList === 'function') {
+        header._onBackToTaskList();
+        return;
+      }
+      const surveyBtn = e.target.closest('#btn-header-survey-link');
+      if (surveyBtn && typeof header._onOpenSurveyModal === 'function') {
+        header._onOpenSurveyModal();
+        return;
+      }
+    });
+  }
+
+  header._onStageChange = onStageChange;
+  header._onLogout = onLogout;
+  header._onOpenAnnModal = onOpenAnnModal;
+  header._onBackToTaskList = onBackToTaskList;
+  header._onOpenSurveyModal = onOpenSurveyModal;
+
   if (header.innerHTML !== newHeaderHtml) {
     header.innerHTML = newHeaderHtml;
-    header.querySelectorAll('.stage-btn').forEach(btn => {
-      btn.addEventListener('click', () => onStageChange(btn.dataset.stage));
-    });
-    header.querySelector('#btn-user-logout').addEventListener('click', () => onLogout());
-    header.querySelector('#btn-header-ann-bell').addEventListener('click', () => onOpenAnnModal());
-    const btnBackTasks = header.querySelector('#btn-header-back-tasks');
-    if (btnBackTasks && onBackToTaskList) {
-      btnBackTasks.addEventListener('click', () => onBackToTaskList());
-    }
-    const surveyHeaderBtn = header.querySelector('#btn-header-survey-link');
-    if (surveyHeaderBtn) surveyHeaderBtn.addEventListener('click', () => onOpenSurveyModal());
   }
 }
 
@@ -822,13 +848,14 @@ function renderStage1Canvas(canvas, state, handlers) {
   const activeVal = activeEl ? activeEl.value : null;
   const activeCursor = activeEl ? activeEl.selectionStart : null;
 
-  const s1 = state.stage1;
+  const s1 = state.stage1 || (state.stage1 = {});
   const currentUser = state.currentUser;
   const currUserObj = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
   const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
   const membersList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
   const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 1;
 
+  if (!s1.contract) s1.contract = {};
   if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
   if (!s1.contract.timeAllocations) s1.contract.timeAllocations = {};
 
@@ -1960,7 +1987,7 @@ function renderStage1Canvas(canvas, state, handlers) {
 
 function renderStage2Canvas(canvas, state, handlers) {
   if (!canvas) return;
-  const s2 = state.stage2;
+  const s2 = state.stage2 || (state.stage2 = {});
   const actionPlan = s2.actionPlan;
   const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
   let userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
@@ -2737,7 +2764,7 @@ function bindStage3FeedbackInputs(container, handlers, isDefenseLocked) {
 
 function renderStage3Canvas(canvas, state, handlers) {
   if (!canvas) return;
-  const s3 = state.stage3;
+  const s3 = state.stage3 || (state.stage3 = {});
   const activeTab = s3.activeTab || 'defense';
   const membersList = Object.values(state.members || {});
   const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
