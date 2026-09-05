@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2552
+ * Version: 20260905_v2553
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2552';
+  const APP_VERSION = '20260905_v2553';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -797,6 +797,16 @@
           const greetKey = `stage2_opening_${sender}`;
           if (seenAgentOpenings.has(greetKey)) continue;
           seenAgentOpenings.add(greetKey);
+        }
+
+        // 🛡️ 阶段一防过期投票提示：若已有投票结果或方案研讨指引，任何投票催促提示均视作过期残渣丢弃
+        const hasVoteConcluded = messages.some(other => {
+          if (!other || typeof other !== 'object') return false;
+          const oTxt = String(other.text || '');
+          return oTxt.includes('投票结果') || oTxt.includes('落槌与方案研讨') || oTxt.includes('方案研讨') || String(other.id || '').startsWith('vote_');
+        });
+        if (hasVoteConcluded && (txt.includes('投票推选提示') || txt.includes('尚未完成投票') || txt.includes('提案协同催促') || txt.includes('尚未提交提案'))) {
+          continue;
         }
 
         if (seenAgentOpenings.has(opKey)) {
@@ -15520,6 +15530,10 @@
               }
 
               // ③ 有人提交提案后满 3 分钟仍有同学未提交（点名未提交提案同学）
+              const isProposalActive = (!s1.flowStep || s1.flowStep === 'proposals') && !s1.contractStep && !s1Chats.some(m => m && (m.text?.includes('投票') || m.text?.includes('方案研讨') || m.text?.includes('落槌')));
+              if (!isProposalActive) {
+                this.state.s1_propPartialNudgeSent = true;
+              }
               const unsubmittedProps = membersList.filter(m => !propList.some(p => isSameUser(m, p.author) || isSameUser(m, p.authorName) || p.author === m.id || (m.name && p.authorName === m.name)));
               if (propCount > 0 && !this.state._firstPropTimeMs) {
                 const earliestPropTime = propList.reduce((minT, p) => Math.min(minT, p.updatedAt || p.createdAt || nowMs), nowMs);
@@ -15531,7 +15545,7 @@
               if (existPropPartialNudge || unsubmittedProps.length === 0) {
                 this.state.s1_propPartialNudgeSent = true;
               }
-              if (!this.state.s1_propPartialNudgeSent && !existPropPartialNudge && propCount > 0 && unsubmittedProps.length > 0 && propCount < membersList.length && timeSinceFirstProp >= 180000) {
+              if (isProposalActive && !this.state.s1_propPartialNudgeSent && !existPropPartialNudge && propCount > 0 && unsubmittedProps.length > 0 && propCount < membersList.length && timeSinceFirstProp >= 180000) {
                 this.state.s1_propPartialNudgeSent = true;
                 const unsubmittedPropNames = unsubmittedProps.map(m => m.name || m.id).join('、');
                 const msgPropNudge = {
@@ -15553,9 +15567,15 @@
               }
 
               // ③ 提案全齐且每篇速评均已生成：提示先交流 1~2 分钟再投票
-              this.checkAndTriggerAllProposalsGathered();
+              if (isProposalActive) {
+                this.checkAndTriggerAllProposalsGathered();
+              }
 
-              // ④ 投票催促：自第一位成员投票起满 3 分钟，仍有同学未投票（点名未投票同学）
+              // ④ 投票催促：自第一位成员投票起满 3 分钟，仍有同学未投票（仅当当前严格处于投票中时有效）
+              const isVotingActive = (s1.flowStep === 'voting') && !s1._voteTallyAndGuidanceTriggered && !s1.mergedTitle && !s1.contractStep && !s1Chats.some(m => m && (m.text?.includes('投票结果') || m.text?.includes('方案研讨') || m.text?.includes('落槌')));
+              if (!isVotingActive) {
+                this.state.s1_voteNudgeSent = true;
+              }
               const totalVotesCast = membersList.filter(m => isMemberDone(s1.hasVoted, m)).length;
               const unvotedMembers = membersList.filter(m => !isMemberDone(s1.hasVoted, m));
               if (totalVotesCast > 0 && !this.state._firstVoteTimeMs) {
@@ -15567,7 +15587,7 @@
               if (existVoteNudge || unvotedMembers.length === 0) {
                 this.state.s1_voteNudgeSent = true;
               }
-              if (!this.state.s1_voteNudgeSent && !existVoteNudge && totalVotesCast > 0 && unvotedMembers.length > 0 && totalVotesCast < membersList.length && timeSinceFirstVote >= 180000) {
+              if (isVotingActive && !this.state.s1_voteNudgeSent && !existVoteNudge && totalVotesCast > 0 && unvotedMembers.length > 0 && totalVotesCast < membersList.length && timeSinceFirstVote >= 180000) {
                 this.state.s1_voteNudgeSent = true;
                 const unvotedNames = unvotedMembers.map(m => m.name || m.id).join('、');
                 const msgVoteNudge = {

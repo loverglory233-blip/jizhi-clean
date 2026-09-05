@@ -593,6 +593,16 @@ export function filterAndDeduplicateChatLogs(messages) {
         seenAgentOpenings.add(greetKey);
       }
 
+      // 🛡️ 阶段一防过期投票提示：若已有投票结果或方案研讨指引，任何投票催促提示均视作过期残渣丢弃
+      const hasVoteConcluded = messages.some(other => {
+        if (!other || typeof other !== 'object') return false;
+        const oTxt = String(other.text || '');
+        return oTxt.includes('投票结果') || oTxt.includes('落槌与方案研讨') || oTxt.includes('方案研讨') || String(other.id || '').startsWith('vote_');
+      });
+      if (hasVoteConcluded && (txt.includes('投票推选提示') || txt.includes('尚未完成投票') || txt.includes('提案协同催促') || txt.includes('尚未提交提案'))) {
+        continue;
+      }
+
       if (seenAgentOpenings.has(opKey)) {
         continue;
       }
