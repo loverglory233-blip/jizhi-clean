@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2593
+ * Version: 20260905_v2594
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2593';
+  const APP_VERSION = '20260905_v2594';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11158,11 +11158,23 @@
       }
     }
 
-    // 2. 本地执行中的提炼标志检查
+    // 2. 本地执行中的提炼与智能体研判标志检查
     const currentTaskType = (app && typeof app.getCurrentTaskType === 'function') ? app.getCurrentTaskType() : 'experiment';
     const isInst = (currentTaskType === 'instructional');
 
     if (app) {
+      // 阶段一：投票后方案细化/融合研讨引导
+      if (app._isTriggeringVoteGuidance || (currState.stage1 && currState.stage1._guidanceCallingTimestamp && (Date.now() - Number(currState.stage1._guidanceCallingTimestamp) < 35000))) {
+        const role = isInst ? '备课引导师' : '学术拍卖师';
+        return {
+          icon: isInst ? '📐' : '🎪',
+          title: role,
+          isExtracting: true,
+          _ts: Date.now(),
+          detail: `${role}正在分析全组投票意向与方案细化维度...`
+        };
+      }
+      // 阶段一：提炼主题与研究方案
       if (app._isExtractingTopic) {
         const role = isInst ? '备课引导师' : '学术拍卖师';
         return {
@@ -11173,6 +11185,7 @@
           detail: `${role}正在根据讨论区研讨记录提炼【${isInst ? '教学课题与方案概述' : '论文主题与研究方案'}】...`
         };
       }
+      // 阶段一：提炼时间预算分配
       if (app._isExtractingTime) {
         const role = isInst ? '备课引导师' : '时间规划师';
         return {
@@ -11183,6 +11196,7 @@
           detail: `${role}正在根据研讨成果提炼并规划【${isInst ? '教学各环节时间分配' : '论文研究各阶段时间分配'}】...`
         };
       }
+      // 阶段一：提炼各组员任务分工
       if (app._isExtractingTasks) {
         const role = isInst ? '备课引导师' : '协同调度员';
         return {
@@ -11193,6 +11207,7 @@
           detail: `${role}正在根据研讨过程提炼【各组员具体任务分工与职责】...`
         };
       }
+      // 阶段一：生成完整公约草案
       if (app._isGeneratingContract) {
         const role = isInst ? '备课引导师' : '公约起草官';
         return {
@@ -11201,6 +11216,39 @@
           isExtracting: true,
           _ts: Date.now(),
           detail: `${role}正在整合主题、时间与分工，生成完整的团队协同公约草案...`
+        };
+      }
+      // 阶段二：责任编辑研讨共识小结与二审修正清单
+      if (app._isGeneratingManagingSummary) {
+        const role = isInst ? '备课研讨' : '责任编辑';
+        return {
+          icon: '🤝',
+          title: role,
+          isExtracting: true,
+          _ts: Date.now(),
+          detail: `${isInst ? '备课组长与教研专家' : '责任编辑与审稿专家'}正在研判研讨记录与正文草稿，生成修正清单...`
+        };
+      }
+      // 阶段二：审稿编辑二审总结与冲刺指引
+      if (app._isGeneratingReviewSummary) {
+        const role = isInst ? '教研专家' : '审稿编辑';
+        return {
+          icon: '📝',
+          title: role,
+          isExtracting: true,
+          _ts: Date.now(),
+          detail: `${role}正在评估全组修改对策与落实方案，下发修改确认与冲刺寄语...`
+        };
+      }
+      // 阶段三：答辩评审委员会质询总结与终审定案
+      if (app._isAnalyzingS3Inquiry) {
+        const role = isInst ? '备课答辩主席' : '答辩评审委员会';
+        return {
+          icon: '⚖️',
+          title: role,
+          isExtracting: true,
+          _ts: Date.now(),
+          detail: `${role}正在综合质询辩驳与各评委观点，下发终审定案裁决...`
         };
       }
     }
@@ -18464,6 +18512,15 @@
         btnElement.style.cursor = 'not-allowed';
         btnElement.innerHTML = `⏳ 正在重新生成方案研讨指引...`;
       }
+      const taskType = this.getCurrentTaskType();
+      const isInst = (taskType === 'instructional');
+      const agentTitle = isInst ? '备课引导师' : '学术拍卖师';
+      this.setActiveAgentAnalyzing({
+        icon: isInst ? '📐' : '🎪',
+        title: agentTitle,
+        isExtracting: true,
+        detail: `${agentTitle}正在重新分析全组投票意向与方案细化维度...`
+      });
       await this.triggerVoteGuidance(true);
     }
 
@@ -18484,10 +18541,19 @@
       const hasNetworkRetryMsg = s1Logs.some(m => m && (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('研讨指引')));
 
       if (hasTallyMsg && !hasGuideMsg && !hasNetworkRetryMsg && !this.isAnyExtracting()) {
+        const taskType = this.getCurrentTaskType();
+        const isInst = (taskType === 'instructional');
+        const agentTitle = isInst ? '备课引导师' : '学术拍卖师';
         // 🛡️ 2. 上锁并广播，确保全组仅由单一客户端执行一次大模型调用
         s1._guidanceCallingTimestamp = Date.now();
         this.syncStage1();
         console.log('🛡️ 检测到投票结果已出但研讨指引缺失，由本端执行单次自愈补发');
+        this.setActiveAgentAnalyzing({
+          icon: isInst ? '📐' : '🎪',
+          title: agentTitle,
+          isExtracting: true,
+          detail: `${agentTitle}正在分析全组投票意向与方案细化维度...`
+        });
         this.triggerVoteGuidance();
       }
     }
@@ -20487,6 +20553,9 @@
       }
 
       // 2. 全员已确认：开始让审稿编辑提炼终版要点并指导回到正文冲刺
+      if (this._isGeneratingReviewSummary) return;
+      this._isGeneratingReviewSummary = true;
+
       const s2ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
       const checklistIdx = s2ChatLogs.findIndex(m => m && m.text && m.text.includes('二审修正清单'));
       const relevantLogs = (checklistIdx >= 0) ? s2ChatLogs.slice(checklistIdx) : s2ChatLogs;
@@ -20547,6 +20616,7 @@
       } catch (e) {
         console.warn('handleS2ReviewingSummary error:', e);
       } finally {
+        this._isGeneratingReviewSummary = false;
         this.setActiveAgentAnalyzing(null); // 🌟 研判完毕，清除动态分析框
         this.renderStudentWorkspace();
       }

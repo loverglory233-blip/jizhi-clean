@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2593";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2593";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2593";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2594";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2594";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2594";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -24,11 +24,23 @@ export function getEffectiveAgentAnalyzing(state = null) {
     }
   }
 
-  // 2. 本地执行中的提炼标志检查
+  // 2. 本地执行中的提炼与智能体研判标志检查
   const currentTaskType = (app && typeof app.getCurrentTaskType === 'function') ? app.getCurrentTaskType() : 'experiment';
   const isInst = (currentTaskType === 'instructional');
 
   if (app) {
+    // 阶段一：投票后方案细化/融合研讨引导
+    if (app._isTriggeringVoteGuidance || (currState.stage1 && currState.stage1._guidanceCallingTimestamp && (Date.now() - Number(currState.stage1._guidanceCallingTimestamp) < 35000))) {
+      const role = isInst ? '备课引导师' : '学术拍卖师';
+      return {
+        icon: isInst ? '📐' : '🎪',
+        title: role,
+        isExtracting: true,
+        _ts: Date.now(),
+        detail: `${role}正在分析全组投票意向与方案细化维度...`
+      };
+    }
+    // 阶段一：提炼主题与研究方案
     if (app._isExtractingTopic) {
       const role = isInst ? '备课引导师' : '学术拍卖师';
       return {
@@ -39,6 +51,7 @@ export function getEffectiveAgentAnalyzing(state = null) {
         detail: `${role}正在根据讨论区研讨记录提炼【${isInst ? '教学课题与方案概述' : '论文主题与研究方案'}】...`
       };
     }
+    // 阶段一：提炼时间预算分配
     if (app._isExtractingTime) {
       const role = isInst ? '备课引导师' : '时间规划师';
       return {
@@ -49,6 +62,7 @@ export function getEffectiveAgentAnalyzing(state = null) {
         detail: `${role}正在根据研讨成果提炼并规划【${isInst ? '教学各环节时间分配' : '论文研究各阶段时间分配'}】...`
       };
     }
+    // 阶段一：提炼各组员任务分工
     if (app._isExtractingTasks) {
       const role = isInst ? '备课引导师' : '协同调度员';
       return {
@@ -59,6 +73,7 @@ export function getEffectiveAgentAnalyzing(state = null) {
         detail: `${role}正在根据研讨过程提炼【各组员具体任务分工与职责】...`
       };
     }
+    // 阶段一：生成完整公约草案
     if (app._isGeneratingContract) {
       const role = isInst ? '备课引导师' : '公约起草官';
       return {
@@ -67,6 +82,39 @@ export function getEffectiveAgentAnalyzing(state = null) {
         isExtracting: true,
         _ts: Date.now(),
         detail: `${role}正在整合主题、时间与分工，生成完整的团队协同公约草案...`
+      };
+    }
+    // 阶段二：责任编辑研讨共识小结与二审修正清单
+    if (app._isGeneratingManagingSummary) {
+      const role = isInst ? '备课研讨' : '责任编辑';
+      return {
+        icon: '🤝',
+        title: role,
+        isExtracting: true,
+        _ts: Date.now(),
+        detail: `${isInst ? '备课组长与教研专家' : '责任编辑与审稿专家'}正在研判研讨记录与正文草稿，生成修正清单...`
+      };
+    }
+    // 阶段二：审稿编辑二审总结与冲刺指引
+    if (app._isGeneratingReviewSummary) {
+      const role = isInst ? '教研专家' : '审稿编辑';
+      return {
+        icon: '📝',
+        title: role,
+        isExtracting: true,
+        _ts: Date.now(),
+        detail: `${role}正在评估全组修改对策与落实方案，下发修改确认与冲刺寄语...`
+      };
+    }
+    // 阶段三：答辩评审委员会质询总结与终审定案
+    if (app._isAnalyzingS3Inquiry) {
+      const role = isInst ? '备课答辩主席' : '答辩评审委员会';
+      return {
+        icon: '⚖️',
+        title: role,
+        isExtracting: true,
+        _ts: Date.now(),
+        detail: `${role}正在综合质询辩驳与各评委观点，下发终审定案裁决...`
       };
     }
   }
