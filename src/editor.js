@@ -3,23 +3,179 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2581";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2581";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2581";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2582";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2582";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2582";
+
+/**
+ * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
+ */
+export function getEffectiveAgentAnalyzing(state = null) {
+  const app = window.app;
+  const currState = state || (app ? app.state : null);
+  if (!currState) return null;
+
+  // 1. 如果已有显式的 activeAgentAnalyzing 且未超时（90秒兜底）
+  const explicitAnalyzing = currState.activeAgentAnalyzing || (app && app.state && app.state.activeAgentAnalyzing);
+  if (explicitAnalyzing && typeof explicitAnalyzing === 'object') {
+    const ts = explicitAnalyzing._ts || explicitAnalyzing.timestamp || 0;
+    if (!ts || (Date.now() - ts < 90000)) {
+      return explicitAnalyzing;
+    }
+  }
+
+  // 2. 本地执行中的提炼标志检查
+  const currentTaskType = (app && typeof app.getCurrentTaskType === 'function') ? app.getCurrentTaskType() : 'experiment';
+  const isInst = (currentTaskType === 'instructional');
+
+  if (app) {
+    if (app._isExtractingTopic) {
+      const role = isInst ? '备课引导师' : '学术拍卖师';
+      return {
+        icon: isInst ? '📐' : '🎪',
+        title: role,
+        isExtracting: true,
+        _ts: Date.now(),
+        detail: `${role}正在根据讨论区研讨记录提炼【${isInst ? '教学课题与方案概述' : '论文主题与研究方案'}】...`
+      };
+    }
+    if (app._isExtractingTime) {
+      const role = isInst ? '备课引导师' : '时间规划师';
+      return {
+        icon: '⏱️',
+        title: role,
+        isExtracting: true,
+        _ts: Date.now(),
+        detail: `${role}正在根据研讨成果提炼并规划【${isInst ? '教学各环节时间分配' : '论文研究各阶段时间分配'}】...`
+      };
+    }
+    if (app._isExtractingTasks) {
+      const role = isInst ? '备课引导师' : '协同调度员';
+      return {
+        icon: '👥',
+        title: role,
+        isExtracting: true,
+        _ts: Date.now(),
+        detail: `${role}正在根据研讨过程提炼【各组员具体任务分工与职责】...`
+      };
+    }
+    if (app._isGeneratingContract) {
+      const role = isInst ? '备课引导师' : '公约起草官';
+      return {
+        icon: '📋',
+        title: role,
+        isExtracting: true,
+        _ts: Date.now(),
+        detail: `${role}正在整合主题、时间与分工，生成完整的团队协同公约草案...`
+      };
+    }
+  }
+
+  // 3. 阶段一全员确认状态自动感知（全员确认达成且未失败未落库时，保证右侧卡片与左侧提炼中绝对同步出现）
+  const curStage = currState.currentStage || 'stage1';
+  if (curStage === 'stage1') {
+    const s1 = currState.stage1 || {};
+    const confs = currState.stepConfirmations || {};
+    let members = [];
+    if (app && app.authManager) {
+      const u = app.authManager.getCurrentUser();
+      const effClassId = app.authManager.getEffectiveStudentClassId(u, currState.activeTaskId);
+      const effGroup = app.authManager.getStudentActiveGroup(u, effClassId);
+      const rawG = app.authManager.getGroupMembersForWorkspace(effGroup?.id || currState.activeGroupId || null, effClassId);
+      members = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+    }
+    if (members.length === 0) {
+      if (Array.isArray(currState.members)) members = currState.members;
+      else if (currState.members && typeof currState.members === 'object') members = Object.values(currState.members);
+    }
+    const totalCount = (members && members.length > 0) ? members.length : 1;
+
+    const countConfirmed = (stepKey) => {
+      if (!confs || !confs[stepKey]) return 0;
+      const stepConfMap = confs[stepKey];
+      let count = 0;
+      members.forEach(m => {
+        const keys = [m.id, m.userId, m.name, m.username, m.loginUser].filter(Boolean).map(k => String(k).trim().toLowerCase());
+        const hasConf = Object.entries(stepConfMap).some(([k, v]) => v && keys.includes(String(k).trim().toLowerCase()));
+        if (hasConf) count++;
+      });
+      return count;
+    };
+
+    if (s1.contractStep === 'tasks') {
+      const isFull = totalCount > 0 && countConfirmed('s1_tasks') >= totalCount;
+      if (isFull && !s1._tasksExtractFailed && (!s1.contract?.tasks || s1.contract.tasks.length === 0)) {
+        const role = isInst ? '备课引导师' : '协同调度员';
+        return {
+          icon: '👥',
+          title: role,
+          isExtracting: true,
+          _ts: Date.now(),
+          detail: `${role}正在根据研讨过程提炼【各组员具体任务分工与职责】...`
+        };
+      }
+    } else if (s1.contractStep === 'time') {
+      const isFull = totalCount > 0 && countConfirmed('s1_time') >= totalCount;
+      if (isFull && !s1._timeExtractFailed && (!s1.contract?.timeline || s1.contract.timeline.length === 0)) {
+        const role = isInst ? '备课引导师' : '时间规划师';
+        return {
+          icon: '⏱️',
+          title: role,
+          isExtracting: true,
+          _ts: Date.now(),
+          detail: `${role}正在根据研讨成果提炼并规划【${isInst ? '教学各环节时间分配' : '论文研究各阶段时间分配'}】...`
+        };
+      }
+    } else if (!s1.contractStep || s1.contractStep === 'topic') {
+      const isFull = totalCount > 0 && countConfirmed('s1_topic') >= totalCount;
+      if (isFull && !s1._topicExtractFailed && (!s1.contract?.topic || !s1.contract?.plan)) {
+        const role = isInst ? '备课引导师' : '学术拍卖师';
+        return {
+          icon: isInst ? '📐' : '🎪',
+          title: role,
+          isExtracting: true,
+          _ts: Date.now(),
+          detail: `${role}正在根据讨论区研讨记录提炼【${isInst ? '教学课题与方案概述' : '论文主题与研究方案'}】...`
+        };
+      }
+    } else if (s1.contractStep === 'full_contract') {
+      const isFull = totalCount > 0 && countConfirmed('s1_full_contract') >= totalCount;
+      if (isFull && !s1.contract?.isDraftGenerated && !app?._contractGenerateFailed) {
+        const role = isInst ? '备课引导师' : '公约起草官';
+        return {
+          icon: '📋',
+          title: role,
+          isExtracting: true,
+          _ts: Date.now(),
+          detail: `${role}正在整合主题、时间与分工，生成完整的团队协同公约草案...`
+        };
+      }
+    }
+  }
+
+  return null;
+}
+if (typeof window !== 'undefined') {
+  window.getEffectiveAgentAnalyzing = getEffectiveAgentAnalyzing;
+}
 
 /**
  * 🛡️ 全局提炼互斥状态判定工具函数
  */
 export function isAnyExtracting(state = null) {
   const app = window.app;
-  const analyzing = (state && state.activeAgentAnalyzing) || (app && app.state && app.state.activeAgentAnalyzing);
-  if (analyzing) {
+  const currState = state || (app ? app.state : null);
+  if (currState && currState.activeAgentAnalyzing) {
+    const analyzing = currState.activeAgentAnalyzing;
     const ts = analyzing._ts || analyzing.timestamp || 0;
-    const isLocal = !!(app && (app._isGeneratingContract || app._isExtractingTopic || app._isExtractingTime || app._isExtractingTasks));
-    if (!isLocal && (!ts || (Date.now() - ts > 25000))) {
-      if (state) state.activeAgentAnalyzing = null;
+    if (ts && (Date.now() - ts > 90000)) {
+      currState.activeAgentAnalyzing = null;
       if (app && app.state) app.state.activeAgentAnalyzing = null;
     }
+  }
+  const effective = getEffectiveAgentAnalyzing(state);
+  if (effective && effective.isExtracting) {
+    return true;
   }
   return !!(
     (app && (app._isGeneratingContract || app._isExtractingTopic || app._isExtractingTime || app._isExtractingTasks)) ||
@@ -349,18 +505,19 @@ function renderStage1Canvas(canvas, state, handlers) {
   };
 
   const hasSubmittedMyProposal = (s1.proposals || []).some(p => checkIsMyProposal(p));
+  const effectiveAnalyzing = getEffectiveAgentAnalyzing(state);
 
   canvas.innerHTML = `
-    ${state.activeAgentAnalyzing ? `
+    ${effectiveAnalyzing ? `
       <div id="agent-analyzing-live-banner" style="background:linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border:1.5px solid #93c5fd; border-radius:8px; padding:10px 16px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 3px 12px rgba(37,99,235,0.12); flex-shrink:0;">
         <div style="display:flex; align-items:center; gap:12px;">
           <div style="width:20px; height:20px; border:2.5px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 0.9s linear infinite; flex-shrink:0;"></div>
           <div>
             <div style="font-size:12.5px; font-weight:800; color:#1e3a8a; display:flex; align-items:center; gap:6px;">
-              <span>${state.activeAgentAnalyzing.icon || '🎪'} ${state.activeAgentAnalyzing.title || '智能体专家正在分析中...'}</span>
+              <span>${effectiveAnalyzing.icon || '🎪'} ${effectiveAnalyzing.title || '智能体专家正在分析中...'}</span>
             </div>
             <div style="font-size:11.5px; color:#2563eb; margin-top:2px; font-weight:600;">
-              ${state.activeAgentAnalyzing.detail || '正在根据讨论区研讨记录提炼方案，请稍候...'}
+              ${effectiveAnalyzing.detail || '正在根据讨论区研讨记录提炼方案，请稍候...'}
             </div>
           </div>
         </div>
@@ -1981,17 +2138,18 @@ function renderStage2Canvas(canvas, state, handlers) {
 
     // 增量就地刷新【智能体正在分析动态横幅】
     let analyzingBanner = canvas.querySelector('#agent-analyzing-live-banner');
-    if (state.activeAgentAnalyzing) {
+    const effectiveAnalyzing = getEffectiveAgentAnalyzing(state);
+    if (effectiveAnalyzing) {
       const bannerHtml = `
         <div id="agent-analyzing-live-banner" style="background:linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border:1.5px solid #93c5fd; border-radius:8px; padding:10px 16px; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 3px 12px rgba(37,99,235,0.12); flex-shrink:0;">
           <div style="display:flex; align-items:center; gap:12px;">
             <div style="width:20px; height:20px; border:2.5px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 0.9s linear infinite; flex-shrink:0;"></div>
             <div>
               <div style="font-size:12.5px; font-weight:800; color:#1e3a8a; display:flex; align-items:center; gap:6px;">
-                <span>${state.activeAgentAnalyzing.icon || '🤖'} ${state.activeAgentAnalyzing.title || '智能体专家正在研读中...'}</span>
+                <span>${effectiveAnalyzing.icon || '🤖'} ${effectiveAnalyzing.title || '智能体专家正在研读中...'}</span>
               </div>
               <div style="font-size:11.5px; color:#2563eb; margin-top:2px; font-weight:600;">
-                ${state.activeAgentAnalyzing.detail || '正在通读全篇草稿并进行学术质量诊断，请稍候...'}
+                ${effectiveAnalyzing.detail || '正在通读全篇草稿并进行学术质量诊断，请稍候...'}
               </div>
             </div>
           </div>
@@ -2250,16 +2408,19 @@ function renderStage2Canvas(canvas, state, handlers) {
       </div>
 
       <!-- 🚀 智能体正在深度研判/质检状态横幅 (非对话气泡专用动效框) -->
-      ${state.activeAgentAnalyzing ? `
+      ${(() => {
+        const effAnalyzing = getEffectiveAgentAnalyzing(state);
+        if (!effAnalyzing) return '';
+        return `
         <div id="agent-analyzing-live-banner" style="background:linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border:1.5px solid #93c5fd; border-radius:8px; padding:10px 16px; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 3px 12px rgba(37,99,235,0.12); flex-shrink:0;">
           <div style="display:flex; align-items:center; gap:12px;">
             <div style="width:20px; height:20px; border:2.5px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 0.9s linear infinite; flex-shrink:0;"></div>
             <div>
               <div style="font-size:12.5px; font-weight:800; color:#1e3a8a; display:flex; align-items:center; gap:6px;">
-                <span>${state.activeAgentAnalyzing.icon || '🤖'} ${state.activeAgentAnalyzing.title || '智能体专家正在研读中...'}</span>
+                <span>${effAnalyzing.icon || '🤖'} ${effAnalyzing.title || '智能体专家正在研读中...'}</span>
               </div>
               <div style="font-size:11.5px; color:#2563eb; margin-top:2px; font-weight:600;">
-                ${state.activeAgentAnalyzing.detail || '正在通读全篇草稿并进行学术质量诊断，请稍候...'}
+                ${effAnalyzing.detail || '正在通读全篇草稿并进行学术质量诊断，请稍候...'}
               </div>
             </div>
           </div>
@@ -2267,7 +2428,8 @@ function renderStage2Canvas(canvas, state, handlers) {
             ⏳ 深度质检中
           </span>
         </div>
-      ` : ''}
+        `;
+      })()}
 
       <!-- 🌟 2. 半程修正清单 (未下发时展示待解锁提示，下发后展示展开卡片) -->
       ${(() => {
@@ -3240,7 +3402,8 @@ export function renderChat(state) {
   allMsgs.sort((a, b) => (Number(a._timeMs || 0) - Number(b._timeMs || 0)));
   const cleanMsgs = filterAndDeduplicateChatLogs(allMsgs);
 
-  const analyzingSig = state.activeAgentAnalyzing ? `${state.activeAgentAnalyzing.title}_${state.activeAgentAnalyzing.detail}` : 'none';
+  const analyzing = getEffectiveAgentAnalyzing(state);
+  const analyzingSig = analyzing ? `${analyzing.title}_${analyzing.detail}` : 'none';
   const msgSignature = cleanMsgs.map(m => (m.id || `${m.sender}_${m._timeMs || m.timestamp}`)).join('|') + `__analyzing_${analyzingSig}`;
   if (stream.dataset.msgSignature === msgSignature) {
     return; // 消息与分析状态没有任何变动，绝不重绘 DOM，彻底保护打字焦点与输入法
@@ -3361,22 +3524,22 @@ export function renderChat(state) {
         </div>
       </div>
     `;
-  }).join('') + (state.activeAgentAnalyzing ? `
+  }).join('') + (analyzing ? `
     <div class="chat-message other agent-typing-message" id="agent-chat-typing-indicator" style="animation:modalFadeIn 0.2s ease;">
       <div class="msg-avatar" style="background:#eff6ff; border:1.5px solid #2563eb; color:#2563eb; font-size:16px;">
-        ${state.activeAgentAnalyzing.icon || '🤖'}
+        ${analyzing.icon || '🤖'}
       </div>
       <div class="msg-body">
         <div class="msg-meta">
           <span class="msg-sender" style="color:#2563eb; font-weight:800;">
-            ${escapeHtml((state.activeAgentAnalyzing.title || '智能体专家').replace(/[【】]/g, ''))}
+            ${escapeHtml((analyzing.title || '智能体专家').replace(/[【】]/g, ''))}
           </span>
           <span style="font-size:10px; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:1px 6px; border-radius:10px; margin-left:6px; font-weight:700;">
             ⏳ 正在深度研读与质检中...
           </span>
         </div>
         <div class="msg-bubble thinking-bubble" style="background:#f8fafc; border:1.5px dashed #3b82f6; display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:12px; color:#1e40af; box-shadow:0 1px 3px rgba(37,99,235,0.06);">
-          <span style="font-size:12.5px; font-weight:700;">${escapeHtml(state.activeAgentAnalyzing.detail || '正在通读全篇草稿并提炼学术意见...')}</span>
+          <span style="font-size:12.5px; font-weight:700;">${escapeHtml(analyzing.detail || '正在通读全篇草稿并提炼学术意见...')}</span>
           <span class="thinking-dots-anim" style="display:inline-flex; gap:3.5px; align-items:center; margin-left:4px;">
             <span style="width:5px; height:5px; background:#2563eb; border-radius:50%; display:inline-block; animation:dotPulse 1.4s infinite ease-in-out both;"></span>
             <span style="width:5px; height:5px; background:#2563eb; border-radius:50%; display:inline-block; animation:dotPulse 1.4s infinite ease-in-out both; animation-delay:0.2s;"></span>

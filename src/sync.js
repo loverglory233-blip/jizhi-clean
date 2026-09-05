@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2581';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2581';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2582';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2582';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1649,11 +1649,16 @@ export class CloudSyncEngine {
 
     // 🤖 智能体正在分析动态状态跨端实时同步
     if (remoteData.activeAgentAnalyzing !== undefined) {
-      const oldSig = this.app.state.activeAgentAnalyzing ? `${this.app.state.activeAgentAnalyzing.title}_${this.app.state.activeAgentAnalyzing.detail}` : '';
-      const newSig = remoteData.activeAgentAnalyzing ? `${remoteData.activeAgentAnalyzing.title}_${remoteData.activeAgentAnalyzing.detail}` : '';
-      if (oldSig !== newSig) {
-        this.app.state.activeAgentAnalyzing = remoteData.activeAgentAnalyzing;
-        needWorkspaceRender = true;
+      const isLocalExtracting = !!(
+        this.app && (this.app._isGeneratingContract || this.app._isExtractingTopic || this.app._isExtractingTime || this.app._isExtractingTasks)
+      );
+      if (!isLocalExtracting || remoteData.activeAgentAnalyzing) {
+        const oldSig = this.app.state.activeAgentAnalyzing ? `${this.app.state.activeAgentAnalyzing.title}_${this.app.state.activeAgentAnalyzing.detail}` : '';
+        const newSig = remoteData.activeAgentAnalyzing ? `${remoteData.activeAgentAnalyzing.title}_${remoteData.activeAgentAnalyzing.detail}` : '';
+        if (oldSig !== newSig) {
+          this.app.state.activeAgentAnalyzing = remoteData.activeAgentAnalyzing;
+          needWorkspaceRender = true;
+        }
       }
     }
 
