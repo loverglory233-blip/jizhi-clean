@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2809
+ * Version: 20260905_v2810
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2809';
+  const APP_VERSION = '20260905_v2810';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1852,11 +1852,11 @@
     }
 
     async pullGlobalMeta(force = false) {
-      if (this._isPullingMeta) return;
+      if (this._isPullingMeta) return { success: false, inFlight: true };
       // 🛡️ 教师推送在途时挂起本次拉取，避免用过期云端数据反向覆盖本地刚写入的新数据（导入学生/建组后被清空的根因）
       if (this._pushInFlight) {
         this._pendingPull = true;
-        return;
+        return { success: false, pending: true };
       }
       this._isPullingMeta = true;
       try {
@@ -1876,7 +1876,7 @@
             } else {
               window.location.reload();
             }
-            return;
+            return { success: false, kicked: true };
           }
           if (data) {
             this.isGlobalMetaLoaded = true;
@@ -1887,7 +1887,7 @@
               }
             }
             if (data.unchanged) {
-              return; // ⚡ 极速早退：服务端版本未变，0 开销
+              return { success: true, changed: false, version: this.globalMetaVersion }; // ⚡ 极速早退：服务端版本未变，0 开销
             }
             // 1. 账号池：合并云端与本地，结合已删除黑名单，保证新导入学生不被冲刷、已删除学生不被复活
             if (Array.isArray(data.users)) {
@@ -2088,28 +2088,7 @@
 
               const mergedAnns = Array.from(annMap.values());
               localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
-
-              // ⚡ 异步元数据到达瞬间：纯前端 DOM 局部更新通知红点与未读弹窗（0 网络请求，0 数据上传）
-              const appInst = window.app || (typeof this.app !== 'undefined' ? this.app : null);
-              if (appInst) {
-                if (typeof appInst.renderHeader === 'function' && appInst.state && appInst.state.studentViewMode === 'workspace') {
-                  appInst.renderHeader();
-                }
-                if (typeof appInst.checkUnreadAnnouncements === 'function') {
-                  appInst.checkUnreadAnnouncements();
-                }
-                // 如果当前打开了通知弹窗，实时响应关闭已删除通知或刷新列表
-                const openModal = document.querySelector('.modal-announcement-popup');
-                if (openModal) {
-                  const openAnnId = openModal.dataset.annId;
-                  if (openAnnId && openAnnId !== 'list') {
-                    const annStillExists = mergedAnns.some(a => a.id === openAnnId);
-                    if (!annStillExists) openModal.remove();
-                  } else if (openAnnId === 'list' && typeof appInst.showAnnouncementModal === 'function') {
-                    appInst.showAnnouncementModal();
-                  }
-                }
-              }
+              localStorage.setItem('jizhi_announcements_db', JSON.stringify(mergedAnns));
             }
 
             // 5. 学术文献与范文：智能双向合并，保留本地新上传文献，尊重删除黑名单
@@ -2122,7 +2101,6 @@
               } catch (e) {}
 
               const oldPapers = JSON.parse(localStorage.getItem('jizhi_reference_papers_db') || '[]');
-              const oldIds = new Set(oldPapers.map(p => p && p.id));
               const paperMap = new Map();
 
               data.referencePapers.forEach(p => {
@@ -2145,32 +2123,6 @@
               const mergedPapers = Array.from(paperMap.values());
               localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(mergedPapers));
               localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(mergedPapers));
-
-              // ⚡ 实时检查是否有新文献下发并提醒与就地重渲染
-              const newPapers = mergedPapers.filter(p => p && p.id && !oldIds.has(p.id));
-              const appInst = window.app || (typeof this.app !== 'undefined' ? this.app : null);
-              if (appInst) {
-                const currentUser = currUser;
-                const groupId = appInst.state?.activeGroupId || (currentUser ? currentUser.groupId : null);
-                const classId = appInst.state?.activeStudentClassId || (currentUser ? currentUser.classId : null);
-                const available = this.getReferencePapers(groupId, classId, appInst.state?.activeTaskId);
-                const refBtn = document.getElementById('btn-show-case') || document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
-                if (refBtn) {
-                  refBtn.innerText = available.length > 0 ? `📚 查阅参考范文 (${available.length}篇)` : '📚 查阅参考范文库';
-                }
-                if (appInst.state && appInst.state.studentViewMode === 'workspace' && newPapers.length > 0) {
-                  const newest = newPapers[0];
-                  showGlobalBannerNotice(
-                    '📚 收到新参考范文',
-                    `任课教师刚刚发布了学术示范文献《${newest.title || '参考范文'}》，已存入范文库！可随时查阅。`,
-                    'info',
-                    8000
-                  );
-                }
-                if (typeof appInst.showReferencePapersModal === 'function' && (document.querySelector('.modal-ref-papers-view') || document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库'))) {
-                  appInst.showReferencePapersModal();
-                }
-              }
             }
 
             // 6. 课程问卷配置：智能双向合并，保留本地新配置问卷，尊重删除黑名单
@@ -2203,32 +2155,15 @@
               }
 
               localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(Array.from(surveyMap.values())));
-              const surveyIframe = document.getElementById('survey-iframe');
-              const appInst = window.app || (typeof this.app !== 'undefined' ? this.app : null);
-              if (surveyIframe && appInst) {
-                const u = currUser;
-                const cId = appInst.state?.activeStudentClassId || u?.classId;
-                const tId = appInst.state?.activeTaskId;
-                const newUrl = this.getSurveyUrl(cId, tId);
-                if (newUrl && surveyIframe.src !== newUrl) {
-                  surveyIframe.src = newUrl;
-                }
-              }
-              if (appInst && document.querySelector('.modal-overlay h3')?.innerText?.includes('课程协作学习与体验问卷')) {
-                if (typeof appInst.showQuestionnaireModal === 'function') {
-                  appInst.showQuestionnaireModal();
-                }
-              }
             }
 
-            // ⚡ 若学生正处于任务大厅模式，实时无感重新渲染任务列表
-            const appInst = window.app || (typeof this.app !== 'undefined' ? this.app : null);
-            if (appInst && appInst.state && appInst.state.studentViewMode === 'task_list' && typeof appInst.renderMain === 'function') {
-              appInst.renderMain();
-            }
+            return { success: true, changed: true, version: this.globalMetaVersion, data };
           }
         }
-      } catch (e) {} finally {
+        return { success: false };
+      } catch (e) {
+        return { success: false, error: e };
+      } finally {
         this._isPullingMeta = false;
       }
     }
@@ -4817,9 +4752,21 @@
         if (this.app.authManager && typeof this.app.authManager.pullGlobalMeta === 'function') {
           this.isPulling = true;
           try {
-            await this.app.authManager.pullGlobalMeta();
-            if (this.app.state.studentViewMode === 'task_list' && typeof this.app.renderMain === 'function') {
-              this.app.renderMain();
+            const res = await this.app.authManager.pullGlobalMeta();
+            if (res && res.changed) {
+              if (this.app.state.studentViewMode === 'task_list' && typeof this.app.renderMain === 'function') {
+                const activeEl = document.activeElement;
+                const isInteracting = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA');
+                if (!isInteracting) {
+                  this.app.renderMain();
+                }
+              }
+              if (typeof this.app.renderHeader === 'function') {
+                this.app.renderHeader();
+              }
+              if (typeof this.app.checkUnreadAnnouncements === 'function') {
+                this.app.checkUnreadAnnouncements();
+              }
             }
           } catch (e) {
           } finally {
@@ -10819,52 +10766,7 @@
       } catch (e) {}
     }
 
-    // ⚡ 单一自调度轮询循环：杜绝“一次性 pull + interval”并行导致的并发拉取与递归重渲染
-    const pullAndRefresh = async () => {
-      if (state.studentViewMode !== 'task_list') return; // 离开大厅即停止轮询
-      if (authManager && authManager.pullGlobalMeta) {
-        try {
-          const oldVer = authManager.globalMetaVersion || 0;
-          const oldTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
-          const oldAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
-          const oldClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
-          const oldPapersJson = localStorage.getItem('jizhi_reference_papers_db') || '[]';
-          const oldSurveysJson = localStorage.getItem('jizhi_surveys_list_db') || '[]';
-          await authManager.pullGlobalMeta();
-          const newVer = authManager.globalMetaVersion || 0;
-          const newTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
-          const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
-          const newClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
-          const newPapersJson = localStorage.getItem('jizhi_reference_papers_db') || '[]';
-          const newSurveysJson = localStorage.getItem('jizhi_surveys_list_db') || '[]';
-          if (oldVer !== newVer || oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson || oldClassesJson !== newClassesJson || oldPapersJson !== newPapersJson || oldSurveysJson !== newSurveysJson) {
-            if (document.activeElement?.id !== 'sel-student-class-switch') {
-              renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
-              return; // 重渲染会重建整套循环，此处无需再自行调度
-            }
-          }
-        } catch (e) {}
-      }
-      const isStudentIdle = () => document.hidden || (Date.now() - (window._lastStudentPortalActivity || Date.now()) > 60000);
-      const sInterval = isStudentIdle() ? 5000 : 1500;
-      window._studentPortalSyncTimer = setTimeout(pullAndRefresh, sInterval);
-    };
-    if (window._studentPortalSyncTimer) clearTimeout(window._studentPortalSyncTimer);
 
-    window._lastStudentPortalActivity = Date.now();
-    const markStudentPortalActive = () => {
-      const wasIdle = (Date.now() - window._lastStudentPortalActivity > 60000);
-      window._lastStudentPortalActivity = Date.now();
-      if (wasIdle && state.studentViewMode === 'task_list') {
-        pullAndRefresh();
-      }
-    };
-    ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
-      window.addEventListener(evt, markStudentPortalActive, { passive: true });
-    });
-
-    const sInitInterval = (document.hidden ? 8000 : 1500);
-    window._studentPortalSyncTimer = setTimeout(pullAndRefresh, sInitInterval);
 
     const currentUser = authManager.getCurrentUser();
     const classes = authManager.getClasses();
@@ -16724,16 +16626,8 @@
         }
       };
 
-      // 1. 本地缓存秒级校验并弹窗
+      // 本地缓存/内存秒级校验并弹窗
       doCheck();
-
-      // 2. 异步拉取云端最新数据后再次校验
-      if (this.authManager && this.authManager.pullGlobalMeta) {
-        try {
-          await this.authManager.pullGlobalMeta();
-          doCheck();
-        } catch (e) {}
-      }
     }
 
     showAnnouncementModal(targetAnn = null, isSequentialFlow = false) {

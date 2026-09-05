@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2809';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice } from './utils.js?v=20260905_v2809';
+} from './constants.js?v=20260905_v2810';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice } from './utils.js?v=20260905_v2810';
 
 export class AuthManager {
   constructor() {
@@ -209,11 +209,11 @@ export class AuthManager {
   }
 
   async pullGlobalMeta(force = false) {
-    if (this._isPullingMeta) return;
+    if (this._isPullingMeta) return { success: false, inFlight: true };
     // 🛡️ 教师推送在途时挂起本次拉取，避免用过期云端数据反向覆盖本地刚写入的新数据（导入学生/建组后被清空的根因）
     if (this._pushInFlight) {
       this._pendingPull = true;
-      return;
+      return { success: false, pending: true };
     }
     this._isPullingMeta = true;
     try {
@@ -233,7 +233,7 @@ export class AuthManager {
           } else {
             window.location.reload();
           }
-          return;
+          return { success: false, kicked: true };
         }
         if (data) {
           this.isGlobalMetaLoaded = true;
@@ -244,7 +244,7 @@ export class AuthManager {
             }
           }
           if (data.unchanged) {
-            return; // ⚡ 极速早退：服务端版本未变，0 开销
+            return { success: true, changed: false, version: this.globalMetaVersion }; // ⚡ 极速早退：服务端版本未变，0 开销
           }
           // 1. 账号池：合并云端与本地，结合已删除黑名单，保证新导入学生不被冲刷、已删除学生不被复活
           if (Array.isArray(data.users)) {
@@ -445,28 +445,7 @@ export class AuthManager {
 
             const mergedAnns = Array.from(annMap.values());
             localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
-
-            // ⚡ 异步元数据到达瞬间：纯前端 DOM 局部更新通知红点与未读弹窗（0 网络请求，0 数据上传）
-            const appInst = window.app || (typeof this.app !== 'undefined' ? this.app : null);
-            if (appInst) {
-              if (typeof appInst.renderHeader === 'function' && appInst.state && appInst.state.studentViewMode === 'workspace') {
-                appInst.renderHeader();
-              }
-              if (typeof appInst.checkUnreadAnnouncements === 'function') {
-                appInst.checkUnreadAnnouncements();
-              }
-              // 如果当前打开了通知弹窗，实时响应关闭已删除通知或刷新列表
-              const openModal = document.querySelector('.modal-announcement-popup');
-              if (openModal) {
-                const openAnnId = openModal.dataset.annId;
-                if (openAnnId && openAnnId !== 'list') {
-                  const annStillExists = mergedAnns.some(a => a.id === openAnnId);
-                  if (!annStillExists) openModal.remove();
-                } else if (openAnnId === 'list' && typeof appInst.showAnnouncementModal === 'function') {
-                  appInst.showAnnouncementModal();
-                }
-              }
-            }
+            localStorage.setItem('jizhi_announcements_db', JSON.stringify(mergedAnns));
           }
 
           // 5. 学术文献与范文：智能双向合并，保留本地新上传文献，尊重删除黑名单
@@ -479,7 +458,6 @@ export class AuthManager {
             } catch (e) {}
 
             const oldPapers = JSON.parse(localStorage.getItem('jizhi_reference_papers_db') || '[]');
-            const oldIds = new Set(oldPapers.map(p => p && p.id));
             const paperMap = new Map();
 
             data.referencePapers.forEach(p => {
@@ -502,32 +480,6 @@ export class AuthManager {
             const mergedPapers = Array.from(paperMap.values());
             localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(mergedPapers));
             localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(mergedPapers));
-
-            // ⚡ 实时检查是否有新文献下发并提醒与就地重渲染
-            const newPapers = mergedPapers.filter(p => p && p.id && !oldIds.has(p.id));
-            const appInst = window.app || (typeof this.app !== 'undefined' ? this.app : null);
-            if (appInst) {
-              const currentUser = currUser;
-              const groupId = appInst.state?.activeGroupId || (currentUser ? currentUser.groupId : null);
-              const classId = appInst.state?.activeStudentClassId || (currentUser ? currentUser.classId : null);
-              const available = this.getReferencePapers(groupId, classId, appInst.state?.activeTaskId);
-              const refBtn = document.getElementById('btn-show-case') || document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
-              if (refBtn) {
-                refBtn.innerText = available.length > 0 ? `📚 查阅参考范文 (${available.length}篇)` : '📚 查阅参考范文库';
-              }
-              if (appInst.state && appInst.state.studentViewMode === 'workspace' && newPapers.length > 0) {
-                const newest = newPapers[0];
-                showGlobalBannerNotice(
-                  '📚 收到新参考范文',
-                  `任课教师刚刚发布了学术示范文献《${newest.title || '参考范文'}》，已存入范文库！可随时查阅。`,
-                  'info',
-                  8000
-                );
-              }
-              if (typeof appInst.showReferencePapersModal === 'function' && (document.querySelector('.modal-ref-papers-view') || document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库'))) {
-                appInst.showReferencePapersModal();
-              }
-            }
           }
 
           // 6. 课程问卷配置：智能双向合并，保留本地新配置问卷，尊重删除黑名单
@@ -560,32 +512,15 @@ export class AuthManager {
             }
 
             localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(Array.from(surveyMap.values())));
-            const surveyIframe = document.getElementById('survey-iframe');
-            const appInst = window.app || (typeof this.app !== 'undefined' ? this.app : null);
-            if (surveyIframe && appInst) {
-              const u = currUser;
-              const cId = appInst.state?.activeStudentClassId || u?.classId;
-              const tId = appInst.state?.activeTaskId;
-              const newUrl = this.getSurveyUrl(cId, tId);
-              if (newUrl && surveyIframe.src !== newUrl) {
-                surveyIframe.src = newUrl;
-              }
-            }
-            if (appInst && document.querySelector('.modal-overlay h3')?.innerText?.includes('课程协作学习与体验问卷')) {
-              if (typeof appInst.showQuestionnaireModal === 'function') {
-                appInst.showQuestionnaireModal();
-              }
-            }
           }
 
-          // ⚡ 若学生正处于任务大厅模式，实时无感重新渲染任务列表
-          const appInst = window.app || (typeof this.app !== 'undefined' ? this.app : null);
-          if (appInst && appInst.state && appInst.state.studentViewMode === 'task_list' && typeof appInst.renderMain === 'function') {
-            appInst.renderMain();
-          }
+          return { success: true, changed: true, version: this.globalMetaVersion, data };
         }
       }
-    } catch (e) {} finally {
+      return { success: false };
+    } catch (e) {
+      return { success: false, error: e };
+    } finally {
       this._isPullingMeta = false;
     }
   }
