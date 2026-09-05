@@ -1100,17 +1100,6 @@ export function liftEtherpadReadonly(iframe) {
             opacity: 0 !important;
             pointer-events: none !important;
           }
-          #editbar, .toolbar, #menu_left, #menu_right, .menu, #toolbar, nav.navbar, .menu_left, .menu_right, .editbar {
-            display: block !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            pointer-events: auto !important;
-            filter: none !important;
-          }
-          #editbar *, .toolbar * {
-            pointer-events: auto !important;
-            cursor: pointer !important;
-          }
         `;
         (doc.head || doc.documentElement).appendChild(hideStyle);
       }
@@ -1132,9 +1121,8 @@ export function liftEtherpadReadonly(iframe) {
 
       const editorBox = doc.querySelector('#editorcontainerbox');
       if (editorBox) {
-        editorBox.style.removeProperty('top');
-        editorBox.style.removeProperty('position');
-        editorBox.style.removeProperty('z-index');
+        editorBox.style.removeProperty('visibility');
+        editorBox.style.removeProperty('opacity');
         editorBox.style.setProperty('pointer-events', 'auto', 'important');
       }
 
