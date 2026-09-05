@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2565
+ * Version: 20260905_v2566
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2565';
+  const APP_VERSION = '20260905_v2566';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -18529,6 +18529,7 @@
         s1.contract.topic = finalTopic;
         s1.contract.overview = finalOverview;
         s1.researchOverview = finalOverview;
+        s1.contract._topicGeneratedByAi = true;
         s1.contractStep = 'time'; // 顺推至时间分配阶段
 
         const overviewInp = document.getElementById('contract-overview-input');
@@ -18732,6 +18733,7 @@
 
         if (!s1.contract) s1.contract = {};
         s1.contract.timeAllocations = timeAlloc;
+        s1.contract._timeGeneratedByAi = true;
         s1.contractStep = 'tasks'; // 推进至第三步：任务分工
 
         guideSpeech = guideSpeech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师|备课引导师|引导师)[·\s]*(?:时间预算确立|时间分配)?】[：:]\s*/g, '');
@@ -18928,6 +18930,7 @@
 
         if (!s1.contract) s1.contract = {};
         s1.contract.taskAssignments = taskAssignments;
+        s1.contract._tasksGeneratedByAi = true;
         s1.contract.isDraftGenerated = true;
         s1.contract._draftedTime = Date.now();
         s1.contractStep = 'completed'; // 提炼全部完成
@@ -19089,13 +19092,43 @@
         fallbackAssignments[mKey] = defaultTasks[idx % defaultTasks.length];
       });
 
+      // 🛡️ 智能判定：左侧是否已有智能体分步按键生成的成果（若是智能体生成的，一键提炼只改后面的；若是组员手写的，全部覆盖）
+      const hasTopicFromLeftAgent = !!(s1.contract?._topicGeneratedByAi || s1.contractStep === 'time' || s1.contractStep === 'tasks' || s1.contractStep === 'completed');
+      const hasTimeFromLeftAgent = !!(s1.contract?._timeGeneratedByAi || s1.contractStep === 'tasks' || s1.contractStep === 'completed');
+
       let finalTopic = defaultTopic;
       let finalOverview = '';
       let finalTimes = Object.assign({}, defaultTimes);
       let finalAssignments = Object.assign({}, fallbackAssignments);
       let isSuccess = false;
 
+      if (hasTopicFromLeftAgent) {
+        finalTopic = s1.contract?.topic || s1.mergedTitle || defaultTopic;
+        finalOverview = s1.contract?.overview || s1.researchOverview || '';
+      }
+      if (hasTimeFromLeftAgent) {
+        finalTimes = Object.assign({}, s1.contract?.timeAllocations || defaultTimes);
+      }
+
+      let promptContextNotice = '';
+      if (hasTopicFromLeftAgent && hasTimeFromLeftAgent) {
+        promptContextNotice = `【左侧公约进度提醒】：
+  - 【课题题目】已由引导师提炼确立为：《${finalTopic}》（保持不变）
+  - 【方案概述】已由引导师提炼确立为：${finalOverview}（保持不变）
+  - 【时间预算】已由引导师提炼确立为：${JSON.stringify(finalTimes)}（保持不变）
+  👉 本次任务指令：请重点根据讨论区记录提炼全组成员的【具体写作分工认领 (assignments)】！`;
+      } else if (hasTopicFromLeftAgent) {
+        promptContextNotice = `【左侧公约进度提醒】：
+  - 【课题题目】已由引导师提炼确立为：《${finalTopic}》（保持不变）
+  - 【方案概述】已由引导师提炼确立为：${finalOverview}（保持不变）
+  👉 本次任务指令：请重点根据讨论区记录，提炼 6 大章节【时间预算分配 (timeAllocations)】与全组成员【具体写作分工认领 (assignments)】！`;
+      } else {
+        promptContextNotice = `【左侧公约进度提醒】：
+  - 本组尚未通过智能体提炼任何内容。若组员在看板中有前期零散手写草稿，本次以全量研讨记录为准【全盘提炼并直接覆盖写入】！`;
+      }
+
       const fullContractPrompt = `小组成员已完成了选题投票，并在讨论区就公约内容展开了非制式自由研讨。
+  ${promptContextNotice}
   【候选课题题目】: 《${defaultTopic}》
   【小组成员名单】:
   ${membersInfo}
@@ -19106,23 +19139,23 @@
 
   请作为资深${agentRole}：
   【核心提炼任务】：
-  1. 【槽位 1 题目】: 确认并规范化输出课题题目 (topic)；
-  2. 【槽位 2 方案概述】: 务必通读讨论区全部研讨记录与提案，敏锐捕捉组员口语化构想，深度提炼 120~200 字结构化${isInst ? '教学方案概述（涵盖学情分析、教学目标重难点与学生活动链）' : '研究方案概述（涵盖情境案例、核心科学问题与实证研究方法）'} (overview)，若确实无实质讨论则输出'暂无'；
-  3. 【时间分配】: 给出 6 大${isInst ? '模块' : '章节'}的合理时间分配分钟数 (timeAllocations，总计约 ${isInst ? 110 : 150} 分钟)；
+  1. 【槽位 1 题目】: ${hasTopicFromLeftAgent ? `保持已有定案题目《${finalTopic}》` : '确认并规范化输出课题题目 (topic)'}；
+  2. 【槽位 2 方案概述】: ${hasTopicFromLeftAgent ? '保持已有定案方案概述 (overview)' : `务必通读讨论区全部研讨记录与提案，敏锐捕捉组员口语化构想，深度提炼 120~200 字结构化${isInst ? '教学方案概述（涵盖学情分析、教学目标重难点与学生活动链）' : '研究方案概述（涵盖情境案例、核心科学问题与实证研究方法）'} (overview)，若确实无实质讨论则输出'暂无'`}；
+  3. 【时间分配】: ${hasTimeFromLeftAgent ? '保持已有时间规划 (timeAllocations)' : `给出 6 大${isInst ? '模块' : '章节'}的合理时间分配分钟数 (timeAllocations，总计约 ${isInst ? 110 : 150} 分钟)`}；
   4. 【组员任务分工】: 通读讨论区，将全篇写作${isInst ? '模块' : '章节'}一一对应合理分配给每位组员 (assignments: 以每位组员的真实姓名或学号为键，给出具体负责的章节与职责描述)；
   5. 给出 1 句简短小结提示，提醒全组在左侧公约卡片下方核对并签署确认 (guideText)。
 
   输出格式必须为合法 JSON（严禁代码块以外的多余文字）：
   {
-    "topic": "${defaultTopic}",
-    "overview": "根据组员研讨深度提炼的 120~200 字具体${isInst ? '教学' : '研究'}方案概述，或'暂无'",
+    "topic": "${finalTopic}",
+    "overview": "${hasTopicFromLeftAgent ? (finalOverview || '方案已确立') : `根据组员研讨深度提炼的 120~200 字具体${isInst ? '教学' : '研究'}方案概述，或'暂无'`}",
     "timeAllocations": {
-      "background": ${isInst ? 15 : 25},
-      "literature": ${isInst ? 20 : 30},
-      "questions": ${isInst ? 15 : 25},
-      "method": ${isInst ? 35 : 40},
-      "reflection": ${isInst ? 15 : 20},
-      "references": 10
+      "background": ${finalTimes.background || (isInst ? 15 : 25)},
+      "literature": ${finalTimes.literature || (isInst ? 20 : 30)},
+      "questions": ${finalTimes.questions || (isInst ? 15 : 25)},
+      "method": ${finalTimes.method || (isInst ? 35 : 40)},
+      "reflection": ${finalTimes.reflection || (isInst ? 15 : 20)},
+      "references": ${finalTimes.references || 10}
     },
     "assignments": {
       "组员姓名1": "负责章节与职责描述",
@@ -19130,16 +19163,6 @@
     },
     "guideText": "太棒了！公约草案已全部生成就绪！请全组成员核对左侧公约并在下方点击【✍️ 签署确认${contractTitle}】！"
   }`;
-
-      if (hasExistingTopic) {
-        finalTopic = existingTopicStr || defaultTopic;
-      }
-      if (hasExistingOverview) {
-        finalOverview = existingOverviewStr;
-      }
-      if (hasExistingTime) {
-        finalTimes = s1.contract.timeAllocations;
-      }
 
       this._isGeneratingContract = true;
 
@@ -19169,15 +19192,17 @@
                 } catch (fixErr) {}
               }
               if (parsed) {
-                const matchedTopic = parsed.topic || parsed.title || parsed.theme || parsed.name || parsed['课题'] || parsed['题目'];
-                const matchedOverview = parsed.overview || parsed.summary || parsed.description || parsed.scheme || parsed.plan || parsed.researchOverview || parsed.instructionalOverview || parsed['方案概述'] || parsed['方案整体构思'] || parsed['方案构思'] || parsed['整体构思'];
-                if (matchedTopic && typeof matchedTopic === 'string' && matchedTopic.trim().length > 0) {
-                  finalTopic = matchedTopic.trim().replace(/^[：:\s"《“]+|[”"》\s]+$/g, '');
+                if (!hasTopicFromLeftAgent) {
+                  const matchedTopic = parsed.topic || parsed.title || parsed.theme || parsed.name || parsed['课题'] || parsed['题目'];
+                  const matchedOverview = parsed.overview || parsed.summary || parsed.description || parsed.scheme || parsed.plan || parsed.researchOverview || parsed.instructionalOverview || parsed['方案概述'] || parsed['方案整体构思'] || parsed['方案构思'] || parsed['整体构思'];
+                  if (matchedTopic && typeof matchedTopic === 'string' && matchedTopic.trim().length > 0) {
+                    finalTopic = matchedTopic.trim().replace(/^[：:\s"《“]+|[”"》\s]+$/g, '');
+                  }
+                  if (matchedOverview && typeof matchedOverview === 'string' && matchedOverview.trim().length > 0) {
+                    finalOverview = matchedOverview.trim().replace(/^[：:\s]+|[：:\s]+$/g, '');
+                  }
                 }
-                if (matchedOverview && typeof matchedOverview === 'string' && matchedOverview.trim().length > 0) {
-                  finalOverview = matchedOverview.trim().replace(/^[：:\s]+|[：:\s]+$/g, '');
-                }
-                if (!hasExistingTime && parsed.timeAllocations && typeof parsed.timeAllocations === 'object') {
+                if (!hasTimeFromLeftAgent && parsed.timeAllocations && typeof parsed.timeAllocations === 'object') {
                   finalTimes = Object.assign({}, defaultTimes, parsed.timeAllocations);
                 }
                 if (parsed.assignments && typeof parsed.assignments === 'object') {
@@ -19191,8 +19216,8 @@
               }
             }
 
-            // 2. 若 JSON 方式未能提取出 overview，无论是否有 jsonMatch，均无缝进入全能多级正则容错与自然语言抽取
-            if (!finalOverview || !finalOverview.trim()) {
+            // 2. 若未由左侧按键生成且 JSON 未能提取出 overview，进入正则与自然语言容错提取
+            if (!hasTopicFromLeftAgent && (!finalOverview || !finalOverview.trim())) {
               const tMatch = resp.match(/(?:【(?:教学)?(?:研究)?(?:课题|论文题目|题目|课题名称|选题)】|(?:课题|论文题目|课题名称|题目|选题)[：:\s]*)[《“"]?([^》”"\n\r]+)[》”"]?/i);
               if (tMatch && tMatch[1] && tMatch[1].trim().length > 1) {
                 finalTopic = tMatch[1].replace(/^[：:\s"《“]+|[”"》\s]+$/g, '').trim();
@@ -19204,8 +19229,7 @@
               }
             }
 
-            // 3. 第三重段落抽取
-            if (!finalOverview || !finalOverview.trim()) {
+            if (!hasTopicFromLeftAgent && (!finalOverview || !finalOverview.trim())) {
               const lines = resp.split('\n').map(l => l.trim()).filter(l => l.length > 0);
               for (const line of lines) {
                 if (!line.startsWith('🏛️') && !line.startsWith('【') && !line.includes('方案已锁定') && !line.includes('请点击') && line.length > 20) {
@@ -19214,6 +19238,9 @@
                   break;
                 }
               }
+            }
+            if (hasTopicFromLeftAgent && hasTimeFromLeftAgent) {
+              isSuccess = true;
             }
           } catch (je) {
             console.warn('One-click generate parse fail, fallback', je);
@@ -19267,25 +19294,43 @@
 
       this._contractGenerateFailed = false;
 
-      // 写入状态并单向锁定公约草案
+      // 写入状态并锁定公约草案
       if (!s1.contract) s1.contract = {};
-      s1.mergedTitle = finalTopic;
-      s1.contract.topic = finalTopic;
-      s1.contract.overview = finalOverview;
-      s1.researchOverview = finalOverview;
-      s1.contract.timeAllocations = finalTimes;
+      if (!hasTopicFromLeftAgent) {
+        s1.mergedTitle = finalTopic;
+        s1.contract.topic = finalTopic;
+        s1.contract.overview = finalOverview;
+        s1.researchOverview = finalOverview;
+        s1.contract._topicGeneratedByAi = true;
+        const overviewInp = document.getElementById('contract-overview-input');
+        if (overviewInp) overviewInp.value = finalOverview;
+        const topicInp = document.getElementById('contract-topic-input');
+        if (topicInp) topicInp.value = finalTopic;
+      }
+      if (!hasTimeFromLeftAgent) {
+        s1.contract.timeAllocations = finalTimes;
+        s1.contract._timeGeneratedByAi = true;
+        document.querySelectorAll('.contract-time-input').forEach(inp => {
+          const k = inp.dataset.key;
+          if (k && finalTimes[k] !== undefined) inp.value = finalTimes[k];
+        });
+      }
       s1.contract.taskAssignments = finalAssignments;
+      s1.contract._tasksGeneratedByAi = true;
       s1.contract.isDraftGenerated = true;
       s1.contract._draftedTime = Date.now();
       s1.contractStep = 'completed'; // 提炼全部完成，左侧3个分步按钮全部退场
       s1.flowStep = 'refining';
 
-      const overviewInp = document.getElementById('contract-overview-input');
-      if (overviewInp) overviewInp.value = finalOverview;
-      const topicInp = document.getElementById('contract-topic-input');
-      if (topicInp) topicInp.value = finalTopic;
+      let noticeText = '';
+      if (hasTopicFromLeftAgent && hasTimeFromLeftAgent) {
+        noticeText = `🏛️ 【${agentRole}·公约草案就绪】：已保留左侧确立的主题、方案与时间预算，全组成员分工已成功提炼配置，公约草案已全部就绪！👉 请全组成员在左侧仔细审查核对，可自由微调修改，确认无误后点击【✍️ 签署确认${contractTitle}】！`;
+      } else if (hasTopicFromLeftAgent) {
+        noticeText = `🏛️ 【${agentRole}·公约草案就绪】：已保留左侧确立的主题方案，时间规划与全员分工已成功提炼录入，公约草案已全部就绪！👉 请全组成员在左侧仔细审查核对，可自由微调修改，确认无误后点击【✍️ 签署确认${contractTitle}】！`;
+      } else {
+        noticeText = `🏛️ 【${agentRole}·全盘公约就绪】：全篇${isInst ? '教学课题' : '研究主题'}《${finalTopic}》、方案概述、时间规划与组员分工已全部提炼生成并录入左侧公约看板！👉 请全组成员在左侧公约看板仔细审查核对，如对论题、方案、时间或分工有异议，可直接在左侧看板修改调整或在讨论区商议；确认无误后请在公约下方点击【✍️ 签署确认${contractTitle}】！全员签署后将正式解锁【${stage2Title}】！`;
+      }
 
-      const noticeText = `🏛️ 【${agentRole}·全盘公约就绪】：全篇${isInst ? '教学课题' : '研究主题'}《${finalTopic}》、方案概述、时间规划与组员分工已全部提炼生成并录入左侧公约看板！👉 请全组成员在左侧公约看板仔细审查核对，如对论题、方案、时间或分工有异议，可直接在左侧看板修改调整或在讨论区商议；确认无误后请在公约下方点击【✍️ 签署确认${contractTitle}】！全员签署后将正式解锁【${stage2Title}】！`;
       const noticeMsg = {
         id: 'msg_full_contract_done_' + Date.now(),
         sender: 'auctioneer',
