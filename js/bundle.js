@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2690
+ * Version: 20260906_v2691
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2690';
+  const APP_VERSION = '20260906_v2691';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -21349,7 +21349,6 @@
       if (this.isCurrentTaskReadOnly()) {
         this.state.stage3CommitteeLoading = false;
         this._isStage3PipelineRunning = false;
-        this.renderStudentWorkspace();
         return;
       }
       if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
@@ -21360,6 +21359,7 @@
       }
       if (this._isStage3PipelineRunning) return;
       this._isStage3PipelineRunning = true;
+      this._lastStage3PipelineAttempt = Date.now();
 
       try {
         if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
@@ -21373,7 +21373,7 @@
         const hasFeedbackItems = this.state.stage3.feedbackItems && this.state.stage3.feedbackItems.length > 0;
         if (!hasFeedbackItems) {
           this.state.stage3CommitteeLoading = true;
-          this.renderStudentWorkspace();
+          if (typeof window.renderChat === 'function') window.renderChat(this.state);
         }
 
         const taskType = this.getCurrentTaskType();
@@ -21493,7 +21493,6 @@
             this.sendSingleChatMessage(errPipelineMsg, 'stage3');
             this.syncChatLogs();
             if (typeof window.renderChat === 'function') window.renderChat(this.state);
-            this.renderStudentWorkspace();
             return;
           }
 
@@ -21526,7 +21525,6 @@
 
           this.syncChatLogs();
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
-          this.renderStudentWorkspace();
         } else {
           const existingProp = logs.find(m => m && m.sender === 'proponent');
           const existingOpp = logs.find(m => m && m.sender === 'opponent');
@@ -21607,7 +21605,6 @@
             this.sendSingleChatMessage(errChairMsg, 'stage3');
             this.syncChatLogs();
             if (typeof window.renderChat === 'function') window.renderChat(this.state);
-            this.renderStudentWorkspace();
             return;
           }
 
@@ -21633,7 +21630,7 @@
       } finally {
         this.state.stage3CommitteeLoading = false;
         this._isStage3PipelineRunning = false;
-        this.renderStudentWorkspace();
+        if (typeof window.renderChat === 'function') window.renderChat(this.state);
       }
     }
 
@@ -21799,7 +21796,10 @@
           if (!this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) {
             this.state.stage3CommitteeLoading = true;
           }
-          if ((!hasProp || !hasOpp || !this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) && !this._isStage3PipelineRunning) {
+          const canAutoRun = (!hasProp || !hasOpp || !this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) &&
+            !this._isStage3PipelineRunning &&
+            (Date.now() - (this._lastStage3PipelineAttempt || 0) > 30000);
+          if (canAutoRun) {
             this.runStage3CommitteePipeline();
           }
         }
@@ -21896,13 +21896,16 @@
           this.checkAndTriggerVoteGuidanceIfNeeded();
         }
 
-        // 🎓 阶段三自愈守护：只要处于阶段三且答辩矩阵为空，立即自动拉起答辩委员会流水线
+        // 🎓 阶段三自愈守护：只要处于阶段三且答辩矩阵为空，且距离上次执行超过 30 秒，拉起答辩委员会流水线
         if (this.state.currentStage === 'stage3') {
           const s3 = this.state.stage3 || {};
           const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
           const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
           const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
-          if ((!hasProp || !hasOpp || !s3.feedbackItems || s3.feedbackItems.length === 0) && !this._isStage3PipelineRunning) {
+          const canAutoRun = (!hasProp || !hasOpp || !s3.feedbackItems || s3.feedbackItems.length === 0) &&
+            !this._isStage3PipelineRunning &&
+            (Date.now() - (this._lastStage3PipelineAttempt || 0) > 30000);
+          if (canAutoRun) {
             this.runStage3CommitteePipeline();
           }
         }

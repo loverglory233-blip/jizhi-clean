@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2690";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2690";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2690";
-import { AuthManager } from "./auth.js?v=20260906_v2690";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2690";
-import { renderLoginView } from "./login.js?v=20260906_v2690";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2690";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2690";
+} from "./constants.js?v=20260906_v2691";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2691";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2691";
+import { AuthManager } from "./auth.js?v=20260906_v2691";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2691";
+import { renderLoginView } from "./login.js?v=20260906_v2691";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2691";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2691";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2690";
+} from "./editor.js?v=20260906_v2691";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5929,7 +5929,6 @@ ${chatSnippet}
     if (this.isCurrentTaskReadOnly()) {
       this.state.stage3CommitteeLoading = false;
       this._isStage3PipelineRunning = false;
-      this.renderStudentWorkspace();
       return;
     }
     if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
@@ -5940,6 +5939,7 @@ ${chatSnippet}
     }
     if (this._isStage3PipelineRunning) return;
     this._isStage3PipelineRunning = true;
+    this._lastStage3PipelineAttempt = Date.now();
 
     try {
       if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
@@ -5953,7 +5953,7 @@ ${chatSnippet}
       const hasFeedbackItems = this.state.stage3.feedbackItems && this.state.stage3.feedbackItems.length > 0;
       if (!hasFeedbackItems) {
         this.state.stage3CommitteeLoading = true;
-        this.renderStudentWorkspace();
+        if (typeof window.renderChat === 'function') window.renderChat(this.state);
       }
 
       const taskType = this.getCurrentTaskType();
@@ -6073,7 +6073,6 @@ ${chatSnippet}
           this.sendSingleChatMessage(errPipelineMsg, 'stage3');
           this.syncChatLogs();
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
-          this.renderStudentWorkspace();
           return;
         }
 
@@ -6106,7 +6105,6 @@ ${chatSnippet}
 
         this.syncChatLogs();
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
-        this.renderStudentWorkspace();
       } else {
         const existingProp = logs.find(m => m && m.sender === 'proponent');
         const existingOpp = logs.find(m => m && m.sender === 'opponent');
@@ -6187,7 +6185,6 @@ ${chatSnippet}
           this.sendSingleChatMessage(errChairMsg, 'stage3');
           this.syncChatLogs();
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
-          this.renderStudentWorkspace();
           return;
         }
 
@@ -6213,7 +6210,7 @@ ${chatSnippet}
     } finally {
       this.state.stage3CommitteeLoading = false;
       this._isStage3PipelineRunning = false;
-      this.renderStudentWorkspace();
+      if (typeof window.renderChat === 'function') window.renderChat(this.state);
     }
   }
 
@@ -6379,7 +6376,10 @@ ${chatSnippet}
         if (!this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) {
           this.state.stage3CommitteeLoading = true;
         }
-        if ((!hasProp || !hasOpp || !this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) && !this._isStage3PipelineRunning) {
+        const canAutoRun = (!hasProp || !hasOpp || !this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) &&
+          !this._isStage3PipelineRunning &&
+          (Date.now() - (this._lastStage3PipelineAttempt || 0) > 30000);
+        if (canAutoRun) {
           this.runStage3CommitteePipeline();
         }
       }
@@ -6476,13 +6476,16 @@ ${chatSnippet}
         this.checkAndTriggerVoteGuidanceIfNeeded();
       }
 
-      // 🎓 阶段三自愈守护：只要处于阶段三且答辩矩阵为空，立即自动拉起答辩委员会流水线
+      // 🎓 阶段三自愈守护：只要处于阶段三且答辩矩阵为空，且距离上次执行超过 30 秒，拉起答辩委员会流水线
       if (this.state.currentStage === 'stage3') {
         const s3 = this.state.stage3 || {};
         const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
         const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
         const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
-        if ((!hasProp || !hasOpp || !s3.feedbackItems || s3.feedbackItems.length === 0) && !this._isStage3PipelineRunning) {
+        const canAutoRun = (!hasProp || !hasOpp || !s3.feedbackItems || s3.feedbackItems.length === 0) &&
+          !this._isStage3PipelineRunning &&
+          (Date.now() - (this._lastStage3PipelineAttempt || 0) > 30000);
+        if (canAutoRun) {
           this.runStage3CommitteePipeline();
         }
       }
