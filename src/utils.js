@@ -1212,55 +1212,86 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
             padWin.document.cookie = `name=${encodeURIComponent(userName)}; path=/; max-age=86400`;
           }
           
-          // 🛡️ 仅确保顶部原生 editbar 显示正常，并确保正文保持学术纯白底（移除丑陋的整块作者背景色）
+          // 🛡️ 确保顶部原生 editbar 显示正常，并确保正文保持学术纯白底 + 深色正文字体（彻底杜绝大色块背景与白字隐形）
           const doc = padWin.document;
           if (doc) {
             let styleEl = doc.getElementById('jizhi-etherpad-guard-style');
+            const guardCss = `
+              #editbar {
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+              }
+              html, body {
+                background-color: #ffffff !important;
+                background: #ffffff !important;
+                color: #0f172a !important;
+                color-scheme: light !important;
+              }
+              span[class*="author-"], .author {
+                background-color: transparent !important;
+                background: transparent !important;
+                color: #0f172a !important;
+              }
+            `;
             if (!styleEl) {
               styleEl = doc.createElement('style');
               styleEl.id = 'jizhi-etherpad-guard-style';
-              styleEl.textContent = `
-                #editbar {
-                  display: block !important;
-                  visibility: visible !important;
-                  opacity: 1 !important;
-                }
-                span[class*="author-"], .author {
-                  background-color: transparent !important;
-                  background: transparent !important;
-                  color: #0f172a !important;
-                }
-              `;
+              styleEl.textContent = guardCss;
               (doc.head || doc.documentElement).appendChild(styleEl);
+            } else {
+              styleEl.textContent = guardCss;
             }
 
             try {
               const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
               if (aceOuter && aceOuter.contentDocument) {
                 const outerDoc = aceOuter.contentDocument;
+                let outerStyle = outerDoc.getElementById('jizhi-outer-guard-style');
+                const outerCss = `
+                  html, body, #outerdocbody {
+                    background-color: #ffffff !important;
+                    background: #ffffff !important;
+                    color: #0f172a !important;
+                    color-scheme: light !important;
+                  }
+                `;
+                if (!outerStyle) {
+                  outerStyle = outerDoc.createElement('style');
+                  outerStyle.id = 'jizhi-outer-guard-style';
+                  outerStyle.textContent = outerCss;
+                  (outerDoc.head || outerDoc.documentElement).appendChild(outerStyle);
+                } else {
+                  outerStyle.textContent = outerCss;
+                }
+
                 const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
                 if (aceInner && aceInner.contentDocument) {
                   const innerDoc = aceInner.contentDocument;
                   let innerStyle = innerDoc.getElementById('jizhi-author-white-bg-style');
+                  const innerCss = `
+                    html, body, #innerdocbody {
+                      background-color: #ffffff !important;
+                      background: #ffffff !important;
+                      color: #0f172a !important;
+                      color-scheme: light !important;
+                    }
+                    #innerdocbody, #innerdocbody * {
+                      color: #0f172a !important;
+                    }
+                    span[class*="author-"], .author, #innerdocbody span[class*="author-"], .ace-line {
+                      background-color: transparent !important;
+                      background: transparent !important;
+                      color: #0f172a !important;
+                    }
+                  `;
                   if (!innerStyle) {
                     innerStyle = innerDoc.createElement('style');
                     innerStyle.id = 'jizhi-author-white-bg-style';
-                    innerStyle.textContent = `
-                      span[class*="author-"], .author, #innerdocbody span[class*="author-"], #innerdocbody {
-                        background-color: transparent !important;
-                        background: transparent !important;
-                        color: #0f172a !important;
-                      }
-                    `;
+                    innerStyle.textContent = innerCss;
                     (innerDoc.head || innerDoc.documentElement).appendChild(innerStyle);
                   } else {
-                    innerStyle.textContent = `
-                      span[class*="author-"], .author, #innerdocbody span[class*="author-"], #innerdocbody {
-                        background-color: transparent !important;
-                        background: transparent !important;
-                        color: #0f172a !important;
-                      }
-                    `;
+                    innerStyle.textContent = innerCss;
                   }
                 }
               }
