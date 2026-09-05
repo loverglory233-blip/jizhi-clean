@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2669
+ * Version: 20260906_v2671
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,8 +16,8 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2669';
-  const APP_BUILD_DATE = '2026-09-05';
+  const APP_VERSION = '20260906_v2671';
+  const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
   const STORAGE_KEY_USERS_DB = 'jizhi_pure_v10_users_db';
@@ -11398,54 +11398,18 @@
 
 
   /**
-   * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
+   * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
    */
   function getEffectiveAgentAnalyzing(state = null) {
     const app = window.app;
     const currState = state || (app ? app.state : null);
     if (!currState) return null;
 
-    // 1. 如果已有显式的 activeAgentAnalyzing 且未超时（35秒兜底）
+    // 1. 如果已有显式的 activeAgentAnalyzing 且未超时（60秒大模型兜底保护）
     const explicitAnalyzing = currState.activeAgentAnalyzing || (app && app.state && app.state.activeAgentAnalyzing);
     if (explicitAnalyzing && typeof explicitAnalyzing === 'object') {
       const ts = explicitAnalyzing._ts || explicitAnalyzing.timestamp || 0;
-
-      // 🛡️ 智能状态防呆：检查对应的智能体结果是否已经产出或下发，若已下发立即自动清除并返回 null
-      const s2Logs = (currState.chatLogs && currState.chatLogs.stage2) || (app && app.state && app.state.chatLogs && app.state.chatLogs.stage2) || [];
-      const s1Logs = (currState.chatLogs && currState.chatLogs.stage1) || (app && app.state && app.state.chatLogs && app.state.chatLogs.stage1) || [];
-      const titleStr = String(explicitAnalyzing.title || '');
-
-      // 阶段二：责任编辑自查研判与对齐引导
-      if (titleStr.includes('责任编辑') || titleStr.includes('自查') || titleStr.includes('备课组长')) {
-        const hasFinished = s2Logs.some(m => m && (m.sender === 'managingEditor' || (m.text && (m.text.includes('自查研判') || m.text.includes('对齐引导') || m.text.includes('一致性研讨')))));
-        if (hasFinished) {
-          if (currState.activeAgentAnalyzing) currState.activeAgentAnalyzing = null;
-          if (app && app.state) app.state.activeAgentAnalyzing = null;
-          return null;
-        }
-      }
-
-      // 阶段二：审稿编辑二审修正清单
-      if (titleStr.includes('审稿') || titleStr.includes('修正清单') || titleStr.includes('教研专家')) {
-        const isPlanDone = !!(currState.stage2?.actionPlan?.isGenerated);
-        const hasReviewMsg = s2Logs.some(m => m && (m.sender === 'reviewingEditor' || (m.text && (m.text.includes('修正清单') || m.text.includes('二审意见')))));
-        if (isPlanDone || hasReviewMsg) {
-          if (currState.activeAgentAnalyzing) currState.activeAgentAnalyzing = null;
-          if (app && app.state) app.state.activeAgentAnalyzing = null;
-          return null;
-        }
-      }
-
-      // 阶段一：公约各环节提炼
-      if (titleStr.includes('拍卖师') || titleStr.includes('公约') || titleStr.includes('规划师') || titleStr.includes('调度员')) {
-        if (currState.stage1?.contract?.isConfirmed || currState.stage1?.contractStep === 'completed') {
-          if (currState.activeAgentAnalyzing) currState.activeAgentAnalyzing = null;
-          if (app && app.state) app.state.activeAgentAnalyzing = null;
-          return null;
-        }
-      }
-
-      if (!ts || (Date.now() - ts < 35000)) {
+      if (!ts || (Date.now() - ts < 60000)) {
         return explicitAnalyzing;
       } else {
         if (currState.activeAgentAnalyzing) currState.activeAgentAnalyzing = null;
@@ -11460,7 +11424,7 @@
 
     if (app) {
       // 阶段一：投票后方案细化/融合研讨引导
-      if (app._isTriggeringVoteGuidance || (currState.stage1 && currState.stage1._guidanceCallingTimestamp && (Date.now() - Number(currState.stage1._guidanceCallingTimestamp) < 35000))) {
+      if (app._isTriggeringVoteGuidance || (currState.stage1 && currState.stage1._guidanceCallingTimestamp && (Date.now() - Number(currState.stage1._guidanceCallingTimestamp) < 60000))) {
         const role = isInst ? '备课引导师' : '学术拍卖师';
         return {
           icon: isInst ? '📐' : '🎪',
@@ -11516,7 +11480,7 @@
       }
       // 阶段二：责任编辑研讨共识小结与二审修正清单
       if (app._isGeneratingManagingSummary) {
-        const role = isInst ? '备课研讨' : '责任编辑';
+        const role = isInst ? '备课组长' : '责任编辑';
         return {
           icon: '🤝',
           title: role,
@@ -11538,7 +11502,7 @@
       }
       // 阶段三：答辩评审委员会质询总结与终审定案
       if (app._isAnalyzingS3Inquiry) {
-        const role = isInst ? '备课答辩主席' : '答辩评审委员会';
+        const role = isInst ? '答辩主席' : '答辩评审委员会';
         return {
           icon: '⚖️',
           title: role,
@@ -11564,20 +11528,486 @@
     if (currState && currState.activeAgentAnalyzing) {
       const analyzing = currState.activeAgentAnalyzing;
       const ts = analyzing._ts || analyzing.timestamp || 0;
-      if (ts && (Date.now() - ts > 35000)) {
+      if (ts && (Date.now() - ts > 60000)) {
         currState.activeAgentAnalyzing = null;
         if (app && app.state) app.state.activeAgentAnalyzing = null;
       }
     }
     const effective = getEffectiveAgentAnalyzing(state);
-    if (effective && effective.isExtracting) {
+    if (effective) {
       return true;
     }
     return !!(
-      (app && (app._isGeneratingContract || app._isExtractingTopic || app._isExtractingTime || app._isExtractingTasks)) ||
-      (state && state.activeAgentAnalyzing && state.activeAgentAnalyzing.isExtracting) ||
-      (app && app.state && app.state.activeAgentAnalyzing && app.state.activeAgentAnalyzing.isExtracting)
+      (app && (app._isGeneratingContract || app._isExtractingTopic || app._isExtractingTime || app._isExtractingTasks || app._isGeneratingManagingSummary || app._isGeneratingReviewSummary || app._isAnalyzingS3Inquiry)) ||
+      (state && state.activeAgentAnalyzing) ||
+      (app && app.state && app.state.activeAgentAnalyzing)
     );
+  }
+
+  /**
+   * 🛡️ 成员贡献比取值辅助函数
+   */
+  const getMemberContribVal = (contribs, m) => {
+    if (!contribs || !m) return 0;
+    const keys = getUserAllKeys(m);
+    let maxVal = 0;
+    for (const k of keys) {
+      if (contribs[k] !== undefined && Number(contribs[k]) > maxVal) {
+        maxVal = Number(contribs[k]);
+      }
+    }
+    return maxVal;
+  };
+
+  /**
+   * 🛡️ DOM 中作者类名解析提取辅助函数
+   */
+  function getAuthorClassFromEl(el, innerBody) {
+    let cur = el;
+    while (cur && cur !== innerBody) {
+      if (cur.className && typeof cur.className === 'string') {
+        const classes = cur.className.split(/\s+/);
+        for (const cls of classes) {
+          const m = cls.match(/^(?:author[-_])?(a[._-][a-zA-Z0-9_\-]+)$/i) || cls.match(/^author[-_]([a-zA-Z0-9_.\-]+)$/i);
+          if (m) return m[1];
+        }
+      }
+      cur = cur.parentElement;
+    }
+    return null;
+  }
+
+  /**
+   * 🚀 核心黑科技：扫描 Etherpad 内部 DOM 获取实际留存正文及各成员真实的撰写字数与贡献
+   * 支持 localStorage 作者历史绑定记忆，彻底消除页面刷新后贡献比 (0%/100%) 乱飞
+   */
+  function getEtherpadAuthorStats(frameId = 'stage2-etherpad-frame', membersListParam = null, currUserNameParam = null, stateParam = null) {
+    try {
+      const app = window.app;
+      const currState = stateParam || (app ? app.state : null);
+      const currUser = (app && app.authManager) ? app.authManager.getCurrentUser() : null;
+      const effClassId = (app && app.authManager) ? app.authManager.getEffectiveStudentClassId(currUser, currState?.activeTaskId) : (currState?.activeStudentClassId || currUser?.classId || null);
+      const effGroup = (app && app.authManager) ? app.authManager.getStudentActiveGroup(currUser, effClassId) : null;
+      const targetGid = effGroup?.id || currState?.activeGroupId || currUser?.groupId || 'group1';
+      const activeTaskId = currState?.activeTaskId || 'default';
+
+      let targetMembersList = membersListParam;
+      if (!targetMembersList || targetMembersList.length === 0) {
+        if (app && app.authManager) {
+          const grpMap = app.authManager.getGroupMembersForWorkspace(targetGid, effClassId);
+          const vals = Object.values(grpMap || {});
+          if (vals.length > 0) targetMembersList = vals;
+        }
+        if (!targetMembersList || targetMembersList.length === 0) {
+          if (Array.isArray(currState?.members)) targetMembersList = currState.members;
+          else if (currState?.members && typeof currState.members === 'object') targetMembersList = Object.values(currState.members);
+          else targetMembersList = [];
+        }
+      }
+      const targetUserName = currUserNameParam || currUser?.name || '组员';
+
+      const f = document.getElementById(frameId) || document.getElementById('stage2-etherpad-frame') || document.getElementById('stage3-etherpad-frame');
+      if (!f || !f.contentDocument) return null;
+
+      const padWin = f.contentWindow;
+      let authorData = {};
+      if (padWin && padWin.clientVars) {
+        if (padWin.clientVars.collab_client_vars && padWin.clientVars.collab_client_vars.historicalAuthorData) {
+          authorData = Object.assign({}, padWin.clientVars.collab_client_vars.historicalAuthorData);
+        }
+        if (padWin.clientVars.historicalAuthorData) {
+          authorData = Object.assign(authorData, padWin.clientVars.historicalAuthorData);
+        }
+        if (padWin.clientVars.authorData) {
+          authorData = Object.assign(authorData, padWin.clientVars.authorData);
+        }
+        if (padWin.clientVars.initialAuthorData) {
+          authorData = Object.assign(authorData, padWin.clientVars.initialAuthorData);
+        }
+      }
+      if (padWin && padWin.pad) {
+        if (typeof padWin.pad.getAuthorData === 'function') {
+          try { authorData = Object.assign(authorData, padWin.pad.getAuthorData()); } catch(e){}
+        }
+        if (padWin.pad.collabClient) {
+          try {
+            if (typeof padWin.pad.collabClient.getConnectedUsers === 'function') {
+              const uList = padWin.pad.collabClient.getConnectedUsers();
+              if (Array.isArray(uList)) {
+                uList.forEach(u => {
+                  if (u && u.userId) authorData[u.userId] = Object.assign({}, authorData[u.userId] || {}, u);
+                });
+              }
+            }
+            if (padWin.pad.collabClient.users) {
+              Object.entries(padWin.pad.collabClient.users).forEach(([uid, u]) => {
+                if (u && typeof u === 'object') authorData[uid] = Object.assign({}, authorData[uid] || {}, u);
+              });
+            }
+          } catch(e) {}
+        }
+        if (padWin.pad.myUserInfo) {
+          if (!padWin.pad.myUserInfo.name || padWin.pad.myUserInfo.name === '组员' || padWin.pad.myUserInfo.name === 'unnamed') {
+            padWin.pad.myUserInfo.name = targetUserName;
+          }
+          if (padWin.pad.myUserInfo.userId) {
+            authorData[padWin.pad.myUserInfo.userId] = Object.assign({}, authorData[padWin.pad.myUserInfo.userId] || {}, padWin.pad.myUserInfo);
+          }
+        }
+        if (Array.isArray(padWin.pad.userList)) {
+          padWin.pad.userList.forEach(u => {
+            if (u && u.userId) {
+              authorData[u.userId] = Object.assign({}, authorData[u.userId] || {}, u);
+            }
+          });
+        }
+      }
+
+      const aceOuter = f.contentDocument.querySelector('iframe[name="ace_outer"]');
+      if (!aceOuter || !aceOuter.contentDocument) return null;
+      const aceInner = aceOuter.contentDocument.querySelector('iframe[name="ace_inner"]');
+      if (!aceInner || !aceInner.contentDocument) return null;
+
+      const innerDoc = aceInner.contentDocument;
+      const innerBody = innerDoc.querySelector('.innerdocbody') || innerDoc.body;
+      if (!innerBody) return null;
+
+      // 🛡️ localStorage 历史作者类名持久化存储（防止刷新页面后 localUserId 变更导致前序字数归属丢失）
+      const userKey = currUser ? (currUser.id || currUser.studentCode || currUser.name || 'user') : 'user';
+      const storageKey = `jizhi_author_ids_${activeTaskId}_${targetGid}_${userKey}`;
+
+      if (!window._jizhiLocalAuthorClasses) {
+        window._jizhiLocalAuthorClasses = new Set();
+        try {
+          const rawSaved = localStorage.getItem(storageKey);
+          if (rawSaved) {
+            const arr = JSON.parse(rawSaved);
+            if (Array.isArray(arr)) arr.forEach(c => window._jizhiLocalAuthorClasses.add(c));
+          }
+        } catch (e) {}
+      }
+
+      const saveLocalAuthorClass = (cls) => {
+        if (!cls) return;
+        if (!window._jizhiLocalAuthorClasses) window._jizhiLocalAuthorClasses = new Set();
+        window._jizhiLocalAuthorClasses.add(cls);
+        const raw = cls.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
+        if (raw) {
+          window._jizhiLocalAuthorClasses.add('a.' + raw);
+          window._jizhiLocalAuthorClasses.add('a-' + raw);
+          window._jizhiLocalAuthorClasses.add('a_' + raw);
+          window._jizhiLocalAuthorClasses.add(raw);
+        }
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(Array.from(window._jizhiLocalAuthorClasses)));
+        } catch (e) {}
+      };
+
+      if (!innerBody._jizhiInputBound) {
+        innerBody._jizhiInputBound = true;
+        const markLocalTyping = (e) => {
+          window._lastLocalPadInputTime = Date.now();
+          window._lastLocalActionType = e?.type || 'input';
+          try {
+            const sel = innerDoc.getSelection();
+            if (sel && sel.anchorNode) {
+              const el = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+              const aCls = getAuthorClassFromEl(el, innerBody);
+              if (aCls) {
+                window._localDetectedAuthorClass = aCls;
+                saveLocalAuthorClass(aCls);
+              }
+            }
+          } catch(err) {}
+        };
+        innerBody.addEventListener('input', markLocalTyping, true);
+        innerBody.addEventListener('keydown', markLocalTyping, true);
+        innerBody.addEventListener('keyup', markLocalTyping, true);
+        innerBody.addEventListener('paste', markLocalTyping, true);
+        innerBody.addEventListener('compositionend', markLocalTyping, true);
+        innerBody.addEventListener('mouseup', markLocalTyping, true);
+        innerDoc.addEventListener('selectionchange', markLocalTyping, true);
+      }
+
+      const rawText = (innerBody.innerText || '').replace(/\r\n/g, '\n').trim();
+      const totalLen = rawText.length;
+
+      if (window._lastPadScannedText === rawText && window._lastPadScannedStats) {
+        return window._lastPadScannedStats;
+      }
+
+      const memberCounts = {};
+      targetMembersList.forEach(m => {
+        memberCounts[m.id] = 0;
+        if (m.name) memberCounts[m.name] = 0;
+      });
+
+      if (totalLen === 0) {
+        const emptyRes = { total: 0, memberCounts, cleanText: '' };
+        window._lastPadScannedText = '';
+        window._lastPadScannedStats = emptyRes;
+        return emptyRes;
+      }
+
+      // 提取 DOM / Style 中的 Author Color 映射
+      const domAuthorColors = {};
+      const extractStylesFromDoc = (doc) => {
+        if (!doc) return;
+        try {
+          const styleEls = doc.querySelectorAll('style');
+          styleEls.forEach(st => {
+            const cssTxt = st.textContent || '';
+            const matches = cssTxt.matchAll(/\.author-([a-zA-Z0-9_\-]+)\s*\{[^}]*background(?:-color)?:\s*([^;!}\s]+)/gi);
+            for (const m of matches) {
+              if (m[1] && m[2]) {
+                const normId = m[1].replace(/^[a_.-]+/i, '');
+                domAuthorColors[m[1]] = m[2];
+                domAuthorColors['a.' + normId] = m[2];
+                domAuthorColors['a_' + normId] = m[2];
+              }
+            }
+          });
+        } catch(e) {}
+      };
+      extractStylesFromDoc(innerDoc);
+      extractStylesFromDoc(aceOuter ? aceOuter.contentDocument : null);
+
+      const areColorsEqual = (c1, c2) => {
+        if (!c1 || !c2) return false;
+        c1 = String(c1).trim().toLowerCase();
+        c2 = String(c2).trim().toLowerCase();
+        if (c1 === c2) return true;
+        const hex1 = c1.replace(/^#/, '');
+        const hex2 = c2.replace(/^#/, '');
+        if (hex1 === hex2) return true;
+        const toRgb = (hex) => {
+          if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
+          if (hex.length !== 6) return null;
+          const num = parseInt(hex, 16);
+          return `${(num >> 16) & 255},${(num >> 8) & 255},${num & 255}`;
+        };
+        const parseRgb = (rgbStr) => {
+          const m = rgbStr.match(/rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+          return m ? `${m[1]},${m[2]},${m[3]}` : null;
+        };
+        const rgb1 = toRgb(hex1) || parseRgb(c1);
+        const rgb2 = toRgb(hex2) || parseRgb(c2);
+        return !!(rgb1 && rgb2 && rgb1 === rgb2);
+      };
+
+      const walker = innerDoc.createTreeWalker(innerBody, NodeFilter.SHOW_TEXT, null, false);
+      const rawCounts = {};
+      let node;
+      let walkTotal = 0;
+
+      while ((node = walker.nextNode())) {
+        const txt = (node.nodeValue || '').replace(/[\r\n\t]/g, '');
+        const len = txt.length;
+        if (len === 0) continue;
+        walkTotal += len;
+        const aClass = getAuthorClassFromEl(node.parentElement, innerBody) || 'unassigned';
+        rawCounts[aClass] = (rawCounts[aClass] || 0) + len;
+      }
+
+      const selfMem = targetMembersList.find(m => isSameUser(m, currUser) || (currUser?.id && isSameId(m.id, currUser.id)) || (targetUserName && m.name === targetUserName)) || currUser;
+      const otherMembers = targetMembersList.filter(m => !isSameUser(m, selfMem));
+
+      const authorMap = new Map();
+      const isPlaceholderName = (nameStr) => {
+        if (!nameStr) return true;
+        const s = String(nameStr).trim().toLowerCase();
+        return s === '' || s === '组员' || s === '学术组员' || s === 'unnamed' || s === 'author' || s === 'guest' || s === 'null' || s === 'undefined';
+      };
+
+      // 获取当前客户端在 Etherpad 里的作者 ID
+      let localUserId = '';
+      if (padWin) {
+        if (padWin.clientVars && padWin.clientVars.userId) {
+          localUserId = padWin.clientVars.userId;
+        } else if (padWin.pad && typeof padWin.pad.getUserId === 'function') {
+          try { localUserId = padWin.pad.getUserId(); } catch(e){}
+        }
+      }
+      if (localUserId) {
+        saveLocalAuthorClass(localUserId);
+      }
+
+      const rawLocalId = localUserId ? localUserId.replace(/^(author[-_]|a[._-])/i, '').toLowerCase() : '';
+      if (rawLocalId && selfMem) {
+        authorMap.set(rawLocalId, selfMem);
+        authorMap.set('a.' + rawLocalId, selfMem);
+        authorMap.set('a-' + rawLocalId, selfMem);
+        authorMap.set('a_' + rawLocalId, selfMem);
+        authorMap.set(localUserId, selfMem);
+      }
+
+      // 将 localStorage 中已知属于当前用户的作者类名全部预映射为 selfMem
+      if (window._jizhiLocalAuthorClasses && selfMem) {
+        window._jizhiLocalAuthorClasses.forEach(cls => {
+          const raw = cls.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
+          authorMap.set(cls, selfMem);
+          if (raw) {
+            authorMap.set(raw, selfMem);
+            authorMap.set('a.' + raw, selfMem);
+            authorMap.set('a-' + raw, selfMem);
+            authorMap.set('a_' + raw, selfMem);
+          }
+        });
+      }
+
+      // 1. 遍历 authorData，依据姓名与颜色权威绑定组内成员
+      Object.entries(authorData).forEach(([aKey, aObj]) => {
+        if (!aKey || !aObj) return;
+        const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
+        if (!rawId) return;
+
+        const aName = (aObj.name && !isPlaceholderName(aObj.name)) ? String(aObj.name).trim() : '';
+        const aColor = aObj.colorId !== undefined ? aObj.colorId : aObj.color;
+
+        if (aName) {
+          const cleanAName = aName.toLowerCase();
+          const nameMatched = targetMembersList.find(m => {
+            if (!m) return false;
+            const mKeys = getUserAllKeys(m);
+            return mKeys.some(k => k.toLowerCase() === cleanAName || cleanAName.includes(k.toLowerCase()) || k.toLowerCase().includes(cleanAName));
+          });
+          if (nameMatched) {
+            authorMap.set(rawId, nameMatched);
+            authorMap.set('a.' + rawId, nameMatched);
+            authorMap.set('a-' + rawId, nameMatched);
+            authorMap.set('a_' + rawId, nameMatched);
+            authorMap.set(aKey, nameMatched);
+            return;
+          }
+        }
+
+        if (aColor) {
+          const colorMatched = targetMembersList.find(m => m.color && areColorsEqual(m.color, aColor));
+          if (colorMatched) {
+            authorMap.set(rawId, colorMatched);
+            authorMap.set('a.' + rawId, colorMatched);
+            authorMap.set('a-' + rawId, colorMatched);
+            authorMap.set('a_' + rawId, colorMatched);
+            authorMap.set(aKey, colorMatched);
+            return;
+          }
+        }
+      });
+
+      const assignedAuthors = new Map();
+
+      // 2. 权威分配 DOM 中的每一个 authorClass
+      Object.keys(rawCounts).forEach(aKey => {
+        if (aKey === 'unassigned') return;
+        const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
+
+        let matched = authorMap.get(aKey) || authorMap.get(rawId) || authorMap.get('a.' + rawId) || authorMap.get('a-' + rawId) || authorMap.get('a_' + rawId);
+
+        if (!matched) {
+          let authorName = '';
+          let authorColor = null;
+          let foundAuthorObj = authorData[aKey] || authorData[rawId] || authorData['a.' + rawId];
+          if (foundAuthorObj) {
+            if (foundAuthorObj.name && !isPlaceholderName(foundAuthorObj.name)) authorName = String(foundAuthorObj.name).trim();
+            authorColor = foundAuthorObj.colorId !== undefined ? foundAuthorObj.colorId : foundAuthorObj.color;
+          }
+          if (authorName && !isPlaceholderName(authorName)) {
+            const cleanAuthorName = authorName.trim().toLowerCase();
+            matched = targetMembersList.find(m => {
+              if (!m) return false;
+              const mKeys = getUserAllKeys(m);
+              return mKeys.some(k => k.toLowerCase() === cleanAuthorName || cleanAuthorName.includes(k.toLowerCase()) || k.toLowerCase().includes(cleanAuthorName));
+            });
+          }
+          if (!matched && (authorColor || domAuthorColors[aKey] || domAuthorColors['a.' + rawId])) {
+            const effColor = authorColor || domAuthorColors[aKey] || domAuthorColors['a.' + rawId];
+            matched = targetMembersList.find(m => m.color && areColorsEqual(m.color, effColor));
+          }
+        }
+
+        const isLocalKey = (rawId && rawId === rawLocalId) || 
+                          (window._localDetectedAuthorClass === aKey) || 
+                          (window._jizhiLocalAuthorClasses && (window._jizhiLocalAuthorClasses.has(aKey) || window._jizhiLocalAuthorClasses.has(rawId)));
+
+        if (!matched) {
+          if (isLocalKey && selfMem) {
+            matched = selfMem;
+          } else if (otherMembers.length === 1) {
+            matched = otherMembers[0];
+          } else if (otherMembers.length > 1) {
+            const unboundOther = otherMembers.find(om => !Array.from(assignedAuthors.values()).some(am => isSameUser(am, om))) || otherMembers[0];
+            matched = unboundOther;
+          }
+        }
+
+        if (matched) {
+          assignedAuthors.set(aKey, matched);
+        }
+      });
+
+      // 3. 累计各成员字数
+      let totalAssignedChars = 0;
+      Object.keys(rawCounts).forEach(aKey => {
+        const count = rawCounts[aKey];
+        if (count <= 0) return;
+        const targetMember = assignedAuthors.get(aKey);
+        if (targetMember) {
+          memberCounts[targetMember.id] = (memberCounts[targetMember.id] || 0) + count;
+          if (targetMember.name) memberCounts[targetMember.name] = (memberCounts[targetMember.name] || 0) + count;
+          totalAssignedChars += count;
+        }
+      });
+
+      // 4. 处理 unassigned 裸文本与历史底稿
+      const unassignedChars = rawCounts['unassigned'] || 0;
+      if (unassignedChars > 0) {
+        if (totalAssignedChars > 0) {
+          targetMembersList.forEach(m => {
+            const currentMemChars = memberCounts[m.id] || 0;
+            const extra = Math.round((currentMemChars / totalAssignedChars) * unassignedChars);
+            memberCounts[m.id] = (memberCounts[m.id] || 0) + extra;
+            if (m.name) memberCounts[m.name] = (memberCounts[m.name] || 0) + extra;
+          });
+        } else {
+          const existingContribs = currState?.stage2?.memberContributions || {};
+          let existingTotal = 0;
+          targetMembersList.forEach(m => { existingTotal += getMemberContribVal(existingContribs, m); });
+
+          if (existingTotal > 0) {
+            targetMembersList.forEach(m => {
+              const val = getMemberContribVal(existingContribs, m);
+              memberCounts[m.id] = val;
+              if (m.name) memberCounts[m.name] = val;
+            });
+          } else if (selfMem && (Date.now() - (window._lastLocalPadInputTime || 0) < 20000)) {
+            memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + unassignedChars;
+            if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + unassignedChars;
+          } else if (targetMembersList.length > 0) {
+            const splitCount = Math.floor(unassignedChars / targetMembersList.length);
+            targetMembersList.forEach(m => {
+              memberCounts[m.id] = (memberCounts[m.id] || 0) + splitCount;
+              if (m.name) memberCounts[m.name] = (memberCounts[m.name] || 0) + splitCount;
+            });
+          }
+        }
+      }
+
+      const resObj = {
+        total: totalLen,
+        memberCounts,
+        cleanText: rawText
+      };
+
+      window._lastPadScannedText = rawText;
+      window._lastPadScannedStats = resObj;
+      return resObj;
+    } catch(e) {
+      console.warn('getEtherpadAuthorStats error:', e);
+      return null;
+    }
+  }
+  if (typeof window !== 'undefined') {
+    window.getEtherpadAuthorStats = getEtherpadAuthorStats;
   }
 
   /* ==========================================================================
@@ -13030,431 +13460,10 @@
 
     const padName = `jizhi_${activeTaskId}_${userGroupId}`;
 
-    // 🚀 核心黑科技：扫描 Etherpad 内部 DOM 获取实际留存正文及各成员真实的撰写字数与贡献
-    function getEtherpadAuthorStats(frameId = 'stage2-etherpad-frame', membersListParam = null, currUserNameParam = null) {
-      try {
-        const targetMembersList = (membersListParam && membersListParam.length > 0) ? membersListParam : membersList;
-        const targetUserName = currUserNameParam || currUserName;
-        const f = document.getElementById(frameId) || document.getElementById('stage2-etherpad-frame') || document.getElementById('stage3-etherpad-frame');
-        if (!f || !f.contentDocument) return null;
-
-        const padWin = f.contentWindow;
-        let authorData = {};
-        if (padWin && padWin.clientVars) {
-          if (padWin.clientVars.collab_client_vars && padWin.clientVars.collab_client_vars.historicalAuthorData) {
-            authorData = Object.assign({}, padWin.clientVars.collab_client_vars.historicalAuthorData);
-          }
-          if (padWin.clientVars.historicalAuthorData) {
-            authorData = Object.assign(authorData, padWin.clientVars.historicalAuthorData);
-          }
-          if (padWin.clientVars.authorData) {
-            authorData = Object.assign(authorData, padWin.clientVars.authorData);
-          }
-          if (padWin.clientVars.initialAuthorData) {
-            authorData = Object.assign(authorData, padWin.clientVars.initialAuthorData);
-          }
-        }
-        if (padWin && padWin.pad) {
-          if (typeof padWin.pad.getAuthorData === 'function') {
-            try { authorData = Object.assign(authorData, padWin.pad.getAuthorData()); } catch(e){}
-          }
-          if (padWin.pad.collabClient) {
-            try {
-              if (typeof padWin.pad.collabClient.getConnectedUsers === 'function') {
-                const uList = padWin.pad.collabClient.getConnectedUsers();
-                if (Array.isArray(uList)) {
-                  uList.forEach(u => {
-                    if (u && u.userId) authorData[u.userId] = Object.assign({}, authorData[u.userId] || {}, u);
-                  });
-                }
-              }
-              if (padWin.pad.collabClient.users) {
-                Object.entries(padWin.pad.collabClient.users).forEach(([uid, u]) => {
-                  if (u && typeof u === 'object') authorData[uid] = Object.assign({}, authorData[uid] || {}, u);
-                });
-              }
-            } catch(e) {}
-          }
-          if (padWin.pad.myUserInfo) {
-            if (!padWin.pad.myUserInfo.name || padWin.pad.myUserInfo.name === '组员' || padWin.pad.myUserInfo.name === 'unnamed') {
-              padWin.pad.myUserInfo.name = targetUserName;
-            }
-            if (padWin.pad.myUserInfo.userId) {
-              authorData[padWin.pad.myUserInfo.userId] = Object.assign({}, authorData[padWin.pad.myUserInfo.userId] || {}, padWin.pad.myUserInfo);
-            }
-          }
-          if (Array.isArray(padWin.pad.userList)) {
-            padWin.pad.userList.forEach(u => {
-              if (u && u.userId) {
-                authorData[u.userId] = Object.assign({}, authorData[u.userId] || {}, u);
-              }
-            });
-          }
-        }
-
-        const aceOuter = f.contentDocument.querySelector('iframe[name="ace_outer"]');
-        if (!aceOuter || !aceOuter.contentDocument) return null;
-        const aceInner = aceOuter.contentDocument.querySelector('iframe[name="ace_inner"]');
-        if (!aceInner || !aceInner.contentDocument) return null;
-
-        const innerDoc = aceInner.contentDocument;
-        const innerBody = innerDoc.querySelector('.innerdocbody') || innerDoc.body;
-        if (!innerBody) return null;
-
-        if (!innerBody._jizhiInputBound) {
-          innerBody._jizhiInputBound = true;
-          const markLocalTyping = (e) => {
-            window._lastLocalPadInputTime = Date.now();
-            window._lastLocalActionType = e?.type || 'input';
-            try {
-              const sel = innerDoc.getSelection();
-              if (sel && sel.anchorNode) {
-                const el = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
-                const aCls = getAuthorClass(el);
-                if (aCls) {
-                  window._localDetectedAuthorClass = aCls;
-                  if (!window._jizhiLocalAuthorClasses) window._jizhiLocalAuthorClasses = new Set();
-                  window._jizhiLocalAuthorClasses.add(aCls);
-                  const raw = aCls.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
-                  if (raw) {
-                    window._jizhiLocalAuthorClasses.add('a.' + raw);
-                    window._jizhiLocalAuthorClasses.add('a-' + raw);
-                    window._jizhiLocalAuthorClasses.add('a_' + raw);
-                  }
-                }
-              }
-            } catch(err) {}
-            if (typeof syncPadMetrics === 'function') {
-              setTimeout(syncPadMetrics, 50);
-              setTimeout(syncPadMetrics, 300);
-              setTimeout(syncPadMetrics, 1000);
-            }
-          };
-          innerBody.addEventListener('input', markLocalTyping, true);
-          innerBody.addEventListener('keydown', markLocalTyping, true);
-          innerBody.addEventListener('keyup', markLocalTyping, true);
-          innerBody.addEventListener('paste', markLocalTyping, true);
-          innerBody.addEventListener('compositionend', markLocalTyping, true);
-          innerBody.addEventListener('mouseup', markLocalTyping, true);
-          innerDoc.addEventListener('selectionchange', markLocalTyping, true);
-        }
-
-        const rawText = (innerBody.innerText || '').replace(/\r\n/g, '\n').trim();
-        const totalLen = rawText.length;
-
-        // ⚡ 极速缓存保护：若正文内容未发生变动，直接返回上次解析结果，0 DOM 遍历开销
-        if (window._lastPadScannedText === rawText && window._lastPadScannedStats) {
-          return window._lastPadScannedStats;
-        }
-
-        const memberCounts = {};
-        targetMembersList.forEach(m => {
-          memberCounts[m.id] = 0;
-          if (m.name) memberCounts[m.name] = 0;
-        });
-
-        if (totalLen === 0) {
-          const emptyRes = { total: 0, memberCounts, cleanText: '' };
-          window._lastPadScannedText = '';
-          window._lastPadScannedStats = emptyRes;
-          return emptyRes;
-        }
-
-        // 提取 DOM / Style 中的 Author Color 映射
-        const domAuthorColors = {};
-        const extractStylesFromDoc = (doc) => {
-          if (!doc) return;
-          try {
-            const styleEls = doc.querySelectorAll('style');
-            styleEls.forEach(st => {
-              const cssTxt = st.textContent || '';
-              const matches = cssTxt.matchAll(/\.author-([a-zA-Z0-9_\-]+)\s*\{[^}]*background(?:-color)?:\s*([^;!}\s]+)/gi);
-              for (const m of matches) {
-                if (m[1] && m[2]) {
-                  const normId = m[1].replace(/^[a_.-]+/i, '');
-                  domAuthorColors[m[1]] = m[2];
-                  domAuthorColors['a.' + normId] = m[2];
-                  domAuthorColors['a_' + normId] = m[2];
-                }
-              }
-            });
-          } catch(e) {}
-        };
-        extractStylesFromDoc(innerDoc);
-        extractStylesFromDoc(aceOuter ? aceOuter.contentDocument : null);
-
-        const areColorsEqual = (c1, c2) => {
-          if (!c1 || !c2) return false;
-          c1 = String(c1).trim().toLowerCase();
-          c2 = String(c2).trim().toLowerCase();
-          if (c1 === c2) return true;
-          const hex1 = c1.replace(/^#/, '');
-          const hex2 = c2.replace(/^#/, '');
-          if (hex1 === hex2) return true;
-          const toRgb = (hex) => {
-            if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
-            if (hex.length !== 6) return null;
-            const num = parseInt(hex, 16);
-            return `${(num >> 16) & 255},${(num >> 8) & 255},${num & 255}`;
-          };
-          const parseRgb = (rgbStr) => {
-            const m = rgbStr.match(/rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
-            return m ? `${m[1]},${m[2]},${m[3]}` : null;
-          };
-          const rgb1 = toRgb(hex1) || parseRgb(c1);
-          const rgb2 = toRgb(hex2) || parseRgb(c2);
-          return !!(rgb1 && rgb2 && rgb1 === rgb2);
-        };
-
-        const getAuthorClass = (el) => {
-          let cur = el;
-          while (cur && cur !== innerBody) {
-            if (cur.className && typeof cur.className === 'string') {
-              const classes = cur.className.split(/\s+/);
-              for (const cls of classes) {
-                const m = cls.match(/^(?:author[-_])?(a[._-][a-zA-Z0-9_\-]+)$/i) || cls.match(/^author[-_]([a-zA-Z0-9_.\-]+)$/i);
-                if (m) return m[1];
-              }
-            }
-            cur = cur.parentElement;
-          }
-          return null;
-        };
-
-        const walker = innerDoc.createTreeWalker(innerBody, NodeFilter.SHOW_TEXT, null, false);
-        const rawCounts = {};
-        let node;
-        let walkTotal = 0;
-
-        while ((node = walker.nextNode())) {
-          const txt = (node.nodeValue || '').replace(/[\r\n\t]/g, '');
-          const len = txt.length;
-          if (len === 0) continue;
-          walkTotal += len;
-          const aClass = getAuthorClass(node.parentElement) || 'unassigned';
-          rawCounts[aClass] = (rawCounts[aClass] || 0) + len;
-        }
-
-        // 匹配每个 authorClass 到真实的 membersList 成员
-        const selfMem = membersList.find(m => isSameUser(m, currUser) || isSameUser(m, currUserCode) || (currUserName && m.name === currUserName) || (currUser?.id && isSameId(m.id, currUser.id))) || currUser;
-        const otherMembers = targetMembersList.filter(m => !isSameUser(m, selfMem));
-
-        // 🛡️ 作者-成员映射器：精准解析 Etherpad 记录的每位组员真实姓名与作者 ID
-        const authorMap = new Map();
-
-        const isPlaceholderName = (nameStr) => {
-          if (!nameStr) return true;
-          const s = String(nameStr).trim().toLowerCase();
-          return s === '' || s === '组员' || s === '学术组员' || s === 'unnamed' || s === 'author' || s === 'guest' || s === 'null' || s === 'undefined';
-        };
-
-        // 获取当前客户端在 Etherpad 里的作者 ID
-        let localUserId = '';
-        if (padWin) {
-          if (padWin.clientVars && padWin.clientVars.userId) {
-            localUserId = padWin.clientVars.userId;
-          } else if (padWin.pad && typeof padWin.pad.getUserId === 'function') {
-            try { localUserId = padWin.pad.getUserId(); } catch(e){}
-          }
-        }
-        const rawLocalId = localUserId ? localUserId.replace(/^(author[-_]|a[._-])/i, '').toLowerCase() : '';
-        if (rawLocalId && selfMem) {
-          authorMap.set(rawLocalId, selfMem);
-          authorMap.set('a.' + rawLocalId, selfMem);
-          authorMap.set('a-' + rawLocalId, selfMem);
-          authorMap.set('a_' + rawLocalId, selfMem);
-          authorMap.set(localUserId, selfMem);
-        }
-
-        // 1. 优先遍历 authorData，依据姓名与 ID 权威绑定组内所有同伴（包括自己与组内其他成员）
-        Object.entries(authorData).forEach(([aKey, aObj]) => {
-          if (!aKey || !aObj) return;
-          const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
-          if (!rawId) return;
-
-          const aName = (aObj.name && !isPlaceholderName(aObj.name)) ? String(aObj.name).trim() : '';
-          const aColor = aObj.colorId !== undefined ? aObj.colorId : aObj.color;
-
-          // 优先依据姓名 / 用户标识精准匹配组员
-          if (aName) {
-            const cleanAName = aName.toLowerCase();
-            const nameMatched = targetMembersList.find(m => {
-              if (!m) return false;
-              const mKeys = getUserAllKeys(m);
-              return mKeys.some(k => k.toLowerCase() === cleanAName || cleanAName.includes(k.toLowerCase()) || k.toLowerCase().includes(cleanAName));
-            });
-            if (nameMatched) {
-              authorMap.set(rawId, nameMatched);
-              authorMap.set('a.' + rawId, nameMatched);
-              authorMap.set('a-' + rawId, nameMatched);
-              authorMap.set('a_' + rawId, nameMatched);
-              authorMap.set(aKey, nameMatched);
-              return;
-            }
-          }
-
-          // 依据颜色匹配组员
-          if (aColor) {
-            const colorMatched = targetMembersList.find(m => m.color && areColorsEqual(m.color, aColor));
-            if (colorMatched) {
-              authorMap.set(rawId, colorMatched);
-              authorMap.set('a.' + rawId, colorMatched);
-              authorMap.set('a-' + rawId, colorMatched);
-              authorMap.set('a_' + rawId, colorMatched);
-              authorMap.set(aKey, colorMatched);
-              return;
-            }
-          }
-        });
-
-        // 2. 本地刚键入产生的未入表临时作者类名，与当前用户 selfMem 关联
-        if (window._localDetectedAuthorClass && selfMem) {
-          const localRaw = String(window._localDetectedAuthorClass).replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
-          if (localRaw && !authorMap.has(localRaw)) {
-            authorMap.set(localRaw, selfMem);
-            authorMap.set('a.' + localRaw, selfMem);
-            authorMap.set('a-' + localRaw, selfMem);
-            authorMap.set('a_' + localRaw, selfMem);
-            authorMap.set(window._localDetectedAuthorClass, selfMem);
-          }
-        }
-
-        const isRecentlyTypingLocally = (Date.now() - (window._lastLocalPadInputTime || 0) < 20000);
-        const assignedAuthors = new Map();
-
-        // 3. 权威分配 DOM 中的每一个 authorClass
-        Object.keys(rawCounts).forEach(aKey => {
-          if (aKey === 'unassigned') return;
-          const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
-
-          let matched = authorMap.get(aKey) || authorMap.get(rawId) || authorMap.get('a.' + rawId) || authorMap.get('a-' + rawId) || authorMap.get('a_' + rawId);
-
-          if (!matched) {
-            let authorName = '';
-            let authorColor = null;
-            let foundAuthorObj = authorData[aKey] || authorData[rawId] || authorData['a.' + rawId];
-            if (foundAuthorObj) {
-              if (foundAuthorObj.name && !isPlaceholderName(foundAuthorObj.name)) authorName = String(foundAuthorObj.name).trim();
-              authorColor = foundAuthorObj.colorId !== undefined ? foundAuthorObj.colorId : foundAuthorObj.color;
-            }
-            if (authorName && !isPlaceholderName(authorName)) {
-              const cleanAuthorName = authorName.trim().toLowerCase();
-              matched = membersList.find(m => {
-                if (!m) return false;
-                const mKeys = getUserAllKeys(m);
-                return mKeys.some(k => k.toLowerCase() === cleanAuthorName || cleanAuthorName.includes(k.toLowerCase()) || k.toLowerCase().includes(cleanAuthorName));
-              });
-            }
-            if (!matched && (authorColor || domAuthorColors[aKey] || domAuthorColors['a.' + rawId])) {
-              const effColor = authorColor || domAuthorColors[aKey] || domAuthorColors['a.' + rawId];
-              matched = membersList.find(m => m.color && areColorsEqual(m.color, effColor));
-            }
-          }
-
-          // 🛡️ 本地作者判定：如果是本地键入产生的 authorClass 或与当前用户的 localUserId 相同，绑定为 selfMem
-          const isLocalKey = (rawId && rawId === rawLocalId) || 
-                            (window._localDetectedAuthorClass === aKey) || 
-                            (window._jizhiLocalAuthorClasses && window._jizhiLocalAuthorClasses.has(aKey));
-
-          if (!matched) {
-            if (isLocalKey && selfMem) {
-              matched = selfMem;
-            } else if (otherMembers.length === 1) {
-              // 🌟 2人协作小组铁律：如果不是本地作者键入的，必然是组内唯一的同伴（蒋诚真/方诗琪）键入的！
-              matched = otherMembers[0];
-            } else if (otherMembers.length > 1) {
-              // 多人协作小组：分配给未被绑定的其他组员
-              const unboundOther = otherMembers.find(om => !Array.from(assignedAuthors.values()).some(am => isSameUser(am, om))) || otherMembers[0];
-              matched = unboundOther;
-            }
-          }
-
-          if (matched) {
-            assignedAuthors.set(aKey, matched);
-          }
-        });
-
-        // 4. 累计各成员字数（杜绝冒领与闪烁）
-        let totalAssignedChars = 0;
-        Object.keys(rawCounts).forEach(aKey => {
-          const count = rawCounts[aKey];
-          if (count <= 0) return;
-          const targetMember = assignedAuthors.get(aKey);
-          if (targetMember) {
-            memberCounts[targetMember.id] = (memberCounts[targetMember.id] || 0) + count;
-            if (targetMember.name) memberCounts[targetMember.name] = (memberCounts[targetMember.name] || 0) + count;
-            totalAssignedChars += count;
-          }
-        });
-
-        // 5. 处理 unassigned 裸文本（例如历史底稿或模板导入，杜绝将整篇历史文本 100% 误充入单个人头）
-        const unassignedChars = rawCounts['unassigned'] || 0;
-        if (unassignedChars > 0) {
-          if (totalAssignedChars > 0) {
-            // 若已有明确作者分工，未标记的辅助空白/标点按已有比例分摊
-            targetMembersList.forEach(m => {
-              const currentMemChars = memberCounts[m.id] || 0;
-              const extra = Math.round((currentMemChars / totalAssignedChars) * unassignedChars);
-              memberCounts[m.id] = (memberCounts[m.id] || 0) + extra;
-              if (m.name) memberCounts[m.name] = (memberCounts[m.name] || 0) + extra;
-            });
-          } else {
-            // 若全部文本均未标记作者（如纯文本导入或未着色历史）：
-            // 优先检查 state 中是否已有服务器/历史同步的真实贡献比
-            const existingContribs = state.stage2?.memberContributions || {};
-            let existingTotal = 0;
-            targetMembersList.forEach(m => { existingTotal += getMemberContribVal(existingContribs, m); });
-
-            if (existingTotal > 0) {
-              targetMembersList.forEach(m => {
-                const val = getMemberContribVal(existingContribs, m);
-                memberCounts[m.id] = val;
-                if (m.name) memberCounts[m.name] = val;
-              });
-            } else if (isRecentlyTypingLocally && selfMem) {
-              // 仅在用户当前确实正在键盘敲击输入且无历史时，才计入本地用户
-              memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + unassignedChars;
-              if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + unassignedChars;
-            } else if (targetMembersList.length > 0) {
-              // 否则全组平摊初始底稿
-              const splitCount = Math.floor(unassignedChars / targetMembersList.length);
-              targetMembersList.forEach(m => {
-                memberCounts[m.id] = (memberCounts[m.id] || 0) + splitCount;
-                if (m.name) memberCounts[m.name] = (memberCounts[m.name] || 0) + splitCount;
-              });
-            }
-          }
-        }
-
-        const resObj = {
-          total: totalLen,
-          memberCounts: memberCounts,
-          cleanText: rawText
-        };
-        window._lastPadScannedText = rawText;
-        window._lastPadScannedStats = resObj;
-        return resObj;
-      } catch (e) {
-        return null;
-      }
-    }
-
     function getEtherpadTextDirect() {
-      const stats = getEtherpadAuthorStats();
+      const stats = getEtherpadAuthorStats('stage2-etherpad-frame', membersList, currUserName, state);
       return stats ? stats.cleanText : null;
     }
-
-    const getMemberContribVal = (contribs, m) => {
-      if (!contribs || !m) return 0;
-      const keys = getUserAllKeys(m);
-      let maxVal = 0;
-      for (const k of keys) {
-        if (contribs[k] !== undefined && Number(contribs[k]) > maxVal) {
-          maxVal = Number(contribs[k]);
-        }
-      }
-      return maxVal;
-    };
 
     const getContribTotal = (contribs) => {
       if (!contribs || typeof contribs !== 'object') return 0;
@@ -14237,6 +14246,44 @@
         if (expiredBanner) expiredBanner.remove();
       }
 
+      // 增量就地刷新【智能体正在分析动态横幅】
+      let analyzingBanner = canvas.querySelector('#agent-analyzing-live-banner');
+      const effectiveAnalyzing = getEffectiveAgentAnalyzing(state);
+      if (effectiveAnalyzing) {
+        const bannerHtml = `
+          <div id="agent-analyzing-live-banner" style="background:linear-gradient(135deg, #eff6ff 0%, #fefce8 100%); border:1.5px solid #fde047; border-radius:8px; padding:10px 16px; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 3px 12px rgba(234,179,8,0.15); flex-shrink:0;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:20px; height:20px; border:2.5px solid #fef08a; border-top-color:#ca8a04; border-radius:50%; animation:spin 0.9s linear infinite; flex-shrink:0;"></div>
+              <div>
+                <div style="font-size:12.5px; font-weight:800; color:#854d0e; display:flex; align-items:center; gap:6px;">
+                  <span>${effectiveAnalyzing.icon || '🟡'} ${effectiveAnalyzing.title || '答辩委员会专家正在研判中...'}</span>
+                </div>
+                <div style="font-size:11.5px; color:#ca8a04; margin-top:2px; font-weight:600;">
+                  ${effectiveAnalyzing.detail || '正在整合组员辩护要点，自动定案回填并推导下一阶段裁决...'}
+                </div>
+              </div>
+            </div>
+            <span style="font-size:11px; font-weight:800; color:#a16207; background:#ffffff; border:1px solid #fef08a; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
+              ⏳ 答辩定案中 <span class="agent-elapsed-timer" data-start="${effectiveAnalyzing._ts || Date.now()}">(已耗时 0s)</span>
+            </span>
+          </div>
+        `;
+        if (analyzingBanner) {
+          analyzingBanner.outerHTML = bannerHtml;
+        } else {
+          const topContainer = canvas.firstElementChild;
+          if (topContainer) {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = bannerHtml;
+            if (tempDiv.firstElementChild) {
+              topContainer.insertBefore(tempDiv.firstElementChild, topContainer.firstElementChild);
+            }
+          }
+        }
+      } else {
+        if (analyzingBanner) analyzingBanner.remove();
+      }
+
       const actionBtnGroup = canvas.querySelector('#stage3-action-btn-group');
       if (actionBtnGroup) {
         actionBtnGroup.innerHTML = (activeTab === 'defense') ? (
@@ -14292,8 +14339,28 @@
       return;
     }
 
+    const effAnalyzingStage3 = getEffectiveAgentAnalyzing(state);
+
     canvas.innerHTML = `
       <div style="height:100%; display:flex; flex-direction:column; gap:12px; overscroll-behavior-y:contain;">
+        ${effAnalyzingStage3 ? `
+          <div id="agent-analyzing-live-banner" style="background:linear-gradient(135deg, #eff6ff 0%, #fefce8 100%); border:1.5px solid #fde047; border-radius:8px; padding:10px 16px; margin-bottom:4px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 3px 12px rgba(234,179,8,0.15); flex-shrink:0;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:20px; height:20px; border:2.5px solid #fef08a; border-top-color:#ca8a04; border-radius:50%; animation:spin 0.9s linear infinite; flex-shrink:0;"></div>
+              <div>
+                <div style="font-size:12.5px; font-weight:800; color:#854d0e; display:flex; align-items:center; gap:6px;">
+                  <span>${effAnalyzingStage3.icon || '🟡'} ${effAnalyzingStage3.title || '答辩委员会专家正在研判中...'}</span>
+                </div>
+                <div style="font-size:11.5px; color:#ca8a04; margin-top:2px; font-weight:600;">
+                  ${effAnalyzingStage3.detail || '正在整合组员辩护要点，自动定案回填并推导下一阶段裁决...'}
+                </div>
+              </div>
+            </div>
+            <span style="font-size:11px; font-weight:800; color:#a16207; background:#ffffff; border:1px solid #fef08a; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
+              ⏳ 答辩定案中 <span class="agent-elapsed-timer" data-start="${effAnalyzingStage3._ts || Date.now()}">(已耗时 0s)</span>
+            </span>
+          </div>
+        ` : ''}
         ${isTaskDeadlineExpired ? `
           <div id="stage3-deadline-expired-banner" style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:8px; padding:6px 14px; margin-bottom:4px; font-size:12.5px; color:#991b1b; font-weight:600; display:flex; justify-content:space-between; align-items:center; gap:12px; box-shadow:0 2px 6px rgba(239,68,68,0.08); height:38px; box-sizing:border-box; flex-shrink:0;">
             <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
@@ -14388,14 +14455,23 @@
         <div class="card" id="stage3-defense-card" style="display:${activeTab === 'defense' ? 'block' : 'none'}; flex:1; overflow-y:auto; padding:20px; overscroll-behavior-y:contain; -webkit-overflow-scrolling:touch;">
           ${isRevisionFullyConfirmed && !isFinalSubmitted ? `
             <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:8px 14px; margin-bottom:12px; font-size:12.5px; color:#065f46; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
-              <span>🔒 全组已全员确认进入终稿修改！答辩裁决矩阵已锁定归档（只读查阅），请在【修改${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿】面板中完善正文。</span>
-              <button onclick="document.getElementById('tab-btn-editor').click();" style="background:#059669; color:white; border:none; padding:4px 12px; border-radius:6px; font-size:11.5px; cursor:pointer; font-weight:700;">前往修改终稿 ➔</button>
+              <span>🎉 本组全员已确认进入终稿修改！答辩质询已正式锁定。请点击上方【📝 修改${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿】完成正文完善！</span>
+              <button onclick="document.getElementById('tab-btn-editor')?.click()" style="background:#059669; color:white; border:none; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">立即去修改 ➔</button>
             </div>
           ` : ''}
-          <div class="card-title" style="margin-bottom:14px;">
-            <span style="color:#0f172a;">📋 答辩与终稿修改清单 ${isFinalSubmitted ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 已全盘提交归档)</span>' : (isRevisionFullyConfirmed ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 全员已确认进入终稿修改 · 答辩清单已定案归档)</span>' : '')}</span>
+          <div style="margin-bottom:14px; display:flex; justify-content:space-between; align-items:flex-start;">
+            <div>
+              <div style="font-size:15px; font-weight:800; color:#1e293b; display:flex; align-items:center; gap:8px;">
+                <span>🎓 答辩委员会专家评审与终稿修改清单</span>
+                <span style="font-size:11.5px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:12px; font-weight:700;">正方赋能 · 反方质询 · 中间委员裁决</span>
+              </div>
+              <div style="font-size:12.5px; color:#64748b; margin-top:4px;">
+                通读正方委员的立论肯定与反方委员的 3 项质询。全组在右侧研讨区商定辩护词与修改对策，点击【💡 帮我总结并填入】自动定案回填！
+              </div>
+            </div>
           </div>
-          <div id="stage3-feedback-list-container" style="display:flex; flex-direction:column; gap:14px;">
+
+          <div id="stage3-feedback-list-container" style="display:flex; flex-direction:column; gap:16px;">
             ${renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitted)}
           </div>
         </div>
