@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2698";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2698";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2698";
-import { AuthManager } from "./auth.js?v=20260906_v2698";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2698";
-import { renderLoginView } from "./login.js?v=20260906_v2698";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2698";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2698";
+} from "./constants.js?v=20260906_v2699";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2699";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2699";
+import { AuthManager } from "./auth.js?v=20260906_v2699";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2699";
+import { renderLoginView } from "./login.js?v=20260906_v2699";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2699";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2699";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2698";
+} from "./editor.js?v=20260906_v2699";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3742,7 +3742,7 @@ export class App {
 ③ 末尾提示：“商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！”
 （纯自然语言输出，100~140字，严禁拆分成多条，严禁提及任何票数数字）`;
 
-        const aiResp = await callCozeAgentAPI('auctioneer', unanimousPrompt, { stage: 'stage1', topic: winningProposal.title, taskType });
+        const aiResp = await callCozeAgentAPI('auctioneer', unanimousPrompt, { stage: 'stage1', topic: winningProposal.title, taskType, milestoneKey: 'stage1_unanimous' });
         if (aiResp && aiResp.trim().length > 0) {
           guideText = aiResp.trim();
         } else {
@@ -3774,7 +3774,7 @@ ${votedDetails}
 ③ 末尾提示：“商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！”
 （纯自然语言输出，110~150字，严禁拆分成多条，严禁提及任何票数数字）`;
 
-        const aiResp = await callCozeAgentAPI('auctioneer', divergencePrompt, { stage: 'stage1', topic: '方案分歧融合', taskType });
+        const aiResp = await callCozeAgentAPI('auctioneer', divergencePrompt, { stage: 'stage1', topic: '方案分歧融合', taskType, milestoneKey: 'stage1_diverge' });
         if (aiResp && aiResp.trim().length > 0) {
           guideText = aiResp.trim();
         } else {
@@ -4212,7 +4212,7 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
 }`;
 
     try {
-      const resp = await callCozeAgentAPI('auctioneer', extractPrompt, { stage: 'stage1', topic: currentCandidate, taskType });
+      const resp = await callCozeAgentAPI('auctioneer', extractPrompt, { stage: 'stage1', topic: currentCandidate, taskType, milestoneKey: 'stage1_extract_topic' });
       if (!resp || resp.trim().length === 0) {
         throw new Error('未能获取到主题与方案提炼结果');
       }
@@ -4456,7 +4456,7 @@ ${chatSnippet}
 }`;
 
     try {
-      const resp = await callCozeAgentAPI('auctioneer', timePrompt, { stage: 'stage1', topic: s1.mergedTitle || (isInst ? '教学设计' : '论文'), taskType });
+      const resp = await callCozeAgentAPI('auctioneer', timePrompt, { stage: 'stage1', topic: s1.mergedTitle || (isInst ? '教学设计' : '论文'), taskType, milestoneKey: 'stage1_time_alloc' });
       if (!resp || resp.trim().length === 0) {
         throw new Error('未能获取到时间分配提炼结果');
       }
@@ -4668,7 +4668,7 @@ ${chatSnippet}
 }`;
 
     try {
-      const resp = await callCozeAgentAPI('auctioneer', taskPrompt, { stage: 'stage1', topic: s1.mergedTitle || (isInst ? '教学设计' : '论文'), taskType });
+      const resp = await callCozeAgentAPI('auctioneer', taskPrompt, { stage: 'stage1', topic: s1.mergedTitle || (isInst ? '教学设计' : '论文'), taskType, milestoneKey: 'stage1_task_assign' });
       if (!resp || resp.trim().length === 0) {
         throw new Error('未能获取到任务分工提炼结果');
       }
@@ -5027,7 +5027,7 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
     });
 
     try {
-      const resp = await callCozeAgentAPI('auctioneer', fullContractPrompt, { stage: 'stage1', topic: defaultTopic });
+      const resp = await callCozeAgentAPI('auctioneer', fullContractPrompt, { stage: 'stage1', topic: defaultTopic, milestoneKey: 'stage1_contract' });
 
       if (resp && resp.trim().length > 0) {
         try {
@@ -5475,7 +5475,7 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
       this.setActiveAgentAnalyzing({ icon: '🤝', title: `【${managingName}】正在提炼半程研讨共识...`, detail: `正在深度整合全组自查痛点与研讨记录，提炼修改共识要点并交棒${reviewingName}...` });
       await new Promise(r => setTimeout(r, 1200));
 
-      const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues, taskType });
+      const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues, taskType, milestoneKey: 'stage2_managing' });
       let managingText = (respManaging && respManaging.trim().length > 0) ? respManaging.trim() : '';
       if (!managingText) {
         managingText = `🤝 【${managingName}·提示】：📡 正在提炼研讨共识，大模型生成未完成。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:5px 14px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新调用生成研讨共识小结</button>`;
@@ -5511,7 +5511,7 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
 
       let reviewingText = '';
       try {
-        const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues, rawDoc, taskType });
+        const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues, rawDoc, taskType, milestoneKey: 'stage2_reviewing' });
         reviewingText = (respReviewing && respReviewing.trim().length > 0) ? respReviewing.trim() : '';
       } catch (err) {
         console.warn('Reviewing agent call err:', err);
@@ -5597,7 +5597,7 @@ ${chatSnippet}
       this.setActiveAgentAnalyzing({ icon: '📝', title: `【${reviewingName}】正在审查清单落实与定稿冲刺...`, detail: '正在评估全组修改对策与落实方案，起草成稿与答辩冲刺寄语...' });
       await new Promise(r => setTimeout(r, 1500));
 
-      const respSummary = await callCozeAgentAPI('reviewingEditor', summaryPrompt, { stage: 'stage2', topic, taskType });
+      const respSummary = await callCozeAgentAPI('reviewingEditor', summaryPrompt, { stage: 'stage2', topic, taskType, milestoneKey: 'stage2_review_summary' });
       let summaryText = (respSummary && respSummary.trim().length > 0) ? respSummary.trim() : '';
       if (!summaryText) {
         summaryText = `📝 【${reviewingName}·网络提醒】：📡 正在评估全组修改对策与落实方案，网络连接稍有延迟未能获取到即时总结。<br><button class="btn-retry-ai" onclick="window.app.handleS2ReviewingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成修改确认与冲刺寄语</button>`;
@@ -6177,7 +6177,7 @@ ${chatSnippet}
         try {
           const timeoutPromise = new Promise(r => setTimeout(() => r(null), 45000));
           chairText = await Promise.race([
-            callCozeAgentAPI('neutral', chairPrompt, { stage: 'stage3', topic, prop: propText, opp: oppText, queryPoint: 1, taskType }),
+            callCozeAgentAPI('neutral', chairPrompt, { stage: 'stage3', topic, prop: propText, opp: oppText, queryPoint: 1, taskType, milestoneKey: 'stage3_chair' }),
             timeoutPromise
           ]);
           chairText = (chairText && typeof chairText === 'string') ? chairText.trim() : '';
@@ -7313,7 +7313,7 @@ ${chatSnippet}
 ③ 明确指引全组成员点击左侧【提交终稿】锁定入库！纯自然语言输出，130~150字。`;
             }
 
-            let neutralReply = await callCozeAgentAPI('neutral', queryPrompt, { stage: 'stage3', topic });
+            let neutralReply = await callCozeAgentAPI('neutral', queryPrompt, { stage: 'stage3', topic, milestoneKey: 'stage3_final_verdict' });
             if (!neutralReply || neutralReply.trim().length === 0) {
               neutralReply = `🟡 【中间委员·网络提醒】：📡 答辩委员会评审网络连接稍有延迟，未能即时生成答辩指引。<br><span style="color:#64748b; font-size:12px;">建议在讨论区 @中间委员 重新获取答辩思路指引。</span>`;
             }
@@ -8505,7 +8505,7 @@ ${fullDoc}
 2. 🎯 [诊断问题]：...；[改进建议]：...
 3. 🎯 [诊断问题]：...；[改进建议]：...`;
 
-    let reviewingText = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic: ctx.topic, bottleneck: ctx.bAcademic, actualDoc: fullDoc, priorReview: priorFirstReview });
+    let reviewingText = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic: ctx.topic, bottleneck: ctx.bAcademic, actualDoc: fullDoc, priorReview: priorFirstReview, milestoneKey: 'stage2_second_review' });
     if (!reviewingText || reviewingText.trim().length === 0) {
       reviewingText = `📝 【${reviewingName}·网络提醒】：📡 正在深度审阅正文草稿，网络连接稍有延迟未能即时生成修正清单。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新下发《${isInst ? '磨课修正清单' : '二审修正清单'}》</button>`;
     } else {
