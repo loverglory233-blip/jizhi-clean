@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2688";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2688";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2688";
-import { AuthManager } from "./auth.js?v=20260906_v2688";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2688";
-import { renderLoginView } from "./login.js?v=20260906_v2688";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2688";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2688";
+} from "./constants.js?v=20260906_v2689";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2689";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2689";
+import { AuthManager } from "./auth.js?v=20260906_v2689";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2689";
+import { renderLoginView } from "./login.js?v=20260906_v2689";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2689";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2689";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2688";
+} from "./editor.js?v=20260906_v2689";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1256,6 +1256,12 @@ export class App {
   }
 
   renderMain() {
+    const loader = document.getElementById('app-loading-screen');
+    if (loader && loader.style.display !== 'none') {
+      loader.style.opacity = '0';
+      setTimeout(() => { loader.style.display = 'none'; }, 150);
+    }
+
     const currentUser = this.authManager.getCurrentUser();
     const appEl = document.getElementById('app');
 
@@ -1300,6 +1306,8 @@ export class App {
           (taskId) => {
             this._isHandlingTaskRevoked = false;
             const actualTaskId = taskId || null;
+            const allTasks = this.authManager ? this.authManager.getTasks() : [];
+            const targetTaskObj = allTasks.find(t => isSameId(t.id, actualTaskId) || t.title === actualTaskId);
             const isUniversalClass = (cid) => !cid || cid === 'all' || cid === 'class_all' || cid === 'task_class_all';
             const rawTaskClassId = (targetTaskObj && !isUniversalClass(targetTaskObj.classId)) ? targetTaskObj.classId : null;
             const taskClassId = rawTaskClassId || (this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, actualTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null));
