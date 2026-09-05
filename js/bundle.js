@@ -4606,9 +4606,9 @@
       });
 
       const isHidden = () => document.hidden || document.visibilityState === 'hidden';
-      const isIdle = () => isHidden() || (Date.now() - lastUserActivity > 180000);
-      const getPollInterval = () => (isHidden() ? 15000 : (isIdle() ? 5000 : 1500));
-      const getPingInterval = () => (isHidden() ? 30000 : 8000);
+      const isIdle = () => (Date.now() - lastUserActivity > 60000);
+      const getPollInterval = () => (isHidden() ? 2500 : (isIdle() ? 1500 : 1000));
+      const getPingInterval = () => (isHidden() ? 10000 : 4000);
 
       const runPoll = () => {
         if (this.isLoggingOut) return;
@@ -6584,8 +6584,8 @@
         } catch (e) {}
       }
 
-      // ⚡ 教师同屏实时监控模式下，只要标签页在前台，保持 1.5 秒极速实时刷新
-      const tInterval = document.hidden ? 10000 : 1500;
+      // ⚡ 教师同屏实时监控模式下，保持 1.0 秒极速实时刷新，后台窗口保持 2.5 秒
+      const tInterval = document.hidden ? 2500 : 1000;
       window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInterval);
     };
     if (window._teacherPortalSyncTimer) clearTimeout(window._teacherPortalSyncTimer);

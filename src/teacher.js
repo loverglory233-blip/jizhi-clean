@@ -531,8 +531,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
       } catch (e) {}
     }
 
-    // ⚡ 教师同屏实时监控模式下，只要标签页在前台，保持 1.5 秒极速实时刷新
-    const tInterval = document.hidden ? 10000 : 1500;
+    // ⚡ 教师同屏实时监控模式下，保持 1.0 秒极速实时刷新，后台窗口保持 2.5 秒
+    const tInterval = document.hidden ? 2500 : 1000;
     window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInterval);
   };
   if (window._teacherPortalSyncTimer) clearTimeout(window._teacherPortalSyncTimer);

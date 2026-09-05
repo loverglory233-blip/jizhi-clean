@@ -375,9 +375,9 @@ export class CloudSyncEngine {
     });
 
     const isHidden = () => document.hidden || document.visibilityState === 'hidden';
-    const isIdle = () => isHidden() || (Date.now() - lastUserActivity > 180000);
-    const getPollInterval = () => (isHidden() ? 15000 : (isIdle() ? 5000 : 1500));
-    const getPingInterval = () => (isHidden() ? 30000 : 8000);
+    const isIdle = () => (Date.now() - lastUserActivity > 60000);
+    const getPollInterval = () => (isHidden() ? 2500 : (isIdle() ? 1500 : 1000));
+    const getPingInterval = () => (isHidden() ? 10000 : 4000);
 
     const runPoll = () => {
       if (this.isLoggingOut) return;
