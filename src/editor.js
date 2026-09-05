@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2614";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2614";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260905_v2614";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2615";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2615";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260905_v2615";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -2358,7 +2358,21 @@ function renderStage2Canvas(canvas, state, handlers) {
           existingFrame._wasPreviouslyReadonly = true;
           enforceEtherpadReadonly(existingFrame);
         } else {
-          liftEtherpadReadonly(existingFrame);
+          // 🔑 关键修复：如果 iframe 之前是只读状态，必须强制用新的可写 URL 重载 iframe
+          // Etherpad 服务端会把会话记为 readOnly，仅靠 DOM 操作无法恢复，必须重新建连接
+          const wasReadonly = existingFrame._wasPreviouslyReadonly || existingFrame._isReadonlyEnforced;
+          if (wasReadonly) {
+            existingFrame._wasPreviouslyReadonly = false;
+            existingFrame._isReadonlyEnforced = false;
+            // 清除只读遮罩
+            const container = existingFrame.parentElement;
+            if (container) container.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+            document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+            // 用可写 URL 重建 Etherpad 连接（不含 readOnly=true 和 showControls=false）
+            existingFrame.src = padUrl;
+          } else {
+            liftEtherpadReadonly(existingFrame);
+          }
           existingFrame._wasPreviouslyReadonly = false;
         }
       }
@@ -2948,7 +2962,24 @@ function renderStage3Canvas(canvas, state, handlers) {
         existingFrame._wasPreviouslyReadonly = true;
         enforceEtherpadReadonly(existingFrame);
       } else {
-        liftEtherpadReadonly(existingFrame);
+        // 🔑 关键修复：Etherpad 服务端持久化了 readOnly 会话状态，仅靠 DOM 操作无法解锁
+        // 如果 iframe 之前是只读 URL，必须强制移除 readOnly 参数并重新加载 iframe
+        const wasReadonly = existingFrame._wasPreviouslyReadonly || existingFrame._isReadonlyEnforced;
+        if (wasReadonly) {
+          existingFrame._wasPreviouslyReadonly = false;
+          existingFrame._isReadonlyEnforced = false;
+          // 清除只读遮罩
+          const container = existingFrame.parentElement;
+          if (container) container.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+          document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+          // 从当前 src 中移除 &readOnly=true 和 &showControls=false，强制重新建立可写连接
+          let newSrc = (existingFrame.src || '').replace(/[&?]readOnly=true/g, '').replace(/[&?]showControls=false/g, '&showControls=true');
+          if (newSrc !== existingFrame.src) {
+            existingFrame.src = newSrc;
+          }
+        } else {
+          liftEtherpadReadonly(existingFrame);
+        }
         existingFrame._wasPreviouslyReadonly = false;
       }
     }
