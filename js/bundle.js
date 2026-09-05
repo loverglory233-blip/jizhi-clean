@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2657
+ * Version: 20260906_v2658
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2657';
+  const APP_VERSION = '20260906_v2658';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13290,6 +13290,7 @@
 
         // 匹配每个 authorClass 到真实的 membersList 成员
         const selfMem = membersList.find(m => isSameUser(m, currUser) || isSameUser(m, currUserCode) || (currUserName && m.name === currUserName) || (currUser?.id && isSameId(m.id, currUser.id))) || currUser;
+        const otherMembers = targetMembersList.filter(m => !isSameUser(m, selfMem));
 
         // 🛡️ 作者-成员映射器：精准解析 Etherpad 记录的每位组员真实姓名与作者 ID
         const authorMap = new Map();
@@ -13299,6 +13300,24 @@
           const s = String(nameStr).trim().toLowerCase();
           return s === '' || s === '组员' || s === '学术组员' || s === 'unnamed' || s === 'author' || s === 'guest' || s === 'null' || s === 'undefined';
         };
+
+        // 获取当前客户端在 Etherpad 里的作者 ID
+        let localUserId = '';
+        if (padWin) {
+          if (padWin.clientVars && padWin.clientVars.userId) {
+            localUserId = padWin.clientVars.userId;
+          } else if (padWin.pad && typeof padWin.pad.getUserId === 'function') {
+            try { localUserId = padWin.pad.getUserId(); } catch(e){}
+          }
+        }
+        const rawLocalId = localUserId ? localUserId.replace(/^(author[-_]|a[._-])/i, '').toLowerCase() : '';
+        if (rawLocalId && selfMem) {
+          authorMap.set(rawLocalId, selfMem);
+          authorMap.set('a.' + rawLocalId, selfMem);
+          authorMap.set('a-' + rawLocalId, selfMem);
+          authorMap.set('a_' + rawLocalId, selfMem);
+          authorMap.set(localUserId, selfMem);
+        }
 
         // 1. 优先遍历 authorData，依据姓名与 ID 权威绑定组内所有同伴（包括自己与组内其他成员）
         Object.entries(authorData).forEach(([aKey, aObj]) => {
@@ -13385,9 +13404,22 @@
             }
           }
 
-          // 若未能匹配到具体组员，仅当确认是本地当前打字产生的类名时才绑定为当前用户，绝不冒领他人文字
-          if (!matched && selfMem && (window._localDetectedAuthorClass === aKey || (window._jizhiLocalAuthorClasses && window._jizhiLocalAuthorClasses.has(aKey)))) {
-            matched = selfMem;
+          // 🛡️ 本地作者判定：如果是本地键入产生的 authorClass 或与当前用户的 localUserId 相同，绑定为 selfMem
+          const isLocalKey = (rawId && rawId === rawLocalId) || 
+                            (window._localDetectedAuthorClass === aKey) || 
+                            (window._jizhiLocalAuthorClasses && window._jizhiLocalAuthorClasses.has(aKey));
+
+          if (!matched) {
+            if (isLocalKey && selfMem) {
+              matched = selfMem;
+            } else if (otherMembers.length === 1) {
+              // 🌟 2人协作小组铁律：如果不是本地作者键入的，必然是组内唯一的同伴（蒋诚真/方诗琪）键入的！
+              matched = otherMembers[0];
+            } else if (otherMembers.length > 1) {
+              // 多人协作小组：分配给未被绑定的其他组员
+              const unboundOther = otherMembers.find(om => !Array.from(assignedAuthors.values()).some(am => isSameUser(am, om))) || otherMembers[0];
+              matched = unboundOther;
+            }
           }
 
           if (matched) {
