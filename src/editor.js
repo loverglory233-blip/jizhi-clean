@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2578";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2578";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2578";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2579";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2579";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2579";
 
 /**
  * 🛡️ 全局提炼互斥状态判定工具函数
@@ -518,9 +518,17 @@ function renderStage1Canvas(canvas, state, handlers) {
                 const isMe = isMyDoneHelper(confs.s1_tasks);
                 const isFull = count >= totalMembersCount && totalMembersCount > 0;
                 const isTasksRunning = !!(window.app && window.app._isExtractingTasks);
+                const isTasksFailed = !!(s1._tasksExtractFailed);
+                if (isTasksFailed) {
+                  return `
+                    <button id="btn-extract-tasks" disabled style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; opacity:0.95; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(217,119,6,0.3);">
+                      ⚠️ 提炼遇阻 · 全员已确认 (${count}/${totalMembersCount}) · 请在右侧讨论区点击【重新提炼】
+                    </button>
+                  `;
+                }
                 return `
-                  <button id="btn-extract-tasks" style="background:${isTasksRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
-                    ${isTasksRunning ? `⏳ 正在提炼【任务分工】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【任务分工】` : (isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`)))}
+                  <button id="btn-extract-tasks" ${isTasksRunning || isExtractingAny || isFull ? 'disabled' : ''} style="background:${isTasksRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTasksRunning || isExtractingAny || isFull ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
+                    ${isTasksRunning ? `⏳ 正在提炼【任务分工】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 智能体提炼中...` : (isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`)))}
                   </button>
                 `;
               } else if (s1.contractStep === 'time') {
@@ -528,9 +536,17 @@ function renderStage1Canvas(canvas, state, handlers) {
                 const isMe = isMyDoneHelper(confs.s1_time);
                 const isFull = count >= totalMembersCount && totalMembersCount > 0;
                 const isTimeRunning = !!(window.app && window.app._isExtractingTime);
+                const isTimeFailed = !!(s1._timeExtractFailed);
+                if (isTimeFailed) {
+                  return `
+                    <button id="btn-extract-time" disabled style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; opacity:0.95; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(217,119,6,0.3);">
+                      ⚠️ 提炼遇阻 · 全员已确认 (${count}/${totalMembersCount}) · 请在右侧讨论区点击【重新提炼】
+                    </button>
+                  `;
+                }
                 return `
-                  <button id="btn-extract-time" style="background:${isTimeRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
-                    ${isTimeRunning ? `⏳ 正在提炼【时间分配】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【时间分配】` : (isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`)))}
+                  <button id="btn-extract-time" ${isTimeRunning || isExtractingAny || isFull ? 'disabled' : ''} style="background:${isTimeRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTimeRunning || isExtractingAny || isFull ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
+                    ${isTimeRunning ? `⏳ 正在提炼【时间分配】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 智能体提炼中...` : (isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`)))}
                   </button>
                 `;
               } else {
@@ -538,6 +554,7 @@ function renderStage1Canvas(canvas, state, handlers) {
                 const isMe = isMyDoneHelper(confs.s1_topic);
                 const isFull = count >= totalMembersCount && totalMembersCount > 0;
                 const isTopicRunning = !!(window.app && window.app._isExtractingTopic);
+                const isTopicFailed = !!(s1._topicExtractFailed);
                 if (!isVotingComplete) {
                   return `
                     <button id="btn-extract-topic" class="locked-pending-btn" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
@@ -546,9 +563,16 @@ function renderStage1Canvas(canvas, state, handlers) {
                   `;
                 }
                 const extractName = (taskGenreKey === 'instructional') ? '课题与教学构想' : '主题与研究方案';
+                if (isTopicFailed) {
+                  return `
+                    <button id="btn-extract-topic" disabled style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; opacity:0.95; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(217,119,6,0.3);">
+                      ⚠️ 提炼遇阻 · 全员已确认 (${count}/${totalMembersCount}) · 请在右侧讨论区点击【重新提炼】
+                    </button>
+                  `;
+                }
                 return `
-                  <button id="btn-extract-topic" style="background:${isTopicRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
-                    ${isTopicRunning ? `⏳ 正在提炼【${extractName}】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【${extractName}】` : (isMe ? `✅ 您已确认提炼${extractName} (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【${extractName}】 (${count}/${totalMembersCount})`)))}
+                  <button id="btn-extract-topic" ${isTopicRunning || isExtractingAny || isFull ? 'disabled' : ''} style="background:${isTopicRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTopicRunning || isExtractingAny || isFull ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
+                    ${isTopicRunning ? `⏳ 正在提炼【${extractName}】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 智能体提炼中...` : (isMe ? `✅ 您已确认提炼${extractName} (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【${extractName}】 (${count}/${totalMembersCount})`)))}
                   </button>
                 `;
               }
@@ -1283,6 +1307,12 @@ function renderStage1Canvas(canvas, state, handlers) {
           alert(`🔒 请先完成全员提案提交与投票推选！\n\n当前全组投票进度：${totalVotesCast}/${totalMembersCount} 人已投票。\n投票结束后拍卖师将落槌揭晓结果，随后方可开启主题与方案提炼。`);
           return;
         }
+        if (s1._topicExtractFailed) {
+          if (typeof showGlobalBannerNotice === 'function') {
+            showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
+          }
+          return;
+        }
         if (isAnyExtracting(state)) {
           if (typeof showGlobalBannerNotice === 'function') {
             showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
@@ -1298,6 +1328,12 @@ function renderStage1Canvas(canvas, state, handlers) {
     const btnExtractTime = canvas.querySelector('#btn-extract-time');
     if (btnExtractTime) {
       btnExtractTime.addEventListener('click', () => {
+        if (s1._timeExtractFailed) {
+          if (typeof showGlobalBannerNotice === 'function') {
+            showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
+          }
+          return;
+        }
         if (isAnyExtracting(state)) {
           if (typeof showGlobalBannerNotice === 'function') {
             showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
@@ -1313,6 +1349,12 @@ function renderStage1Canvas(canvas, state, handlers) {
     const btnExtractTasks = canvas.querySelector('#btn-extract-tasks');
     if (btnExtractTasks) {
       btnExtractTasks.addEventListener('click', () => {
+        if (s1._tasksExtractFailed) {
+          if (typeof showGlobalBannerNotice === 'function') {
+            showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
+          }
+          return;
+        }
         if (isAnyExtracting(state)) {
           if (typeof showGlobalBannerNotice === 'function') {
             showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
