@@ -106,7 +106,7 @@ try {
                 VALUES (:id, :title, :desc, :created_at, :deadline, :duration, :cids, :att, :status)
                 ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `desc`=VALUES(`desc`), `created_at_str`=VALUES(`created_at_str`), `deadline`=VALUES(`deadline`), `duration_minutes`=VALUES(`duration_minutes`), `target_class_ids`=VALUES(`target_class_ids`), `attachments`=VALUES(`attachments`), `status`=VALUES(`status`)");
             foreach ($gTasks as $tsk) {
-                $tid = $tsk['id'] ?? 'task_default';
+                $tid = $tsk['id'] ?? '';
                 $ttitle = $tsk['title'] ?? '写作任务';
                 $tdesc = $tsk['instructions'] ?? ($tsk['desc'] ?? '');
                 $tcreated = $tsk['createdAt'] ?? date('Y-m-d H:i:s');

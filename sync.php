@@ -740,7 +740,7 @@ if ($action === 'unlock_field' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'report_member_contrib') {
     header('Content-Type: application/json; charset=utf-8');
     $input = json_decode(file_get_contents('php://input'), true) ?: [];
-    $taskId = $input['taskId'] ?? ($taskId ?: 'task_default');
+    $taskId = $input['taskId'] ?? ($taskId ?: '');
     $groupId = $input['groupId'] ?? ($groupId ?: 'group_1');
     $userCode = $input['userCode'] ?? '';
     $delta = intval($input['delta'] ?? 0);
@@ -789,7 +789,7 @@ if ($action === 'set_task_group_lock') {
     header('Content-Type: application/json; charset=utf-8');
     $rawInput = @file_get_contents('php://input');
     $req = json_decode($rawInput, true) ?: [];
-    $taskId = $req['taskId'] ?? ($taskId ?: 'task_default');
+    $taskId = $req['taskId'] ?? ($taskId ?: '');
     $groupId = $req['groupId'] ?? ($groupId ?: 'group_1');
     $isLocked = !empty($req['isLocked']) ? 1 : 0;
     $sk = $taskId . '_' . $groupId;
@@ -912,9 +912,6 @@ if ($action === 'get_teacher_monitor_all_groups') {
     if (empty($classId)) $classId = 'class_101';
 
     $taskId = isset($_GET['taskId']) ? trim($_GET['taskId']) : (isset($REQ_DATA['taskId']) ? trim($REQ_DATA['taskId']) : '');
-    if (empty($taskId) || $taskId === 'task_default') {
-        $taskId = 'task_' . $classId . '_default';
-    }
 
     $result = ['success' => true, 'groups' => []];
     $nowMs = round(microtime(true) * 1000);
@@ -964,9 +961,8 @@ if ($action === 'get_teacher_monitor_all_groups') {
             }
         }
 
-        $legacyTid = ($taskId === 'task_' . $classId . '_default') ? 'task_default' : $taskId;
-        $stmt = $pdo->prepare("SELECT * FROM group_states WHERE task_id = :tid OR task_id = :tid2 OR scope_key = :skExact OR scope_key LIKE :skPattern ORDER BY last_timestamp ASC");
-        $stmt->execute([':tid' => $taskId, ':tid2' => $legacyTid, ':skExact' => $taskId . '_group_1', ':skPattern' => $taskId . '_%']);
+        $stmt = $pdo->prepare("SELECT * FROM group_states WHERE task_id = :tid OR scope_key = :skExact OR scope_key LIKE :skPattern ORDER BY last_timestamp ASC");
+        $stmt->execute([':tid' => $taskId, ':skExact' => $taskId . '_group_1', ':skPattern' => $taskId . '_%']);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $stateMap = [];
         $groupPresencePool = [];
@@ -1429,7 +1425,7 @@ if ($action === 'align_all_pads_physically') {
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         foreach ($rows as $r) {
-            $tId = $r['task_id'] ?: 'task_default';
+            $tId = $r['task_id'] ?: '';
             $gId = $r['group_id'] ?: 'group_1';
             $s2 = json_decode($r['stage2_data'], true);
             if (empty($s2['unifiedContent'])) continue;
@@ -2749,6 +2745,10 @@ if ($action === 'update_read_status' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 // 1c-2. 全员协同确认原子接口（无竞态覆盖，秒级原子合并各成员点击确认）
 if ($action === 'confirm_step' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $req = !empty($REQ_DATA) ? $REQ_DATA : (@json_decode($RAW_INPUT, true) ?: []);
+    $passedScopeKey = isset($req['scopeKey']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $req['scopeKey']) : '';
+    if (!empty($passedScopeKey)) {
+        $scopeKey = $passedScopeKey;
+    }
     $stepKey = isset($req['stepKey']) ? trim((string)$req['stepKey']) : '';
     $userKey = isset($req['userKey']) ? trim((string)$req['userKey']) : '';
     $nowMs = round(microtime(true) * 1000);
@@ -2790,6 +2790,10 @@ if ($action === 'confirm_step' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if ($action === 'clear_step_confirmation' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $req = !empty($REQ_DATA) ? $REQ_DATA : (@json_decode($RAW_INPUT, true) ?: []);
+    $passedScopeKey = isset($req['scopeKey']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $req['scopeKey']) : '';
+    if (!empty($passedScopeKey)) {
+        $scopeKey = $passedScopeKey;
+    }
     $stepKey = isset($req['stepKey']) ? trim((string)$req['stepKey']) : '';
     $nowMs = round(microtime(true) * 1000);
 
@@ -3789,6 +3793,11 @@ if ($pdo) {
         $agRow = $stmtGetAg->fetch();
         $agAnalyzingData = ($agRow && !empty($agRow['meta_value'])) ? (json_decode($agRow['meta_value'], true) ?: null) : null;
 
+        $stmtGetConfs = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmtGetConfs->execute([':k' => 'confs_' . $scopeKey]);
+        $cRow = $stmtGetConfs->fetch();
+        $stepConfs = ($cRow && !empty($cRow['meta_value'])) ? (json_decode($cRow['meta_value'], true) ?: []) : [];
+
         if ($clientLastRev > 0 && $clientLastRev === $lastRev && $clientLastChatMs >= $maxChatMs && $resetSeq === 0 && !$needGlobalSync) {
             echo json_encode([
                 'unchanged'            => true,
@@ -3799,6 +3808,7 @@ if ($pdo) {
                 'locks'                => $activeLocks,
                 'resetSeq'             => 0,
                 'chatLogs'             => $chats,
+                'stepConfirmations'    => $stepConfs,
                 'activeAgentAnalyzing' => $agAnalyzingData
             ]);
             exit;

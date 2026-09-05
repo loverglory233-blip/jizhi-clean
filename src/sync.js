@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2571';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2571';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2573';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2573';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1560,10 +1560,17 @@ export class CloudSyncEngine {
     }
 
     if (remoteData.stepConfirmations !== undefined) {
-      const localStr = JSON.stringify(this.app.state.stepConfirmations || {});
+      const localConfs = this.app.state.stepConfirmations || {};
       const remoteConfs = remoteData.stepConfirmations || {};
-      this.app.state.stepConfirmations = remoteConfs;
-      if (JSON.stringify(remoteConfs) !== localStr) {
+      const mergedConfs = {};
+      const allSteps = new Set([...Object.keys(localConfs), ...Object.keys(remoteConfs)]);
+      for (const st of allSteps) {
+        mergedConfs[st] = Object.assign({}, localConfs[st] || {}, remoteConfs[st] || {});
+      }
+      const localStr = JSON.stringify(this.app.state.stepConfirmations || {});
+      const mergedStr = JSON.stringify(mergedConfs);
+      this.app.state.stepConfirmations = mergedConfs;
+      if (mergedStr !== localStr) {
         needWorkspaceRender = true;
       }
     }

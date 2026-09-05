@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2571";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2571";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2571";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2573";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2573";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2573";
 
 /**
  * 🛡️ 全局提炼互斥状态判定工具函数
@@ -392,11 +392,15 @@ function renderStage1Canvas(canvas, state, handlers) {
             ${isVotingComplete ? `🎉 投票已完成 (共投出 ${totalVotesCast} 票)` : `📊 投票进度: <b>${totalVotesCast}/${totalMembersCount} 人已投票</b> ${userHasVoted ? '<span style="color:#059669; font-weight:700; margin-left:4px;">(您已投票，等待其他组员)</span>' : ''}`}
           </span>
         </div>
-        ${!isContractLocked ? `
+        ${(!isContractLocked && !userHasVoted && !isVotingComplete && totalVotesCast === 0) ? `
           <button id="btn-open-submit-proposal" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:7px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.3);">
             ${hasSubmittedMyProposal ? '✏️ 修改我的选题' : '+ 提交我的选题'}
           </button>
-        ` : ''}
+        ` : `
+          <span style="font-size:12px; color:#64748b; background:#f1f5f9; border:1px solid #e2e8f0; padding:4px 10px; border-radius:8px; font-weight:700;">
+            🔒 ${isVotingComplete ? '投票已完成 · 选题已锁定' : (userHasVoted ? '您已投票 · 选题已锁定' : (totalVotesCast > 0 ? '投票已开始 · 选题已锁定' : '公约已锁定'))}
+          </span>
+        `}
       </div>
 
       <div id="proposals-wrapper-container">
@@ -653,6 +657,10 @@ function renderStage1Canvas(canvas, state, handlers) {
   const btnOpenProp = canvas.querySelector('#btn-open-submit-proposal');
   if (btnOpenProp) {
     btnOpenProp.addEventListener('click', () => {
+      if (isContractLocked || isVotingComplete || userHasVoted || totalVotesCast > 0) {
+        alert('🔒 投票已开始或已完成，选题提案已锁定，不可再提交或修改！');
+        return;
+      }
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
       const existingProp = s1.proposals.find(p => checkIsMyProposal(p));
       const modal = document.createElement('div');
@@ -700,6 +708,11 @@ function renderStage1Canvas(canvas, state, handlers) {
       });
 
       modal.querySelector('#btn-submit-prop-action').addEventListener('click', async () => {
+        if (isContractLocked || isVotingComplete || userHasVoted || totalVotesCast > 0) {
+          alert('🔒 投票已开始或已完成，选题提案已锁定，不可修改！');
+          closeModal();
+          return;
+        }
         const title = modal.querySelector('#prop-title-input').value.trim();
         if (!title) { alert('⚠️ 请输入选题名称！'); return; }
 
