@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2585
+ * Version: 20260905_v2586
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2585';
+  const APP_VERSION = '20260905_v2586';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -18543,7 +18543,7 @@
         // 🛡️ 清除占位与失败气泡
         this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => {
           if (!m) return false;
-          if (m.id === tempThinkingId || m.isThinking) return false;
+          if (m.isThinking || String(m.id || '').startsWith('thinking_vote')) return false;
           if (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('研讨指引')) return false;
           return true;
         });
@@ -18573,7 +18573,7 @@
         this.renderStudentWorkspace();
       } catch (e) {
         console.warn('triggerVoteGuidance error:', e);
-        this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (m.id !== tempThinkingId && !m.isThinking));
+        this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (!m.isThinking && !String(m.id || '').startsWith('thinking_vote')));
         const errVoteMsg = {
           id: 'err_vote_' + Date.now(),
           sender: 'auctioneer',
@@ -19023,7 +19023,7 @@
         // 🛡️ 移除正在提炼中的思考消息与残留网络提醒
         this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => {
           if (!m) return false;
-          if (m.id === tempThinkingId || m.isThinking || String(m.id).startsWith('thinking_topic_')) return false;
+          if (m.isThinking || String(m.id || '').startsWith('thinking_topic_')) return false;
           if (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('主题与方案')) return false;
           return true;
         });
@@ -19071,7 +19071,7 @@
         console.warn('Extract topic & overview error:', e);
         if (!this.state.stage1) this.state.stage1 = {};
         this.state.stage1._topicExtractFailed = true;
-        this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (m.id !== tempThinkingId && !m.isThinking && !String(m.id).startsWith('thinking_topic_')));
+        this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (!m.isThinking && !String(m.id || '').startsWith('thinking_topic_')));
         const errTopicMsg = {
           id: 'err_topic_' + Date.now(),
           sender: 'auctioneer',
@@ -19255,7 +19255,7 @@
         // 🛡️ 移除正在提炼中的思考消息与残留网络提醒
         this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => {
           if (!m) return false;
-          if (m.id === tempThinkingId || m.isThinking || String(m.id).startsWith('thinking_time_')) return false;
+          if (m.isThinking || String(m.id || '').startsWith('thinking_time_')) return false;
           if (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('时间')) return false;
           return true;
         });
@@ -19295,7 +19295,7 @@
         console.warn('Extract time error:', e);
         if (!this.state.stage1) this.state.stage1 = {};
         this.state.stage1._timeExtractFailed = true;
-        this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (m.id !== tempThinkingId && !m.isThinking && !String(m.id).startsWith('thinking_time_')));
+        this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (!m.isThinking && !String(m.id || '').startsWith('thinking_time_')));
         const errTimeMsg = {
           id: 'err_time_' + Date.now(),
           sender: 'auctioneer',
@@ -19465,7 +19465,7 @@
         // 🛡️ 移除正在提炼中的思考消息与残留网络提醒
         this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => {
           if (!m) return false;
-          if (m.id === tempThinkingId || m.isThinking || String(m.id).startsWith('thinking_tasks_')) return false;
+          if (m.isThinking || String(m.id || '').startsWith('thinking_tasks_')) return false;
           if (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('分工')) return false;
           return true;
         });
@@ -19507,7 +19507,7 @@
         console.warn('Extract tasks error:', e);
         if (!this.state.stage1) this.state.stage1 = {};
         this.state.stage1._tasksExtractFailed = true;
-        this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (m.id !== tempThinkingId && !m.isThinking && !String(m.id).startsWith('thinking_tasks_')));
+        this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (!m.isThinking && !String(m.id || '').startsWith('thinking_tasks_')));
         const errTasksMsg = {
           id: 'err_tasks_' + Date.now(),
           sender: 'auctioneer',
@@ -19820,7 +19820,7 @@
       if (!isSuccess) {
         this._contractGenerateFailed = true;
         if (this.state.stage1) this.state.stage1._fullContractFailed = true;
-        this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (m.id !== tempThinkingId && !m.isThinking && !String(m.id).startsWith('thinking_full_contract_')));
+        this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (!m.isThinking && !String(m.id || '').startsWith('thinking_full_contract_')));
         const errFullMsg = {
           id: 'err_full_contract_' + Date.now(),
           sender: 'auctioneer',
@@ -19844,7 +19844,7 @@
       // 🛡️ 移除正在提炼中的思考消息与残留网络提醒
       this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => {
         if (!m) return false;
-        if (m.id === tempThinkingId || m.isThinking || String(m.id).startsWith('thinking_full_contract_')) return false;
+        if (m.isThinking || String(m.id || '').startsWith('thinking_full_contract_')) return false;
         if (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('公约草案')) return false;
         return true;
       });
