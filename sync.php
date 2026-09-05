@@ -2897,7 +2897,7 @@ if ($action === 'clear_step_confirmation' && $_SERVER['REQUEST_METHOD'] === 'POS
 }
 
 // 1d. 研讨区独立轻量发信接口（领域隔离：仅入库单条消息，绝不触碰 group_states 表中的 stage1/stage2/stage3）
-if ($action === 'send_chat' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+if (($action === 'send_chat' || $action === 'send_chat_message') && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $req = !empty($REQ_DATA) ? $REQ_DATA : (@json_decode($RAW_INPUT, true) ?: []);
     $msgItem = isset($req['message']) ? $req['message'] : $req;
     $stage = isset($req['stage']) ? $req['stage'] : (isset($msgItem['stage']) ? $msgItem['stage'] : 'stage1');

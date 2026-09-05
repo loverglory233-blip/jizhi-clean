@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2605
+ * Version: 20260905_v2606
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2605';
+  const APP_VERSION = '20260905_v2606';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3905,15 +3905,72 @@
       }
     }
 
-    // 📚 教师端下发学术范文：更新元数据并广播通知，由学生端在阶段二结合文献配置自主呈现
+    getReferencePaperById(paperId) {
+      if (!paperId) return null;
+      const papers = this.getAllReferencePapers();
+      return papers.find(p => p && isSameId(p.id, paperId)) || null;
+    }
+
+    // 📚 教师端下发学术范文：更新元数据并广播通知，向目标小组研讨流中注入审稿编辑推送提示
     pushReferencePaperToGroupChat(paperId, targetGroupId = 'all') {
       this.pushGlobalMeta();
+      const papers = this.getAllReferencePapers();
+      const paper = papers.find(p => p && isSameId(p.id, paperId));
+      if (paper) {
+        const allTasks = this.getTasks();
+        const taskObj = allTasks.find(t => isSameId(t.id, paper.taskId));
+        const isInst = (taskObj && taskObj.taskType === 'instructional');
+        const reviewingName = isInst ? '教研专家' : '审稿编辑';
+        const reviewingSenderName = isInst ? '教研专家 · 质量把关' : '审稿编辑 · 质量把关';
+
+        let targetGroupIds = [];
+        if (Array.isArray(paper.targetGroupIds) && paper.targetGroupIds.length > 0) {
+          targetGroupIds = paper.targetGroupIds;
+        } else if (targetGroupId && targetGroupId !== 'all') {
+          targetGroupIds = [targetGroupId];
+        } else if (paper.classId) {
+          const allClasses = this.getClasses();
+          const cls = allClasses.find(c => isSameId(c.id, paper.classId));
+          if (cls && Array.isArray(cls.groups)) {
+            targetGroupIds = cls.groups.map(g => g.id);
+          }
+        }
+
+        targetGroupIds.forEach(gid => {
+          const payload = {
+            scopeKey: `${paper.taskId}_${gid}`,
+            taskId: paper.taskId,
+            groupId: gid,
+            classId: paper.classId,
+            stage: 'stage2',
+            message: {
+              id: `msg_paper_push_${paper.id}_${gid}`,
+              classId: paper.classId,
+              groupId: gid,
+              taskId: paper.taskId,
+              stage: 'stage2',
+              sender: 'reviewingEditor',
+              senderName: reviewingSenderName,
+              text: `📝 【${reviewingName}·新参考文献下发】：任课教师最新下发了精选参考范文《${paper.title || '学术参考范文'}》！👉 全组成员可点击正文顶部【📚 查阅参考范文库】直接研读学习，参考其核心论点、论证架构与规范表述，为全篇正文起草与修改完善提供高质量支架！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now()
+            }
+          };
+
+          fetch(`sync.php?action=send_chat&groupId=${encodeURIComponent(gid)}&taskId=${encodeURIComponent(paper.taskId)}&classId=${encodeURIComponent(paper.classId || '')}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          }).catch(() => {});
+        });
+      }
+
       if ('BroadcastChannel' in window) {
         try {
           if (!window._jizhiGlobalBc) {
             window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
           }
-          window._jizhiGlobalBc.postMessage({ type: 'paper_updated', paperId, targetGroupId });
+          window._jizhiGlobalBc.postMessage({ type: 'paper_updated', paperId, paper, targetGroupId });
         } catch (e) {}
       }
     }
@@ -15381,13 +15438,14 @@
               }
             }
 
-            // 5. 教师上传参考范文（秒级到达学生端文献库并更新工作台按钮）
-            if (e.data.type === 'paper_uploaded') {
-              if (e.data.paper) {
+            // 5. 教师上传或推送参考范文（秒级到达学生端文献库并更新工作台按钮，若在阶段二且已过开场白，审稿编辑即时在研讨区提醒）
+            if (e.data.type === 'paper_uploaded' || e.data.type === 'paper_updated') {
+              const paperData = e.data.paper || (e.data.paperId && this.authManager ? this.authManager.getReferencePaperById(e.data.paperId) : null);
+              if (paperData) {
                 try {
                   let localPapers = this.authManager ? this.authManager.getAllReferencePapers() : [];
-                  if (!localPapers.some(p => p.id === e.data.paper.id)) {
-                    localPapers.unshift(e.data.paper);
+                  if (!localPapers.some(p => p && isSameId(p.id, paperData.id))) {
+                    localPapers.unshift(paperData);
                     localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(localPapers));
                   }
                 } catch (err) {}
@@ -15402,18 +15460,30 @@
                 if (btnShowCase) {
                   btnShowCase.innerText = available.length > 0 ? `📚 查阅参考范文 (${available.length}篇)` : '📚 查阅参考范文库';
                 }
+                const paperTitle = paperData?.title || e.data.paper?.title || '参考范文';
                 showGlobalBannerNotice(
                   '📚 收到新参考范文',
-                  `任课教师刚刚发布了学术示范文献《${e.data.paper?.title || '参考范文'}》，已存入范文库！`,
+                  `任课教师刚刚发布了学术示范文献《${paperTitle}》，已存入范文库！`,
                   'info',
                   6000
                 );
                 if (document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库')) {
                   this.showReferencePapersModal();
                 }
+                if (paperData) {
+                  this.checkAndRenderPaperNotificationInChat(paperData, groupId, classId);
+                }
               }
               if (this.authManager && this.authManager.pullGlobalMeta) {
-                this.authManager.pullGlobalMeta().catch(() => {});
+                this.authManager.pullGlobalMeta().then(() => {
+                  if (paperData && this.state.studentViewMode === 'workspace') {
+                    const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
+                    const classId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null);
+                    const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(currentUser, classId) : null;
+                    const groupId = this.state.activeGroupId || (this.cloudSyncEngine ? this.cloudSyncEngine.groupId : null) || activeGroupObj?.id || currentUser?.groupId || null;
+                    this.checkAndRenderPaperNotificationInChat(paperData, groupId, classId);
+                  }
+                }).catch(() => {});
               }
             }
 
@@ -17150,6 +17220,56 @@
           }
         }
       }, 10000);
+    }
+
+    checkAndRenderPaperNotificationInChat(paperData, groupId, classId) {
+      if (!paperData || !groupId) return;
+      const taskId = this.state.activeTaskId;
+      if (!taskId) return;
+      if (paperData.taskId && paperData.taskId !== 'task_all' && paperData.taskId !== 'all' && !isSameId(paperData.taskId, taskId)) return;
+      if (paperData.classId && paperData.classId !== 'all' && classId && !isSameId(paperData.classId, classId)) return;
+
+      // 检查受众小组匹配 (targetGroupIds / targetGroupId)
+      if (Array.isArray(paperData.targetGroupIds) && paperData.targetGroupIds.length > 0) {
+        if (!paperData.targetGroupIds.some(tg => isSameId(tg, groupId) || tg === 'all')) return;
+      } else if (paperData.targetGroupId && paperData.targetGroupId !== 'all') {
+        if (!isSameId(paperData.targetGroupId, groupId)) return;
+      }
+
+      const allTasks = this.authManager ? this.authManager.getTasks() : [];
+      const taskObj = allTasks.find(t => isSameId(t.id, taskId));
+      const isInst = (taskObj && taskObj.taskType === 'instructional');
+      const reviewingName = isInst ? '教研专家' : '审稿编辑';
+      const reviewingSenderName = isInst ? '教研专家 · 质量把关' : '审稿编辑 · 质量把关';
+
+      const msgId = `msg_paper_push_${paperData.id}_${groupId}`;
+      if (!this.state.chatLogs) this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+      if (!Array.isArray(this.state.chatLogs.stage2)) this.state.chatLogs.stage2 = [];
+
+      const alreadyInLogs = this.state.chatLogs.stage2.some(m => 
+        (m && m.id === msgId) || 
+        (m && m.sender === 'reviewingEditor' && m.text && (m.text.includes(paperData.title || '新参考文献下发') || (paperData.id && m.text.includes(paperData.id))))
+      );
+
+      if (!alreadyInLogs) {
+        const pushMsg = {
+          id: msgId,
+          classId: classId,
+          groupId: groupId,
+          taskId: taskId,
+          stage: 'stage2',
+          sender: 'reviewingEditor',
+          senderName: reviewingSenderName,
+          text: `📝 【${reviewingName}·新参考文献下发】：任课教师最新下发了精选参考范文《${paperData.title || '学术参考范文'}》！👉 全组成员可点击正文顶部【📚 查阅参考范文库】直接研读学习，参考其核心论点、论证架构与规范表述，为全篇正文起草与修改完善提供高质量支架！`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        this.state.chatLogs.stage2.push(pushMsg);
+        this.saveGroupState(groupId);
+        if (this.state.activeStage === 'stage2' && typeof window.renderChat === 'function') {
+          window.renderChat(this.state);
+        }
+      }
     }
 
     checkUnreadAnnouncements() {
