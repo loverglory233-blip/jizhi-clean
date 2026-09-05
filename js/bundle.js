@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2610
+ * Version: 20260905_v2611
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2610';
+  const APP_VERSION = '20260905_v2611';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -22529,6 +22529,20 @@
           }
         },
         onSwitchStage3Tab: (tabKey) => {
+          if (tabKey === 'editor') {
+            const s3 = this.state.stage3 || {};
+            const confirmedRevMap = s3.confirmedMembers || {};
+            const membersList = Object.values(this.state.members || {});
+            const totalMembersCount = (this.getMemberList ? this.getMemberList() : [])?.length || membersList.length || 1;
+            const confirmedRevCount = membersList.filter(m => isMemberDone(confirmedRevMap, m)).length;
+            const isRevisionFullyConfirmed = (s3.isRevisionConfirmed || confirmedRevCount >= totalMembersCount) && totalMembersCount > 0;
+            if (!isRevisionFullyConfirmed) {
+              const currentTaskType = this.getCurrentTaskType();
+              const docName = currentTaskType === 'instructional' ? '教学设计' : '论文';
+              alert(`⚠️ 需组内全员确认进入终稿修改后，方可解锁进入【修改${docName}终稿】协同编辑！\n\n当前确认进度：${confirmedRevCount}/${totalMembersCount} 人已确认。\n请提醒组内其他同学点击右上角【✍️ 确认进入终稿修改】！`);
+              return;
+            }
+          }
           this.state.stage3.activeTab = tabKey;
           this.syncStage3();
           this.renderStudentWorkspace();
