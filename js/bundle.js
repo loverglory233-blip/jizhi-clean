@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2596
+ * Version: 20260905_v2597
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2596';
+  const APP_VERSION = '20260905_v2597';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4353,6 +4353,20 @@
           this.bc = new BroadcastChannel(`jizhi_bc_${effectiveClassId}_${this.taskId}_${this.groupId}`);
           this.bc.onmessage = (e) => {
             if (e.data && e.data.snapshot) this.handleRemoteSync(e.data.snapshot);
+            if (e.data && e.data.stepConfirmations) {
+              const sc = e.data.stepConfirmations;
+              if (!this.app.state.stepConfirmations) this.app.state.stepConfirmations = {};
+              for (const [sk, uMap] of Object.entries(sc)) {
+                if (!this.app.state.stepConfirmations[sk]) this.app.state.stepConfirmations[sk] = {};
+                Object.assign(this.app.state.stepConfirmations[sk], uMap);
+              }
+              if (this.groupId && typeof this.app.saveGroupState === 'function') {
+                this.app.saveGroupState(this.groupId);
+              }
+              if (typeof this.app.renderStudentWorkspace === 'function') this.app.renderStudentWorkspace();
+              if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
+              if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.app.state);
+            }
             if (e.data && e.data.chatMessage) {
               const cm = e.data.chatMessage;
               const stg = e.data.stage || this.app.state.currentStage || 'stage1';
@@ -18844,6 +18858,11 @@
 
       // 1. 0ms 本地即时记录并重绘视图
       userKeys.forEach(k => { this.state.stepConfirmations[stepKey][k] = true; });
+      if (this.cloudSyncEngine && this.cloudSyncEngine.bc) {
+        try {
+          this.cloudSyncEngine.bc.postMessage({ stepConfirmations: this.state.stepConfirmations });
+        } catch (e) {}
+      }
       this.renderStudentWorkspace();
       if (typeof window.renderChat === 'function') window.renderChat(this.state);
       if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
@@ -18876,9 +18895,17 @@
             if (!this.state.stepConfirmations[sk]) this.state.stepConfirmations[sk] = {};
             Object.assign(this.state.stepConfirmations[sk], uMap);
           }
+          if (this.cloudSyncEngine && this.cloudSyncEngine.bc) {
+            try {
+              this.cloudSyncEngine.bc.postMessage({ stepConfirmations: this.state.stepConfirmations });
+            } catch (e) {}
+          }
         }
       } catch (e) {
         console.warn('confirm_step API network error:', e);
+      }
+      if (this.cloudSyncEngine && typeof this.cloudSyncEngine.pushSnapshot === 'function') {
+        this.cloudSyncEngine.pushSnapshot();
       }
 
       // 3. 重新聚合计算全组确认达成人数
@@ -18952,6 +18979,11 @@
     async clearStepConfirmation(stepKey) {
       if (this.state.stepConfirmations && this.state.stepConfirmations[stepKey]) {
         delete this.state.stepConfirmations[stepKey];
+      }
+      if (this.cloudSyncEngine && this.cloudSyncEngine.bc) {
+        try {
+          this.cloudSyncEngine.bc.postMessage({ stepConfirmations: this.state.stepConfirmations });
+        } catch (e) {}
       }
       const currUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
       const activeTaskId = this.state.activeTaskId || null;

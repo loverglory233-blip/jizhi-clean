@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2596';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2596';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2597';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2597';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -66,6 +66,20 @@ export class CloudSyncEngine {
         this.bc = new BroadcastChannel(`jizhi_bc_${effectiveClassId}_${this.taskId}_${this.groupId}`);
         this.bc.onmessage = (e) => {
           if (e.data && e.data.snapshot) this.handleRemoteSync(e.data.snapshot);
+          if (e.data && e.data.stepConfirmations) {
+            const sc = e.data.stepConfirmations;
+            if (!this.app.state.stepConfirmations) this.app.state.stepConfirmations = {};
+            for (const [sk, uMap] of Object.entries(sc)) {
+              if (!this.app.state.stepConfirmations[sk]) this.app.state.stepConfirmations[sk] = {};
+              Object.assign(this.app.state.stepConfirmations[sk], uMap);
+            }
+            if (this.groupId && typeof this.app.saveGroupState === 'function') {
+              this.app.saveGroupState(this.groupId);
+            }
+            if (typeof this.app.renderStudentWorkspace === 'function') this.app.renderStudentWorkspace();
+            if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
+            if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.app.state);
+          }
           if (e.data && e.data.chatMessage) {
             const cm = e.data.chatMessage;
             const stg = e.data.stage || this.app.state.currentStage || 'stage1';

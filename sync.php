@@ -157,16 +157,16 @@ if (empty($taskId) && isset($REQ_DATA['message']['taskId'])) {
 }
 $passedScopeKey = isset($_GET['scopeKey']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['scopeKey']) : (isset($REQ_DATA['scopeKey']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $REQ_DATA['scopeKey']) : '');
 if (!empty($passedScopeKey)) {
-    $scopeKey = $passedScopeKey;
-    if (empty($taskId)) {
-        if (preg_match('/^(task_[a-zA-Z0-9_-]+)_(group_[a-zA-Z0-9_-]+)$/', $scopeKey, $sm)) {
-            $taskId = $sm[1];
-            $groupId = $sm[2];
-        }
+    if (preg_match('/^(class_[a-zA-Z0-9_-]+)_(task_[a-zA-Z0-9_-]+)_(group_[a-zA-Z0-9_-]+)$/', $passedScopeKey, $sm)) {
+        if (empty($classId) || $classId === 'class_101') $classId = $sm[1];
+        if (empty($taskId)) $taskId = $sm[2];
+        if (empty($groupId) || $groupId === 'group_1') $groupId = $sm[3];
+    } elseif (preg_match('/^(task_[a-zA-Z0-9_-]+)_(group_[a-zA-Z0-9_-]+)$/', $passedScopeKey, $sm)) {
+        if (empty($taskId)) $taskId = $sm[1];
+        if (empty($groupId) || $groupId === 'group_1') $groupId = $sm[2];
     }
-} else {
-    $scopeKey = $taskId . '_' . $groupId;
 }
+$scopeKey = (!empty($taskId) && !empty($groupId)) ? ($taskId . '_' . $groupId) : ($passedScopeKey ?: 'task_1_group_1');
 $action = isset($_GET['action']) ? $_GET['action'] : (isset($REQ_DATA['action']) ? $REQ_DATA['action'] : '');
 
 /**
@@ -2745,9 +2745,6 @@ if ($action === 'update_read_status' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'confirm_step' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $req = !empty($REQ_DATA) ? $REQ_DATA : (@json_decode($RAW_INPUT, true) ?: []);
     $passedScopeKey = isset($req['scopeKey']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $req['scopeKey']) : '';
-    if (!empty($passedScopeKey)) {
-        $scopeKey = $passedScopeKey;
-    }
     $stepKey = isset($req['stepKey']) ? trim((string)$req['stepKey']) : '';
     $userKey = isset($req['userKey']) ? trim((string)$req['userKey']) : '';
     $userName = isset($req['userName']) ? trim((string)$req['userName']) : '';
@@ -2755,11 +2752,25 @@ if ($action === 'confirm_step' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $nowMs = round(microtime(true) * 1000);
 
     if (!empty($stepKey) && (!empty($userKey) || !empty($userKeys)) && $pdo) {
-        $metaKey = 'confs_' . $scopeKey;
-        $stmtGet = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
-        $stmtGet->execute([':k' => $metaKey]);
-        $row = $stmtGet->fetch();
-        $confs = ($row && !empty($row['meta_value'])) ? (json_decode($row['meta_value'], true) ?: []) : [];
+        $canonicalScopeKey = (!empty($taskId) && !empty($groupId)) ? ($taskId . '_' . $groupId) : $scopeKey;
+        $keysToHandle = array_unique(array_filter([$canonicalScopeKey, $scopeKey, $passedScopeKey]));
+
+        // 读取已有 confirmations (取任意最新非空)
+        $confs = [];
+        foreach ($keysToHandle as $sk) {
+            $stmtGet = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+            $stmtGet->execute([':k' => 'confs_' . $sk]);
+            $row = $stmtGet->fetch();
+            if ($row && !empty($row['meta_value'])) {
+                $parsed = json_decode($row['meta_value'], true);
+                if (is_array($parsed)) {
+                    foreach ($parsed as $k => $v) {
+                        if (!isset($confs[$k])) $confs[$k] = [];
+                        if (is_array($v)) $confs[$k] = array_merge($confs[$k], $v);
+                    }
+                }
+            }
+        }
 
         if (!isset($confs[$stepKey]) || !is_array($confs[$stepKey])) {
             $confs[$stepKey] = [];
@@ -2788,13 +2799,15 @@ if ($action === 'confirm_step' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $confJson = json_encode($confs, JSON_UNESCAPED_UNICODE);
-        $stmtSave = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value, updated_at) VALUES (:k, :v, :ts) ON DUPLICATE KEY UPDATE meta_value = :v2, updated_at = :ts2");
         $nowStr = date('Y-m-d H:i:s');
-        $stmtSave->execute([':k' => $metaKey, ':v' => $confJson, ':ts' => $nowStr, ':v2' => $confJson, ':ts2' => $nowStr]);
+        $stmtSave = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value, updated_at) VALUES (:k, :v, :ts) ON DUPLICATE KEY UPDATE meta_value = :v2, updated_at = :ts2");
+        foreach ($keysToHandle as $sk) {
+            $stmtSave->execute([':k' => 'confs_' . $sk, ':v' => $confJson, ':ts' => $nowStr, ':v2' => $confJson, ':ts2' => $nowStr]);
+        }
 
-        // 唤醒客户端拉取
-        $stmtUp = $pdo->prepare("UPDATE group_states SET last_timestamp = :ts, revision_id = IFNULL(revision_id, 0) + 1 WHERE scope_key = :sk");
-        $stmtUp->execute([':ts' => $nowMs, ':sk' => $scopeKey]);
+        // 唤醒客户端拉取：同时更新 group_states
+        $stmtUp = $pdo->prepare("UPDATE group_states SET last_timestamp = :ts, revision_id = IFNULL(revision_id, 0) + 1 WHERE scope_key = :sk1 OR scope_key = :sk2 OR (task_id = :tid AND group_id = :gid)");
+        $stmtUp->execute([':ts' => $nowMs, ':sk1' => $canonicalScopeKey, ':sk2' => $scopeKey, ':tid' => $taskId, ':gid' => $groupId]);
 
         echo json_encode([
             'success' => true,
@@ -2813,18 +2826,25 @@ if ($action === 'confirm_step' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'clear_step_confirmation' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $req = !empty($REQ_DATA) ? $REQ_DATA : (@json_decode($RAW_INPUT, true) ?: []);
     $passedScopeKey = isset($req['scopeKey']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $req['scopeKey']) : '';
-    if (!empty($passedScopeKey)) {
-        $scopeKey = $passedScopeKey;
-    }
     $stepKey = isset($req['stepKey']) ? trim((string)$req['stepKey']) : '';
     $nowMs = round(microtime(true) * 1000);
 
     if ($pdo) {
-        $metaKey = 'confs_' . $scopeKey;
-        $stmtGet = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
-        $stmtGet->execute([':k' => $metaKey]);
-        $row = $stmtGet->fetch();
-        $confs = ($row && !empty($row['meta_value'])) ? (json_decode($row['meta_value'], true) ?: []) : [];
+        $canonicalScopeKey = (!empty($taskId) && !empty($groupId)) ? ($taskId . '_' . $groupId) : $scopeKey;
+        $keysToHandle = array_unique(array_filter([$canonicalScopeKey, $scopeKey, $passedScopeKey]));
+
+        $confs = [];
+        foreach ($keysToHandle as $sk) {
+            $stmtGet = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+            $stmtGet->execute([':k' => 'confs_' . $sk]);
+            $row = $stmtGet->fetch();
+            if ($row && !empty($row['meta_value'])) {
+                $parsed = json_decode($row['meta_value'], true);
+                if (is_array($parsed)) {
+                    $confs = array_merge($confs, $parsed);
+                }
+            }
+        }
 
         if (!empty($stepKey)) {
             unset($confs[$stepKey]);
@@ -2833,9 +2853,14 @@ if ($action === 'clear_step_confirmation' && $_SERVER['REQUEST_METHOD'] === 'POS
         }
 
         $confJson = json_encode($confs, JSON_UNESCAPED_UNICODE);
-        $stmtSave = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value, updated_at) VALUES (:k, :v, :ts) ON DUPLICATE KEY UPDATE meta_value = :v2, updated_at = :ts2");
         $nowStr = date('Y-m-d H:i:s');
-        $stmtSave->execute([':k' => $metaKey, ':v' => $confJson, ':ts' => $nowStr, ':v2' => $confJson, ':ts2' => $nowStr]);
+        $stmtSave = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value, updated_at) VALUES (:k, :v, :ts) ON DUPLICATE KEY UPDATE meta_value = :v2, updated_at = :ts2");
+        foreach ($keysToHandle as $sk) {
+            $stmtSave->execute([':k' => 'confs_' . $sk, ':v' => $confJson, ':ts' => $nowStr, ':v2' => $confJson, ':ts2' => $nowStr]);
+        }
+
+        $stmtUp = $pdo->prepare("UPDATE group_states SET last_timestamp = :ts, revision_id = IFNULL(revision_id, 0) + 1 WHERE scope_key = :sk1 OR scope_key = :sk2 OR (task_id = :tid AND group_id = :gid)");
+        $stmtUp->execute([':ts' => $nowMs, ':sk1' => $canonicalScopeKey, ':sk2' => $scopeKey, ':tid' => $taskId, ':gid' => $groupId]);
 
         echo json_encode(['success' => true, 'stepConfirmations' => $confs, 'timestamp' => $nowMs], JSON_UNESCAPED_UNICODE);
         exit;
@@ -3815,8 +3840,8 @@ if ($pdo) {
         $agRow = $stmtGetAg->fetch();
         $agAnalyzingData = ($agRow && !empty($agRow['meta_value'])) ? (json_decode($agRow['meta_value'], true) ?: null) : null;
 
-        $stmtGetConfs = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
-        $stmtGetConfs->execute([':k' => 'confs_' . $scopeKey]);
+        $stmtGetConfs = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k1 OR meta_key = :k2 OR meta_key = :k3 ORDER BY updated_at DESC LIMIT 1");
+        $stmtGetConfs->execute([':k1' => 'confs_' . $scopeKey, ':k2' => 'confs_' . $taskId . '_' . $groupId, ':k3' => 'confs_' . $passedScopeKey]);
         $cRow = $stmtGetConfs->fetch();
         $stepConfs = ($cRow && !empty($cRow['meta_value'])) ? (json_decode($cRow['meta_value'], true) ?: []) : [];
 
@@ -3856,8 +3881,8 @@ if ($pdo) {
         $stg2Raw = migrateBase64StringToUrl($row['stage2_data'] ?? '', $pdo, $scopeKey, 'stage2_data');
         $stg3Raw = migrateBase64StringToUrl($row['stage3_data'] ?? '', $pdo, $scopeKey, 'stage3_data');
 
-        $stmtGetConfs = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
-        $stmtGetConfs->execute([':k' => 'confs_' . $scopeKey]);
+        $stmtGetConfs = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k1 OR meta_key = :k2 OR meta_key = :k3 ORDER BY updated_at DESC LIMIT 1");
+        $stmtGetConfs->execute([':k1' => 'confs_' . $scopeKey, ':k2' => 'confs_' . $taskId . '_' . $groupId, ':k3' => 'confs_' . $passedScopeKey]);
         $cRow = $stmtGetConfs->fetch();
         $stepConfs = ($cRow && !empty($cRow['meta_value'])) ? (json_decode($cRow['meta_value'], true) ?: []) : [];
 

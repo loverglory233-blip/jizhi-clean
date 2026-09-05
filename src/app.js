@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2596";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2596";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2596";
-import { AuthManager } from "./auth.js?v=20260905_v2596";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2596";
-import { renderLoginView } from "./login.js?v=20260905_v2596";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2596";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2596";
+} from "./constants.js?v=20260905_v2597";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2597";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2597";
+import { AuthManager } from "./auth.js?v=20260905_v2597";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2597";
+import { renderLoginView } from "./login.js?v=20260905_v2597";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2597";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2597";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2596";
+} from "./editor.js?v=20260905_v2597";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3784,6 +3784,11 @@ ${votedDetails}
 
     // 1. 0ms 本地即时记录并重绘视图
     userKeys.forEach(k => { this.state.stepConfirmations[stepKey][k] = true; });
+    if (this.cloudSyncEngine && this.cloudSyncEngine.bc) {
+      try {
+        this.cloudSyncEngine.bc.postMessage({ stepConfirmations: this.state.stepConfirmations });
+      } catch (e) {}
+    }
     this.renderStudentWorkspace();
     if (typeof window.renderChat === 'function') window.renderChat(this.state);
     if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
@@ -3816,9 +3821,17 @@ ${votedDetails}
           if (!this.state.stepConfirmations[sk]) this.state.stepConfirmations[sk] = {};
           Object.assign(this.state.stepConfirmations[sk], uMap);
         }
+        if (this.cloudSyncEngine && this.cloudSyncEngine.bc) {
+          try {
+            this.cloudSyncEngine.bc.postMessage({ stepConfirmations: this.state.stepConfirmations });
+          } catch (e) {}
+        }
       }
     } catch (e) {
       console.warn('confirm_step API network error:', e);
+    }
+    if (this.cloudSyncEngine && typeof this.cloudSyncEngine.pushSnapshot === 'function') {
+      this.cloudSyncEngine.pushSnapshot();
     }
 
     // 3. 重新聚合计算全组确认达成人数
@@ -3892,6 +3905,11 @@ ${votedDetails}
   async clearStepConfirmation(stepKey) {
     if (this.state.stepConfirmations && this.state.stepConfirmations[stepKey]) {
       delete this.state.stepConfirmations[stepKey];
+    }
+    if (this.cloudSyncEngine && this.cloudSyncEngine.bc) {
+      try {
+        this.cloudSyncEngine.bc.postMessage({ stepConfirmations: this.state.stepConfirmations });
+      } catch (e) {}
     }
     const currUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
     const activeTaskId = this.state.activeTaskId || null;
