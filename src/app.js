@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2581";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2581";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2581";
-import { AuthManager } from "./auth.js?v=20260905_v2581";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2581";
-import { renderLoginView } from "./login.js?v=20260905_v2581";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2581";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2581";
+} from "./constants.js?v=20260905_v2582";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2582";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2582";
+import { AuthManager } from "./auth.js?v=20260905_v2582";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2582";
+import { renderLoginView } from "./login.js?v=20260905_v2582";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2582";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2582";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2581";
+} from "./editor.js?v=20260905_v2582";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3569,23 +3569,11 @@ ${votedDetails}
    * 🛡️ 全局提炼互斥判定：当任意一处正在进行 AI 提炼时互斥保护，同时具备超时自愈机制防止死锁
    */
   isAnyExtracting() {
-    // 🛡️ 智能防呆自愈：检查 activeAgentAnalyzing 是否存在且是否超时
+    // 🛡️ 智能防呆自愈：检查 activeAgentAnalyzing 是否存在且是否超时（容忍大模型 90 秒延迟，绝不提前误杀）
     if (this.state && this.state.activeAgentAnalyzing) {
       const info = this.state.activeAgentAnalyzing;
       const ts = info._ts || info.timestamp || 0;
-      const isLocalRunning = !!(
-        this._isGeneratingContract ||
-        this._isExtractingTopic ||
-        this._isExtractingTime ||
-        this._isExtractingTasks
-      );
-      // 如果本地没有真正运行，且记录时间已超过 25 秒（或无时间戳的陈旧死锁数据），立即自愈清除
-      if (!isLocalRunning && (!ts || (Date.now() - ts > 25000))) {
-        this.state.activeAgentAnalyzing = null;
-        if (this.cloudSyncEngine && typeof this.cloudSyncEngine.pushSnapshot === 'function') {
-          this.cloudSyncEngine.pushSnapshot();
-        }
-      } else if (ts && (Date.now() - ts > 60000)) {
+      if (ts && (Date.now() - ts > 90000)) {
         this._isGeneratingContract = false;
         this._isExtractingTopic = false;
         this._isExtractingTime = false;
@@ -3596,6 +3584,9 @@ ${votedDetails}
         }
       }
     }
+
+    const effective = (typeof window.getEffectiveAgentAnalyzing === 'function') ? window.getEffectiveAgentAnalyzing(this.state) : null;
+    if (effective && effective.isExtracting) return true;
 
     return !!(
       this._isGeneratingContract ||
@@ -3744,8 +3735,51 @@ ${votedDetails}
       return;
     }
 
-    // 5. 达成全员确认：保持确认态供各端展示“正在提炼”，并在大模型成功落库后再清理
+    // 5. 达成全员确认：立即同步设置 activeAgentAnalyzing 广播全端，并启动提炼
     if (finalCount >= totalCount) {
+      const currentTaskType = (typeof this.getCurrentTaskType === 'function') ? this.getCurrentTaskType() : 'experiment';
+      const isInst = (currentTaskType === 'instructional');
+      let analyzingInfo = null;
+      if (stepKey === 's1_topic') {
+        const role = isInst ? '备课引导师' : '学术拍卖师';
+        analyzingInfo = {
+          icon: isInst ? '📐' : '🎪',
+          title: role,
+          isExtracting: true,
+          _ts: Date.now(),
+          detail: `${role}正在根据讨论区研讨记录提炼【${isInst ? '教学课题与方案概述' : '论文主题与研究方案'}】...`
+        };
+      } else if (stepKey === 's1_time') {
+        const role = isInst ? '备课引导师' : '时间规划师';
+        analyzingInfo = {
+          icon: '⏱️',
+          title: role,
+          isExtracting: true,
+          _ts: Date.now(),
+          detail: `${role}正在根据研讨成果提炼并规划【${isInst ? '教学各环节时间分配' : '论文研究各阶段时间分配'}】...`
+        };
+      } else if (stepKey === 's1_tasks') {
+        const role = isInst ? '备课引导师' : '协同调度员';
+        analyzingInfo = {
+          icon: '👥',
+          title: role,
+          isExtracting: true,
+          _ts: Date.now(),
+          detail: `${role}正在根据研讨过程提炼【各组员具体任务分工与职责】...`
+        };
+      } else if (stepKey === 's1_full_contract') {
+        const role = isInst ? '备课引导师' : '公约起草官';
+        analyzingInfo = {
+          icon: '📋',
+          title: role,
+          isExtracting: true,
+          _ts: Date.now(),
+          detail: `${role}正在整合主题、时间与分工，生成完整的团队协同公约草案...`
+        };
+      }
+      if (analyzingInfo) {
+        this.setActiveAgentAnalyzing(analyzingInfo);
+      }
       if (typeof onCompleteCallback === 'function') {
         onCompleteCallback();
       }
@@ -6303,17 +6337,18 @@ ${chatSnippet}
       const canvasEl = document.getElementById('canvas-workspace');
       if (canvasEl) {
         let analyzingBanner = canvasEl.querySelector('#agent-analyzing-live-banner');
-        if (this.state.activeAgentAnalyzing) {
+        const analyzing = (typeof window.getEffectiveAgentAnalyzing === 'function') ? window.getEffectiveAgentAnalyzing(this.state) : this.state.activeAgentAnalyzing;
+        if (analyzing) {
           const bannerHtml = `
             <div id="agent-analyzing-live-banner" style="background:linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border:1.5px solid #93c5fd; border-radius:8px; padding:10px 16px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 3px 12px rgba(37,99,235,0.12); flex-shrink:0;">
               <div style="display:flex; align-items:center; gap:12px;">
                 <div style="width:20px; height:20px; border:2.5px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 0.9s linear infinite; flex-shrink:0;"></div>
                 <div>
                   <div style="font-size:12.5px; font-weight:800; color:#1e3a8a; display:flex; align-items:center; gap:6px;">
-                    <span>${this.state.activeAgentAnalyzing.icon || '🎪'} ${this.state.activeAgentAnalyzing.title || '智能体专家正在分析中...'}</span>
+                    <span>${analyzing.icon || '🎪'} ${analyzing.title || '智能体专家正在分析中...'}</span>
                   </div>
                   <div style="font-size:11.5px; color:#2563eb; margin-top:2px; font-weight:600;">
-                    ${this.state.activeAgentAnalyzing.detail || '正在根据讨论区研讨记录提炼方案，请稍候...'}
+                    ${analyzing.detail || '正在根据讨论区研讨记录提炼方案，请稍候...'}
                   </div>
                 </div>
               </div>
