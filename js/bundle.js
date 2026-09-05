@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2638
+ * Version: 20260906_v2639
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2638';
+  const APP_VERSION = '20260906_v2639';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13047,7 +13047,7 @@
     // 1) 处于阶段二进行中（当前在阶段二或初稿未全员确认）：只要任务未截止，阶段二绝对保持协同可写；
     // 2) 仅当全员已真正全员完成初稿签署且推进至阶段三时，阶段二初稿才锁定为【只读归档】！
     const isStage2Archived = isDraftFullyConfirmed && (state.currentStage === 'stage3' || state.isFinalSubmitted);
-    const isEditorReadonly = isTaskDeadlineExpired || isStage2Archived;
+    const isEditorReadonly = isStage2Archived || !!state.isFinalSubmitted;
 
     if (!userGroupId || userGroupId === 'null' || String(userGroupId || '').startsWith('group_unassigned')) {
       canvas.innerHTML = showResolutionBlock('未检测到您被分配的具体协作小组，请联系教师在教务空间分配小组后再进入');
@@ -14624,7 +14624,7 @@
             if (!currUserName) currUserName = currUserCode || '组员';
             const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
 
-            const isEditorReadonly = isFinalSubmitted || isTaskDeadlineExpired;
+            const isEditorReadonly = !!state.isFinalSubmitted;
 
             const targetPad = rawPadName;
             const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans`;
@@ -21876,9 +21876,6 @@
       const user = this.authManager ? this.authManager.getCurrentUser() : null;
       const isTeacher = user && (user.isTeacher || user.role === 'teacher');
       if (isTeacher || this.state.isTeacherMonitorView || this.state.isTeacherView) return true;
-      const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-      const curTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
-      if (curTask && isTaskExpired(curTask)) return true;
       return false;
     }
 
