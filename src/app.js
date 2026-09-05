@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2552";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2552";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2552";
-import { AuthManager } from "./auth.js?v=20260905_v2552";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2552";
-import { renderLoginView } from "./login.js?v=20260905_v2552";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2552";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2552";
+} from "./constants.js?v=20260905_v2553";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2553";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2553";
+import { AuthManager } from "./auth.js?v=20260905_v2553";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2553";
+import { renderLoginView } from "./login.js?v=20260905_v2553";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2553";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2553";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2552";
+} from "./editor.js?v=20260905_v2553";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -863,6 +863,10 @@ export class App {
             }
 
             // ③ 有人提交提案后满 3 分钟仍有同学未提交（点名未提交提案同学）
+            const isProposalActive = (!s1.flowStep || s1.flowStep === 'proposals') && !s1.contractStep && !s1Chats.some(m => m && (m.text?.includes('投票') || m.text?.includes('方案研讨') || m.text?.includes('落槌')));
+            if (!isProposalActive) {
+              this.state.s1_propPartialNudgeSent = true;
+            }
             const unsubmittedProps = membersList.filter(m => !propList.some(p => isSameUser(m, p.author) || isSameUser(m, p.authorName) || p.author === m.id || (m.name && p.authorName === m.name)));
             if (propCount > 0 && !this.state._firstPropTimeMs) {
               const earliestPropTime = propList.reduce((minT, p) => Math.min(minT, p.updatedAt || p.createdAt || nowMs), nowMs);
@@ -874,7 +878,7 @@ export class App {
             if (existPropPartialNudge || unsubmittedProps.length === 0) {
               this.state.s1_propPartialNudgeSent = true;
             }
-            if (!this.state.s1_propPartialNudgeSent && !existPropPartialNudge && propCount > 0 && unsubmittedProps.length > 0 && propCount < membersList.length && timeSinceFirstProp >= 180000) {
+            if (isProposalActive && !this.state.s1_propPartialNudgeSent && !existPropPartialNudge && propCount > 0 && unsubmittedProps.length > 0 && propCount < membersList.length && timeSinceFirstProp >= 180000) {
               this.state.s1_propPartialNudgeSent = true;
               const unsubmittedPropNames = unsubmittedProps.map(m => m.name || m.id).join('、');
               const msgPropNudge = {
@@ -896,9 +900,15 @@ export class App {
             }
 
             // ③ 提案全齐且每篇速评均已生成：提示先交流 1~2 分钟再投票
-            this.checkAndTriggerAllProposalsGathered();
+            if (isProposalActive) {
+              this.checkAndTriggerAllProposalsGathered();
+            }
 
-            // ④ 投票催促：自第一位成员投票起满 3 分钟，仍有同学未投票（点名未投票同学）
+            // ④ 投票催促：自第一位成员投票起满 3 分钟，仍有同学未投票（仅当当前严格处于投票中时有效）
+            const isVotingActive = (s1.flowStep === 'voting') && !s1._voteTallyAndGuidanceTriggered && !s1.mergedTitle && !s1.contractStep && !s1Chats.some(m => m && (m.text?.includes('投票结果') || m.text?.includes('方案研讨') || m.text?.includes('落槌')));
+            if (!isVotingActive) {
+              this.state.s1_voteNudgeSent = true;
+            }
             const totalVotesCast = membersList.filter(m => isMemberDone(s1.hasVoted, m)).length;
             const unvotedMembers = membersList.filter(m => !isMemberDone(s1.hasVoted, m));
             if (totalVotesCast > 0 && !this.state._firstVoteTimeMs) {
@@ -910,7 +920,7 @@ export class App {
             if (existVoteNudge || unvotedMembers.length === 0) {
               this.state.s1_voteNudgeSent = true;
             }
-            if (!this.state.s1_voteNudgeSent && !existVoteNudge && totalVotesCast > 0 && unvotedMembers.length > 0 && totalVotesCast < membersList.length && timeSinceFirstVote >= 180000) {
+            if (isVotingActive && !this.state.s1_voteNudgeSent && !existVoteNudge && totalVotesCast > 0 && unvotedMembers.length > 0 && totalVotesCast < membersList.length && timeSinceFirstVote >= 180000) {
               this.state.s1_voteNudgeSent = true;
               const unvotedNames = unvotedMembers.map(m => m.name || m.id).join('、');
               const msgVoteNudge = {
