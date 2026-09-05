@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2619
+ * Version: 20260905_v2620
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2619';
+  const APP_VERSION = '20260905_v2620';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13505,10 +13505,15 @@
           }
         }
 
-        // 🛡️ 工具栏守护者：只要任务处于可编辑状态，确保 Etherpad 工具栏持续常驻
+        // 🛡️ 工具栏与输入守卫：只要任务处于可编辑状态，确保所有只读遮罩立刻移除，工具栏持续常驻
         if (!isEditorReadonly) {
+          document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
           const s2f = document.getElementById('stage2-etherpad-frame');
           if (s2f) {
+            if (s2f.parentElement) {
+              s2f.parentElement.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+              s2f.parentElement.style.pointerEvents = 'auto';
+            }
             if (s2f._isReadonlyEnforced) {
               liftEtherpadReadonly(s2f);
             }

@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2619";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2619";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260905_v2619";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2620";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2620";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260905_v2620";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -2099,10 +2099,15 @@ function renderStage2Canvas(canvas, state, handlers) {
         }
       }
 
-      // 🛡️ 工具栏守护者：只要任务处于可编辑状态，确保 Etherpad 工具栏持续常驻
+      // 🛡️ 工具栏与输入守卫：只要任务处于可编辑状态，确保所有只读遮罩立刻移除，工具栏持续常驻
       if (!isEditorReadonly) {
+        document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
         const s2f = document.getElementById('stage2-etherpad-frame');
         if (s2f) {
+          if (s2f.parentElement) {
+            s2f.parentElement.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+            s2f.parentElement.style.pointerEvents = 'auto';
+          }
           if (s2f._isReadonlyEnforced) {
             liftEtherpadReadonly(s2f);
           }
