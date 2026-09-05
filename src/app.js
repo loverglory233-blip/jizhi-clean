@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2590";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2590";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2590";
-import { AuthManager } from "./auth.js?v=20260905_v2590";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2590";
-import { renderLoginView } from "./login.js?v=20260905_v2590";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2590";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2590";
+} from "./constants.js?v=20260905_v2591";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2591";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2591";
+import { AuthManager } from "./auth.js?v=20260905_v2591";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2591";
+import { renderLoginView } from "./login.js?v=20260905_v2591";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2591";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2591";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2590";
+} from "./editor.js?v=20260905_v2591";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -795,18 +795,14 @@ export class App {
           const p = presenceMap[m.id] || presenceMap[m.id];
           return p && (nowMs - (p.updatedAt || 0) < 180000);
         });
-        const primaryMember = (onlineMembers.length > 0)
-          ? [...onlineMembers].sort((a, b) => (a.id || a.id || '').localeCompare(b.id || b.id || ''))[0]
-          : (membersList.length > 0 ? [...membersList].sort((a, b) => (a.id || a.id || '').localeCompare(b.id || b.id || ''))[0] : null);
-        const isPrimaryGuardian = primaryMember && (isSameUser(primaryMember, myCode) || primaryMember.id === myCode || primaryMember.name === myCode);
+        if (this.isCurrentTaskReadOnly && this.isCurrentTaskReadOnly()) return; // 🛡️ 只读模式下绝不触发任何定时智能体催促与分析
 
         // 🌟 阶段一自愈守卫：任何在线客户端均可检测投票指引断档并加锁自愈
-        if (currentStage === 'stage1' && !this.isCurrentTaskReadOnly()) {
+        if (currentStage === 'stage1') {
           this.checkAndTriggerVoteGuidanceIfNeeded();
         }
 
-        if (isPrimaryGuardian) {
-          if (this.isCurrentTaskReadOnly()) return; // 🛡️ 只读模式下绝不触发任何定时智能体催促与分析
+        {
           const allChatLogsList = Object.values(this.state.chatLogs || {}).flat();
 
           // ── 0. 【阶段一守卫：3分钟静默破冰、6分钟无提案强催促(点名)、提案全齐先交流】 ──

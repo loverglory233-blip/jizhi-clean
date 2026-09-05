@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2590
+ * Version: 20260905_v2591
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2590';
+  const APP_VERSION = '20260905_v2591';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -15817,18 +15817,14 @@
             const p = presenceMap[m.id] || presenceMap[m.id];
             return p && (nowMs - (p.updatedAt || 0) < 180000);
           });
-          const primaryMember = (onlineMembers.length > 0)
-            ? [...onlineMembers].sort((a, b) => (a.id || a.id || '').localeCompare(b.id || b.id || ''))[0]
-            : (membersList.length > 0 ? [...membersList].sort((a, b) => (a.id || a.id || '').localeCompare(b.id || b.id || ''))[0] : null);
-          const isPrimaryGuardian = primaryMember && (isSameUser(primaryMember, myCode) || primaryMember.id === myCode || primaryMember.name === myCode);
+          if (this.isCurrentTaskReadOnly && this.isCurrentTaskReadOnly()) return; // 🛡️ 只读模式下绝不触发任何定时智能体催促与分析
 
           // 🌟 阶段一自愈守卫：任何在线客户端均可检测投票指引断档并加锁自愈
-          if (currentStage === 'stage1' && !this.isCurrentTaskReadOnly()) {
+          if (currentStage === 'stage1') {
             this.checkAndTriggerVoteGuidanceIfNeeded();
           }
 
-          if (isPrimaryGuardian) {
-            if (this.isCurrentTaskReadOnly()) return; // 🛡️ 只读模式下绝不触发任何定时智能体催促与分析
+          {
             const allChatLogsList = Object.values(this.state.chatLogs || {}).flat();
 
             // ── 0. 【阶段一守卫：3分钟静默破冰、6分钟无提案强催促(点名)、提案全齐先交流】 ──
