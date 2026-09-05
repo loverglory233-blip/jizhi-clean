@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2685";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2685";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2685";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2686";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2686";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2686";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -3520,7 +3520,7 @@ export function renderChat(state) {
     authUser?.name
   ].filter(Boolean).map(k => String(k).trim().toLowerCase());
 
-  stream.innerHTML = cleanMsgs.map(msg => {
+  const newChatHtml = cleanMsgs.map(msg => {
     const isAgent = AgentProfiles[msg.sender] !== undefined;
     const msgKeys = [
       msg.sender,
@@ -3655,67 +3655,73 @@ export function renderChat(state) {
     lastMsgKeys.some(k => myKeys.includes(k))
   );
 
-  if (isAtBottom || lastMsgIsMine) {
-    stream.scrollTop = stream.scrollHeight;
-  } else {
-    stream.scrollTop = prevScrollTop;
-  }
+  if (stream.innerHTML !== newChatHtml) {
+    stream.innerHTML = newChatHtml;
 
-  // 🛡️ 若当前正在进行任何智能体提炼或分析，将聊天区内全部重试按钮统一置灰，防止重复点击
-  const isExtractingAnyChat = (typeof isAnyExtracting === 'function') ? isAnyExtracting(state) : !!(state && state.activeAgentAnalyzing && state.activeAgentAnalyzing.isExtracting);
-  if (isExtractingAnyChat) {
-    stream.querySelectorAll('.btn-retry-ai').forEach(btn => {
-      btn.disabled = true;
-      btn.style.opacity = '0.5';
-      btn.style.cursor = 'not-allowed';
+    if (isAtBottom || lastMsgIsMine) {
+      stream.scrollTop = stream.scrollHeight;
+    } else {
+      stream.scrollTop = prevScrollTop;
+    }
+
+    // 🛡️ 若当前正在进行任何智能体提炼或分析，将聊天区内全部重试按钮统一置灰，防止重复点击
+    const isExtractingAnyChat = (typeof isAnyExtracting === 'function') ? isAnyExtracting(state) : !!(state && state.activeAgentAnalyzing && state.activeAgentAnalyzing.isExtracting);
+    if (isExtractingAnyChat) {
+      stream.querySelectorAll('.btn-retry-ai').forEach(btn => {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.style.cursor = 'not-allowed';
+      });
+    }
+
+    stream.querySelectorAll('.chat-attached-img').forEach(img => {
+      img.onclick = (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('.img-preview-lightbox').forEach(el => el.remove());
+
+        const box = document.createElement('div');
+        box.className = 'img-preview-lightbox';
+        box.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.85); backdrop-filter:blur(8px); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:99999; animation:modalFadeIn 0.2s ease;';
+
+        box.innerHTML = `
+          <div style="position:absolute; top:20px; right:24px; display:flex; gap:10px; z-index:100000;" onclick="event.stopPropagation()">
+            <button id="btn-lightbox-open-tab" style="background:#ffffff; color:#1e293b; border:none; padding:8px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.15); display:flex; align-items:center; gap:6px;">
+              🔗 在新标签页打开
+            </button>
+            <a id="btn-lightbox-download" href="${img.src}" download="jizhi_chat_img_${Date.now()}" style="background:#2563eb; color:#ffffff; border:none; padding:8px 14px; border-radius:8px; font-size:12.5px; font-weight:700; text-decoration:none; box-shadow:0 4px 12px rgba(37,99,235,0.3); display:flex; align-items:center; gap:6px;">
+              💾 下载原图
+            </a>
+            <button id="btn-lightbox-close" style="background:rgba(255,255,255,0.2); color:#ffffff; border:1px solid rgba(255,255,255,0.4); width:34px; height:34px; border-radius:50%; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:800;">
+              ✕
+            </button>
+          </div>
+          <img src="${img.src}" style="max-width:88vw; max-height:85vh; border-radius:10px; object-fit:contain; box-shadow:0 20px 50px rgba(0,0,0,0.5); transform:scale(0.96); animation:modalPop 0.25s ease forwards;" onclick="event.stopPropagation()">
+        `;
+
+        document.body.appendChild(box);
+
+        const onEscLightbox = (ev) => {
+          if (ev.key === 'Escape') {
+            document.removeEventListener('keydown', onEscLightbox);
+            box.remove();
+          }
+        };
+        document.addEventListener('keydown', onEscLightbox);
+
+        const closeBox = () => {
+          document.removeEventListener('keydown', onEscLightbox);
+          box.remove();
+        };
+
+        box.onclick = closeBox;
+        box.querySelector('#btn-lightbox-close').onclick = closeBox;
+        box.querySelector('#btn-lightbox-open-tab').onclick = (ev) => {
+          ev.stopPropagation();
+          window.open(img.src, '_blank');
+        };
+      };
     });
   }
-
-  stream.querySelectorAll('.chat-attached-img').forEach(img => {
-    img.onclick = (e) => {
-      e.stopPropagation();
-      document.querySelectorAll('.img-preview-lightbox').forEach(el => el.remove());
-
-      const box = document.createElement('div');
-      box.className = 'img-preview-lightbox';
-      box.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.85); backdrop-filter:blur(8px); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:99999; animation:modalFadeIn 0.2s ease;';
-
-      box.innerHTML = `
-        <div style="position:absolute; top:20px; right:24px; display:flex; gap:10px; z-index:100000;" onclick="event.stopPropagation()">
-          <button id="btn-lightbox-open-tab" style="background:#ffffff; color:#1e293b; border:none; padding:8px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.15); display:flex; align-items:center; gap:6px;">
-            🔗 在新标签页打开
-          </button>
-          <a id="btn-lightbox-download" href="${img.src}" download="jizhi_chat_img_${Date.now()}" style="background:#2563eb; color:#ffffff; border:none; padding:8px 14px; border-radius:8px; font-size:12.5px; font-weight:700; text-decoration:none; box-shadow:0 4px 12px rgba(37,99,235,0.3); display:flex; align-items:center; gap:6px;">
-            💾 下载原图
-          </a>
-          <button id="btn-lightbox-close" style="background:#475569; color:#ffffff; border:none; width:34px; height:34px; border-radius:50%; font-size:16px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center;">
-            ✕
-          </button>
-        </div>
-        <div style="max-width:90vw; max-height:85vh; display:flex; align-items:center; justify-content:center; cursor:default;" onclick="event.stopPropagation()">
-          <img src="${img.src}" style="max-width:90vw; max-height:85vh; object-fit:contain; border-radius:10px; box-shadow:0 20px 40px rgba(0,0,0,0.5); border:1.5px solid rgba(255,255,255,0.2);">
-        </div>
-        <div style="margin-top:14px; font-size:12px; color:#94a3b8; letter-spacing:0.5px;">按 Esc 或点击任意空白处关闭</div>
-      `;
-
-      const closeBox = () => {
-        box.remove();
-        document.removeEventListener('keydown', handleKey);
-      };
-
-      const handleKey = (ev) => {
-        if (ev.key === 'Escape') closeBox();
-      };
-
-      box.onclick = closeBox;
-      box.querySelector('#btn-lightbox-close')?.addEventListener('click', closeBox);
-      box.querySelector('#btn-lightbox-open-tab')?.addEventListener('click', () => {
-        window.open(img.src, '_blank');
-      });
-      document.addEventListener('keydown', handleKey);
-      document.body.appendChild(box);
-    };
-  });
 }
 
 /**
