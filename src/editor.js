@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2649";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2649";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2649";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2650";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2650";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2650";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -1587,7 +1587,7 @@ function renderStage2Canvas(canvas, state, handlers) {
   }
 
   const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
-  const padUrl = `/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans&noColors=false`;
+  const padUrl = `/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans&noColors=true`;
 
   const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
   const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
@@ -3177,7 +3177,7 @@ function renderStage3Canvas(canvas, state, handlers) {
           const isEditorReadonly = isTaskDeadlineExpired || isFinalSubmitted || !!(window.app && window.app.isViewingPastStage);
 
           const targetPad = rawPadName;
-          const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans&noColors=false`;
+          const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans&noColors=true`;
 
           return `
             <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
