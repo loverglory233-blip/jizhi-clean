@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2656
+ * Version: 20260906_v2657
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2656';
+  const APP_VERSION = '20260906_v2657';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3189,12 +3189,11 @@
         return { id: user.groupId, name: '协作小组' };
       }
 
-      // 3. 确实未被分配到任何具体小组
-      return { id: `group_unassigned_${safeUserKey}`, name: '未分组（待教师分配）' };
+      // 3. 未被分配到任何小组
+      return null;
     }
 
     // 🛡️ 智能且严谨的学生当前上下文解析器（班级/小组/成员/任务）。
-    // 确保真实存在的班级（含默认班级如 class_101）与真实分配的小组（含 group_1）正常通行；仅在真正未登录或未分配小组时才阻断。
     resolveStudentActiveContext(user, { classId = null, taskId = null } = {}) {
       if (!user) {
         return { ok: false, reason: '当前会话未登录或已过期，请重新登录后再操作' };
@@ -3213,7 +3212,7 @@
 
       // 2) 小组解析
       const group = this.getStudentActiveGroup(user, activeClass.id);
-      if (!group || !group.id || String(group.id).startsWith('group_unassigned_')) {
+      if (!group || !group.id) {
         return { ok: false, reason: '你尚未被分配到协作小组，请联系教师分配后再进入正文写作' };
       }
 
@@ -11668,7 +11667,7 @@
     const classes = (window.app && window.app.authManager) ? window.app.authManager.getClasses() : [];
     const currentClassObj = classes.find(c => c.id === activeClassId);
     const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currentUser, activeClassId) : null;
-    const groupId = state.activeGroupId || (window.app && window.app.cloudSyncEngine?.groupId) || activeGroupObj?.id || currentUser?.groupId || 'group_unassigned';
+    const groupId = state.activeGroupId || (window.app && window.app.cloudSyncEngine?.groupId) || activeGroupObj?.id || currentUser?.groupId || '';
     const groupName = activeGroupObj?.name || '协作小组';
     const currentTaskTitle = currentTask ? currentTask.title : '写作任务';
 
@@ -13065,7 +13064,7 @@
     const isStage2Archived = isDraftFullyConfirmed && (state.currentStage === 'stage3');
     const isEditorReadonly = isTaskDeadlineExpired || isStage2Archived || (state.currentStage !== 'stage2' && !!state.isFinalSubmitted) || !!(window.app && window.app.isViewingPastStage);
 
-    if (!userGroupId || userGroupId === 'null' || String(userGroupId || '').startsWith('group_unassigned')) {
+    if (!userGroupId || userGroupId === 'null' || userGroupId === 'undefined') {
       canvas.innerHTML = showResolutionBlock('未检测到您被分配的具体协作小组，请联系教师在教务空间分配小组后再进入');
       return;
     }

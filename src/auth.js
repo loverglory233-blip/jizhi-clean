@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260906_v2656';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260906_v2656';
+} from './constants.js?v=20260906_v2657';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260906_v2657';
 
 export class AuthManager {
   constructor() {
@@ -1210,12 +1210,11 @@ export class AuthManager {
       return { id: user.groupId, name: '协作小组' };
     }
 
-    // 3. 确实未被分配到任何具体小组
-    return { id: `group_unassigned_${safeUserKey}`, name: '未分组（待教师分配）' };
+    // 3. 未被分配到任何小组
+    return null;
   }
 
   // 🛡️ 智能且严谨的学生当前上下文解析器（班级/小组/成员/任务）。
-  // 确保真实存在的班级（含默认班级如 class_101）与真实分配的小组（含 group_1）正常通行；仅在真正未登录或未分配小组时才阻断。
   resolveStudentActiveContext(user, { classId = null, taskId = null } = {}) {
     if (!user) {
       return { ok: false, reason: '当前会话未登录或已过期，请重新登录后再操作' };
@@ -1234,7 +1233,7 @@ export class AuthManager {
 
     // 2) 小组解析
     const group = this.getStudentActiveGroup(user, activeClass.id);
-    if (!group || !group.id || String(group.id).startsWith('group_unassigned_')) {
+    if (!group || !group.id) {
       return { ok: false, reason: '你尚未被分配到协作小组，请联系教师分配后再进入正文写作' };
     }
 
