@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2625";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2625";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260905_v2625";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2626";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2626";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260905_v2626";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -1919,7 +1919,7 @@ function renderStage2Canvas(canvas, state, handlers) {
         }
       });
 
-      // 5. 累计各成员字数
+      // 5. 累计各成员字数（未匹配作者严禁冒领，按作者特征或平分处理）
       let totalAssignedChars = 0;
       Object.keys(rawCounts).forEach(aKey => {
         const count = rawCounts[aKey];
@@ -1930,10 +1930,12 @@ function renderStage2Canvas(canvas, state, handlers) {
           if (targetMember.name) memberCounts[targetMember.name] = (memberCounts[targetMember.name] || 0) + count;
           totalAssignedChars += count;
         } else if (aKey !== 'unassigned') {
-          const selfMem = membersList.find(m => isSameUser(m, currUser) || isSameUser(m, currUserCode) || (currUserName && m.name === currUserName));
-          if (selfMem) {
-            memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + count;
-            if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + count;
+          // 未知外部作者：按组内未分配成员依次归属或平分，绝不全盘冒领为当前登录用户
+          const unassignedTarget = remainingMembers.find(m => !alreadyAssignedMemberIds.has(m.id));
+          if (unassignedTarget) {
+            memberCounts[unassignedTarget.id] = (memberCounts[unassignedTarget.id] || 0) + count;
+            if (unassignedTarget.name) memberCounts[unassignedTarget.name] = (memberCounts[unassignedTarget.name] || 0) + count;
+            alreadyAssignedMemberIds.add(unassignedTarget.id);
             totalAssignedChars += count;
           }
         }

@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2625
+ * Version: 20260905_v2626
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2625';
+  const APP_VERSION = '20260905_v2626';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13357,7 +13357,7 @@
           }
         });
 
-        // 5. 累计各成员字数
+        // 5. 累计各成员字数（未匹配作者严禁冒领，按作者特征或平分处理）
         let totalAssignedChars = 0;
         Object.keys(rawCounts).forEach(aKey => {
           const count = rawCounts[aKey];
@@ -13368,10 +13368,12 @@
             if (targetMember.name) memberCounts[targetMember.name] = (memberCounts[targetMember.name] || 0) + count;
             totalAssignedChars += count;
           } else if (aKey !== 'unassigned') {
-            const selfMem = membersList.find(m => isSameUser(m, currUser) || isSameUser(m, currUserCode) || (currUserName && m.name === currUserName));
-            if (selfMem) {
-              memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + count;
-              if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + count;
+            // 未知外部作者：按组内未分配成员依次归属或平分，绝不全盘冒领为当前登录用户
+            const unassignedTarget = remainingMembers.find(m => !alreadyAssignedMemberIds.has(m.id));
+            if (unassignedTarget) {
+              memberCounts[unassignedTarget.id] = (memberCounts[unassignedTarget.id] || 0) + count;
+              if (unassignedTarget.name) memberCounts[unassignedTarget.name] = (memberCounts[unassignedTarget.name] || 0) + count;
+              alreadyAssignedMemberIds.add(unassignedTarget.id);
               totalAssignedChars += count;
             }
           }
