@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2807
+ * Version: 20260905_v2808
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2807';
+  const APP_VERSION = '20260905_v2808';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -19214,7 +19214,7 @@
         })
       }).catch(() => {});
 
-      const confirmedCount = memberArr.filter(m => m && (s1.contract.confirmedMembers[m.id] || (m.name && s1.contract.confirmedMembers[m.name]))).length;
+      const confirmedCount = memberArr.filter(m => isMemberDone(s1.contract.confirmedMembers, m)).length;
 
       if (confirmedCount >= totalMembersCount) {
         s1.contract.isConfirmed = true;
@@ -20948,7 +20948,7 @@
 
           // 🛡️ 守卫拦截：必须先走完二审半程自查与会议全流程（全员打卡完成），或者总时间临近截止（<= 5分钟），才允许点击确认初稿！
           const subs = s2.meetingSubmissions || {};
-          const subCount = Object.keys(subs).length;
+          const subCount = memberArr.filter(m => isMemberDone(subs, m)).length;
           const isMeetingDone = s2.isMeetingLocked || (subCount >= totalMembersCount && totalMembersCount > 0);
 
           const curTask = this.authManager ? this.authManager.getTasks().find(t => t.id === this.state.activeTaskId) : null;
@@ -21088,7 +21088,7 @@
           if (!s3._firstSignTimeMs) s3._firstSignTimeMs = Date.now();
           s3._lastSignTimeMs = Date.now();
 
-          const confirmedCount = memberArr.filter(m => m && (s3.confirmedMembers[m.id] || (m.name && s3.confirmedMembers[m.name]))).length;
+          const confirmedCount = memberArr.filter(m => isMemberDone(s3.confirmedMembers, m)).length;
           const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
           const memberName = currMemObj?.name || currUserObj?.name || '组员';
 
