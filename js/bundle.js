@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2648
+ * Version: 20260906_v2649
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2648';
+  const APP_VERSION = '20260906_v2649';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -16235,17 +16235,7 @@
     }
 
     isGroupCoordinator() {
-      const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
-      if (!currUser) return true;
-      const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(currUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currUser?.classId || null));
-      const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUser, effClassId) : null;
-      if (!effGroup || !Array.isArray(effGroup.members) || effGroup.members.length === 0) return true;
-
-      // Designated group coordinator is the first member in the members list
-      const firstMember = effGroup.members[0];
-      const currId = currUser.id || currUser.studentId || currUser.username || currUser.name;
-      const firstId = firstMember.id || firstMember.studentId || firstMember.username || firstMember.name;
-      return isSameId(currId, firstId);
+      return true;
     }
 
     syncStage1() {
@@ -17155,7 +17145,7 @@
           return /(?:太难了|写不出来|改不动了|不知道怎么写|全废了|搞不定|来不及了|头大|想放弃|否定我们|怎么改啊)/i.test(t);
         });
 
-        if (lastNegativeChat && (!this.lastEmotionHandledId || this.lastEmotionHandledId !== lastNegativeChat._timeMs) && !this._isHandlingEmotion && this.isGroupCoordinator()) {
+        if (lastNegativeChat && (!this.lastEmotionHandledId || this.lastEmotionHandledId !== lastNegativeChat._timeMs) && !this._isHandlingEmotion) {
           const negTime = lastNegativeChat._timeMs || (now - 60000);
           const timeSinceNeg = now - negTime;
           // 观察窗口：45 秒内给同伴留出互助安慰空间
@@ -21604,7 +21594,6 @@
         btnElement.style.cursor = 'not-allowed';
         btnElement.innerHTML = `⏳ 正在重新生成专家评审...`;
       }
-      if (!this.isGroupCoordinator() && !btnElement) return;
       if (this._isStage3PipelineRunning) return;
       this._isStage3PipelineRunning = true;
 
@@ -23402,7 +23391,7 @@
     }
 
     async checkManagingEditorContribCare(currentDocLen, membersList, logs) {
-      if (this._isTriggeringContribCare || !this.isGroupCoordinator()) return;
+      if (this._isTriggeringContribCare) return;
       const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
 
       const now = Date.now();
