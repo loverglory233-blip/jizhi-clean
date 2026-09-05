@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2586
+ * Version: 20260905_v2587
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2586';
+  const APP_VERSION = '20260905_v2587';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4301,8 +4301,13 @@
                 if (this.groupId && typeof this.app.saveGroupState === 'function') {
                   this.app.saveGroupState(this.groupId);
                 }
-                if (stg === 'stage1' && typeof this.app.checkAndTriggerAllProposalsGathered === 'function') {
-                  this.app.checkAndTriggerAllProposalsGathered();
+                if (stg === 'stage1') {
+                  if (typeof this.app.checkAndTriggerAllProposalsGathered === 'function') {
+                    this.app.checkAndTriggerAllProposalsGathered();
+                  }
+                  if (typeof this.app.checkAndTriggerVoteGuidanceIfNeeded === 'function') {
+                    this.app.checkAndTriggerVoteGuidanceIfNeeded();
+                  }
                 }
                 if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
               }
@@ -4882,8 +4887,13 @@
         if (this.groupId && typeof this.app.saveGroupState === 'function') {
           this.app.saveGroupState(this.groupId);
         }
-        if ((this.app.state.currentStage === 'stage1' || !this.app.state.currentStage) && typeof this.app.checkAndTriggerAllProposalsGathered === 'function') {
-          this.app.checkAndTriggerAllProposalsGathered();
+        if (this.app.state.currentStage === 'stage1' || !this.app.state.currentStage) {
+          if (typeof this.app.checkAndTriggerAllProposalsGathered === 'function') {
+            this.app.checkAndTriggerAllProposalsGathered();
+          }
+          if (typeof this.app.checkAndTriggerVoteGuidanceIfNeeded === 'function') {
+            this.app.checkAndTriggerVoteGuidanceIfNeeded();
+          }
         }
         if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
         if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.app.state);
@@ -15931,6 +15941,9 @@
                 renderChat(this.state);
               }
 
+              // 🌟 自愈检测：投票结果已出但方案研讨指引缺失时自动补发
+              this.checkAndTriggerVoteGuidanceIfNeeded();
+
               // ⑤ 公约草案签署催促：自第一位成员签署起满 3 分钟，仍有同学未签署（点名未签署同学）
               const isDraftDone = !!(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated);
               const confirmedMembers = s1.contract?.confirmedMembers || {};
@@ -18414,6 +18427,23 @@
         btnElement.innerHTML = `⏳ 正在重新生成方案研讨指引...`;
       }
       await this.triggerVoteGuidance(true);
+    }
+
+    /**
+     * 🛡️ 阶段一自愈守卫：若投票结果已出炉但方案研讨指引因异常中断未下发，自动即时触发补发
+     */
+    checkAndTriggerVoteGuidanceIfNeeded() {
+      if (this._isTriggeringVoteGuidance) return;
+      const s1 = this.state.stage1 || {};
+      const s1Logs = this.state.chatLogs?.stage1 || [];
+      const hasTallyMsg = s1Logs.some(m => m && (m.id?.startsWith('vote_tally') || (m.text || '').includes('投票结果')));
+      const hasGuideMsg = s1Logs.some(m => m && (m.id?.startsWith('vote_unanimous') || m.id?.startsWith('vote_divergence') || (m.sender === 'auctioneer' && ((m.text || '').includes('方案研讨') || (m.text || '').includes('落槌与方案研讨')))));
+      const hasNetworkRetryMsg = s1Logs.some(m => m && (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('研讨指引')));
+
+      if (hasTallyMsg && !hasGuideMsg && !hasNetworkRetryMsg && !this.isAnyExtracting()) {
+        console.log('🛡️ 检测到投票结果已出但研讨指引缺失，自动自愈触发 triggerVoteGuidance');
+        this.triggerVoteGuidance();
+      }
     }
 
     /**

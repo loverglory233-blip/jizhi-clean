@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2586';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2586';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2587';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2587';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -77,8 +77,13 @@ export class CloudSyncEngine {
               if (this.groupId && typeof this.app.saveGroupState === 'function') {
                 this.app.saveGroupState(this.groupId);
               }
-              if (stg === 'stage1' && typeof this.app.checkAndTriggerAllProposalsGathered === 'function') {
-                this.app.checkAndTriggerAllProposalsGathered();
+              if (stg === 'stage1') {
+                if (typeof this.app.checkAndTriggerAllProposalsGathered === 'function') {
+                  this.app.checkAndTriggerAllProposalsGathered();
+                }
+                if (typeof this.app.checkAndTriggerVoteGuidanceIfNeeded === 'function') {
+                  this.app.checkAndTriggerVoteGuidanceIfNeeded();
+                }
               }
               if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
             }
@@ -658,8 +663,13 @@ export class CloudSyncEngine {
       if (this.groupId && typeof this.app.saveGroupState === 'function') {
         this.app.saveGroupState(this.groupId);
       }
-      if ((this.app.state.currentStage === 'stage1' || !this.app.state.currentStage) && typeof this.app.checkAndTriggerAllProposalsGathered === 'function') {
-        this.app.checkAndTriggerAllProposalsGathered();
+      if (this.app.state.currentStage === 'stage1' || !this.app.state.currentStage) {
+        if (typeof this.app.checkAndTriggerAllProposalsGathered === 'function') {
+          this.app.checkAndTriggerAllProposalsGathered();
+        }
+        if (typeof this.app.checkAndTriggerVoteGuidanceIfNeeded === 'function') {
+          this.app.checkAndTriggerVoteGuidanceIfNeeded();
+        }
       }
       if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
       if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.app.state);
