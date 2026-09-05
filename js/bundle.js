@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2644
+ * Version: 20260906_v2645
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2644';
+  const APP_VERSION = '20260906_v2645';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13080,9 +13080,11 @@
     const padName = `jizhi_${activeTaskId}_${userGroupId}`;
 
     // 🚀 核心黑科技：扫描 Etherpad 内部 DOM 获取实际留存正文及各成员真实的撰写字数与贡献
-    function getEtherpadAuthorStats() {
+    function getEtherpadAuthorStats(frameId = 'stage2-etherpad-frame', membersListParam = null, currUserNameParam = null) {
       try {
-        const f = document.getElementById('stage2-etherpad-frame');
+        const targetMembersList = (membersListParam && membersListParam.length > 0) ? membersListParam : membersList;
+        const targetUserName = currUserNameParam || currUserName;
+        const f = document.getElementById(frameId) || document.getElementById('stage2-etherpad-frame') || document.getElementById('stage3-etherpad-frame');
         if (!f || !f.contentDocument) return null;
 
         const padWin = f.contentWindow;
@@ -13124,7 +13126,7 @@
           }
           if (padWin.pad.myUserInfo) {
             if (!padWin.pad.myUserInfo.name || padWin.pad.myUserInfo.name === '组员' || padWin.pad.myUserInfo.name === 'unnamed') {
-              padWin.pad.myUserInfo.name = currUserName;
+              padWin.pad.myUserInfo.name = targetUserName;
             }
             if (padWin.pad.myUserInfo.userId) {
               authorData[padWin.pad.myUserInfo.userId] = Object.assign({}, authorData[padWin.pad.myUserInfo.userId] || {}, padWin.pad.myUserInfo);
@@ -13195,7 +13197,7 @@
         }
 
         const memberCounts = {};
-        membersList.forEach(m => {
+        targetMembersList.forEach(m => {
           memberCounts[m.id] = 0;
           if (m.name) memberCounts[m.name] = 0;
         });
@@ -13496,10 +13498,16 @@
       return maxVal;
     };
 
+    const getContribTotal = (contribs) => {
+      if (!contribs || typeof contribs !== 'object') return 0;
+      let t = 0;
+      membersList.forEach(m => { t += getMemberContribVal(contribs, m); });
+      return t;
+    };
+
     const getEffectiveContribs = () => {
       if (state.stage2 && state.stage2.frozenContributions && Object.keys(state.stage2.frozenContributions).length > 0) {
-        let fTotal = 0;
-        membersList.forEach(m => { fTotal += getMemberContribVal(state.stage2.frozenContributions, m); });
+        let fTotal = getContribTotal(state.stage2.frozenContributions);
         if (fTotal > 0) return state.stage2.frozenContributions;
       }
       return (state.stage2 && state.stage2.memberContributions) ? state.stage2.memberContributions : {};
@@ -13512,8 +13520,7 @@
 
       const docLen = (state.stage2 && state.stage2.unifiedContent) ? state.stage2.unifiedContent.length : 0;
       const contribs = getEffectiveContribs();
-      let rawTotal = 0;
-      membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
+      let rawTotal = getContribTotal(contribs);
 
       // 如果当前正文为空，或者各成员实际字数总和为 0，展示空状态
       if (docLen === 0 && rawTotal === 0) {
@@ -13549,21 +13556,8 @@
 
     const syncPadMetrics = async () => {
       try {
-        // 🛡️ 只读模式保护：若当前阶段二处于只读归档模式，强制锁定只读那一刻的贡献比快照，绝不因只读状态无法解析 DOM 而失真或清零！
-        if (isEditorReadonly) {
-          if (!state.stage2.frozenContributions && state.stage2.memberContributions && Object.keys(state.stage2.memberContributions).length > 0) {
-            state.stage2.frozenContributions = JSON.parse(JSON.stringify(state.stage2.memberContributions));
-          }
-          updateContribDom();
-          return;
-        } else {
-          // 若任务延期或重新解锁写作：清除临时只读冻结锁，恢复实时动态扫描
-          if (state.stage2 && state.stage2.frozenContributions && !state.stage2.isDraftConfirmed && state.currentStage === 'stage2') {
-            state.stage2.frozenContributions = null;
-          }
-        }
-
         // 1. 优先尝试同源 DOM 级作者与留存字数全量精准直读 (含极速脏检查)
+        // 🛡️ 无论处于只读还是可写，均执行 DOM 扫描获取真实字数与作者贡献，杜绝只读刷新导致贡献比清零白底
         const authorStats = getEtherpadAuthorStats();
         let cleanTxt = authorStats ? authorStats.cleanText : null;
 
@@ -13586,7 +13580,60 @@
           if (countBadge && countBadge.innerText !== String(wordCount)) {
             countBadge.innerText = String(wordCount);
           }
+        }
 
+        // 3. 处理贡献度与只读快照保护
+        if (authorStats && authorStats.memberCounts) {
+          const currentScannedTotal = getContribTotal(authorStats.memberCounts);
+
+          if (isEditorReadonly) {
+            // 🛡️ 只读模式：若快照为空或总字数为0，且当前扫描到了真实贡献，立即固化为快照！
+            const frozenTotal = getContribTotal(state.stage2.frozenContributions);
+            if (frozenTotal === 0 && currentScannedTotal > 0) {
+              state.stage2.frozenContributions = JSON.parse(JSON.stringify(authorStats.memberCounts));
+            }
+            if (currentScannedTotal > 0 || !state.stage2.memberContributions) {
+              state.stage2.memberContributions = authorStats.memberCounts;
+            }
+            updateContribDom();
+            return; // 只读模式下不向云端发送正文写入/变更事件
+          } else {
+            // 延期/可写模式：若存在历史临时冻结，重置为实时动态
+            if (state.stage2 && state.stage2.frozenContributions && !state.stage2.isDraftConfirmed && state.currentStage === 'stage2') {
+              state.stage2.frozenContributions = null;
+            }
+          }
+
+          const contribStr = JSON.stringify(authorStats.memberCounts);
+          const hasContribChanged = (contribStr !== JSON.stringify(state.stage2.memberContributions));
+
+          if (hasContribChanged) {
+            state.stage2.memberContributions = authorStats.memberCounts;
+            updateContribDom();
+
+            // ⚡ 防抖节流持久化到云端 (仅在变动时触发，避免高频网络开销)
+            if (_padContribDebounceTimer) clearTimeout(_padContribDebounceTimer);
+            _padContribDebounceTimer = setTimeout(() => {
+              if (_lastReportedContribStr === contribStr) return;
+              _lastReportedContribStr = contribStr;
+              fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  taskId: activeTaskId,
+                  classId: userClassId,
+                  groupId: userGroupId,
+                  contribs: authorStats.memberCounts
+                })
+              }).catch(() => {});
+            }, 1000);
+          }
+        } else {
+          updateContribDom();
+        }
+
+        // 4. 正文变动同步（仅在非只读模式下执行）
+        if (!isEditorReadonly && cleanTxt !== null) {
           const prevContent = state.stage2.unifiedContent || '';
           const hasContentChanged = (cleanTxt !== prevContent);
 
@@ -13606,36 +13653,6 @@
               window._firstPadScanTriggered = true;
               window.app.checkAgentTriggersOnContent(cleanTxt);
             }
-          }
-
-          // 3. 根据实际文档内容精准更新各成员真实贡献度
-          if (authorStats && authorStats.memberCounts) {
-            const contribStr = JSON.stringify(authorStats.memberCounts);
-            const hasContribChanged = (contribStr !== JSON.stringify(state.stage2.memberContributions));
-
-            if (hasContribChanged) {
-              state.stage2.memberContributions = authorStats.memberCounts;
-              updateContribDom();
-
-              // ⚡ 防抖节流持久化到云端 (仅在变动时触发，避免高频网络开销)
-              if (_padContribDebounceTimer) clearTimeout(_padContribDebounceTimer);
-              _padContribDebounceTimer = setTimeout(() => {
-                if (_lastReportedContribStr === contribStr) return;
-                _lastReportedContribStr = contribStr;
-                fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    taskId: activeTaskId,
-                    classId: userClassId,
-                    groupId: userGroupId,
-                    contribs: authorStats.memberCounts
-                  })
-                }).catch(() => {});
-              }, 1000);
-            }
-          } else {
-            updateContribDom();
           }
         }
 
@@ -14755,17 +14772,36 @@
     const syncStage3PadMetrics = async () => {
       try {
         const isReadonlyNow = isTaskDeadlineExpired || isFinalSubmitted || !!(window.app && window.app.isViewingPastStage);
-        if (isReadonlyNow) {
-          if (!state.stage2?.frozenContributions && state.stage2?.memberContributions && Object.keys(state.stage2.memberContributions).length > 0) {
-            state.stage2.frozenContributions = JSON.parse(JSON.stringify(state.stage2.memberContributions));
+        const authorStats = getEtherpadAuthorStats('stage3-etherpad-frame', membersList, currUserName);
+
+        if (authorStats && authorStats.memberCounts) {
+          let currentScannedTotal = 0;
+          membersList.forEach(m => { currentScannedTotal += getMemberContribVal(authorStats.memberCounts, m); });
+
+          if (isReadonlyNow) {
+            let frozenTotal = 0;
+            const currentFrozen = s3.frozenContributions || state.stage2?.frozenContributions;
+            if (currentFrozen) {
+              membersList.forEach(m => { frozenTotal += getMemberContribVal(currentFrozen, m); });
+            }
+            if (frozenTotal === 0 && currentScannedTotal > 0) {
+              s3.frozenContributions = JSON.parse(JSON.stringify(authorStats.memberCounts));
+              if (state.stage2) state.stage2.frozenContributions = JSON.parse(JSON.stringify(authorStats.memberCounts));
+            }
+            if (currentScannedTotal > 0 && state.stage2) {
+              state.stage2.memberContributions = authorStats.memberCounts;
+            }
+            updateStage3ContribDom();
+            return;
+          } else {
+            if (s3.frozenContributions) s3.frozenContributions = null;
+          }
+
+          if (state.stage2) {
+            state.stage2.memberContributions = authorStats.memberCounts;
           }
           updateStage3ContribDom();
-          return;
-        }
-
-        const authorStats = getEtherpadAuthorStats();
-        if (authorStats && authorStats.memberCounts) {
-          state.stage2.memberContributions = authorStats.memberCounts;
+        } else {
           updateStage3ContribDom();
         }
       } catch(e) {}
