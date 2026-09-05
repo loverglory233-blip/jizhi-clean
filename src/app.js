@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2587";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2587";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2587";
-import { AuthManager } from "./auth.js?v=20260905_v2587";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2587";
-import { renderLoginView } from "./login.js?v=20260905_v2587";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2587";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2587";
+} from "./constants.js?v=20260905_v2588";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2588";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2588";
+import { AuthManager } from "./auth.js?v=20260905_v2588";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2588";
+import { renderLoginView } from "./login.js?v=20260905_v2588";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2588";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2588";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2587";
+} from "./editor.js?v=20260905_v2588";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3465,6 +3465,8 @@ export class App {
    * 🏛️ 阶段一：触发大模型生成投票后的方案细化/分歧融合研讨引导（全端广播分析状态框 + 错误重试）
    */
   async triggerVoteGuidance(isRetry = false, failedMsgId = null) {
+    if (this._isTriggeringVoteGuidance && !isRetry) return;
+    this._isTriggeringVoteGuidance = true;
     const s1 = this.state.stage1 || {};
     const taskType = this.getCurrentTaskType();
     const isInst = (taskType === 'instructional');
@@ -3640,6 +3642,7 @@ ${votedDetails}
       }
       this.renderStudentWorkspace();
     } finally {
+      this._isTriggeringVoteGuidance = false;
       this.setActiveAgentAnalyzing(null);
     }
   }

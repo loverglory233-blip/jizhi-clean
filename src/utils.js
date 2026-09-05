@@ -561,6 +561,43 @@ export function filterAndDeduplicateChatLogs(messages) {
       const normTxt = txt.replace(/\s+/g, " ").trim();
       const opKey = `${sender}_${normTxt}`;
 
+      // 🛡️ 阶段一关键里程碑消息单例防护：
+      const isAllPropsGathered = txt.includes('提案集齐与协同研讨');
+      if (isAllPropsGathered) {
+        if (seenAgentOpenings.has('stage1_all_props_gathered_singleton')) continue;
+        seenAgentOpenings.add('stage1_all_props_gathered_singleton');
+      }
+
+      const isVoteTally = txt.includes('投票结果') || String(m.id || '').startsWith('vote_tally');
+      if (isVoteTally) {
+        if (seenAgentOpenings.has('stage1_vote_tally_singleton')) continue;
+        seenAgentOpenings.add('stage1_vote_tally_singleton');
+      }
+
+      const isVoteGuidance = txt.includes('落槌与方案研讨') || txt.includes('方案研讨');
+      if (isVoteGuidance) {
+        if (seenAgentOpenings.has('stage1_vote_guidance_singleton')) continue;
+        seenAgentOpenings.add('stage1_vote_guidance_singleton');
+      }
+
+      const isTopicDone = txt.includes('主题与方案确立') || String(m.id || '').startsWith('msg_topic_done_');
+      if (isTopicDone) {
+        if (seenAgentOpenings.has('stage1_topic_done_singleton')) continue;
+        seenAgentOpenings.add('stage1_topic_done_singleton');
+      }
+
+      const isTimeDone = txt.includes('时间预算确立') || String(m.id || '').startsWith('msg_time_done_');
+      if (isTimeDone) {
+        if (seenAgentOpenings.has('stage1_time_done_singleton')) continue;
+        seenAgentOpenings.add('stage1_time_done_singleton');
+      }
+
+      const isTasksDone = txt.includes('公约草案就绪') || String(m.id || '').startsWith('msg_tasks_done_');
+      if (isTasksDone) {
+        if (seenAgentOpenings.has('stage1_tasks_done_singleton')) continue;
+        seenAgentOpenings.add('stage1_tasks_done_singleton');
+      }
+
       // 🛡️ 关键里程碑消息单例防护：同一阶段内同类型里程碑全局严格仅保留第一条
       const isFirstReview = txt.includes('一审破题把脉') || txt.includes('初审破题把脉') || txt.includes('一审破题') || txt.includes('初审质检');
       if (isFirstReview) {
