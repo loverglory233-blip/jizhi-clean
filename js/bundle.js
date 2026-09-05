@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2640
+ * Version: 20260906_v2641
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2640';
+  const APP_VERSION = '20260906_v2641';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -6007,6 +6007,9 @@
             this.app.updateContributionUi();
           }
         }
+        if (remoteData.stage2.frozenContributions) {
+          this.app.state.stage2.frozenContributions = remoteData.stage2.frozenContributions;
+        }
         if (remoteData.stage2.meetingSubmissions) {
           const localSubs = this.app.state.stage2.meetingSubmissions || {};
           const remoteSubs = remoteData.stage2.meetingSubmissions || {};
@@ -6728,7 +6731,7 @@
 
       const contribLabels = container.querySelector('#teacher-stage2-contrib-labels');
       const contribBars = container.querySelector('#teacher-stage2-contrib-bars');
-      const contribs = state.stage2?.memberContributions || {};
+      const contribs = state.stage2?.frozenContributions || state.stage2?.memberContributions || {};
       let rawTotal = 0;
       monitorMembersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
 
@@ -8306,7 +8309,7 @@
                               <span style="font-size:12px; font-weight:800; color:#1e293b;">📊 团队协作贡献度占比 (SSRL 群体过程感知):</span>
                               <div class="contrib-labels" id="teacher-stage2-contrib-labels" style="display:flex; font-size:11.5px; font-weight:700; color:#475569; gap:10px; white-space:nowrap; flex-wrap:wrap;">
                                 ${(() => {
-                                  const contribs = state.stage2?.memberContributions || {};
+                                  const contribs = state.stage2?.frozenContributions || state.stage2?.memberContributions || {};
                                   let rawTotal = 0;
                                   monitorMembersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
                                   return monitorMembersList.map((m) => {
@@ -8319,7 +8322,7 @@
                             </div>
                             <div class="contrib-bars" id="teacher-stage2-contrib-bars" style="width:100%; height:10px; border-radius:5px; display:flex; overflow:hidden; background:#e2e8f0;">
                               ${(() => {
-                                const contribs = state.stage2?.memberContributions || {};
+                                const contribs = state.stage2?.frozenContributions || state.stage2?.memberContributions || {};
                                 let rawTotal = 0;
                                 monitorMembersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
                                 if (rawTotal === 0) {
@@ -8387,7 +8390,7 @@
                                 <span style="font-size:12px; font-weight:800; color:#1e293b;">📊 终稿协作贡献度占比 (SSRL 群体过程感知):</span>
                                 <div class="contrib-labels" id="teacher-stage3-contrib-labels" style="display:flex; font-size:11.5px; font-weight:700; color:#475569; gap:10px; white-space:nowrap; flex-wrap:wrap;">
                                   ${(() => {
-                                    const contribs = state.stage2?.memberContributions || {};
+                                    const contribs = state.stage2?.frozenContributions || state.stage2?.memberContributions || {};
                                     let rawTotal = 0;
                                     monitorMembersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
                                     return monitorMembersList.map((m) => {
@@ -8400,7 +8403,7 @@
                               </div>
                               <div class="contrib-bars" id="teacher-stage3-contrib-bars" style="width:100%; height:10px; border-radius:5px; display:flex; overflow:hidden; background:#e2e8f0;">
                                 ${(() => {
-                                  const contribs = state.stage2?.memberContributions || {};
+                                  const contribs = state.stage2?.frozenContributions || state.stage2?.memberContributions || {};
                                   let rawTotal = 0;
                                   monitorMembersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
                                   if (rawTotal === 0) {
@@ -13493,16 +13496,27 @@
 
     const updateContribDom = () => {
       const labelsEl = document.getElementById('stage2-contrib-labels');
+    const getEffectiveContribs = () => {
+      if (state.stage2 && state.stage2.frozenContributions && Object.keys(state.stage2.frozenContributions).length > 0) {
+        let fTotal = 0;
+        membersList.forEach(m => { fTotal += getMemberContribVal(state.stage2.frozenContributions, m); });
+        if (fTotal > 0) return state.stage2.frozenContributions;
+      }
+      return (state.stage2 && state.stage2.memberContributions) ? state.stage2.memberContributions : {};
+    };
+
+    const updateContribDom = () => {
+      const labelsEl = document.getElementById('stage2-contrib-labels');
       const barsEl = document.getElementById('stage2-contrib-bars');
       if (!labelsEl || !barsEl) return;
 
       const docLen = (state.stage2 && state.stage2.unifiedContent) ? state.stage2.unifiedContent.length : 0;
-      const contribs = (state.stage2 && state.stage2.memberContributions) ? state.stage2.memberContributions : {};
+      const contribs = getEffectiveContribs();
       let rawTotal = 0;
       membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
 
       // 如果当前正文为空，或者各成员实际字数总和为 0，展示空状态
-      if (docLen === 0 || rawTotal === 0) {
+      if (docLen === 0 && rawTotal === 0) {
         labelsEl.innerHTML = `<span style="color:#94a3b8; font-weight:600; font-size:10.5px;">⏳ 暂无撰写内容</span>`;
         barsEl.innerHTML = `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
         return;
@@ -13535,6 +13549,20 @@
 
     const syncPadMetrics = async () => {
       try {
+        // 🛡️ 只读模式保护：若当前阶段二处于只读归档模式，强制锁定只读那一刻的贡献比快照，绝不因只读状态无法解析 DOM 而失真或清零！
+        if (isEditorReadonly) {
+          if (!state.stage2.frozenContributions && state.stage2.memberContributions && Object.keys(state.stage2.memberContributions).length > 0) {
+            state.stage2.frozenContributions = JSON.parse(JSON.stringify(state.stage2.memberContributions));
+          }
+          updateContribDom();
+          return;
+        } else {
+          // 若任务延期或重新解锁写作：清除临时只读冻结锁，恢复实时动态扫描
+          if (state.stage2 && state.stage2.frozenContributions && !state.stage2.isDraftConfirmed && state.currentStage === 'stage2') {
+            state.stage2.frozenContributions = null;
+          }
+        }
+
         // 1. 优先尝试同源 DOM 级作者与留存字数全量精准直读 (含极速脏检查)
         const authorStats = getEtherpadAuthorStats();
         let cleanTxt = authorStats ? authorStats.cleanText : null;
@@ -14137,12 +14165,12 @@
           <span style="font-size:11px; font-weight:800; color:#1e293b; white-space:nowrap;">📊 团队贡献:</span>
           <div class="contrib-bars" id="stage2-contrib-bars" style="flex:1; height:8px; border-radius:4px; display:flex; overflow:hidden; background:#e2e8f0;">
             ${(() => {
-              const contribs = s2.memberContributions || {};
+              const contribs = s2.frozenContributions || s2.memberContributions || {};
               let rawTotal = 0;
               if (plainTextLen > 0) {
                 membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
               }
-              if (plainTextLen === 0 || rawTotal === 0) {
+              if (plainTextLen === 0 && rawTotal === 0) {
                 return `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
               }
               return membersList.map((m) => {
@@ -14154,12 +14182,12 @@
           </div>
           <div class="contrib-labels" id="stage2-contrib-labels" style="display:flex; font-size:11px; font-weight:700; color:#475569; gap:8px; white-space:nowrap;">
             ${(() => {
-              const contribs = s2.memberContributions || {};
+              const contribs = s2.frozenContributions || s2.memberContributions || {};
               let rawTotal = 0;
               if (plainTextLen > 0) {
                 membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
               }
-              if (plainTextLen === 0 || rawTotal === 0) {
+              if (plainTextLen === 0 && rawTotal === 0) {
                 return `<span style="color:#94a3b8; font-size:10.5px; font-weight:600;">⏳ 暂无撰写内容</span>`;
               }
               return membersList.map((m) => {
@@ -22608,6 +22636,13 @@
             showGlobalBannerNotice('✍️ 初稿确认成功', `您 (${memberName}) 已确认初稿！当前组内进度：${confirmedCount}/${totalMembersCount} 人已确认。全员完成后将解锁【${stage3Title}】。`, 'info', 6000);
           } else {
             s2.isDraftConfirmed = true;
+            // 🛡️ 阶段二定稿归档瞬间：100% 权威强行持久化与冻结贡献度快照，后续只读查阅永不失真
+            if (s2.memberContributions && Object.keys(s2.memberContributions).length > 0) {
+              s2.frozenContributions = JSON.parse(JSON.stringify(s2.memberContributions));
+            }
+            if (s2.unifiedContent) {
+              s2.frozenWordCount = s2.unifiedContent.length;
+            }
             this.state.groupMaxStage = 'stage3';
             const currentUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
             const activeTaskId = this.state.activeTaskId || null;

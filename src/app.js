@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2640";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2640";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2640";
-import { AuthManager } from "./auth.js?v=20260906_v2640";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2640";
-import { renderLoginView } from "./login.js?v=20260906_v2640";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2640";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2640";
+} from "./constants.js?v=20260906_v2641";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2641";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2641";
+import { AuthManager } from "./auth.js?v=20260906_v2641";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2641";
+import { renderLoginView } from "./login.js?v=20260906_v2641";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2641";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2641";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2640";
+} from "./editor.js?v=20260906_v2641";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -7201,6 +7201,13 @@ ${chatSnippet}
           showGlobalBannerNotice('✍️ 初稿确认成功', `您 (${memberName}) 已确认初稿！当前组内进度：${confirmedCount}/${totalMembersCount} 人已确认。全员完成后将解锁【${stage3Title}】。`, 'info', 6000);
         } else {
           s2.isDraftConfirmed = true;
+          // 🛡️ 阶段二定稿归档瞬间：100% 权威强行持久化与冻结贡献度快照，后续只读查阅永不失真
+          if (s2.memberContributions && Object.keys(s2.memberContributions).length > 0) {
+            s2.frozenContributions = JSON.parse(JSON.stringify(s2.memberContributions));
+          }
+          if (s2.unifiedContent) {
+            s2.frozenWordCount = s2.unifiedContent.length;
+          }
           this.state.groupMaxStage = 'stage3';
           const currentUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
           const activeTaskId = this.state.activeTaskId || null;
