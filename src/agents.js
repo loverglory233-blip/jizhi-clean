@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260906_v2701';
-import { showGlobalBannerNotice } from './utils.js?v=20260906_v2701';
+import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260906_v2702';
+import { showGlobalBannerNotice } from './utils.js?v=20260906_v2702';
 
 export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
   // 🛡️ 终极只读熔断器：一旦任务截止进入只读模式或已终稿归档，底层彻底熔断任何大模型调用与智能体生成
@@ -93,7 +93,7 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
         const convId = data.conversation_id;
         const targetBotId = data.bot_id || botId;
         const isLongDoc = (currentContext.stage === 'stage2' || currentContext.stage === 'stage3' || (currentContext.actualDoc && currentContext.actualDoc.length > 500) || (currentContext.actual_doc && currentContext.actual_doc.length > 500) || (userQuery && userQuery.length > 1000));
-        const maxRetries = isLongDoc ? 150 : 85;
+        const maxRetries = isLongDoc ? 100 : 60; // 长文: 最长38s; 短文: 最长23s (Coze实测14s已足够)
         for (let p = 0; p < maxRetries; p++) {
           const pollInterval = p < 10 ? 100 : (p < 50 ? 300 : 500);
           await new Promise(r => setTimeout(r, pollInterval));

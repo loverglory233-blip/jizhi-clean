@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2701
+ * Version: 20260906_v2702
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2701';
+  const APP_VERSION = '20260906_v2702';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1843,7 +1843,7 @@
           const convId = data.conversation_id;
           const targetBotId = data.bot_id || botId;
           const isLongDoc = (currentContext.stage === 'stage2' || currentContext.stage === 'stage3' || (currentContext.actualDoc && currentContext.actualDoc.length > 500) || (currentContext.actual_doc && currentContext.actual_doc.length > 500) || (userQuery && userQuery.length > 1000));
-          const maxRetries = isLongDoc ? 150 : 85;
+          const maxRetries = isLongDoc ? 100 : 60; // 长文: 最长38s; 短文: 最长23s (Coze实测14s已足够)
           for (let p = 0; p < maxRetries; p++) {
             const pollInterval = p < 10 ? 100 : (p < 50 ? 300 : 500);
             await new Promise(r => setTimeout(r, pollInterval));
@@ -16278,12 +16278,14 @@
         }
       };
       doPing();
-      setInterval(doPing, 8000);
+      if (this._presencePingInterval) clearInterval(this._presencePingInterval);
+      this._presencePingInterval = setInterval(doPing, 8000);
     }
 
     initTimer() {
       this.initGlobalPresenceHeartbeat();
-      setInterval(() => {
+      if (this._mainTimerInterval) clearInterval(this._mainTimerInterval);
+      this._mainTimerInterval = setInterval(() => {
         // 🎧 静默期情绪安抚定时巡检（即便无人发言也按周期触发，见审查 #45）
         this.checkEmotionComfort();
         const currentUser = this.authManager.getCurrentUser();

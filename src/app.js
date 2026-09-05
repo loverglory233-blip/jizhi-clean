@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2701";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2701";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2701";
-import { AuthManager } from "./auth.js?v=20260906_v2701";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2701";
-import { renderLoginView } from "./login.js?v=20260906_v2701";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2701";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2701";
+} from "./constants.js?v=20260906_v2702";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2702";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2702";
+import { AuthManager } from "./auth.js?v=20260906_v2702";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2702";
+import { renderLoginView } from "./login.js?v=20260906_v2702";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2702";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2702";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2701";
+} from "./editor.js?v=20260906_v2702";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -815,12 +815,14 @@ export class App {
       }
     };
     doPing();
-    setInterval(doPing, 8000);
+    if (this._presencePingInterval) clearInterval(this._presencePingInterval);
+    this._presencePingInterval = setInterval(doPing, 8000);
   }
 
   initTimer() {
     this.initGlobalPresenceHeartbeat();
-    setInterval(() => {
+    if (this._mainTimerInterval) clearInterval(this._mainTimerInterval);
+    this._mainTimerInterval = setInterval(() => {
       // 🎧 静默期情绪安抚定时巡检（即便无人发言也按周期触发，见审查 #45）
       this.checkEmotionComfort();
       const currentUser = this.authManager.getCurrentUser();
