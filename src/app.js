@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2591";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2591";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2591";
-import { AuthManager } from "./auth.js?v=20260905_v2591";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2591";
-import { renderLoginView } from "./login.js?v=20260905_v2591";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2591";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2591";
+} from "./constants.js?v=20260905_v2592";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2592";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2592";
+import { AuthManager } from "./auth.js?v=20260905_v2592";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2592";
+import { renderLoginView } from "./login.js?v=20260905_v2592";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2592";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2592";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2591";
+} from "./editor.js?v=20260905_v2592";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3457,8 +3457,8 @@ export class App {
       return;
     }
     const s1Logs = this.state.chatLogs?.stage1 || [];
-    const hasTallyMsg = s1Logs.some(m => m && (m.id?.startsWith('vote_tally') || (m.text || '').includes('投票结果')));
-    const hasGuideMsg = s1Logs.some(m => m && (m.id?.startsWith('vote_unanimous') || m.id?.startsWith('vote_divergence') || (m.sender === 'auctioneer' && ((m.text || '').includes('方案研讨') || (m.text || '').includes('落槌与方案研讨')))));
+    const hasTallyMsg = s1Logs.some(m => m && (String(m.id || '').startsWith('vote_tally') || (m.text || '').includes('投票结果')));
+    const hasGuideMsg = s1Logs.some(m => m && (String(m.id || '').startsWith('vote_unanimous') || String(m.id || '').startsWith('vote_divergence') || (m.sender === 'auctioneer' && ((m.text || '').includes('方案研讨') || (m.text || '').includes('落槌与方案研讨')))));
     const hasNetworkRetryMsg = s1Logs.some(m => m && (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('研讨指引')));
 
     if (hasTallyMsg && !hasGuideMsg && !hasNetworkRetryMsg && !this.isAnyExtracting()) {
@@ -3509,7 +3509,7 @@ export class App {
 
     // 🛡️ 单次触发守卫：若非重试且已存在方案研讨指引，直接跳过避免重复调用
     const s1Logs = this.state.chatLogs?.stage1 || [];
-    const hasExistingGuide = s1Logs.some(m => m && (m.id?.startsWith('vote_unanimous') || m.id?.startsWith('vote_divergence') || (m.sender === 'auctioneer' && (m.text || '').includes('方案研讨'))));
+    const hasExistingGuide = s1Logs.some(m => m && (String(m.id || '').startsWith('vote_unanimous') || String(m.id || '').startsWith('vote_divergence') || (m.sender === 'auctioneer' && (m.text || '').includes('方案研讨'))));
     if (hasExistingGuide && !isRetry) return;
 
     // 🛡️ 清理已有的同类失败气泡与思考中占位气泡
