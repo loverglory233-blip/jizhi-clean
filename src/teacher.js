@@ -12,7 +12,14 @@ import {
   AgentProfiles,
   APP_VERSION
 } from "./constants.js?v=20260905_v2545";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260905_v2545";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260905_v2545";
+
+export const getPanoGroupData = (pano, gid) => {
+  if (!pano || typeof pano !== 'object' || !gid) return null;
+  if (pano[gid]) return pano[gid];
+  const found = Object.entries(pano).find(([k]) => isSameId(k, gid));
+  return found ? found[1] : null;
+};
 
 /* ==========================================================================
    6.8 TEACHER MONITOR IN-PLACE INCREMENTAL UPDATER (PREVENT IFRAME THRASHING)
@@ -25,7 +32,7 @@ function updateTeacherLiveMonitorInPlace(container, state, authManager, activeCl
     (activeClass.groups || []).forEach(g => {
       const card = container.querySelector(`.btn-monitor-panorama-card[data-gid="${g.id}"]`);
       if (card) {
-        const p = state.monitorPanorama[g.id] || null;
+        const p = getPanoGroupData(state.monitorPanorama, g.id);
         const total = p ? (p.totalMembers || 0) : ((g.members || []).length || 0);
         const online = p ? (p.onlineCount || 0) : 0;
         const locks = p ? (p.activeLocks || []).length : 0;
@@ -95,7 +102,7 @@ function updateTeacherLiveMonitorInPlace(container, state, authManager, activeCl
   // 4. 在线/离线成员胶囊
   const onlineContainer = container.querySelector('#teacher-online-pills-container');
   if (onlineContainer) {
-    const panoData = (state.monitorPanorama && state.monitorPanorama[activeMonitorGroup.id]) || null;
+    const panoData = getPanoGroupData(state.monitorPanorama, activeMonitorGroup.id);
     const total = panoData ? (panoData.totalMembers || 0) : (monitorMembersList.length || 0);
     const online = panoData ? (panoData.onlineCount || 0) : 0;
     const absentList = (panoData && panoData.absentMembers) || [];
@@ -442,7 +449,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
           if (panRes.hash) state._lastMonitorHashMap[currentGId] = panRes.hash;
 
           // 🎯 核心修复：以 Etherpad 权威最新正文为主，杜绝被旧版全量快照覆盖
-          const currentGroupData = panRes.groups[currentGId];
+          const currentGroupData = getPanoGroupData(panRes.groups, currentGId);
           if (currentGroupData) {
             state.stage1 = currentGroupData.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
             const finalUnifiedText = latestPadText || state.stage2?.unifiedContent || currentGroupData.stage2?.unifiedContent || '';
@@ -1317,7 +1324,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                 </div>
                 <div id="body-teacher-panorama" style="display:${state._isPanoramaCollapsed ? 'none' : 'grid'}; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:10px; margin-top:10px;">
                   ${(activeClass.groups || []).map(g => {
-                    const p = (state.monitorPanorama && state.monitorPanorama[g.id]) || null;
+                    const p = getPanoGroupData(state.monitorPanorama, g.id);
                     const total = p ? (p.totalMembers || 0) : ((g.members || []).length || 0);
                     const online = p ? (p.onlineCount || 0) : 0;
                     const locks = p ? (p.activeLocks || []).length : 0;
@@ -1433,7 +1440,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                     <!-- 在线/离线成员状态流线胶囊 -->
                     <span id="teacher-online-pills-container" style="display:inline-flex; align-items:center;">
                     ${(() => {
-                      const panoData = (state.monitorPanorama && state.monitorPanorama[activeMonitorGId]) || null;
+                      const panoData = getPanoGroupData(state.monitorPanorama, activeMonitorGId);
                       const total = panoData ? (panoData.totalMembers || 0) : (monitorMembersList.length || 0);
                       const online = panoData ? (panoData.onlineCount || 0) : 0;
                       const absentList = (panoData && panoData.absentMembers) || [];
@@ -4351,8 +4358,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
     state.activeMonitorGroupId = targetGId;
     state._lastMonitorHash = '';
     state._lastEpHash = '';
-    if (state.monitorPanorama && state.monitorPanorama[targetGId]) {
-      const gData = state.monitorPanorama[targetGId];
+    const gData = getPanoGroupData(state.monitorPanorama, targetGId);
+    if (gData) {
       state.stage1 = gData.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
       state.stage2 = { ...(gData.stage2 || {}), unifiedContent: gData.stage2?.unifiedContent || '' };
       state.stage3 = gData.stage3 || { feedbackItems: [] };
