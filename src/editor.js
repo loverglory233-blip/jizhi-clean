@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2617";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2617";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260905_v2617";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2618";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2618";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260905_v2618";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -2359,18 +2359,27 @@ function renderStage2Canvas(canvas, state, handlers) {
           enforceEtherpadReadonly(existingFrame);
         } else {
           // 🔑 关键修复：直接检查 iframe 当前 src 是否含 readOnly=true
-          // 不依赖标志位——sync.js 里 liftEtherpadReadonly 会提前清除标志，导致判断失效
-          // Etherpad 服务端持久化了 readOnly 会话，必须重载 src 才能真正解锁
+          // 必须通过 DOM replaceWith 彻底销毁旧 iframe，杀死旧 WebSocket 连接，杜绝多连接竞争卡在“重新连接中”
           const currentSrc = existingFrame.src || existingFrame.getAttribute('src') || '';
-          if (currentSrc.includes('readOnly=true')) {
+          if (currentSrc.includes('readOnly=true') || existingFrame._wasPreviouslyReadonly) {
             existingFrame._wasPreviouslyReadonly = false;
             existingFrame._isReadonlyEnforced = false;
-            // 清除只读遮罩
             const container = existingFrame.parentElement;
-            if (container) container.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
-            document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
-            // 用可写 URL 重建 Etherpad 连接（padUrl 此时 isEditorReadonly=false，不含 readOnly=true）
-            existingFrame.src = padUrl;
+            if (container) {
+              container.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+              document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+              const newIframe = document.createElement('iframe');
+              newIframe.id = 'stage2-etherpad-frame';
+              newIframe.src = `${padUrl}&_t=${Date.now()}`;
+              newIframe.style.cssText = 'width:100%; height:100%; min-height:440px; border:none; display:block; background:#ffffff;';
+              newIframe.setAttribute('allow', 'clipboard-read; clipboard-write; fullscreen');
+              newIframe.onload = () => {
+                const el = document.getElementById('ep-status-text-s2');
+                if (el) el.innerText = 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)';
+                try { if (window.liftEtherpadReadonly) window.liftEtherpadReadonly(newIframe); } catch(e){}
+              };
+              existingFrame.replaceWith(newIframe);
+            }
           } else {
             liftEtherpadReadonly(existingFrame);
           }
@@ -2964,18 +2973,27 @@ function renderStage3Canvas(canvas, state, handlers) {
         enforceEtherpadReadonly(existingFrame);
       } else {
         // 🔑 关键修复：直接检查 iframe 当前 src 是否含 readOnly=true
-        // 不依赖标志位（liftEtherpadReadonly 会提前清除标志），必须用 src 做真实判断
+        // 必须通过 DOM replaceWith 彻底销毁旧 iframe，杀死旧 WebSocket 连接，杜绝多连接竞争卡在“重新连接中”
         const currentSrc = existingFrame.src || existingFrame.getAttribute('src') || '';
-        if (currentSrc.includes('readOnly=true')) {
+        if (currentSrc.includes('readOnly=true') || existingFrame._wasPreviouslyReadonly) {
           existingFrame._wasPreviouslyReadonly = false;
           existingFrame._isReadonlyEnforced = false;
-          // 清除只读遮罩
           const container = existingFrame.parentElement;
-          if (container) container.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
-          document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
-          // 从当前 src 中移除 readOnly=true 和 showControls=false，强制重建可写连接
-          let newSrc = currentSrc.replace(/[&?]readOnly=true/g, '').replace(/[&?]showControls=false/g, '&showControls=true');
-          existingFrame.src = newSrc;
+          if (container) {
+            container.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+            document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+            let newSrc = currentSrc.replace(/[&?]readOnly=true/g, '').replace(/[&?]showControls=false/g, '&showControls=true');
+            if (!newSrc.includes('_t=')) newSrc += `&_t=${Date.now()}`;
+            const newIframe = document.createElement('iframe');
+            newIframe.id = 'stage3-etherpad-frame';
+            newIframe.src = newSrc;
+            newIframe.style.cssText = 'width:100%; height:100%; min-height:540px; border:none; display:block;';
+            newIframe.setAttribute('allow', 'clipboard-read; clipboard-write');
+            newIframe.onload = () => {
+              try { if (window.liftEtherpadReadonly) window.liftEtherpadReadonly(newIframe); } catch(e){}
+            };
+            existingFrame.replaceWith(newIframe);
+          }
         } else {
           liftEtherpadReadonly(existingFrame);
         }
