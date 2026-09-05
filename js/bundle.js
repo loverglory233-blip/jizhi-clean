@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2579
+ * Version: 20260905_v2580
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2579';
+  const APP_VERSION = '20260905_v2580';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12424,9 +12424,6 @@
             return;
           }
           if (s1._topicExtractFailed) {
-            if (typeof showGlobalBannerNotice === 'function') {
-              showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
-            }
             return;
           }
           if (isAnyExtracting(state)) {
@@ -12445,9 +12442,6 @@
       if (btnExtractTime) {
         btnExtractTime.addEventListener('click', () => {
           if (s1._timeExtractFailed) {
-            if (typeof showGlobalBannerNotice === 'function') {
-              showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
-            }
             return;
           }
           if (isAnyExtracting(state)) {
@@ -12466,9 +12460,6 @@
       if (btnExtractTasks) {
         btnExtractTasks.addEventListener('click', () => {
           if (s1._tasksExtractFailed) {
-            if (typeof showGlobalBannerNotice === 'function') {
-              showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
-            }
             return;
           }
           if (isAnyExtracting(state)) {
@@ -18643,9 +18634,6 @@
         return;
       }
       if (s1._topicExtractFailed) {
-        if (typeof showGlobalBannerNotice === 'function') {
-          showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
-        }
         return;
       }
       const count = this.getStepConfirmedCount('s1_topic', membersList);
@@ -18862,9 +18850,6 @@
           this.sendSingleChatMessage(errTopicMsg, 'stage1');
         }
         // ⚠️ 严禁清除确认状态！全员已确认状态保留，按键锁定禁止再次点击，重试仅限在讨论区
-        if (typeof showGlobalBannerNotice === 'function') {
-          showGlobalBannerNotice('⚠️ 智能体提炼遇阻', '网络连接稍有延迟，未能即时获取草案。全员确认已锁定，请在右侧讨论区点击【重新提炼】重试！', 'warning', 7000);
-        }
         this.syncStage1();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -18892,9 +18877,6 @@
       }
       const s1 = this.state.stage1 || {};
       if (s1._timeExtractFailed) {
-        if (typeof showGlobalBannerNotice === 'function') {
-          showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
-        }
         return;
       }
       const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
@@ -19095,9 +19077,6 @@
           this.sendSingleChatMessage(errTimeMsg, 'stage1');
         }
         // ⚠️ 严禁清除确认状态！全员已确认状态保留，按键锁定禁止再次点击，重试仅限在讨论区
-        if (typeof showGlobalBannerNotice === 'function') {
-          showGlobalBannerNotice('⚠️ 智能体提炼遇阻', '网络连接稍有延迟，未能即时获取分配方案。全员确认已锁定，请在右侧讨论区点击【重新提炼】重试！', 'warning', 7000);
-        }
         this.syncStage1();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -19123,9 +19102,6 @@
       }
       const s1 = this.state.stage1 || {};
       if (s1._tasksExtractFailed) {
-        if (typeof showGlobalBannerNotice === 'function') {
-          showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
-        }
         return;
       }
       const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
@@ -19316,9 +19292,6 @@
           this.sendSingleChatMessage(errTasksMsg, 'stage1');
         }
         // ⚠️ 严禁清除确认状态！全员已确认状态保留，按键锁定禁止再次点击，重试仅限在讨论区
-        if (typeof showGlobalBannerNotice === 'function') {
-          showGlobalBannerNotice('⚠️ 智能体提炼遇阻', '网络连接稍有延迟，未能即时获取分工配置。全员确认已锁定，请在右侧讨论区点击【重新提炼】重试！', 'warning', 7000);
-        }
         this.syncStage1();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -19628,9 +19601,6 @@
         this.state.chatLogs.stage1.push(errFullMsg);
         if (typeof this.sendSingleChatMessage === 'function') {
           this.sendSingleChatMessage(errFullMsg, 'stage1');
-        }
-        if (typeof showGlobalBannerNotice === 'function') {
-          showGlobalBannerNotice('⚠️ 提炼遇到延迟', '智能体生成公约草案未能即时返回，全员确认已锁定，请在右侧讨论区点击【重新生成】重试！', 'warning', 7000);
         }
         this.syncStage1();
         this.syncChatLogs();
@@ -21339,11 +21309,6 @@
                   ⚠️ 提炼遇阻 · 全员已确认 (${count}/${totalMembersCount}) · 请在右侧讨论区点击【重新提炼】
                 </button>
               `;
-              contractActionBarMount.querySelector('#btn-extract-tasks')?.addEventListener('click', () => {
-                if (typeof showGlobalBannerNotice === 'function') {
-                  showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
-                }
-              });
             } else {
               contractActionBarMount.innerHTML = `
                 <button id="btn-extract-tasks" ${isTasksRunning || isExtractingAny || isFull ? 'disabled' : ''} style="background:${isTasksRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTasksRunning || isExtractingAny || isFull ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
@@ -21374,11 +21339,6 @@
                   ⚠️ 提炼遇阻 · 全员已确认 (${count}/${totalMembersCount}) · 请在右侧讨论区点击【重新提炼】
                 </button>
               `;
-              contractActionBarMount.querySelector('#btn-extract-time')?.addEventListener('click', () => {
-                if (typeof showGlobalBannerNotice === 'function') {
-                  showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
-                }
-              });
             } else {
               contractActionBarMount.innerHTML = `
                 <button id="btn-extract-time" ${isTimeRunning || isExtractingAny || isFull ? 'disabled' : ''} style="background:${isTimeRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTimeRunning || isExtractingAny || isFull ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
@@ -21418,11 +21378,6 @@
                   ⚠️ 提炼遇阻 · 全员已确认 (${count}/${totalMembersCount}) · 请在右侧讨论区点击【重新提炼】
                 </button>
               `;
-              contractActionBarMount.querySelector('#btn-extract-topic')?.addEventListener('click', () => {
-                if (typeof showGlobalBannerNotice === 'function') {
-                  showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
-                }
-              });
             } else {
               const isInst = (this.getCurrentTaskType() === 'instructional');
               const extractName = isInst ? '课题与教学构想' : '主题与研究方案';
