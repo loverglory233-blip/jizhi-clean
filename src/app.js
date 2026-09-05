@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2569";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2569";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2569";
-import { AuthManager } from "./auth.js?v=20260905_v2569";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2569";
-import { renderLoginView } from "./login.js?v=20260905_v2569";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2569";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2569";
+} from "./constants.js?v=20260905_v2570";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2570";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2570";
+import { AuthManager } from "./auth.js?v=20260905_v2570";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2570";
+import { renderLoginView } from "./login.js?v=20260905_v2570";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2570";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2570";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2569";
+} from "./editor.js?v=20260905_v2570";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -469,6 +469,9 @@ export class App {
 
   // 🤖 智能体正在分析动态状态设置器（全端毫秒级实时同步广播）
   setActiveAgentAnalyzing(info = null) {
+    if (info && typeof info === 'object') {
+      if (!info._ts) info._ts = Date.now();
+    }
     this.state.activeAgentAnalyzing = info;
     if (this.cloudSyncEngine && typeof this.cloudSyncEngine.pushSnapshot === 'function') {
       this.cloudSyncEngine.pushSnapshot();
@@ -3559,9 +3562,37 @@ ${votedDetails}
   }
 
   /**
-   * 🛡️ 全局提炼互斥判定：当任意一处（左侧主题/时间/分工，或右侧一键提炼）正在进行 AI 提炼时，全部按键互斥置灰
+   * 🛡️ 全局提炼互斥判定：当任意一处正在进行 AI 提炼时互斥保护，同时具备超时自愈机制防止死锁
    */
   isAnyExtracting() {
+    // 🛡️ 智能防呆自愈：检查 activeAgentAnalyzing 是否存在且是否超时
+    if (this.state && this.state.activeAgentAnalyzing) {
+      const info = this.state.activeAgentAnalyzing;
+      const ts = info._ts || info.timestamp || 0;
+      const isLocalRunning = !!(
+        this._isGeneratingContract ||
+        this._isExtractingTopic ||
+        this._isExtractingTime ||
+        this._isExtractingTasks
+      );
+      // 如果本地没有真正运行，且记录时间已超过 25 秒（或无时间戳的陈旧死锁数据），立即自愈清除
+      if (!isLocalRunning && (!ts || (Date.now() - ts > 25000))) {
+        this.state.activeAgentAnalyzing = null;
+        if (this.cloudSyncEngine && typeof this.cloudSyncEngine.pushSnapshot === 'function') {
+          this.cloudSyncEngine.pushSnapshot();
+        }
+      } else if (ts && (Date.now() - ts > 60000)) {
+        this._isGeneratingContract = false;
+        this._isExtractingTopic = false;
+        this._isExtractingTime = false;
+        this._isExtractingTasks = false;
+        this.state.activeAgentAnalyzing = null;
+        if (this.cloudSyncEngine && typeof this.cloudSyncEngine.pushSnapshot === 'function') {
+          this.cloudSyncEngine.pushSnapshot();
+        }
+      }
+    }
+
     return !!(
       this._isGeneratingContract ||
       this._isExtractingTopic ||
@@ -3642,7 +3673,7 @@ ${votedDetails}
       else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
     }
     if (!Array.isArray(members)) members = Object.values(members || {});
-    const totalCount = Math.max(members.length, 2);
+    const totalCount = (members && members.length > 0) ? members.length : 2;
 
     const isAlreadyDone = userKeys.some(k => this.state.stepConfirmations[stepKey][k]);
     if (isAlreadyDone) {
@@ -3740,12 +3771,20 @@ ${votedDetails}
     if (this.isAnyExtracting()) {
       if (typeof showGlobalBannerNotice === 'function') {
         showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+      } else {
+        alert('⏳ 智能体当前正在分析提炼中，请稍候完成后再操作！');
       }
       return;
     }
     const s1 = this.state.stage1 || {};
     const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
-    const totalCount = Math.max(membersList.length, 2);
+    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 2;
+    const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && (s1.hasVoted[m.id] || (m.name && s1.hasVoted[m.name]))))).length;
+    const isVotingComplete = (totalCount > 0 && totalVotesCast >= totalCount);
+    if (!isVotingComplete) {
+      alert(`🔒 请先完成全员提案提交与投票推选！\n\n当前全组投票进度：${totalVotesCast}/${totalCount} 人已投票。\n投票结束后拍卖师将落槌揭晓结果，随后方可开启主题与方案提炼。`);
+      return;
+    }
     const count = this.getStepConfirmedCount('s1_topic', membersList);
     if (count >= totalCount && totalCount > 0) {
       return this._doExtractTopic();
@@ -3977,12 +4016,14 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
     if (this.isAnyExtracting()) {
       if (typeof showGlobalBannerNotice === 'function') {
         showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+      } else {
+        alert('⏳ 智能体当前正在分析提炼中，请稍候完成后再操作！');
       }
       return;
     }
     const s1 = this.state.stage1 || {};
     const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
-    const totalCount = Math.max(membersList.length, 2);
+    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 2;
     const count = this.getStepConfirmedCount('s1_time', membersList);
     if (count >= totalCount && totalCount > 0) {
       return this._doExtractTime();
@@ -4008,19 +4049,30 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
     const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
 
     this.setActiveAgentAnalyzing({
-      icon: isInst ? '📐' : '🎪',
+      icon: '⏱️',
       title: agentRole,
-      detail: `${agentRole}正在根据讨论区研讨记录提炼【6大${isInst ? '模块' : '章节'}时间预算分配】...`
+      detail: `${agentRole}正在根据讨论区研讨记录提炼【6 大${isInst ? '模块' : '章节'}时间预算分配】...`
     });
 
     const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-    // 💡 局部精准切片：只截取主题确立后关于时间预算的研讨记录，严格控制 token 花销
-    const topicNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('主题与方案确立') || m.text.includes('主题确立') || m.text.includes('时间分配') || m.text.includes('时间规划')));
-    const relevantLogs = (topicNoticeIdx >= 0) ? s1ChatLogs.slice(topicNoticeIdx) : s1ChatLogs.slice(-15);
-    const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !m.text.startsWith('[IMG_DATA]:'));
-    const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(l => l.trim().length > 0).join('\n') || '组员正在商讨时间规划';
+    const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('投票结果出炉') || m.text.includes('全票推选') || m.text.includes('投票已完成') || m.text.includes('投票完成') || m.text.includes('投票揭晓') || m.text.includes('公约草案')));
+    const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs;
+    const validUserLogs = relevantLogs.filter(m => {
+      if (!m || !m.text) return false;
+      if (m.isThinking) return false;
+      if (m.sender === 'system' || AgentProfiles[m.sender]) return false;
+      if (typeof m.text === 'string' && m.text.startsWith('[IMG_DATA]:')) return false;
+      if (typeof m.text === 'string' && (m.text.includes('【投票结果】') || m.text.includes('【公约草案就绪】') || m.text.includes('【全盘公约就绪】'))) return false;
+      return true;
+    });
+    const chatSnippet = validUserLogs.map(m => {
+      const name = m.senderName || m.sender || '组员';
+      const cleanText = (m.text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      return `${name}: ${cleanText}`;
+    }).filter(line => line.trim().length > 0).join('\n');
 
-    const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
+    const genreCfg = TASK_GENRE_CONFIGS[taskType] || TASK_GENRE_CONFIGS.experiment;
+    const allTasks = this.authManager ? this.authManager.getTasks() : [];
     const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
     const totalDurationMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
 
@@ -4030,7 +4082,6 @@ ${chatSnippet}
 【参考${isInst ? '备课设计' : '论文写作'}总时长】: ${totalDurationMin} 分钟
 
 请通读上述真实讨论记录，作为资深${agentRole}：
-1. 深度分析小组成员的研讨意向与侧重（组员发言较为自由口语化，请敏锐提炼）：
    - 若组员明确提到了某${isInst ? '模块' : '章节'}分配多少分钟，严格按照组员商定的时间分配；
    - 若组员提到各${isInst ? '模块' : '章节'}“平分”或“均分”，则将总时长平分给各${isInst ? '模块' : '章'}；
    - 若组员提到“重点在${isInst ? '新知探究与建构/情境创设' : '方法/重点在综述'}”，则显著增加对应${isInst ? '模块' : '章节'}的时间权重；
@@ -4183,7 +4234,7 @@ ${chatSnippet}
     }
     const s1 = this.state.stage1 || {};
     const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
-    const totalCount = Math.max(membersList.length, 2);
+    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 2;
     const count = this.getStepConfirmedCount('s1_tasks', membersList);
     if (count >= totalCount && totalCount > 0) {
       return this._doExtractTasks();
@@ -4379,6 +4430,8 @@ ${chatSnippet}
     if (this.isAnyExtracting()) {
       if (typeof showGlobalBannerNotice === 'function') {
         showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+      } else {
+        alert('⏳ 智能体当前正在分析提炼中，请稍候完成后再操作！');
       }
       return;
     }
@@ -4390,7 +4443,7 @@ ${chatSnippet}
       return;
     }
     const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
-    const totalCount = Math.max(membersList.length, 2);
+    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 2;
     const count = this.getStepConfirmedCount('s1_full_contract', membersList);
     if (count >= totalCount && totalCount > 0) {
       return this._doOneClickGenerateContract();
@@ -4778,7 +4831,7 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
     }
     const currMemObj = memberArr.find(m => m && (isSameUser(m, user) || m.id === user || m.name === user));
     const memberName = currMemObj ? currMemObj.name : user;
-    const totalMembersCount = Math.max(memberArr.length, 2);
+    const totalMembersCount = (memberArr && memberArr.length > 0) ? memberArr.length : 2;
 
     const userAlreadySigned = !!(s1.contract.confirmedMembers[user] || (currMemObj && (s1.contract.confirmedMembers[currMemObj.id] || (currMemObj.name && s1.contract.confirmedMembers[currMemObj.name]))));
 
@@ -6325,7 +6378,7 @@ ${chatSnippet}
       // 🛡️ 实时动态更新公约顶部操作提炼按钮及协同确认计数 (全链路互斥置灰与精准法定人数)
       const contractActionBarMount = document.getElementById('stage1-contract-action-bar-mount');
       if (contractActionBarMount && !isContractLocked) {
-        const totalMembersCount = Math.max(membersList.length, 2);
+        const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 2;
         const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && (s1.hasVoted[m.id] || (m.name && s1.hasVoted[m.name]))))).length;
         const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
         const currUserCode = this.state.currentUser;
@@ -6352,34 +6405,51 @@ ${chatSnippet}
           const isMe = isMyDoneHelper('s1_tasks');
           const isFull = count >= totalMembersCount && totalMembersCount > 0;
           const isTasksRunning = !!(this._isExtractingTasks);
-          const isTasksDisabled = isExtractingAny;
           contractActionBarMount.innerHTML = `
-            <button id="btn-extract-tasks" style="background:${isTasksRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTasksDisabled ? 'not-allowed' : 'pointer'}; opacity:${isTasksDisabled ? '0.6' : '1'}; pointer-events:${isTasksDisabled ? 'none' : 'auto'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;" ${isTasksDisabled ? 'disabled' : ''}>
+            <button id="btn-extract-tasks" style="background:${isTasksRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
               ${isTasksRunning ? `⏳ 正在提炼【任务分工】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【任务分工】` : (isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`)))}
             </button>
           `;
-          contractActionBarMount.querySelector('#btn-extract-tasks')?.addEventListener('click', () => this.handleExtractTasks());
+          contractActionBarMount.querySelector('#btn-extract-tasks')?.addEventListener('click', () => {
+            if (this.isAnyExtracting()) {
+              if (typeof showGlobalBannerNotice === 'function') {
+                showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+              } else {
+                alert('⏳ 智能体当前正在分析提炼中，请稍候完成后再操作！');
+              }
+              return;
+            }
+            this.handleExtractTasks();
+          });
         } else if (s1.contractStep === 'time') {
           const count = this.getStepConfirmedCount('s1_time', membersList);
           const isMe = isMyDoneHelper('s1_time');
           const isFull = count >= totalMembersCount && totalMembersCount > 0;
           const isTimeRunning = !!(this._isExtractingTime);
-          const isTimeDisabled = isExtractingAny;
           contractActionBarMount.innerHTML = `
-            <button id="btn-extract-time" style="background:${isTimeRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTimeDisabled ? 'not-allowed' : 'pointer'}; opacity:${isTimeDisabled ? '0.6' : '1'}; pointer-events:${isTimeDisabled ? 'none' : 'auto'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;" ${isTimeDisabled ? 'disabled' : ''}>
+            <button id="btn-extract-time" style="background:${isTimeRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
               ${isTimeRunning ? `⏳ 正在提炼【时间分配】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【时间分配】` : (isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`)))}
             </button>
           `;
-          contractActionBarMount.querySelector('#btn-extract-time')?.addEventListener('click', () => this.handleExtractTime());
+          contractActionBarMount.querySelector('#btn-extract-time')?.addEventListener('click', () => {
+            if (this.isAnyExtracting()) {
+              if (typeof showGlobalBannerNotice === 'function') {
+                showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+              } else {
+                alert('⏳ 智能体当前正在分析提炼中，请稍候完成后再操作！');
+              }
+              return;
+            }
+            this.handleExtractTime();
+          });
         } else {
           const count = this.getStepConfirmedCount('s1_topic', membersList);
           const isMe = isMyDoneHelper('s1_topic');
           const isFull = count >= totalMembersCount && totalMembersCount > 0;
           const isTopicRunning = !!(this._isExtractingTopic);
-          const isTopicDisabled = isExtractingAny;
           if (!isVotingComplete) {
             contractActionBarMount.innerHTML = `
-              <button id="btn-extract-topic" class="locked-pending-btn" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
+              <button id="btn-extract-topic" class="locked-pending-btn" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
                 🔒 请先完成投票推选 (${totalVotesCast}/${totalMembersCount} 人已投)
               </button>
             `;
@@ -6390,13 +6460,54 @@ ${chatSnippet}
             const isInst = (this.getCurrentTaskType() === 'instructional');
             const extractName = isInst ? '课题与教学构想' : '主题与研究方案';
             contractActionBarMount.innerHTML = `
-              <button id="btn-extract-topic" style="background:${isTopicRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTopicDisabled ? 'not-allowed' : 'pointer'}; opacity:${isTopicDisabled ? '0.6' : '1'}; pointer-events:${isTopicDisabled ? 'none' : 'auto'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;" ${isTopicDisabled ? 'disabled' : ''}>
+              <button id="btn-extract-topic" style="background:${isTopicRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
                 ${isTopicRunning ? `⏳ 正在提炼【${extractName}】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【${extractName}】` : (isMe ? `✅ 您已确认提炼${extractName} (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【${extractName}】 (${count}/${totalMembersCount})`)))}
               </button>
             `;
-            contractActionBarMount.querySelector('#btn-extract-topic')?.addEventListener('click', () => this.handleExtractTopic());
+            contractActionBarMount.querySelector('#btn-extract-topic')?.addEventListener('click', () => {
+              if (this.isAnyExtracting()) {
+                if (typeof showGlobalBannerNotice === 'function') {
+                  showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+                } else {
+                  alert('⏳ 智能体当前正在分析提炼中，请稍候完成后再操作！');
+                }
+                return;
+              }
+              this.handleExtractTopic();
+            });
           }
         }
+
+        // 🛡️ 同步就地更新槽位 1 课题、槽位 2 概述、时间分配与分工 (当用户没有聚焦编辑时保持最新且解锁)
+        const topicInp = document.getElementById('contract-topic-input');
+        if (topicInp && document.activeElement !== topicInp) {
+          const val = s1.mergedTitle || s1.contract?.topic || '';
+          if (val && topicInp.value !== val) topicInp.value = val;
+          topicInp.disabled = isContractLocked;
+          topicInp.readOnly = isContractLocked;
+          topicInp.style.opacity = isContractLocked ? '0.8' : '1';
+          topicInp.style.cursor = isContractLocked ? 'not-allowed' : 'text';
+          topicInp.style.background = isContractLocked ? '#f8fafc' : '#ffffff';
+        }
+        const overviewInp = document.getElementById('contract-overview-input');
+        if (overviewInp && document.activeElement !== overviewInp) {
+          const val = s1.contract?.overview || s1.researchOverview || '';
+          if (val && overviewInp.value !== val) overviewInp.value = val;
+          overviewInp.disabled = isContractLocked;
+          overviewInp.readOnly = isContractLocked;
+          overviewInp.style.opacity = isContractLocked ? '0.8' : '1';
+          overviewInp.style.cursor = isContractLocked ? 'not-allowed' : 'text';
+          overviewInp.style.background = isContractLocked ? '#f8fafc' : '#ffffff';
+        }
+        document.querySelectorAll('.contract-time-input, .task-assignment-input').forEach(inp => {
+          if (document.activeElement !== inp) {
+            inp.disabled = isContractLocked;
+            inp.readOnly = isContractLocked;
+            inp.style.opacity = isContractLocked ? '0.8' : '1';
+            inp.style.cursor = isContractLocked ? 'not-allowed' : (inp.tagName === 'INPUT' ? 'text' : 'auto');
+            inp.style.background = isContractLocked ? '#f8fafc' : '#ffffff';
+          }
+        });
       }
 
       // 🛡️ 实时动态更新公约底部签署矩阵与确认操作按钮
@@ -6558,7 +6669,7 @@ ${chatSnippet}
         if (!Array.isArray(memberArr)) {
           memberArr = Object.values(memberArr || {});
         }
-        const totalMembersCount = Math.max(memberArr.length, 2);
+        const totalMembersCount = (memberArr && memberArr.length > 0) ? memberArr.length : 2;
 
         // 🛡️ 守卫拦截：必须先走完二审半程自查与会议全流程（全员打卡完成），或者总时间临近截止（<= 5分钟），才允许点击确认初稿！
         const subs = s2.meetingSubmissions || {};
@@ -7405,7 +7516,7 @@ ${contentSnippet}
     }
     const membersList = actualGroupMembers.length > 0 ? actualGroupMembers : Object.values(this.state.members || {});
     const subs = this.state.stage2?.meetingSubmissions || {};
-    const totalCount = Math.max(membersList.length, 2);
+    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 2;
     const subCount = membersList.filter(m => isMemberDone(subs, m)).length;
 
     const existingSub = subs[userKey] || (currUser?.name && subs[currUser.name]) || (currUser?.id && subs[currUser.id]) || (currUser?.id && subs[currUser.id]) || (this.state.currentUser && subs[this.state.currentUser]);
@@ -7647,7 +7758,7 @@ ${contentSnippet}
         actualGroupMembers = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
       }
       const membersList = actualGroupMembers.length > 0 ? actualGroupMembers : Object.values(this.state.members || {});
-      const totalMembersCount = Math.max(membersList.length, 2);
+      const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 2;
 
       if (!this.state.stage2.meetingSubmissions) this.state.stage2.meetingSubmissions = {};
       this.state.stage2.meetingSubmissions[userKey] = {
