@@ -549,6 +549,20 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
     window.addEventListener(evt, markTeacherActive, { passive: true });
   });
 
+  if (!window._teacherVisibilityHandlerAttached) {
+    window._teacherVisibilityHandlerAttached = true;
+    const triggerTeacherImmediate = () => {
+      if (!isDashboard && (classTab === 'live_monitor' || classTab === 'live_monitoring')) {
+        if (window._teacherPortalSyncTimer) clearTimeout(window._teacherPortalSyncTimer);
+        teacherPullAndRefresh();
+      }
+    };
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') triggerTeacherImmediate();
+    });
+    window.addEventListener('focus', triggerTeacherImmediate);
+  }
+
   if (!window._teacherWheelHandlerAttached) {
     window._teacherWheelHandlerAttached = true;
     window.addEventListener('wheel', (e) => {
@@ -565,7 +579,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
     }, { passive: true });
   }
 
-  const tInitInterval = (document.hidden ? 15000 : 1800);
+  const tInitInterval = (document.hidden ? 2500 : 1000);
   window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInitInterval);
 
   const allStudents = allUsers.filter(u => u.role !== 'teacher');
