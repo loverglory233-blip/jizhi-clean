@@ -383,15 +383,15 @@ curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
 curl_setopt($ch, CURLOPT_TCP_NODELAY, 1);
 curl_setopt($ch, CURLOPT_ENCODING, '');
 curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 4);
-curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+curl_setopt($ch, CURLOPT_TIMEOUT, 35);
 
 $resp = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
-// 🛡️ 智能 Token 4100/4001 失效自愈：自动清除缓存、换新 Token 并重试一次
+// 🛡️ 智能 Token 4100/4001 失效自愈：仅当明确返回鉴权失败且非网络超时时换新 Token 重试一次，绝不在超时断开后盲目二次重试拖满 60 秒
 $answerText = '';
-if ($httpCode === 401 || (strpos($resp, '4100') !== false || strpos($resp, '4001') !== false)) {
+if ($resp !== false && ($httpCode === 401 || (is_string($resp) && (strpos($resp, '4100') !== false || strpos($resp, '4001') !== false)))) {
     $cacheFile = __DIR__ . '/token_cache.json';
     @unlink($cacheFile);
     $accessToken = getCozeAccessToken(true);
@@ -408,7 +408,7 @@ if ($httpCode === 401 || (strpos($resp, '4100') !== false || strpos($resp, '4001
         curl_setopt($chRetry, CURLOPT_TCP_NODELAY, 1);
         curl_setopt($chRetry, CURLOPT_ENCODING, '');
         curl_setopt($chRetry, CURLOPT_CONNECTTIMEOUT, 4);
-        curl_setopt($chRetry, CURLOPT_TIMEOUT, 30);
+        curl_setopt($chRetry, CURLOPT_TIMEOUT, 25);
         $resp = curl_exec($chRetry);
         curl_close($chRetry);
     }
