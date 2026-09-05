@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2656";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2656";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2656";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2657";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2657";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2657";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -184,7 +184,7 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
   const classes = (window.app && window.app.authManager) ? window.app.authManager.getClasses() : [];
   const currentClassObj = classes.find(c => c.id === activeClassId);
   const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currentUser, activeClassId) : null;
-  const groupId = state.activeGroupId || (window.app && window.app.cloudSyncEngine?.groupId) || activeGroupObj?.id || currentUser?.groupId || 'group_unassigned';
+  const groupId = state.activeGroupId || (window.app && window.app.cloudSyncEngine?.groupId) || activeGroupObj?.id || currentUser?.groupId || '';
   const groupName = activeGroupObj?.name || '协作小组';
   const currentTaskTitle = currentTask ? currentTask.title : '写作任务';
 
@@ -1581,7 +1581,7 @@ function renderStage2Canvas(canvas, state, handlers) {
   const isStage2Archived = isDraftFullyConfirmed && (state.currentStage === 'stage3');
   const isEditorReadonly = isTaskDeadlineExpired || isStage2Archived || (state.currentStage !== 'stage2' && !!state.isFinalSubmitted) || !!(window.app && window.app.isViewingPastStage);
 
-  if (!userGroupId || userGroupId === 'null' || String(userGroupId || '').startsWith('group_unassigned')) {
+  if (!userGroupId || userGroupId === 'null' || userGroupId === 'undefined') {
     canvas.innerHTML = showResolutionBlock('未检测到您被分配的具体协作小组，请联系教师在教务空间分配小组后再进入');
     return;
   }
