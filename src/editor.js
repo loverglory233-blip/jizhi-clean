@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2677";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2677";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2677";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2678";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2678";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2678";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -3878,6 +3878,14 @@ export function renderChatActionBar(state) {
       const reviewingTitle = isInst ? '教研专家' : '审稿编辑';
       const meetingName = isInst ? '磨课会议' : '编辑会议';
 
+      const hasReviewingIssued = !!(
+        s2.meetingStep === 'discussing_checklist' ||
+        s2.actionPlan?.isGenerated ||
+        s2.reviewMilestone === 'checklist_issued' ||
+        s2.reviewMilestone === 'second_review_received' ||
+        s2Chats.some(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('磨课修正清单')))
+      );
+
       if (!isS2MeetingDone) {
         actionBar.innerHTML = `
           <button id="btn-s2-locked-notice" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
@@ -3887,7 +3895,7 @@ export function renderChatActionBar(state) {
         actionBar.querySelector('#btn-s2-locked-notice')?.addEventListener('click', () => {
           alert(`🔒 请先在正文上方点击【📢 参与【${meetingName}】】完成半程自查打卡！\n\n当前打卡进度：${s2SubCount}/${totalCount} 人。\n全员打卡完成后，${managingTitle}将主持会议，届时方可点击总结。`);
         });
-      } else if (!s2.meetingStep || s2.meetingStep === 'discussing_divergence' || s2.meetingStep === 'initial' || s2.meetingStep === 'discussing_agreement') {
+      } else if (!hasReviewingIssued) {
         const count = isDoneHelper(confs.s2_managing);
         const isMe = isMyDoneHelper(confs.s2_managing);
         const isFull = count >= totalCount && totalCount > 0;
@@ -3901,7 +3909,7 @@ export function renderChatActionBar(state) {
             window.app.handleS2ManagingSummary();
           }
         });
-      } else if (s2.meetingStep === 'discussing_checklist') {
+      } else {
         const count = isDoneHelper(confs.s2_reviewing);
         const isMe = isMyDoneHelper(confs.s2_reviewing);
         const isFull = count >= totalCount && totalCount > 0;

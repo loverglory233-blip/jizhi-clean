@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2677';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2677';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2678';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2678';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1468,6 +1468,15 @@ export class CloudSyncEngine {
       }
       if (remoteData.stage2.reviewMilestone) {
         this.app.state.stage2.reviewMilestone = remoteData.stage2.reviewMilestone;
+      }
+      if (remoteData.stage2.meetingStep !== undefined) {
+        if (this.app.state.stage2.meetingStep !== remoteData.stage2.meetingStep) {
+          this.app.state.stage2.meetingStep = remoteData.stage2.meetingStep;
+          needWorkspaceRender = true;
+        }
+      }
+      if (remoteData.stage2.divergenceDetails) {
+        this.app.state.stage2.divergenceDetails = remoteData.stage2.divergenceDetails;
       }
       if (remoteData.stage2.firstReviewText !== undefined && remoteData.stage2.firstReviewText) {
         this.app.state.stage2.firstReviewText = remoteData.stage2.firstReviewText;

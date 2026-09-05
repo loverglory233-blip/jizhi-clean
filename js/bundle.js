@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2677
+ * Version: 20260906_v2678
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2677';
+  const APP_VERSION = '20260906_v2678';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5870,6 +5870,15 @@
         }
         if (remoteData.stage2.reviewMilestone) {
           this.app.state.stage2.reviewMilestone = remoteData.stage2.reviewMilestone;
+        }
+        if (remoteData.stage2.meetingStep !== undefined) {
+          if (this.app.state.stage2.meetingStep !== remoteData.stage2.meetingStep) {
+            this.app.state.stage2.meetingStep = remoteData.stage2.meetingStep;
+            needWorkspaceRender = true;
+          }
+        }
+        if (remoteData.stage2.divergenceDetails) {
+          this.app.state.stage2.divergenceDetails = remoteData.stage2.divergenceDetails;
         }
         if (remoteData.stage2.firstReviewText !== undefined && remoteData.stage2.firstReviewText) {
           this.app.state.stage2.firstReviewText = remoteData.stage2.firstReviewText;
@@ -15254,6 +15263,14 @@
         const reviewingTitle = isInst ? '教研专家' : '审稿编辑';
         const meetingName = isInst ? '磨课会议' : '编辑会议';
 
+        const hasReviewingIssued = !!(
+          s2.meetingStep === 'discussing_checklist' ||
+          s2.actionPlan?.isGenerated ||
+          s2.reviewMilestone === 'checklist_issued' ||
+          s2.reviewMilestone === 'second_review_received' ||
+          s2Chats.some(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('磨课修正清单')))
+        );
+
         if (!isS2MeetingDone) {
           actionBar.innerHTML = `
             <button id="btn-s2-locked-notice" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
@@ -15263,7 +15280,7 @@
           actionBar.querySelector('#btn-s2-locked-notice')?.addEventListener('click', () => {
             alert(`🔒 请先在正文上方点击【📢 参与【${meetingName}】】完成半程自查打卡！\n\n当前打卡进度：${s2SubCount}/${totalCount} 人。\n全员打卡完成后，${managingTitle}将主持会议，届时方可点击总结。`);
           });
-        } else if (!s2.meetingStep || s2.meetingStep === 'discussing_divergence' || s2.meetingStep === 'initial' || s2.meetingStep === 'discussing_agreement') {
+        } else if (!hasReviewingIssued) {
           const count = isDoneHelper(confs.s2_managing);
           const isMe = isMyDoneHelper(confs.s2_managing);
           const isFull = count >= totalCount && totalCount > 0;
@@ -15277,7 +15294,7 @@
               window.app.handleS2ManagingSummary();
             }
           });
-        } else if (s2.meetingStep === 'discussing_checklist') {
+        } else {
           const count = isDoneHelper(confs.s2_reviewing);
           const isMe = isMyDoneHelper(confs.s2_reviewing);
           const isFull = count >= totalCount && totalCount > 0;
