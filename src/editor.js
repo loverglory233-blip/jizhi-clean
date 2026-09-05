@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2680";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2680";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2680";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2681";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2681";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2681";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -320,19 +320,31 @@ export function getEtherpadAuthorStats(frameId = 'stage2-etherpad-frame', member
     const extractStylesFromDoc = (doc) => {
       if (!doc) return;
       try {
-        const styleEls = doc.querySelectorAll('style');
-        styleEls.forEach(st => {
-          const cssTxt = st.textContent || '';
-          const matches = cssTxt.matchAll(/\.author-([a-zA-Z0-9_\-]+)\s*\{[^}]*background(?:-color)?:\s*([^;!}\s]+)/gi);
-          for (const m of matches) {
-            if (m[1] && m[2]) {
-              const normId = m[1].replace(/^[a_.-]+/i, '');
-              domAuthorColors[m[1]] = m[2];
-              domAuthorColors['a.' + normId] = m[2];
-              domAuthorColors['a_' + normId] = m[2];
-            }
+        const sheets = doc.styleSheets;
+        if (sheets) {
+          for (let i = 0; i < sheets.length; i++) {
+            try {
+              const rules = sheets[i].cssRules || sheets[i].rules;
+              if (rules) {
+                for (let j = 0; j < rules.length; j++) {
+                  const r = rules[j];
+                  if (r.selectorText && r.selectorText.includes('.author-')) {
+                    const m = r.selectorText.match(/\.author-([a-zA-Z0-9_\-]+)/i);
+                    if (m && m[1]) {
+                      const bg = r.style?.backgroundColor || r.style?.background;
+                      if (bg) {
+                        const normId = m[1].replace(/^[a_.-]+/i, '');
+                        domAuthorColors[m[1]] = bg;
+                        domAuthorColors['a.' + normId] = bg;
+                        domAuthorColors['a_' + normId] = bg;
+                      }
+                    }
+                  }
+                }
+              }
+            } catch (err) {}
           }
-        });
+        }
       } catch(e) {}
     };
     extractStylesFromDoc(innerDoc);

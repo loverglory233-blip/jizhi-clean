@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2680';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2680';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2681';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2681';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1512,8 +1512,10 @@ export class CloudSyncEngine {
       if (remoteData.stage2.confirmedMembers) {
         const localConf = this.app.state.stage2.confirmedMembers || {};
         const mergedConf = { ...localConf, ...remoteData.stage2.confirmedMembers };
+        let confChanged = false;
         if (JSON.stringify(mergedConf) !== JSON.stringify(localConf)) {
           this.app.state.stage2.confirmedMembers = mergedConf;
+          confChanged = true;
           needWorkspaceRender = true;
         }
         const u = (this.app.authManager) ? this.app.authManager.getCurrentUser() : null;
@@ -1529,11 +1531,13 @@ export class CloudSyncEngine {
           const isMemDone = (map, m) => !!(map && (map[m.id] || (m.name && map[m.name])));
           const cCount = memberArr.filter(m => isMemDone(mergedConf, m)).length;
           const isFullyDone = (cCount >= memberArr.length && memberArr.length > 0);
-          this.app.state.stage2.isDraftConfirmed = isFullyDone;
-          if (isFullyDone) {
-            this.app.state.groupMaxStage = 'stage3';
+          if (this.app.state.stage2.isDraftConfirmed !== isFullyDone) {
+            this.app.state.stage2.isDraftConfirmed = isFullyDone;
+            if (isFullyDone) {
+              this.app.state.groupMaxStage = 'stage3';
+            }
+            needWorkspaceRender = true;
           }
-          needWorkspaceRender = true;
         }
       }
       if (remoteData.stage2.actionPlan) {

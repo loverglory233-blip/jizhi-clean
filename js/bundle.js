@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2680
+ * Version: 20260906_v2681
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2680';
+  const APP_VERSION = '20260906_v2681';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5914,8 +5914,10 @@
         if (remoteData.stage2.confirmedMembers) {
           const localConf = this.app.state.stage2.confirmedMembers || {};
           const mergedConf = { ...localConf, ...remoteData.stage2.confirmedMembers };
+          let confChanged = false;
           if (JSON.stringify(mergedConf) !== JSON.stringify(localConf)) {
             this.app.state.stage2.confirmedMembers = mergedConf;
+            confChanged = true;
             needWorkspaceRender = true;
           }
           const u = (this.app.authManager) ? this.app.authManager.getCurrentUser() : null;
@@ -5931,11 +5933,13 @@
             const isMemDone = (map, m) => !!(map && (map[m.id] || (m.name && map[m.name])));
             const cCount = memberArr.filter(m => isMemDone(mergedConf, m)).length;
             const isFullyDone = (cCount >= memberArr.length && memberArr.length > 0);
-            this.app.state.stage2.isDraftConfirmed = isFullyDone;
-            if (isFullyDone) {
-              this.app.state.groupMaxStage = 'stage3';
+            if (this.app.state.stage2.isDraftConfirmed !== isFullyDone) {
+              this.app.state.stage2.isDraftConfirmed = isFullyDone;
+              if (isFullyDone) {
+                this.app.state.groupMaxStage = 'stage3';
+              }
+              needWorkspaceRender = true;
             }
-            needWorkspaceRender = true;
           }
         }
         if (remoteData.stage2.actionPlan) {
@@ -11705,19 +11709,31 @@
       const extractStylesFromDoc = (doc) => {
         if (!doc) return;
         try {
-          const styleEls = doc.querySelectorAll('style');
-          styleEls.forEach(st => {
-            const cssTxt = st.textContent || '';
-            const matches = cssTxt.matchAll(/\.author-([a-zA-Z0-9_\-]+)\s*\{[^}]*background(?:-color)?:\s*([^;!}\s]+)/gi);
-            for (const m of matches) {
-              if (m[1] && m[2]) {
-                const normId = m[1].replace(/^[a_.-]+/i, '');
-                domAuthorColors[m[1]] = m[2];
-                domAuthorColors['a.' + normId] = m[2];
-                domAuthorColors['a_' + normId] = m[2];
-              }
+          const sheets = doc.styleSheets;
+          if (sheets) {
+            for (let i = 0; i < sheets.length; i++) {
+              try {
+                const rules = sheets[i].cssRules || sheets[i].rules;
+                if (rules) {
+                  for (let j = 0; j < rules.length; j++) {
+                    const r = rules[j];
+                    if (r.selectorText && r.selectorText.includes('.author-')) {
+                      const m = r.selectorText.match(/\.author-([a-zA-Z0-9_\-]+)/i);
+                      if (m && m[1]) {
+                        const bg = r.style?.backgroundColor || r.style?.background;
+                        if (bg) {
+                          const normId = m[1].replace(/^[a_.-]+/i, '');
+                          domAuthorColors[m[1]] = bg;
+                          domAuthorColors['a.' + normId] = bg;
+                          domAuthorColors['a_' + normId] = bg;
+                        }
+                      }
+                    }
+                  }
+                }
+              } catch (err) {}
             }
-          });
+          }
         } catch(e) {}
       };
       extractStylesFromDoc(innerDoc);
