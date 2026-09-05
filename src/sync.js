@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2664';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2664';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2665';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2665';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1536,6 +1536,17 @@ export class CloudSyncEngine {
           needWorkspaceRender = true;
         }
       }
+      if (remoteData.stage2.confirmations) {
+        if (!this.app.state.stage2.confirmations) this.app.state.stage2.confirmations = {};
+        for (const [k, uMap] of Object.entries(remoteData.stage2.confirmations)) {
+          if (!this.app.state.stage2.confirmations[k]) this.app.state.stage2.confirmations[k] = {};
+          Object.assign(this.app.state.stage2.confirmations[k], uMap);
+          if (!this.app.state.stepConfirmations) this.app.state.stepConfirmations = {};
+          if (!this.app.state.stepConfirmations[k]) this.app.state.stepConfirmations[k] = {};
+          Object.assign(this.app.state.stepConfirmations[k], uMap);
+        }
+        needWorkspaceRender = true;
+      }
     }
 
     if (remoteData.stage3) {
@@ -1606,6 +1617,9 @@ export class CloudSyncEngine {
       this.app.state.stepConfirmations = mergedConfs;
       if (mergedStr !== localStr) {
         needWorkspaceRender = true;
+        if (typeof window.renderChatActionBar === 'function') {
+          window.renderChatActionBar(this.app.state);
+        }
       }
     }
 

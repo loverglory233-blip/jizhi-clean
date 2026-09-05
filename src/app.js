@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2664";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2664";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2664";
-import { AuthManager } from "./auth.js?v=20260906_v2664";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2664";
-import { renderLoginView } from "./login.js?v=20260906_v2664";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2664";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2664";
+} from "./constants.js?v=20260906_v2665";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2665";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2665";
+import { AuthManager } from "./auth.js?v=20260906_v2665";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2665";
+import { renderLoginView } from "./login.js?v=20260906_v2665";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2665";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2665";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2664";
+} from "./editor.js?v=20260906_v2665";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5339,44 +5339,22 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
   }
 
   /**
-   * 💡 阶段二半程会议第一步：责任编辑提炼分歧并引出审稿专家修正清单
+   * 💡 阶段二半程会议第一步：责任编辑提炼分歧并引出审稿专家修正清单 (原子全端协同)
    */
-  async handleS2ManagingSummary() {
-    const s2 = this.state.stage2 || {};
-    if (!this.state.stage2) this.state.stage2 = s2;
-    if (!s2.confirmations) s2.confirmations = {};
-    if (!s2.confirmations.s2_managing) s2.confirmations.s2_managing = {};
-
-    const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
-    const currUserCode = this.state.currentUser || currUser?.id || currUser?.name || 'A';
-    
-    // 1. 记录当前用户的确认
-    const myKeys = getUserAllKeys(currUser || currUserCode);
-    myKeys.forEach(k => { s2.confirmations.s2_managing[k] = true; });
-    if (!s2._firstManagingSummaryTimeMs) s2._firstManagingSummaryTimeMs = Date.now();
-    s2._lastManagingSummaryTimeMs = Date.now();
-
-    // 计算总组员人数
-    const effClassId = this.state.activeStudentClassId || currUser?.classId || null;
-    const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUser, effClassId) : null;
-    const membersList = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0) 
-      ? effGroup.members 
-      : Object.values(this.state.members || {});
-    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
-
-    const confirmedCount = membersList.filter(m => isMemberDone(s2.confirmations.s2_managing, m)).length;
-
-    // 立即同步并更新聊天框底栏按钮展示
-    this.syncStage2();
-    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-    renderChat(this.state);
-
-    // 若尚未全员确认，提示等待其他组员
-    if (confirmedCount < totalCount) {
+  async handleS2ManagingSummary(retryBtn = null) {
+    if (retryBtn) {
+      this._doGenerateS2ManagingSummary();
       return;
     }
+    const isInst = (this.getCurrentTaskType() === 'instructional');
+    const managingTitle = isInst ? '备课组长' : '责任编辑';
+    this.handleStepConfirmation('s2_managing', () => this._doGenerateS2ManagingSummary(), `让${managingTitle}总结`);
+  }
 
-    // 2. 全员已确认：开始让责任编辑与审稿编辑提炼共识并下发《二审修正清单》
+  async _doGenerateS2ManagingSummary() {
+    const s2 = this.state.stage2 || {};
+    if (!this.state.stage2) this.state.stage2 = s2;
+
     if (this._isGeneratingManagingSummary) return;
     this._isGeneratingManagingSummary = true;
 
@@ -5386,7 +5364,6 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
     const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.sender.includes('Editor'));
     const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在围绕论文前后脱节与论证方法深化讨论修改思路';
 
-    // 🌟 提取全组在【编辑会议自查打卡】中填写的真实瓶颈与聚焦痛点
     const subs = s2.meetingSubmissions || {};
     const subValues = Object.values(subs);
     const bottlenecks = [...new Set(subValues.map(v => v.bAcademic).filter(Boolean))].join('；') || '方法设计操作化不足与理论文献支撑单薄';
@@ -5397,7 +5374,6 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
     const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
     const rawDoc = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
 
-    // 责任编辑发言提炼研讨共识并交棒（严禁套话，紧扣自查瓶颈、研讨与正文实质，凡学生自查痛点全部点出）
     const managingPrompt = `小组成员已在讨论区就论文《${topic}》的前序修改方向展开了半程研讨。
 【组员自查打卡反映的全部瓶颈与脱节痛点】: ${bottlenecks}
 【组员自查聚焦关注点】: ${focusIssues}
@@ -5408,21 +5384,15 @@ ${chatSnippet}
 ${rawDoc || '（小组成员正在协作起草正文草稿）'}
 
 请作为责任编辑，发表 120~160 字的【半程研讨共识小结与交棒】：
-① 全面、客观梳理并点明小组成员在自查中汇报的各项脱节痛点（凡是学生汇报的痛点如：${focusIssues}，均须逐一说明，绝不遗漏隐瞒）；
-② 提炼总结全组在讨论区商定达成的具体修改共识要点（严禁假大空套话，【绝对严禁出现“分工”字眼】）；
-③ 隆重引出审稿专家通读全篇下发《二审修正清单》，指导全组对齐落实！
+① 全面、客观梳理并点明小组成员在自查中汇报的各项脱节痛点；
+② 提炼总结全组在讨论区商定达成的具体修改共识要点（严禁假大空套话，【绝对严禁出现“分工”字眼”】）；
+③ 隆重引出审稿专家通读全篇下发《二审修正清单》。
 （纯自然语言输出，120~160字，严禁输出代码块）`;
 
     try {
       const taskType = this.getCurrentTaskType();
       const genreDesc = getGenrePromptDescriptor(taskType);
-
-      // 🌟 1. 挂载责任编辑正在分析中动态状态框
-      this.setActiveAgentAnalyzing({
-        icon: '🤝',
-        title: '【责任编辑】正在提炼半程研讨共识...',
-        detail: '正在深度整合全组自查痛点与研讨记录，提炼修改共识要点并交棒审稿专家...'
-      });
+      this.setActiveAgentAnalyzing({ icon: '🤝', title: '【责任编辑】正在提炼半程研讨共识...', detail: '正在深度整合全组自查痛点与研讨记录，提炼修改共识要点并交棒审稿专家...' });
       await new Promise(r => setTimeout(r, 1500));
 
       const isInst = (taskType === 'instructional');
@@ -5430,170 +5400,67 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
       const reviewingName = isInst ? '教研专家' : '审稿编辑';
 
       const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues, taskType });
-      let managingText = (respManaging && respManaging.trim().length > 0) 
-        ? respManaging.trim() 
-        : `🤝 【${managingName}·研讨共识小结】：结合大家在自查打卡与讨论区指出的【${focusIssues.slice(0, 40)}】等全部核心诉求，全组已在${isInst ? '教学目标聚焦与新知探究活动设计' : '研究问题聚焦与方法设计'}细化上形成了明确共识。👉 接下来正式有请 @${reviewingName} 结合全篇草稿为大家下发具体的《${isInst ? '磨课修正清单' : '二审修正清单'}》，指导全组深入修改与对齐落实！`;
+      let managingText = (respManaging && respManaging.trim().length > 0) ? respManaging.trim() : `🤝 【${managingName}·研讨共识小结】：结合大家在自查打卡与讨论区指出的核心诉求，全组已在${isInst ? '教学目标聚焦与新知探究活动设计' : '研究问题聚焦与方法设计'}细化上形成了明确共识。👉 接下来正式有请 @${reviewingName} 结合全篇草稿为大家下发具体的《${isInst ? '磨课修正清单' : '二审修正清单'}》，指导全组深入修改与对齐落实！`;
       if (!managingText.startsWith('🤝')) managingText = `🤝 【${managingName}·研讨共识小结】：${managingText}`;
 
-      const msgManaging = {
-        sender: 'managingEditor',
-        senderName: isInst ? '协同调度 · 备课组长' : '协同调度 · 责任编辑',
-        text: managingText,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        _timeMs: Date.now()
-      };
+      const msgManaging = { sender: 'managingEditor', senderName: isInst ? '协同调度 · 备课组长' : '协同调度 · 责任编辑', text: managingText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
       s2ChatLogs.push(msgManaging);
-      this.syncChatLogs();
-      renderChat(this.state);
+      this.sendSingleChatMessage(msgManaging, 'stage2');
 
-      // 🌟 2. 切换为审稿编辑/教研专家二审质检正在分析中动态状态框
-      this.setActiveAgentAnalyzing({
-        icon: '📝',
-        title: `【${reviewingName}】正在下发《${isInst ? '磨课修正清单' : '二审修正清单'}》...`,
-        detail: '正在深度审阅正文草稿并结合自查瓶颈，生成包含【诊断问题+改进建议】的双结构清单...'
-      });
+      this.setActiveAgentAnalyzing({ icon: '📝', title: `【${reviewingName}】正在下发《${isInst ? '磨课修正清单' : '二审修正清单'}》...`, detail: '正在深度审阅正文草稿并结合自查瓶颈，生成包含【诊断问题+改进建议】的双结构清单...' });
       await new Promise(r => setTimeout(r, 1500));
 
-      // 审稿专家结合自查瓶颈、讨论与正文下发【诊断问题 + 改进建议】双结构《二审修正清单》
       const reviewingPrompt = `${genreDesc}
 
 针对课题《${topic}》，结合小组成员自查瓶颈【${bottlenecks}】、聚焦关注点【${focusIssues}】及下方正文草稿，作为资深审稿编辑给出言简意赅、直击要害的《二审修正清单》（140~190字）：
-【正文草稿参考】:
-${rawDoc || '（小组成员已完成初版主体框架起草）'}
-【小组成员商定的修改思路】:
+
+【组内关于修改思路的讨论记录】:
 ${chatSnippet}
 
-【二审核心考查维度（结合草稿实际情况灵活诊断，不机械限定条数，一个维度可包含多条）】：
-- 核心概念统领 / 教学目标贯通与难点化解
-- 主体研究方法 / 课堂学生活动操作化与探究深度
-- 章节过渡衔接 / 教学环节逻辑贯通与时间把控
-- 学术语体规范 / 随堂评价量规与论据支撑
+【正文草稿】：
+${rawDoc || '（小组成员正在协作起草正文草稿）'}
 
-【核心指令】：请根据草稿实际撰写情况，具体情况具体分析，直接以序号列出最突出的修正条目（不用过于冗长，精准点明【哪里有什么问题 ➔ 怎么改】，【绝对严禁出现“分工”字眼】）：
-每项格式：
-①【具体问题模块/章节】
-- 诊断问题：明确指出具体章节/环节存在什么问题或脱节；
-- 改进建议：明确指出具体怎么改或怎么补充。
+请按以下格式输出（严禁输出任何 Markdown 代码块，必须直接输出纯文本）：
+📝 【${reviewingName}·二审意见】：（50字左右的审稿把关寄语）
+【${isInst ? '磨课修正清单' : '二审修正清单'}】：
+1. 🎯 [诊断问题]：说明具体哪部分存在脱节或单薄；[改进建议]：给出具体的充实修改方案。
+2. 🎯 [诊断问题]：...；[改进建议]：...
+3. 🎯 [诊断问题]：...；[改进建议]：...
 
-末尾必须明确提示：“请大家围绕清单在讨论区协同商定修改对策与落实方案，商定差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！”（纯自然语言输出，140~190字）`;
+（纯自然语言输出，【绝对严禁出现“分工”字眼”】）`;
 
-      const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, actualDoc: rawDoc, bottlenecks, focusIssues, taskType });
-      let reviewingText = '';
-      if (respReviewing && respReviewing.trim().length > 0) {
-        reviewingText = respReviewing.trim();
-        if (!reviewingText.startsWith('📝')) reviewingText = `📝 【${reviewingName}·${isInst ? '磨课修正清单' : '二审修正清单'}】：${reviewingText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '')}`;
-        // 🛡️ 清理历史残留的网络提醒错误气泡
-        this.state.chatLogs.stage2 = (this.state.chatLogs.stage2 || []).filter(m => !m || !(m.sender === 'reviewingEditor' && (m.text || '').includes('网络提醒')));
-      } else {
+      const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues, rawDoc, taskType });
+      let reviewingText = (respReviewing && respReviewing.trim().length > 0) ? respReviewing.trim() : '';
+
+      if (!reviewingText) {
         reviewingText = `📝 【${reviewingName}·网络提醒】：📡 正在深度审阅正文草稿，网络连接稍有延迟未获取到清单。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新下发《${isInst ? '磨课修正清单' : '二审修正清单'}》</button>`;
+      } else {
+        if (!reviewingText.startsWith('📝')) reviewingText = `📝 【${reviewingName}·${isInst ? '磨课质检' : '二审修正'}】：${reviewingText}`;
       }
 
-      const msgReviewing = {
-        sender: 'reviewingEditor',
-        senderName: isInst ? '教学质量 · 教研专家' : '学术质量 · 审稿编辑',
-        text: reviewingText,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        _timeMs: Date.now() + 100
-      };
-      s2ChatLogs.push(msgReviewing);
-
-      // 🌟 核心突破：根据责任编辑与审稿编辑的内容动态生成左侧【半程修正清单】
-      // 规则：
-      // - 若存在不一致/分歧：第 1 条为【内容与构思对齐】（来自责任编辑提炼），剩下第 2、3 条看审稿编辑的质检拆分；
-      // - 若不存在不一致：全部 3 条直接来自审稿编辑二审修正清单的 3 条拆分。
-      let reviewChunks = [];
-      let bodyText = reviewingText;
-      const headerMatch = bodyText.match(/(?:二审修正清单|半程编辑修正清单|半程修正清单)[】:：\s]*/);
-      if (headerMatch) {
-        bodyText = bodyText.slice(headerMatch.index + headerMatch[0].length);
-      }
-      bodyText = bodyText.replace(/[👉\s]*请大家围绕.*$/s, '')
-                         .replace(/[👉\s]*请全组围绕.*$/s, '')
-                         .replace(/[👉\s]*讨论差不多.*$/s, '')
-                         .replace(/[👉\s]*点击下方.*$/s, '')
-                         .replace(/^本次修改需对齐三项要求[：:]*/s, '')
-                         .trim();
-
-      const chunks = bodyText.split(/(?=[①②③]|\b[123]\.|(?=[一二三]是)|(?=【核心概念对齐】|【研究方法深化】|【行文衔接规范】|【学术规范】))/g).map(c => c.trim()).filter(Boolean);
-      chunks.forEach(c => {
-        let clean = c.replace(/^[①②③\d\.\s\(\)一二三是：:]+/, '').replace(/[；;。]\s*$/, '').trim();
-        if (clean.length > 5 && !clean.includes('请全组协同') && !clean.includes('冲刺终审定稿')) {
-          reviewChunks.push(clean);
+      const lines = reviewingText.split('\n').map(l => l.trim()).filter(Boolean);
+      const parsedItems = [];
+      lines.forEach(l => {
+        const cleanLine = l.replace(/^\d+[\.、\s]*/, '').trim();
+        if (cleanLine.includes('诊断问题') || cleanLine.includes('改进建议') || cleanLine.startsWith('🎯') || cleanLine.includes('【诊断问题】') || cleanLine.includes('[诊断问题]')) {
+          parsedItems.push(cleanLine);
         }
       });
-
-      // 判断是否存在自查不一致
-      const subs = s2.meetingSubmissions || {};
-      const allSubs = Object.values(subs);
-      const hasIdeationDev = allSubs.some(s => (s.ideationConsistency || '').includes('偏离'));
-      const hasTransDev = allSubs.some(s => (s.transitionState || '').includes('脱节'));
-      const hasStyleDev = allSubs.some(s => (s.styleState || '').includes('割裂') || (s.styleState || '').includes('混乱') || (s.styleState || '').includes('口语'));
-      const hasDivergence = hasIdeationDev || hasTransDev || hasStyleDev || !!s2.hasMeetingDivergence;
-
-      let finalActionItems = [];
-      if (hasDivergence) {
-        // 🌟 存在不一致：第 1 条为责任编辑梳理的内容/构思对齐
-        const allIdeationSecs = Array.from(new Set(allSubs.flatMap(s => s.ideationSections || [])));
-        const allTransSecs = Array.from(new Set(allSubs.flatMap(s => s.transSections || [])));
-        let focusText = [...allTransSecs, ...allIdeationSecs].filter(Boolean).map(s => `【${s}】`).join('与');
-        if (!focusText) focusText = '前后核心章节';
-
-        let managingItem = '';
-        if (hasTransDev && hasIdeationDev) {
-          managingItem = `【内容与构思对齐】重点对齐${focusText}，消除前后构思偏差，理顺章节论述衔接。`;
-        } else if (hasTransDev) {
-          managingItem = `【章节逻辑衔接】重点理顺${focusText}的逻辑过渡，消除前后脱节，保持论述连贯。`;
-        } else if (hasIdeationDev) {
-          managingItem = `【核心构思对齐】重点针对${focusText}重新对齐全篇主旨构思，确保立意一致。`;
-        } else {
-          managingItem = `【语体与术语对齐】统一全篇学术术语口径与规范语体，消除口语化与风格割裂。`;
-        }
-        finalActionItems.push(managingItem);
-
-        // 剩下两条看审稿编辑
-        if (reviewChunks.length >= 2) {
-          finalActionItems.push(reviewChunks[0]);
-          finalActionItems.push(reviewChunks[1]);
-        } else if (reviewChunks.length === 1) {
-          finalActionItems.push(reviewChunks[0]);
-          finalActionItems.push('【研究方法深化】细化核心方法实施步骤与测量工具，增强论证严密性。');
-        } else {
-          finalActionItems.push('【研究方法深化】细化核心方法实施步骤与测量工具，增强论证严密性。');
-          finalActionItems.push('【学术规范与衔接】统一专业术语口径，补全段落间逻辑过渡与学术规范。');
-        }
-      } else {
-        // 🌟 不存在不一致：全部 3 条看审稿编辑
-        if (reviewChunks.length >= 3) {
-          finalActionItems = reviewChunks.slice(0, 3);
-        } else if (reviewChunks.length === 2) {
-          finalActionItems = [
-            reviewChunks[0],
-            reviewChunks[1],
-            '【学术规范与衔接】统一全篇学术术语口径，规范文献著录与行文基调。'
-          ];
-        } else if (reviewChunks.length === 1) {
-          finalActionItems = [
-            reviewChunks[0],
-            '【研究方法深化】细化核心方法实施步骤与测量工具，增强论证严密性。',
-            '【学术规范与衔接】统一全篇学术术语口径，规范文献著录与行文基调。'
-          ];
-        } else {
-          finalActionItems = [
-            '【核心概念对齐】补充明确的操作性定义，使文献综述直接呼应研究问题与假设。',
-            '【研究方法深化】细化核心方法与测量工具的具体操作步骤，增强方法论严密性。',
-            '【行文衔接规范】统一全篇学术专业术语命名，补全段落间逻辑过渡衔接。'
-          ];
-        }
+      if (parsedItems.length === 0) {
+        parsedItems.push(
+          `🎯 [诊断问题]：${transIssues} 之间存在逻辑过渡生硬、前后内容未能完全呼应；[改进建议]：在衔接处增加过渡段落，阐明从前一章节推导至下一章节的研究逻辑。`,
+          `🎯 [诊断问题]：组内核心卡壳瓶颈聚焦于『${bottlenecks}』；[改进建议]：结合文献补充实证测量维度与具体研究方法细节，增强操作化可行性。`,
+          `🎯 [诊断问题]：${styleIssues} 存在部分口语化表述与学术术语不统一；[改进建议]：统一全篇学术术语口径，将第一人称主观口吻润色为规范客观的学术表达。`
+        );
       }
 
-      s2.actionPlan = {
-        isGenerated: true,
-        completedMap: (s2.actionPlan && s2.actionPlan.completedMap) || {},
-        items: finalActionItems.slice(0, 3)
-      };
+      s2.actionPlan = { isGenerated: true, generatedAt: Date.now(), items: parsedItems, completedMap: {} };
+      s2.meetingStep = 'discussing_checklist';
+      s2.reviewMilestone = 'second_review_received';
 
-      s2.meetingStep = 'discussing_checklist'; // 变形为第二态按钮
-      s2.meetingChecklistTime = Date.now();
+      const msgReviewing = { sender: 'reviewingEditor', senderName: isInst ? '教学质量 · 教研专家' : '学术质量 · 审稿编辑', text: reviewingText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() + 10 };
+      s2ChatLogs.push(msgReviewing);
+      this.sendSingleChatMessage(msgReviewing, 'stage2');
 
       this.syncStage2();
       this.syncChatLogs();
@@ -5601,51 +5468,29 @@ ${chatSnippet}
     } catch (e) {
       console.warn('handleS2ManagingSummary error:', e);
     } finally {
-      this.setActiveAgentAnalyzing(null); // 🌟 研判完毕，清除动态分析框
+      this.setActiveAgentAnalyzing(null);
       this._isGeneratingManagingSummary = false;
-      this.renderStudentWorkspace(); // 🌟 立即解锁并展开左侧正文上方的【半程修正清单】卡片！
+      this.renderStudentWorkspace();
     }
   }
 
   /**
-   * 📝 阶段二半程会议第二步：审稿专家提炼终版要点并指导回到正文继续撰写
+   * 📝 阶段二半程会议第二步：审稿专家提炼终版要点并指导回到正文继续撰写 (原子全端协同)
    */
-  async handleS2ReviewingSummary() {
-    const s2 = this.state.stage2 || {};
-    if (!this.state.stage2) this.state.stage2 = s2;
-    if (!s2.confirmations) s2.confirmations = {};
-    if (!s2.confirmations.s2_reviewing) s2.confirmations.s2_reviewing = {};
-
-    const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
-    const currUserCode = this.state.currentUser || currUser?.id || currUser?.name || 'A';
-    
-    // 1. 记录当前用户的确认
-    const myKeys = getUserAllKeys(currUser || currUserCode);
-    myKeys.forEach(k => { s2.confirmations.s2_reviewing[k] = true; });
-    if (!s2._firstReviewingSummaryTimeMs) s2._firstReviewingSummaryTimeMs = Date.now();
-    s2._lastReviewingSummaryTimeMs = Date.now();
-
-    // 计算总组员人数
-    const effClassId = this.state.activeStudentClassId || currUser?.classId || null;
-    const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUser, effClassId) : null;
-    const membersList = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0) 
-      ? effGroup.members 
-      : Object.values(this.state.members || {});
-    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
-
-    const confirmedCount = membersList.filter(m => isMemberDone(s2.confirmations.s2_reviewing, m)).length;
-
-    // 立即同步并更新聊天框底栏按钮展示
-    this.syncStage2();
-    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-    renderChat(this.state);
-
-    // 若尚未全员确认，提示等待其他组员
-    if (confirmedCount < totalCount) {
+  async handleS2ReviewingSummary(retryBtn = null) {
+    if (retryBtn) {
+      this._doGenerateS2ReviewingSummary();
       return;
     }
+    const isInst = (this.getCurrentTaskType() === 'instructional');
+    const reviewingTitle = isInst ? '教研专家' : '审稿编辑';
+    this.handleStepConfirmation('s2_reviewing', () => this._doGenerateS2ReviewingSummary(), `让${reviewingTitle}总结`);
+  }
 
-    // 2. 全员已确认：开始让审稿编辑提炼终版要点并指导回到正文冲刺
+  async _doGenerateS2ReviewingSummary() {
+    const s2 = this.state.stage2 || {};
+    if (!this.state.stage2) this.state.stage2 = s2;
+
     if (this._isGeneratingReviewSummary) return;
     this._isGeneratingReviewSummary = true;
 
@@ -5656,7 +5501,6 @@ ${chatSnippet}
     const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员已商定修改落实对策';
 
     const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-
     const taskType = this.getCurrentTaskType();
     const isInst = (taskType === 'instructional');
     const reviewingName = isInst ? '教研专家' : '审稿编辑';
@@ -5666,28 +5510,16 @@ ${chatSnippet}
 ${chatSnippet}
 
 请作为${reviewingName}，发表 90~120 字的【修改落实确认与定稿冲刺寄语】：
-① 肯定大家清晰务实的修改对策与严谨备课/协作态度（严禁出现“分工”字眼）；
+① 肯定大家清晰务实的修改对策与严谨备课/协作态度（严禁出现“分工”字眼”）；
 ② 鼓励全组回到左侧正文继续高效协同与修改，冲刺最终高质量${isInst ? '教学设计方案' : '学术成文'}！（纯自然语言，90~120字，严禁输出代码块）`;
 
     try {
-      // 🌟 挂载审稿编辑/教研专家三审正在分析中动态状态框
-      this.setActiveAgentAnalyzing({
-        icon: '📝',
-        title: `【${reviewingName}】正在审查清单落实与定稿冲刺...`,
-        detail: '正在评估全组修改对策与落实方案，起草成稿与答辩冲刺寄语...'
-      });
+      this.setActiveAgentAnalyzing({ icon: '📝', title: `【${reviewingName}】正在审查清单落实与定稿冲刺...`, detail: '正在评估全组修改对策与落实方案，起草成稿与答辩冲刺寄语...' });
       await new Promise(r => setTimeout(r, 1500));
 
       const respSummary = await callCozeAgentAPI('reviewingEditor', summaryPrompt, { stage: 'stage2', topic, taskType });
-      let summaryText = '';
-      if (respSummary && respSummary.trim().length > 0) {
-        summaryText = respSummary.trim();
-        if (!summaryText.startsWith('📝')) summaryText = `📝 【${reviewingName}·修改确认与${isInst ? '备课' : '写作'}冲刺】：${summaryText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '')}`;
-        // 🛡️ 清理历史残留的网络提醒错误气泡
-        this.state.chatLogs.stage2 = (this.state.chatLogs.stage2 || []).filter(m => !m || !(m.sender === 'reviewingEditor' && (m.text || '').includes('网络提醒')));
-      } else {
-        summaryText = `📝 【${reviewingName}·网络提醒】：📡 网络连接稍有延迟，未能获取到即时决议。<br><button class="btn-retry-ai" onclick="window.app.handleS2ReviewingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成修改落实决议</button>`;
-      }
+      let summaryText = (respSummary && respSummary.trim().length > 0) ? respSummary.trim() : `📝 【${reviewingName}·修改确认与${isInst ? '备课' : '写作'}冲刺】：全组已达成了高质量的修改共识，方案落地务实且逻辑清晰。请大家立即回到左侧正文冲刺最终定稿！`;
+      if (!summaryText.startsWith('📝')) summaryText = `📝 【${reviewingName}·修改确认与${isInst ? '备课' : '写作'}冲刺】：${summaryText}`;
 
       const msgSummary = {
         sender: 'reviewingEditor',
@@ -5697,7 +5529,7 @@ ${chatSnippet}
         _timeMs: Date.now()
       };
       if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-      this.state.chatLogs.stage2.push(msgSummary);
+      s2ChatLogs.push(msgSummary);
       this.sendSingleChatMessage(msgSummary, 'stage2');
       s2.meetingStep = 'completed'; // 完成半程会议，收起按钮
       s2.meetingCompletedTime = Date.now();
