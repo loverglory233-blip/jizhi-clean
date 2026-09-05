@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2546";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260905_v2546";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2546";
-import { AuthManager } from "./auth.js?v=20260905_v2546";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2546";
-import { renderLoginView } from "./login.js?v=20260905_v2546";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2546";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2546";
+} from "./constants.js?v=20260905_v2547";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260905_v2547";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2547";
+import { AuthManager } from "./auth.js?v=20260905_v2547";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2547";
+import { renderLoginView } from "./login.js?v=20260905_v2547";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2547";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2547";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2546";
+} from "./editor.js?v=20260905_v2547";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -143,11 +143,11 @@ export class App {
             const delTaskTitle = e.data.title || '写作任务';
             if (this.authManager && delTaskId) {
               let localTasks = this.authManager.getTasks();
-              localTasks = localTasks.filter(lt => lt && lt.id !== delTaskId);
+              localTasks = localTasks.filter(lt => lt && !isSameId(lt.id, delTaskId));
               try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
             }
             // 1) 若学生刚好在被删除的任务工作台中：全屏模态弹窗强阻断，引导安全返回大厅
-            if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId === delTaskId) {
+            if (this.state.studentViewMode === 'workspace' && isSameId(this.state.activeTaskId, delTaskId)) {
               this.showTaskRevokedModal(delTaskTitle);
             } else if (this.state.studentViewMode === 'task_list') {
               // 2) 若学生在任务大厅中：仅静默无感实时刷新大厅卡片列表，无弹窗打扰
@@ -1115,8 +1115,8 @@ export class App {
       // 🛡️ 任务撤销守卫：当前任务被教师删除时立即弹窗拦截引导返回大厅
       if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
         const allTasks = this.authManager ? this.authManager.getTasks() : [];
-        const isTaskStillAlive = allTasks.some(t => t && t.id === this.state.activeTaskId);
-        if (allTasks.length > 0 && !isTaskStillAlive && !this._isHandlingTaskRevoked) {
+        const isTaskStillAlive = allTasks.some(t => t && isSameId(t.id, this.state.activeTaskId));
+        if (!isTaskStillAlive && !this._isHandlingTaskRevoked) {
           this.showTaskRevokedModal(this.state.activeTaskTitle || '当前写作任务');
           return;
         }

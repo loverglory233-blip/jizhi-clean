@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2546';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs } from './utils.js?v=20260905_v2546';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2547';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs } from './utils.js?v=20260905_v2547';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -686,8 +686,8 @@ export class CloudSyncEngine {
           this.app.authManager.pullGlobalMeta(true).then(() => {
             if (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) {
               const allTasks = this.app.authManager.getTasks();
-              const isCurrentTaskAlive = allTasks.some(t => t.id === this.app.state.activeTaskId);
-              if (allTasks.length > 0 && !isCurrentTaskAlive && !this.app._isHandlingTaskRevoked) {
+              const isCurrentTaskAlive = allTasks.some(t => t && isSameId(t.id, this.app.state.activeTaskId));
+              if (!isCurrentTaskAlive && !this.app._isHandlingTaskRevoked) {
                 this.app.showTaskRevokedModal(this.app.state.activeTaskTitle || '当前写作任务');
                 return;
               }
@@ -813,8 +813,8 @@ export class CloudSyncEngine {
         // 🛡️ 核心守卫：当前任务被教师删除时立即弹窗引导返回大厅
         if (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) {
           const activeTid = this.app.state.activeTaskId;
-          const isTaskStillAlive = taskMap.has(activeTid);
-          if (taskMap.size > 0 && !isTaskStillAlive && !this.app._isHandlingTaskRevoked) {
+          const isTaskStillAlive = mergedTasks.some(t => t && isSameId(t.id, activeTid));
+          if (!isTaskStillAlive && !this.app._isHandlingTaskRevoked) {
             this.app.showTaskRevokedModal(this.app.state.activeTaskTitle || '当前写作任务');
             return;
           }

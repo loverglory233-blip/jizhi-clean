@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2546
+ * Version: 20260905_v2547
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2546';
+  const APP_VERSION = '20260905_v2547';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2068,8 +2068,8 @@
               // 🛡️ 核心守卫：当前任务被教师删除时立即弹窗通知并安全返回任务大厅
               if (window.app && window.app.state && window.app.state.studentViewMode === 'workspace' && window.app.state.activeTaskId) {
                 const activeTid = window.app.state.activeTaskId;
-                const isTaskStillAlive = taskMap.has(activeTid);
-                if (taskMap.size > 0 && !isTaskStillAlive && !window.app._isHandlingTaskRevoked) {
+                const isTaskStillAlive = mergedTasks.some(t => t && isSameId(t.id, activeTid));
+                if (!isTaskStillAlive && !window.app._isHandlingTaskRevoked) {
                   window.app.showTaskRevokedModal(window.app.state.activeTaskTitle || '当前写作任务');
                   return;
                 }
@@ -3529,23 +3529,25 @@
 
     deleteTask(taskId) {
       let tasks = this.getTasks();
-      const deletedTask = tasks.find(t => t.id === taskId);
+      const deletedTask = tasks.find(t => isSameId(t.id, taskId));
       const deletedTaskTitle = deletedTask ? deletedTask.title : '写作任务';
 
-      tasks = tasks.filter(t => t.id !== taskId);
+      tasks = tasks.filter(t => !isSameId(t.id, taskId));
       localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
+      localStorage.setItem('jizhi_pure_v10_tasks_db', JSON.stringify(tasks));
 
       let announcements = this.getAnnouncements();
-      announcements = announcements.filter(a => a.taskId !== taskId);
+      announcements = announcements.filter(a => !isSameId(a.taskId, taskId));
       localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
 
       let papers = this.getAllReferencePapers();
-      papers = papers.filter(p => p.taskId !== taskId);
+      papers = papers.filter(p => !isSameId(p.taskId, taskId));
       localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers));
+      localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(papers));
 
       let surveysList = this.getSurveysList();
       const origLen = surveysList.length;
-      surveysList = surveysList.filter(s => s.taskId !== taskId);
+      surveysList = surveysList.filter(s => !isSameId(s.taskId, taskId));
       if (surveysList.length !== origLen) {
         localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(surveysList));
       }
@@ -4916,8 +4918,8 @@
             this.app.authManager.pullGlobalMeta(true).then(() => {
               if (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) {
                 const allTasks = this.app.authManager.getTasks();
-                const isCurrentTaskAlive = allTasks.some(t => t.id === this.app.state.activeTaskId);
-                if (allTasks.length > 0 && !isCurrentTaskAlive && !this.app._isHandlingTaskRevoked) {
+                const isCurrentTaskAlive = allTasks.some(t => t && isSameId(t.id, this.app.state.activeTaskId));
+                if (!isCurrentTaskAlive && !this.app._isHandlingTaskRevoked) {
                   this.app.showTaskRevokedModal(this.app.state.activeTaskTitle || '当前写作任务');
                   return;
                 }
@@ -5043,8 +5045,8 @@
           // 🛡️ 核心守卫：当前任务被教师删除时立即弹窗引导返回大厅
           if (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) {
             const activeTid = this.app.state.activeTaskId;
-            const isTaskStillAlive = taskMap.has(activeTid);
-            if (taskMap.size > 0 && !isTaskStillAlive && !this.app._isHandlingTaskRevoked) {
+            const isTaskStillAlive = mergedTasks.some(t => t && isSameId(t.id, activeTid));
+            if (!isTaskStillAlive && !this.app._isHandlingTaskRevoked) {
               this.app.showTaskRevokedModal(this.app.state.activeTaskTitle || '当前写作任务');
               return;
             }
@@ -14769,11 +14771,11 @@
               const delTaskTitle = e.data.title || '写作任务';
               if (this.authManager && delTaskId) {
                 let localTasks = this.authManager.getTasks();
-                localTasks = localTasks.filter(lt => lt && lt.id !== delTaskId);
+                localTasks = localTasks.filter(lt => lt && !isSameId(lt.id, delTaskId));
                 try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
               }
               // 1) 若学生刚好在被删除的任务工作台中：全屏模态弹窗强阻断，引导安全返回大厅
-              if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId === delTaskId) {
+              if (this.state.studentViewMode === 'workspace' && isSameId(this.state.activeTaskId, delTaskId)) {
                 this.showTaskRevokedModal(delTaskTitle);
               } else if (this.state.studentViewMode === 'task_list') {
                 // 2) 若学生在任务大厅中：仅静默无感实时刷新大厅卡片列表，无弹窗打扰
@@ -15741,8 +15743,8 @@
         // 🛡️ 任务撤销守卫：当前任务被教师删除时立即弹窗拦截引导返回大厅
         if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
           const allTasks = this.authManager ? this.authManager.getTasks() : [];
-          const isTaskStillAlive = allTasks.some(t => t && t.id === this.state.activeTaskId);
-          if (allTasks.length > 0 && !isTaskStillAlive && !this._isHandlingTaskRevoked) {
+          const isTaskStillAlive = allTasks.some(t => t && isSameId(t.id, this.state.activeTaskId));
+          if (!isTaskStillAlive && !this._isHandlingTaskRevoked) {
             this.showTaskRevokedModal(this.state.activeTaskTitle || '当前写作任务');
             return;
           }
