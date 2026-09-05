@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2562";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2562";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2562";
-import { AuthManager } from "./auth.js?v=20260905_v2562";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2562";
-import { renderLoginView } from "./login.js?v=20260905_v2562";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2562";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2562";
+} from "./constants.js?v=20260905_v2563";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2563";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2563";
+import { AuthManager } from "./auth.js?v=20260905_v2563";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2563";
+import { renderLoginView } from "./login.js?v=20260905_v2563";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2563";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2563";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2562";
+} from "./editor.js?v=20260905_v2563";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3725,15 +3725,15 @@ ${chatSnippet || '（小组成员在讨论区暂无更多方案研讨发言）'}
 【小组成员提交的提案参考】:
 ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员主要通过讨论区直接交流）')}
 
-【提炼核心规则（最高红线：智能体必须具备高容错语义理解能力，严禁要求学生必须使用规范学术用语）】：
-1. 强大的口语化与碎片化理解：学生使用的是日常口语随性交流（如“我想搞个...”、“我们可以弄个...情境”、“主要探究...”、“重点在活动”等）。智能体必须发挥大模型强大的语义联想与意图理解能力，敏锐捕捉学生的任何微小想法与构思线索，并在输出中【代为提炼、升华为学术规范与逻辑严谨的 120~200 字结构化【方案概述】(overview)】！
-2. 真实忠实：只要讨论区或提案中有任何相关设想或碎片线索，请全力提炼并规范升华；若讨论区确实完全空白没有任何发言且提案无任何内容，方案概述 (overview) 直接输出“暂无”；
+【提炼核心规则（最高红线：精准区分【随性口头设想】与【无意义灌水/乱码】）】：
+1. 敏锐捕捉口语化设想：学生使用的是日常口语随性交流（如“我想搞个...”、“我们可以弄个...情境”、“主要探究...”、“重点在活动”等）。只要发言中包含哪怕一句切入点或构思线索，智能体必须发挥大模型强大的语义联想与意图理解能力，敏锐捕捉并在输出中【代为提炼、升华为学术规范与逻辑严谨的 120~200 字结构化【方案概述】(overview)】！
+2. 严格过滤无意义内容：若讨论区的发言完全是无实质意义的数字打卡（如“111”、“收到”）、乱码符号、纯表情、无关闲聊（如“吃了吗”），或讨论区完全空白且提案未提供任何内容，方案概述 (overview) 必须严格诚实输出“暂无”，绝对不凭空编造假大空套话！
 3. 规范提炼【${isInst ? '教学课题' : '论文题目'}】(topic)：以《${currentCandidate}》为基础规范润色或沿用；
 
 请务必按以下 JSON 格式输出：
 {
   "topic": "${currentCandidate}",
-  "overview": "根据上述组员真实讨论尽力提炼并学术升华的 120~200 字${isInst ? '教学方案概述（涵盖学情情境、教学目标与活动链）' : '研究方案概述（涵盖情境案例、核心科学问题与实证方法）'}，若确实无相关讨论则直接输出'暂无'",
+  "overview": "根据上述组员真实讨论尽力提炼并学术升华的 120~200 字${isInst ? '教学方案概述（涵盖学情情境、教学目标与活动链）' : '研究方案概述（涵盖情境案例、核心科学问题与实证方法）'}，若确实无相关讨论或纯无意义内容则直接明确输出'暂无'",
   "guideText": "${isInst ? '教学课题与教学方案概述' : '论文主题与研究方案概述'}已成功生成并录入公约看板！接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定后点击【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！"
 }`;
 
