@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2647";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2647";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2647";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2648";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2648";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2648";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -1808,54 +1808,8 @@ function renderStage2Canvas(canvas, state, handlers) {
       // 匹配每个 authorClass 到真实的 membersList 成员
       const selfMem = membersList.find(m => isSameUser(m, currUser) || isSameUser(m, currUserCode) || (currUserName && m.name === currUserName) || (currUser?.id && isSameId(m.id, currUser.id))) || currUser;
 
-      // 🛡️ 全局永久作者-成员映射缓存：杜绝任何重入波动与跨成员冒领
-      if (!window._jizhiAuthorToMemberMap) {
-        window._jizhiAuthorToMemberMap = new Map();
-      }
-      const authorMap = window._jizhiAuthorToMemberMap;
-
-      const localAuthorIdCandidates = new Set();
-      if (window._jizhiLocalAuthorClasses) {
-        window._jizhiLocalAuthorClasses.forEach(c => localAuthorIdCandidates.add(c));
-      }
-      if (padWin) {
-        if (padWin.clientVars) {
-          if (padWin.clientVars.userId) localAuthorIdCandidates.add(padWin.clientVars.userId);
-          if (padWin.clientVars.collab_client_vars && padWin.clientVars.collab_client_vars.userId) localAuthorIdCandidates.add(padWin.clientVars.collab_client_vars.userId);
-          if (padWin.clientVars.collab_client_vars?.myUserInfo?.userId) localAuthorIdCandidates.add(padWin.clientVars.collab_client_vars.myUserInfo.userId);
-        }
-        if (padWin.pad) {
-          if (typeof padWin.pad.getUserId === 'function') {
-            try { const uid = padWin.pad.getUserId(); if (uid) localAuthorIdCandidates.add(uid); } catch(e){}
-          }
-          if (padWin.pad.myUserInfo && padWin.pad.myUserInfo.userId) localAuthorIdCandidates.add(padWin.pad.myUserInfo.userId);
-          if (padWin.pad.collabClient) {
-            if (typeof padWin.pad.collabClient.getUserId === 'function') {
-              try { const uid = padWin.pad.collabClient.getUserId(); if (uid) localAuthorIdCandidates.add(uid); } catch(e){}
-            }
-            if (typeof padWin.pad.collabClient.getCurrentUser === 'function') {
-              try { const u = padWin.pad.collabClient.getCurrentUser(); if (u && u.userId) localAuthorIdCandidates.add(u.userId); } catch(e){}
-            }
-          }
-        }
-      }
-      if (window._localDetectedAuthorClass) {
-        localAuthorIdCandidates.add(window._localDetectedAuthorClass);
-      }
-
-      // 1. 本地所有已检测到的 Author ID 100% 权威强绑定给当前登录用户 selfMem
-      for (const cand of localAuthorIdCandidates) {
-        if (!cand) continue;
-        const candStr = String(cand).trim().toLowerCase();
-        const candRaw = candStr.replace(/^(author[-_]|a[._-])/i, '');
-        if (candRaw && selfMem) {
-          authorMap.set(candRaw, selfMem);
-          authorMap.set('a.' + candRaw, selfMem);
-          authorMap.set('a-' + candRaw, selfMem);
-          authorMap.set('a_' + candRaw, selfMem);
-          authorMap.set(candStr, selfMem);
-        }
-      }
+      // 🛡️ 作者-成员映射器：精准解析 Etherpad 记录的每位组员真实姓名与作者 ID
+      const authorMap = new Map();
 
       const isPlaceholderName = (nameStr) => {
         if (!nameStr) return true;
@@ -1863,22 +1817,19 @@ function renderStage2Canvas(canvas, state, handlers) {
         return s === '' || s === '组员' || s === '学术组员' || s === 'unnamed' || s === 'author' || s === 'guest' || s === 'null' || s === 'undefined';
       };
 
-      // 2. 遍历 authorData 注册组内各同伴的真实作者标记
+      // 1. 优先遍历 authorData，依据姓名与 ID 权威绑定组内所有同伴（包括自己与组内其他成员）
       Object.entries(authorData).forEach(([aKey, aObj]) => {
         if (!aKey || !aObj) return;
         const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
         if (!rawId) return;
 
-        // 如果该 ID 已经被判定为本地当前用户，绝不覆盖
-        if (authorMap.has(rawId) && authorMap.get(rawId) === selfMem) return;
-
         const aName = (aObj.name && !isPlaceholderName(aObj.name)) ? String(aObj.name).trim() : '';
         const aColor = aObj.colorId !== undefined ? aObj.colorId : aObj.color;
 
-        // 优先依据姓名匹配同伴
+        // 优先依据姓名 / 用户标识精准匹配组员
         if (aName) {
           const cleanAName = aName.toLowerCase();
-          const nameMatched = membersList.find(m => {
+          const nameMatched = targetMembersList.find(m => {
             if (!m) return false;
             const mKeys = getUserAllKeys(m);
             return mKeys.some(k => k.toLowerCase() === cleanAName || cleanAName.includes(k.toLowerCase()) || k.toLowerCase().includes(cleanAName));
@@ -1893,9 +1844,9 @@ function renderStage2Canvas(canvas, state, handlers) {
           }
         }
 
-        // 依据颜色匹配同伴
+        // 依据颜色匹配组员
         if (aColor) {
-          const colorMatched = membersList.find(m => m.color && areColorsEqual(m.color, aColor));
+          const colorMatched = targetMembersList.find(m => m.color && areColorsEqual(m.color, aColor));
           if (colorMatched) {
             authorMap.set(rawId, colorMatched);
             authorMap.set('a.' + rawId, colorMatched);
@@ -1906,6 +1857,18 @@ function renderStage2Canvas(canvas, state, handlers) {
           }
         }
       });
+
+      // 2. 本地刚键入产生的未入表临时作者类名，与当前用户 selfMem 关联
+      if (window._localDetectedAuthorClass && selfMem) {
+        const localRaw = String(window._localDetectedAuthorClass).replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
+        if (localRaw && !authorMap.has(localRaw)) {
+          authorMap.set(localRaw, selfMem);
+          authorMap.set('a.' + localRaw, selfMem);
+          authorMap.set('a-' + localRaw, selfMem);
+          authorMap.set('a_' + localRaw, selfMem);
+          authorMap.set(window._localDetectedAuthorClass, selfMem);
+        }
+      }
 
       const isRecentlyTypingLocally = (Date.now() - (window._lastLocalPadInputTime || 0) < 20000);
       const assignedAuthors = new Map();

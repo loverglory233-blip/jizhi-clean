@@ -1218,7 +1218,7 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
             padWin.document.cookie = `name=${encodeURIComponent(userName)}; path=/; max-age=86400`;
           }
           
-          // 🛡️ 确保顶部原生 editbar 显示正常，并确保正文容器保持舒适阅读背景与清晰字色（保留原生作者色彩高亮）
+          // 🛡️ 确保顶部原生 editbar 显示正常，隐藏无用 home 跳转按钮，正文保持纯净学术排版（底色透明无色块）
           const doc = padWin.document;
           if (doc) {
             let styleEl = doc.getElementById('jizhi-etherpad-guard-style');
@@ -1232,6 +1232,12 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
                 background-color: #ffffff !important;
                 color-scheme: light !important;
               }
+              /* 🛡️ 隐藏 Etherpad 底部的 Home 图标和根目录跳转，杜绝误点 🏠 导致在 iframe 内递归嵌套主站 */
+              #home, .home, a[href="/"], a[href="."], a[href=".."], [data-lkey="pad.home"], [data-key="home"], .menu_left .home, #menu_left .home, .bottom-bar a[href="/"], nav.navbar a[href="/"] {
+                display: none !important;
+                visibility: hidden !important;
+                pointer-events: none !important;
+              }
             `;
             if (!styleEl) {
               styleEl = doc.createElement('style');
@@ -1240,6 +1246,21 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
               (doc.head || doc.documentElement).appendChild(styleEl);
             } else {
               styleEl.textContent = guardCss;
+            }
+
+            // 🛡️ 拦截任何点击根路径跳转的默认行为
+            if (!doc._jizhiHomeClickBlocked) {
+              doc._jizhiHomeClickBlocked = true;
+              doc.addEventListener('click', (e) => {
+                const targetLink = e.target && e.target.closest ? e.target.closest('a') : null;
+                if (targetLink) {
+                  const href = targetLink.getAttribute('href');
+                  if (href === '/' || href === '' || href === '.' || href === '..' || href === '#') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }
+                }
+              }, true);
             }
 
             try {
@@ -1265,9 +1286,28 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
                 const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
                 if (aceInner && aceInner.contentDocument) {
                   const innerDoc = aceInner.contentDocument;
-                  // 🛡️ 清理可能残留的白底强行覆盖样式标签
-                  const oldWhiteStyle = innerDoc.getElementById('jizhi-author-white-bg-style');
-                  if (oldWhiteStyle) oldWhiteStyle.remove();
+                  let innerStyle = innerDoc.getElementById('jizhi-author-white-bg-style');
+                  const innerCss = `
+                    html, body, #innerdocbody {
+                      background-color: #ffffff !important;
+                      color: #0f172a !important;
+                      color-scheme: light !important;
+                    }
+                    /* 🛡️ 保持纯净学术论文排版：文字无大块底色背景，底色设为透明，深黑字色清晰美观 */
+                    span[class*="author-"], .author {
+                      background-color: transparent !important;
+                      background: transparent !important;
+                      color: #0f172a !important;
+                    }
+                  `;
+                  if (!innerStyle) {
+                    innerStyle = innerDoc.createElement('style');
+                    innerStyle.id = 'jizhi-author-white-bg-style';
+                    innerStyle.textContent = innerCss;
+                    (innerDoc.head || innerDoc.documentElement).appendChild(innerStyle);
+                  } else {
+                    innerStyle.textContent = innerCss;
+                  }
                 }
               }
             } catch(e) {}
