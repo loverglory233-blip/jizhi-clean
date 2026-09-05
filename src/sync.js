@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2640';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2640';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2641';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2641';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1487,6 +1487,9 @@ export class CloudSyncEngine {
           this.app.state.stage2.memberContributions = remoteData.stage2.memberContributions;
           this.app.updateContributionUi();
         }
+      }
+      if (remoteData.stage2.frozenContributions) {
+        this.app.state.stage2.frozenContributions = remoteData.stage2.frozenContributions;
       }
       if (remoteData.stage2.meetingSubmissions) {
         const localSubs = this.app.state.stage2.meetingSubmissions || {};

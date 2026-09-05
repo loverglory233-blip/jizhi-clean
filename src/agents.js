@@ -3,7 +3,7 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260906_v2640';
+import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260906_v2641';
 
 export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
   // 🛡️ 终极只读熔断器：一旦任务截止进入只读模式或已终稿归档，底层彻底熔断任何大模型调用与智能体生成

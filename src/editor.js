@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2640";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2640";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2640";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2641";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2641";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2641";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -2017,16 +2017,27 @@ function renderStage2Canvas(canvas, state, handlers) {
 
   const updateContribDom = () => {
     const labelsEl = document.getElementById('stage2-contrib-labels');
+  const getEffectiveContribs = () => {
+    if (state.stage2 && state.stage2.frozenContributions && Object.keys(state.stage2.frozenContributions).length > 0) {
+      let fTotal = 0;
+      membersList.forEach(m => { fTotal += getMemberContribVal(state.stage2.frozenContributions, m); });
+      if (fTotal > 0) return state.stage2.frozenContributions;
+    }
+    return (state.stage2 && state.stage2.memberContributions) ? state.stage2.memberContributions : {};
+  };
+
+  const updateContribDom = () => {
+    const labelsEl = document.getElementById('stage2-contrib-labels');
     const barsEl = document.getElementById('stage2-contrib-bars');
     if (!labelsEl || !barsEl) return;
     
     const docLen = (state.stage2 && state.stage2.unifiedContent) ? state.stage2.unifiedContent.length : 0;
-    const contribs = (state.stage2 && state.stage2.memberContributions) ? state.stage2.memberContributions : {};
+    const contribs = getEffectiveContribs();
     let rawTotal = 0;
     membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
     
     // 如果当前正文为空，或者各成员实际字数总和为 0，展示空状态
-    if (docLen === 0 || rawTotal === 0) {
+    if (docLen === 0 && rawTotal === 0) {
       labelsEl.innerHTML = `<span style="color:#94a3b8; font-weight:600; font-size:10.5px;">⏳ 暂无撰写内容</span>`;
       barsEl.innerHTML = `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
       return;
@@ -2059,6 +2070,20 @@ function renderStage2Canvas(canvas, state, handlers) {
 
   const syncPadMetrics = async () => {
     try {
+      // 🛡️ 只读模式保护：若当前阶段二处于只读归档模式，强制锁定只读那一刻的贡献比快照，绝不因只读状态无法解析 DOM 而失真或清零！
+      if (isEditorReadonly) {
+        if (!state.stage2.frozenContributions && state.stage2.memberContributions && Object.keys(state.stage2.memberContributions).length > 0) {
+          state.stage2.frozenContributions = JSON.parse(JSON.stringify(state.stage2.memberContributions));
+        }
+        updateContribDom();
+        return;
+      } else {
+        // 若任务延期或重新解锁写作：清除临时只读冻结锁，恢复实时动态扫描
+        if (state.stage2 && state.stage2.frozenContributions && !state.stage2.isDraftConfirmed && state.currentStage === 'stage2') {
+          state.stage2.frozenContributions = null;
+        }
+      }
+
       // 1. 优先尝试同源 DOM 级作者与留存字数全量精准直读 (含极速脏检查)
       const authorStats = getEtherpadAuthorStats();
       let cleanTxt = authorStats ? authorStats.cleanText : null;
@@ -2661,12 +2686,12 @@ function renderStage2Canvas(canvas, state, handlers) {
         <span style="font-size:11px; font-weight:800; color:#1e293b; white-space:nowrap;">📊 团队贡献:</span>
         <div class="contrib-bars" id="stage2-contrib-bars" style="flex:1; height:8px; border-radius:4px; display:flex; overflow:hidden; background:#e2e8f0;">
           ${(() => {
-            const contribs = s2.memberContributions || {};
+            const contribs = s2.frozenContributions || s2.memberContributions || {};
             let rawTotal = 0;
             if (plainTextLen > 0) {
               membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
             }
-            if (plainTextLen === 0 || rawTotal === 0) {
+            if (plainTextLen === 0 && rawTotal === 0) {
               return `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
             }
             return membersList.map((m) => {
@@ -2678,12 +2703,12 @@ function renderStage2Canvas(canvas, state, handlers) {
         </div>
         <div class="contrib-labels" id="stage2-contrib-labels" style="display:flex; font-size:11px; font-weight:700; color:#475569; gap:8px; white-space:nowrap;">
           ${(() => {
-            const contribs = s2.memberContributions || {};
+            const contribs = s2.frozenContributions || s2.memberContributions || {};
             let rawTotal = 0;
             if (plainTextLen > 0) {
               membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
             }
-            if (plainTextLen === 0 || rawTotal === 0) {
+            if (plainTextLen === 0 && rawTotal === 0) {
               return `<span style="color:#94a3b8; font-size:10.5px; font-weight:600;">⏳ 暂无撰写内容</span>`;
             }
             return membersList.map((m) => {
