@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2555
+ * Version: 20260905_v2556
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2555';
+  const APP_VERSION = '20260905_v2556';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -799,49 +799,13 @@
           seenAgentOpenings.add(greetKey);
         }
 
-        // 🛡️ 阶段一至阶段三防过期催促与提示：若后续节点已达成，前面的过渡催促视作过期残渣丢弃
+        // 🛡️ 阶段一防过期投票提示：若已有投票结果或方案研讨指引，任何投票催促提示均视作过期残渣丢弃
         const hasVoteConcluded = messages.some(other => {
           if (!other || typeof other !== 'object') return false;
           const oTxt = String(other.text || '');
           return oTxt.includes('投票结果') || oTxt.includes('落槌与方案研讨') || String(other.id || '').startsWith('vote_');
         });
-        if (hasVoteConcluded && (txt.includes('投票推选提示') || txt.includes('尚未完成投票') || txt.includes('提案协同催促') || txt.includes('尚未提交提案') || txt.includes('全员提案催促'))) {
-          continue;
-        }
-
-        const hasContractConcluded = messages.some(other => {
-          if (!other || typeof other !== 'object') return false;
-          const oTxt = String(other.text || '');
-          return oTxt.includes('团队公约已全员签署') || oTxt.includes('公约已达成') || String(other.id || '').includes('contract_concluded') || String(other.id || '').includes('contract_confirmed');
-        });
-        if (hasContractConcluded && (txt.includes('公约签署提示') || txt.includes('尚未确认签署') || txt.includes('投票推选提示') || txt.includes('尚未完成投票') || txt.includes('提案协同催促') || txt.includes('全员提案催促'))) {
-          continue;
-        }
-
-        const hasDraftConcluded = messages.some(other => {
-          if (!other || typeof other !== 'object') return false;
-          const oTxt = String(other.text || '');
-          return oTxt.includes('初稿已全员确认') || String(other.id || '').includes('draft_concluded') || String(other.id || '').includes('draft_confirmed');
-        });
-        if (hasDraftConcluded && (txt.includes('初稿签署提示') || txt.includes('尚未确认初稿'))) {
-          continue;
-        }
-
-        const hasDefenseConcluded = messages.some(other => {
-          if (!other || typeof other !== 'object') return false;
-          const oTxt = String(other.text || '');
-          return oTxt.includes('答辩已全员确认') || oTxt.includes('答辩总结与修改清单') || String(other.id || '').includes('defense_concluded');
-        });
-        if (hasDefenseConcluded && (txt.includes('答辩确认提示') || txt.includes('答辩完成确认'))) {
-          continue;
-        }
-
-        const hasFinalConcluded = messages.some(other => {
-          if (!other || typeof other !== 'object') return false;
-          const oTxt = String(other.text || '');
-          return oTxt.includes('终稿已全员确认') || oTxt.includes('正式封稿归档') || String(other.id || '').includes('final_concluded');
-        });
-        if (hasFinalConcluded && (txt.includes('终稿全员提交催促') || txt.includes('尚未确认提交'))) {
+        if (hasVoteConcluded && (txt.includes('投票推选提示') || txt.includes('尚未完成投票') || txt.includes('提案协同催促') || txt.includes('尚未提交提案'))) {
           continue;
         }
 
