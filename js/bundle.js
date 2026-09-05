@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2600
+ * Version: 20260905_v2602
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2600';
+  const APP_VERSION = '20260905_v2602';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14697,6 +14697,16 @@
       stream.scrollTop = prevScrollTop;
     }
 
+    // 🛡️ 若当前正在进行任何智能体提炼或分析，将聊天区内全部重试按钮统一置灰，防止重复点击
+    const isExtractingAnyChat = (typeof isAnyExtracting === 'function') ? isAnyExtracting(state) : !!(state && state.activeAgentAnalyzing && state.activeAgentAnalyzing.isExtracting);
+    if (isExtractingAnyChat) {
+      stream.querySelectorAll('.btn-retry-ai').forEach(btn => {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.style.cursor = 'not-allowed';
+      });
+    }
+
     stream.querySelectorAll('.chat-attached-img').forEach(img => {
       img.onclick = (e) => {
         e.stopPropagation();
@@ -17986,12 +17996,7 @@
      * 💡 阶段一：重试特定提案的学术速评
      */
     async retryProposalEvaluation(btnElement, failedMsgId, title, authorName, isModify) {
-      if (btnElement) {
-        btnElement.disabled = true;
-        btnElement.style.opacity = '0.6';
-        btnElement.style.cursor = 'not-allowed';
-        btnElement.innerHTML = `⏳ 正在重新研读《${title}》...`;
-      }
+      this.disableAllRetryButtons(btnElement, `⏳ 正在重新研读《${title}》...`);
       await this.handleProposalSubmittedAIFeedback(title, authorName, isModify, failedMsgId);
     }
 
@@ -18439,12 +18444,7 @@
      * 💡 阶段一：重试生成方案研讨指引
      */
     async retryVoteGuidance(btnElement) {
-      if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
-        btnElement.disabled = true;
-        btnElement.style.opacity = '0.6';
-        btnElement.style.cursor = 'not-allowed';
-        btnElement.innerHTML = `⏳ 正在重新生成方案研讨指引...`;
-      }
+      this.disableAllRetryButtons(btnElement, `⏳ 正在重新生成方案研讨指引...`);
       const taskType = this.getCurrentTaskType();
       const isInst = (taskType === 'instructional');
       const agentTitle = isInst ? '备课引导师' : '学术拍卖师';
@@ -18712,6 +18712,21 @@
     }
 
     /**
+     * 🛡️ 一键互斥锁定页面上所有 AI 重试按键（防止点击一个后其他气泡内的按键被重复点击发包）
+     */
+    disableAllRetryButtons(activeBtn = null, activeText = null) {
+      const allRetryBtns = document.querySelectorAll('.btn-retry-ai');
+      allRetryBtns.forEach(btn => {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.style.cursor = 'not-allowed';
+        if (btn === activeBtn && activeText) {
+          btn.innerHTML = activeText;
+        }
+      });
+    }
+
+    /**
      * 🛡️ 稳健精确统计指定步骤已确认成员人数（严格按用户唯一 ID 匹配，剔除泛化通用名，绝不单人冒充全组）
      */
     getStepConfirmedCount(stepKey, membersList = null) {
@@ -18965,14 +18980,8 @@
       if (this._isExtractingTopic) return;
       this._isExtractingTopic = true;
       if (this.state.stage1) this.state.stage1._topicExtractFailed = false;
+      this.disableAllRetryButtons(btnElement, `⏳ 正在重新提炼【主题与方案】...`);
       this.renderStudentWorkspace();
-
-      if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
-        btnElement.disabled = true;
-        btnElement.style.opacity = '0.6';
-        btnElement.style.cursor = 'not-allowed';
-        btnElement.innerHTML = `⏳ 正在重新提炼【主题与方案】...`;
-      }
       const s1 = this.state.stage1 || {};
       const taskType = this.getCurrentTaskType();
       const isInst = (taskType === 'instructional');
@@ -19214,14 +19223,8 @@
       if (this._isExtractingTime) return;
       this._isExtractingTime = true;
       if (this.state.stage1) this.state.stage1._timeExtractFailed = false;
+      this.disableAllRetryButtons(btnElement, `⏳ 正在重新提炼【时间分配】...`);
       this.renderStudentWorkspace();
-
-      if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
-        btnElement.disabled = true;
-        btnElement.style.opacity = '0.6';
-        btnElement.style.cursor = 'not-allowed';
-        btnElement.innerHTML = `⏳ 正在重新提炼【时间分配】...`;
-      }
       const s1 = this.state.stage1 || {};
       const taskType = this.getCurrentTaskType();
       const isInst = (taskType === 'instructional');
@@ -19436,14 +19439,8 @@
       if (this._isExtractingTasks) return;
       this._isExtractingTasks = true;
       if (this.state.stage1) this.state.stage1._tasksExtractFailed = false;
+      this.disableAllRetryButtons(btnElement, `⏳ 正在重新提炼【任务分工】...`);
       this.renderStudentWorkspace();
-
-      if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
-        btnElement.disabled = true;
-        btnElement.style.opacity = '0.6';
-        btnElement.style.cursor = 'not-allowed';
-        btnElement.innerHTML = `⏳ 正在重新提炼【任务分工】...`;
-      }
       const s1 = this.state.stage1 || {};
       const taskType = this.getCurrentTaskType();
       const isInst = (taskType === 'instructional');
@@ -19654,16 +19651,10 @@
       this._isGeneratingContract = true;
       if (this.state.stage1) this.state.stage1._contractGenerateFailed = false;
       if (window.app) window.app._contractGenerateFailed = false;
+      this.disableAllRetryButtons(btnElement, `⏳ 正在重新生成【全套公约草案】...`);
       try {
         this.renderStudentWorkspace();
         if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
-
-        if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
-          btnElement.disabled = true;
-          btnElement.style.opacity = '0.6';
-          btnElement.style.cursor = 'not-allowed';
-          btnElement.innerHTML = `⏳ 正在重新生成【全套公约草案】...`;
-        }
         const s1 = this.state.stage1 || {};
         if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
           if (typeof showGlobalBannerNotice === 'function') {
@@ -20537,12 +20528,7 @@
         return;
       }
       this._isAnalyzingS3Inquiry = true;
-      if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
-        btnElement.disabled = true;
-        btnElement.style.opacity = '0.6';
-        btnElement.style.cursor = 'not-allowed';
-        btnElement.innerHTML = `⏳ 正在重新生成答辩定案...`;
-      }
+      this.disableAllRetryButtons(btnElement, `⏳ 正在重新生成答辩定案...`);
       const s3 = this.state.stage3 || {};
       const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
       const currentInquiry = (targetInquiry && targetInquiry.role) ? targetInquiry : feedbacks.find(f => f.role === 'opponent' && (!f.response || !f.response.trim()));

@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2600";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2600";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2600";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2602";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2602";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2602";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -3514,6 +3514,16 @@ export function renderChat(state) {
     stream.scrollTop = stream.scrollHeight;
   } else {
     stream.scrollTop = prevScrollTop;
+  }
+
+  // 🛡️ 若当前正在进行任何智能体提炼或分析，将聊天区内全部重试按钮统一置灰，防止重复点击
+  const isExtractingAnyChat = (typeof isAnyExtracting === 'function') ? isAnyExtracting(state) : !!(state && state.activeAgentAnalyzing && state.activeAgentAnalyzing.isExtracting);
+  if (isExtractingAnyChat) {
+    stream.querySelectorAll('.btn-retry-ai').forEach(btn => {
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+      btn.style.cursor = 'not-allowed';
+    });
   }
 
   stream.querySelectorAll('.chat-attached-img').forEach(img => {

@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2600";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2600";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2600";
-import { AuthManager } from "./auth.js?v=20260905_v2600";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2600";
-import { renderLoginView } from "./login.js?v=20260905_v2600";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2600";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2600";
+} from "./constants.js?v=20260905_v2602";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2602";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2602";
+import { AuthManager } from "./auth.js?v=20260905_v2602";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2602";
+import { renderLoginView } from "./login.js?v=20260905_v2602";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2602";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2602";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2600";
+} from "./editor.js?v=20260905_v2602";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2983,12 +2983,7 @@ export class App {
    * 💡 阶段一：重试特定提案的学术速评
    */
   async retryProposalEvaluation(btnElement, failedMsgId, title, authorName, isModify) {
-    if (btnElement) {
-      btnElement.disabled = true;
-      btnElement.style.opacity = '0.6';
-      btnElement.style.cursor = 'not-allowed';
-      btnElement.innerHTML = `⏳ 正在重新研读《${title}》...`;
-    }
+    this.disableAllRetryButtons(btnElement, `⏳ 正在重新研读《${title}》...`);
     await this.handleProposalSubmittedAIFeedback(title, authorName, isModify, failedMsgId);
   }
 
@@ -3436,12 +3431,7 @@ export class App {
    * 💡 阶段一：重试生成方案研讨指引
    */
   async retryVoteGuidance(btnElement) {
-    if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
-      btnElement.disabled = true;
-      btnElement.style.opacity = '0.6';
-      btnElement.style.cursor = 'not-allowed';
-      btnElement.innerHTML = `⏳ 正在重新生成方案研讨指引...`;
-    }
+    this.disableAllRetryButtons(btnElement, `⏳ 正在重新生成方案研讨指引...`);
     const taskType = this.getCurrentTaskType();
     const isInst = (taskType === 'instructional');
     const agentTitle = isInst ? '备课引导师' : '学术拍卖师';
@@ -3709,6 +3699,21 @@ ${votedDetails}
   }
 
   /**
+   * 🛡️ 一键互斥锁定页面上所有 AI 重试按键（防止点击一个后其他气泡内的按键被重复点击发包）
+   */
+  disableAllRetryButtons(activeBtn = null, activeText = null) {
+    const allRetryBtns = document.querySelectorAll('.btn-retry-ai');
+    allRetryBtns.forEach(btn => {
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+      btn.style.cursor = 'not-allowed';
+      if (btn === activeBtn && activeText) {
+        btn.innerHTML = activeText;
+      }
+    });
+  }
+
+  /**
    * 🛡️ 稳健精确统计指定步骤已确认成员人数（严格按用户唯一 ID 匹配，剔除泛化通用名，绝不单人冒充全组）
    */
   getStepConfirmedCount(stepKey, membersList = null) {
@@ -3962,14 +3967,8 @@ ${votedDetails}
     if (this._isExtractingTopic) return;
     this._isExtractingTopic = true;
     if (this.state.stage1) this.state.stage1._topicExtractFailed = false;
+    this.disableAllRetryButtons(btnElement, `⏳ 正在重新提炼【主题与方案】...`);
     this.renderStudentWorkspace();
-
-    if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
-      btnElement.disabled = true;
-      btnElement.style.opacity = '0.6';
-      btnElement.style.cursor = 'not-allowed';
-      btnElement.innerHTML = `⏳ 正在重新提炼【主题与方案】...`;
-    }
     const s1 = this.state.stage1 || {};
     const taskType = this.getCurrentTaskType();
     const isInst = (taskType === 'instructional');
@@ -4211,14 +4210,8 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
     if (this._isExtractingTime) return;
     this._isExtractingTime = true;
     if (this.state.stage1) this.state.stage1._timeExtractFailed = false;
+    this.disableAllRetryButtons(btnElement, `⏳ 正在重新提炼【时间分配】...`);
     this.renderStudentWorkspace();
-
-    if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
-      btnElement.disabled = true;
-      btnElement.style.opacity = '0.6';
-      btnElement.style.cursor = 'not-allowed';
-      btnElement.innerHTML = `⏳ 正在重新提炼【时间分配】...`;
-    }
     const s1 = this.state.stage1 || {};
     const taskType = this.getCurrentTaskType();
     const isInst = (taskType === 'instructional');
@@ -4433,14 +4426,8 @@ ${chatSnippet}
     if (this._isExtractingTasks) return;
     this._isExtractingTasks = true;
     if (this.state.stage1) this.state.stage1._tasksExtractFailed = false;
+    this.disableAllRetryButtons(btnElement, `⏳ 正在重新提炼【任务分工】...`);
     this.renderStudentWorkspace();
-
-    if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
-      btnElement.disabled = true;
-      btnElement.style.opacity = '0.6';
-      btnElement.style.cursor = 'not-allowed';
-      btnElement.innerHTML = `⏳ 正在重新提炼【任务分工】...`;
-    }
     const s1 = this.state.stage1 || {};
     const taskType = this.getCurrentTaskType();
     const isInst = (taskType === 'instructional');
@@ -4651,16 +4638,10 @@ ${chatSnippet}
     this._isGeneratingContract = true;
     if (this.state.stage1) this.state.stage1._contractGenerateFailed = false;
     if (window.app) window.app._contractGenerateFailed = false;
+    this.disableAllRetryButtons(btnElement, `⏳ 正在重新生成【全套公约草案】...`);
     try {
       this.renderStudentWorkspace();
       if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
-
-      if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
-        btnElement.disabled = true;
-        btnElement.style.opacity = '0.6';
-        btnElement.style.cursor = 'not-allowed';
-        btnElement.innerHTML = `⏳ 正在重新生成【全套公约草案】...`;
-      }
       const s1 = this.state.stage1 || {};
       if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
         if (typeof showGlobalBannerNotice === 'function') {
@@ -5534,12 +5515,7 @@ ${chatSnippet}
       return;
     }
     this._isAnalyzingS3Inquiry = true;
-    if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
-      btnElement.disabled = true;
-      btnElement.style.opacity = '0.6';
-      btnElement.style.cursor = 'not-allowed';
-      btnElement.innerHTML = `⏳ 正在重新生成答辩定案...`;
-    }
+    this.disableAllRetryButtons(btnElement, `⏳ 正在重新生成答辩定案...`);
     const s3 = this.state.stage3 || {};
     const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
     const currentInquiry = (targetInquiry && targetInquiry.role) ? targetInquiry : feedbacks.find(f => f.role === 'opponent' && (!f.response || !f.response.trim()));
