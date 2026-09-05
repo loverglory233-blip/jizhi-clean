@@ -1504,7 +1504,8 @@ if ($action === 'get_pad_text' || $action === 'get_pad_html') {
     $epHtmlUrl = "http://127.0.0.1:9001/api/1.2.14/getHTML?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId);
     $ch = curl_init($epHtmlUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 400);
+    curl_setopt($ch, CURLOPT_TIMEOUT_MS, 600);
     $resHtml = curl_exec($ch);
     curl_close($ch);
 
@@ -1521,7 +1522,8 @@ if ($action === 'get_pad_text' || $action === 'get_pad_html') {
         $epTextUrl = "http://127.0.0.1:9001/api/1.2.14/getText?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId);
         $ch2 = curl_init($epTextUrl);
         curl_setopt($ch2, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch2, CURLOPT_TIMEOUT, 2);
+        curl_setopt($ch2, CURLOPT_CONNECTTIMEOUT_MS, 400);
+        curl_setopt($ch2, CURLOPT_TIMEOUT_MS, 600);
         $resText = curl_exec($ch2);
         curl_close($ch2);
         if (!empty($resText)) {

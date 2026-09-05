@@ -14,12 +14,23 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2812';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice } from './utils.js?v=20260905_v2812';
+} from './constants.js?v=20260905_v2545';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260905_v2545';
 
 export class AuthManager {
   constructor() {
     this._pruneStorageQuota();
+    // 🛡️ 彻底清除历史遗留的本地删除黑名单缓存，以 MySQL 服务端数据为唯一权威真相
+    try {
+      [
+        'jizhi_deleted_user_ids',
+        'jizhi_deleted_class_ids',
+        'jizhi_deleted_task_ids',
+        'jizhi_deleted_ann_ids',
+        'jizhi_deleted_paper_ids',
+        'jizhi_deleted_survey_ids'
+      ].forEach(k => localStorage.removeItem(k));
+    } catch (e) {}
     this.initDatabase();
     this.sanitizeAndDeduplicateGroups();
     this.removeLegacyTestAccounts();
@@ -246,26 +257,19 @@ export class AuthManager {
           if (data.unchanged) {
             return { success: true, changed: false, version: this.globalMetaVersion }; // ⚡ 极速早退：服务端版本未变，0 开销
           }
-          // 1. 账号池：合并云端与本地，结合已删除黑名单，保证新导入学生不被冲刷、已删除学生不被复活
+          // 1. 账号池：以服务端数据为准，保留本地非默认自定义密码
           if (Array.isArray(data.users)) {
-            let deletedUserIds = new Set();
-            try {
-              const delList = JSON.parse(localStorage.getItem('jizhi_deleted_user_ids')) || [];
-              if (Array.isArray(delList)) deletedUserIds = new Set(delList.map(x => String(x).trim().toLowerCase()));
-            } catch (e) {}
-
             const localUsers = this.getUsers();
             const userMap = new Map();
             data.users.forEach(u => {
               if (u && u.id) {
                 const k = String(u.id).trim().toLowerCase();
-                if (!deletedUserIds.has(k)) userMap.set(k, u);
+                userMap.set(k, u);
               }
             });
             localUsers.forEach(u => {
               if (u && u.id) {
                 const k = String(u.id).trim().toLowerCase();
-                if (deletedUserIds.has(k)) return;
                 if (!userMap.has(k)) {
                   userMap.set(k, u);
                 } else {
@@ -279,36 +283,32 @@ export class AuthManager {
             localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(Array.from(userMap.values())));
           }
 
-          // 2. 班级与小组：合并云端与本地班级信息，结合已删除黑名单，确保新导入/创建的小组完好保留
+          // 2. 班级与小组：服务端为权威基准，保留教师本地在途更新
           if (Array.isArray(data.classes)) {
-            let deletedClassIds = new Set();
-            try {
-              const delList = JSON.parse(localStorage.getItem('jizhi_deleted_class_ids')) || [];
-              if (Array.isArray(delList)) deletedClassIds = new Set(delList);
-            } catch (e) {}
-
+            const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
             const localClasses = this.getClasses();
             const classMap = new Map();
             data.classes.forEach(c => {
-              if (c && c.id && !deletedClassIds.has(c.id)) {
+              if (c && c.id) {
                 classMap.set(c.id, c);
               }
             });
-            localClasses.forEach(c => {
-              if (c && c.id) {
-                if (deletedClassIds.has(c.id)) return;
-                if (!classMap.has(c.id)) {
-                  classMap.set(c.id, c);
-                } else {
-                  const rClass = classMap.get(c.id);
-                  const mergedStudentIds = Array.from(new Set([...(rClass.studentIds || []), ...(c.studentIds || [])]));
-                  const grpMap = new Map();
-                  (rClass.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
-                  (c.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
-                  classMap.set(c.id, { ...rClass, ...c, studentIds: mergedStudentIds, groups: Array.from(grpMap.values()) });
+            if (isTeacher) {
+              localClasses.forEach(c => {
+                if (c && c.id) {
+                  if (!classMap.has(c.id)) {
+                    classMap.set(c.id, c);
+                  } else {
+                    const rClass = classMap.get(c.id);
+                    const mergedStudentIds = Array.from(new Set([...(rClass.studentIds || []), ...(c.studentIds || [])]));
+                    const grpMap = new Map();
+                    (rClass.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
+                    (c.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
+                    classMap.set(c.id, { ...rClass, ...c, studentIds: mergedStudentIds, groups: Array.from(grpMap.values()) });
+                  }
                 }
-              }
-            });
+              });
+            }
             localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(Array.from(classMap.values())));
             this.sanitizeAndDeduplicateGroups();
           }
@@ -316,28 +316,20 @@ export class AuthManager {
           // 3. 写作任务：以教师端权威发布的云端数据为准（学生端绝不反向复活已删任务，教师端保留本地已建任务）
           if (Array.isArray(data.tasks)) {
             const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
-            let deletedTaskIds = new Set();
-            try {
-              const delList = JSON.parse(localStorage.getItem('jizhi_deleted_task_ids')) || [];
-              if (Array.isArray(delList)) deletedTaskIds = new Set(delList);
-            } catch (e) {}
-
-            const localTasks = this.getTasks();
             const taskMap = new Map();
 
-            // 1) 先装载云端任务（自动过滤掉已在本地明确删除的任务）
+            // 1) 装载云端权威任务
             data.tasks.forEach(remoteT => {
-              if (remoteT && remoteT.id && !deletedTaskIds.has(remoteT.id)) {
+              if (remoteT && remoteT.id) {
                 taskMap.set(remoteT.id, remoteT);
               }
             });
 
-            // 2) 教师端保留本地有效任务，学生端绝不复活已删任务
+            // 2) 教师端保留本地在途有效任务，学生端以云端为绝对权威
             if (isTeacher) {
+              const localTasks = this.getTasks();
               localTasks.forEach(localT => {
                 if (!localT || !localT.id) return;
-                if (deletedTaskIds.has(localT.id)) return;
-
                 if (!taskMap.has(localT.id)) {
                   taskMap.set(localT.id, localT);
                 } else {
@@ -361,11 +353,12 @@ export class AuthManager {
 
             const mergedTasks = Array.from(taskMap.values());
             localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
+            localStorage.setItem('jizhi_pure_v10_tasks_db', JSON.stringify(mergedTasks));
 
             // 🛡️ 核心守卫：当前任务被教师删除时立即弹窗通知并安全返回任务大厅
             if (window.app && window.app.state && window.app.state.studentViewMode === 'workspace' && window.app.state.activeTaskId) {
               const activeTid = window.app.state.activeTaskId;
-              const isTaskStillAlive = taskMap.has(activeTid) && !deletedTaskIds.has(activeTid);
+              const isTaskStillAlive = taskMap.has(activeTid);
               if (taskMap.size > 0 && !isTaskStillAlive && !window.app._isHandlingTaskRevoked) {
                 window.app.showTaskRevokedModal(window.app.state.activeTaskTitle || '当前写作任务');
                 return;
@@ -390,27 +383,20 @@ export class AuthManager {
             }
           }
 
-          // 4. 课堂通知：智能双向合并，保留本地新发布通知，继承已读标记，尊重删除黑名单
+          // 4. 课堂通知：智能合并，继承已读标记
           if (Array.isArray(data.announcements)) {
             const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
-            let deletedAnnIds = new Set();
-            try {
-              const delList = JSON.parse(localStorage.getItem('jizhi_deleted_ann_ids')) || [];
-              if (Array.isArray(delList)) deletedAnnIds = new Set(delList);
-            } catch (e) {}
-
             const localAnns = JSON.parse(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]');
             const annMap = new Map();
 
             data.announcements.forEach(remoteAnn => {
-              if (remoteAnn && remoteAnn.id && !deletedAnnIds.has(remoteAnn.id)) {
+              if (remoteAnn && remoteAnn.id) {
                 annMap.set(remoteAnn.id, remoteAnn);
               }
             });
 
             localAnns.forEach(localAnn => {
               if (!localAnn || !localAnn.id) return;
-              if (deletedAnnIds.has(localAnn.id)) return;
 
               if (isTeacher && !annMap.has(localAnn.id)) {
                 annMap.set(localAnn.id, localAnn);
@@ -448,20 +434,14 @@ export class AuthManager {
             localStorage.setItem('jizhi_announcements_db', JSON.stringify(mergedAnns));
           }
 
-          // 5. 学术文献与范文：智能双向合并，保留本地新上传文献，尊重删除黑名单
+          // 5. 学术文献与范文：云端权威，保留教师本地在途
           if (Array.isArray(data.referencePapers)) {
             const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
-            let deletedPaperIds = new Set();
-            try {
-              const delList = JSON.parse(localStorage.getItem('jizhi_deleted_paper_ids')) || [];
-              if (Array.isArray(delList)) deletedPaperIds = new Set(delList);
-            } catch (e) {}
-
             const oldPapers = JSON.parse(localStorage.getItem('jizhi_reference_papers_db') || '[]');
             const paperMap = new Map();
 
             data.referencePapers.forEach(p => {
-              if (p && p.id && !deletedPaperIds.has(p.id)) {
+              if (p && p.id) {
                 paperMap.set(p.id, p);
               }
             });
@@ -469,7 +449,6 @@ export class AuthManager {
             if (isTeacher) {
               oldPapers.forEach(localP => {
                 if (localP && localP.id) {
-                  if (deletedPaperIds.has(localP.id)) return;
                   if (!paperMap.has(localP.id)) {
                     paperMap.set(localP.id, localP);
                   }
@@ -482,20 +461,14 @@ export class AuthManager {
             localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(mergedPapers));
           }
 
-          // 6. 课程问卷配置：智能双向合并，保留本地新配置问卷，尊重删除黑名单
+          // 6. 课程问卷配置：云端权威，保留教师本地在途
           if (Array.isArray(data.surveys)) {
             const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
-            let deletedSurveyIds = new Set();
-            try {
-              const delList = JSON.parse(localStorage.getItem('jizhi_deleted_survey_ids')) || [];
-              if (Array.isArray(delList)) deletedSurveyIds = new Set(delList);
-            } catch (e) {}
-
             const localSurveys = JSON.parse(localStorage.getItem('jizhi_surveys_list_db') || '[]');
             const surveyMap = new Map();
 
             data.surveys.forEach(s => {
-              if (s && s.id && !deletedSurveyIds.has(s.id)) {
+              if (s && s.id) {
                 surveyMap.set(s.id, s);
               }
             });
@@ -503,7 +476,6 @@ export class AuthManager {
             if (isTeacher) {
               localSurveys.forEach(localS => {
                 if (localS && localS.id) {
-                  if (deletedSurveyIds.has(localS.id)) return;
                   if (!surveyMap.has(localS.id)) {
                     surveyMap.set(localS.id, localS);
                   }
@@ -512,6 +484,7 @@ export class AuthManager {
             }
 
             localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(Array.from(surveyMap.values())));
+          }
           }
 
           return { success: true, changed: true, version: this.globalMetaVersion, data };
@@ -560,13 +533,6 @@ export class AuthManager {
         url: cleanUrl,
         createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
-      try {
-        let deletedSurveyIds = JSON.parse(localStorage.getItem('jizhi_deleted_survey_ids')) || [];
-        if (Array.isArray(deletedSurveyIds) && deletedSurveyIds.includes(newSurvey.id)) {
-          deletedSurveyIds = deletedSurveyIds.filter(id => id !== newSurvey.id);
-          localStorage.setItem('jizhi_deleted_survey_ids', JSON.stringify(deletedSurveyIds));
-        }
-      } catch (e) {}
       list.unshift(newSurvey);
     }
     localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(list));
@@ -584,14 +550,6 @@ export class AuthManager {
   deleteSurvey(surveyId) {
     let list = this.getSurveysList();
     list = list.filter(s => s.id !== surveyId);
-    try {
-      let deletedSurveyIds = JSON.parse(localStorage.getItem('jizhi_deleted_survey_ids')) || [];
-      if (!Array.isArray(deletedSurveyIds)) deletedSurveyIds = [];
-      if (!deletedSurveyIds.includes(surveyId)) {
-        deletedSurveyIds.push(surveyId);
-        localStorage.setItem('jizhi_deleted_survey_ids', JSON.stringify(deletedSurveyIds));
-      }
-    } catch (e) {}
     localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(list));
     this.pushGlobalMeta();
 
@@ -610,16 +568,16 @@ export class AuthManager {
     
     // 1. 最高优先级：精准匹配 班级 + 任务
     const exactMatch = list.find(s => {
-      const matchCls = !s.classId || s.classId === 'all' || s.classId === classId;
-      const matchTsk = s.taskId === taskId;
+      const matchCls = !s.classId || s.classId === 'all' || isSameId(s.classId, classId);
+      const matchTsk = isSameId(s.taskId, taskId);
       return matchCls && matchTsk && s.url && s.url.startsWith('http');
     });
     if (exactMatch) return exactMatch.url;
 
     // 2. 第二优先级：匹配班级全局问卷 (taskId 为 all / task_all 或为空)
     const classGlobalMatch = list.find(s => {
-      const matchCls = !s.classId || s.classId === 'all' || s.classId === classId;
-      const matchTsk = !s.taskId || s.taskId === 'all' || s.taskId === 'task_all';
+      const matchCls = !s.classId || s.classId === 'all' || isSameId(s.classId, classId);
+      const matchTsk = !s.taskId || normalizeId(s.taskId) === 'all';
       return matchCls && matchTsk && s.url && s.url.startsWith('http');
     });
     if (classGlobalMatch) return classGlobalMatch.url;
@@ -972,13 +930,6 @@ export class AuthManager {
       studentIds: [],
       groups: []
     };
-    try {
-      let deletedClassIds = JSON.parse(localStorage.getItem('jizhi_deleted_class_ids')) || [];
-      if (Array.isArray(deletedClassIds) && deletedClassIds.includes(newClass.id)) {
-        deletedClassIds = deletedClassIds.filter(id => id !== newClass.id);
-        localStorage.setItem('jizhi_deleted_class_ids', JSON.stringify(deletedClassIds));
-      }
-    } catch (e) {}
     classes.unshift(newClass);
     localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
     this.pushGlobalMeta();
@@ -989,28 +940,10 @@ export class AuthManager {
   deleteClass(classId) {
     let classes = this.getClasses();
     classes = classes.filter(c => c.id !== classId);
-    try {
-      let deletedClassIds = JSON.parse(localStorage.getItem('jizhi_deleted_class_ids')) || [];
-      if (!Array.isArray(deletedClassIds)) deletedClassIds = [];
-      if (!deletedClassIds.includes(classId)) {
-        deletedClassIds.push(classId);
-        localStorage.setItem('jizhi_deleted_class_ids', JSON.stringify(deletedClassIds));
-      }
-    } catch (e) {}
     localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
 
     let tasks = this.getTasks();
     const taskIdsToDelete = tasks.filter(t => t.classId === classId).map(t => t.id);
-    if (taskIdsToDelete.length > 0) {
-      try {
-        let deletedTaskIds = JSON.parse(localStorage.getItem('jizhi_deleted_task_ids')) || [];
-        if (!Array.isArray(deletedTaskIds)) deletedTaskIds = [];
-        taskIdsToDelete.forEach(id => {
-          if (!deletedTaskIds.includes(id)) deletedTaskIds.push(id);
-        });
-        localStorage.setItem('jizhi_deleted_task_ids', JSON.stringify(deletedTaskIds));
-      } catch (e) {}
-    }
     tasks = tasks.filter(t => t.classId !== classId);
     localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
 
@@ -1076,16 +1009,6 @@ export class AuthManager {
       password: (customPassword && customPassword.trim()) ? customPassword.trim() : '123'
     });
     users.push(targetUser);
-
-    try {
-      let deletedUserIds = JSON.parse(localStorage.getItem('jizhi_deleted_user_ids')) || [];
-      const k = cleanId.toLowerCase();
-      if (Array.isArray(deletedUserIds) && deletedUserIds.includes(k)) {
-        deletedUserIds = deletedUserIds.filter(id => id !== k);
-        localStorage.setItem('jizhi_deleted_user_ids', JSON.stringify(deletedUserIds));
-      }
-    } catch (e) {}
-
     localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
 
     if (targetClass) {
@@ -1104,7 +1027,7 @@ export class AuthManager {
     const linkedList = [];
     const users = this.getUsers();
     const classes = this.getClasses();
-    const targetClass = classId ? (classes.find(c => c.id === classId) || null) : null;
+    const targetClass = classId ? (classes.find(c => isSameId(c.id, classId)) || null) : null;
     if (targetClass && !targetClass.studentIds) targetClass.studentIds = [];
 
     const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
@@ -1153,16 +1076,6 @@ export class AuthManager {
       }
     });
 
-    if (addedCodes.length > 0) {
-      try {
-        let deletedUserIds = JSON.parse(localStorage.getItem('jizhi_deleted_user_ids')) || [];
-        if (Array.isArray(deletedUserIds)) {
-          deletedUserIds = deletedUserIds.filter(id => !addedCodes.includes(id));
-          localStorage.setItem('jizhi_deleted_user_ids', JSON.stringify(deletedUserIds));
-        }
-      } catch (e) {}
-    }
-
     localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
     if (targetClass) localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
     this.pushGlobalMeta();
@@ -1193,31 +1106,51 @@ export class AuthManager {
     // 1. 若有指定任务，以该任务绑定的班级为最高准则
     if (activeTaskId) {
       const tasks = this.getTasks();
-      const curTask = tasks.find(t => t.id === activeTaskId);
-      if (curTask && curTask.classId && classes.some(c => c.id === curTask.classId)) {
-        return curTask.classId;
+      const curTask = tasks.find(t => isSameId(t.id, activeTaskId));
+      if (curTask && curTask.classId) {
+        const matchingClass = classes.find(c => isSameId(c.id, curTask.classId));
+        if (matchingClass) return matchingClass.id;
       }
     }
 
     // 2. 若学生账号有明确的班级属性
     if (user) {
-      if (user.classId && classes.some(c => c.id === user.classId)) return user.classId;
+      if (user.classId) {
+        const matchingClass = classes.find(c => isSameId(c.id, user.classId));
+        if (matchingClass) return matchingClass.id;
+      }
       if (Array.isArray(user.classIds) && user.classIds.length > 0) {
-        const found = classes.find(c => user.classIds.includes(c.id));
+        const found = classes.find(c => user.classIds.some(cid => isSameId(cid, c.id)));
         if (found) return found.id;
       }
 
-      // 3. 全局扫描学生真正加入的小组所属班级
+      // 3. 全局扫描学生真正加入的花名册/小组所属班级
       const uId = String(user.id || '').trim().toLowerCase();
+      const uName = String(user.name || '').trim().toLowerCase();
       for (const c of classes) {
-        if (!Array.isArray(c.groups)) continue;
-        for (const g of c.groups) {
-          const hasMember = (g.members || []).some(m => {
-            if (!m) return false;
-            const mId = String(typeof m === 'object' ? (m.id || '') : m).trim().toLowerCase();
-            return mId === uId;
+        if (Array.isArray(c.students)) {
+          const inRoster = c.students.some(s => {
+            if (!s) return false;
+            const sid = String(s.id || s.studentCode || '').trim().toLowerCase();
+            const sname = String(s.name || '').trim().toLowerCase();
+            return (uId && sid === uId) || (uName && sname === uName);
           });
-          if (hasMember) return c.id;
+          if (inRoster) return c.id;
+        }
+        if (Array.isArray(c.studentIds)) {
+          if (c.studentIds.some(sid => String(sid).trim().toLowerCase() === uId)) {
+            return c.id;
+          }
+        }
+        if (Array.isArray(c.groups)) {
+          for (const g of c.groups) {
+            const hasMember = (g.members || []).some(m => {
+              if (!m) return false;
+              const mId = String(typeof m === 'object' ? (m.id || m.userId || m.name || '') : m).trim().toLowerCase();
+              return (uId && mId === uId) || (uName && mId === uName);
+            });
+            if (hasMember) return c.id;
+          }
         }
       }
     }
@@ -1243,7 +1176,7 @@ export class AuthManager {
 
     // 1. 若指定了班级 ID，仅在指定班级内检索小组
     if (classId) {
-      const targetClass = classes.find(c => c.id === classId);
+      const targetClass = classes.find(c => isSameId(c.id, classId));
       if (targetClass && Array.isArray(targetClass.groups)) {
         for (let i = 0; i < targetClass.groups.length; i++) {
           const g = targetClass.groups[i];
@@ -1256,7 +1189,7 @@ export class AuthManager {
     // 2. 若未指定班级，优先在学生主班级中检索，其次在全部班级中检索
     const primaryClassId = user.classId || (Array.isArray(user.classIds) && user.classIds[0]) || null;
     if (primaryClassId) {
-      const pClass = classes.find(c => c.id === primaryClassId);
+      const pClass = classes.find(c => isSameId(c.id, primaryClassId));
       if (pClass && Array.isArray(pClass.groups)) {
         for (const g of pClass.groups) {
           if ((g.members || []).some(checkMemberMatch)) return g;
@@ -1273,7 +1206,7 @@ export class AuthManager {
 
     if (user.groupId) {
       for (const c of classes) {
-        const g = (c.groups || []).find(grp => grp.id === user.groupId);
+        const g = (c.groups || []).find(grp => isSameId(grp.id, user.groupId));
         if (g) return g;
       }
     }
@@ -1295,7 +1228,7 @@ export class AuthManager {
       return { ok: false, reason: '当前没有可用教学班级，请联系教师创建班级后再进入' };
     }
     const effectiveClassId = classId || this.getEffectiveStudentClassId(user, taskId);
-    const activeClass = effectiveClassId ? classes.find(c => c.id === effectiveClassId) : null;
+    const activeClass = effectiveClassId ? classes.find(c => isSameId(c.id, effectiveClassId)) : null;
     if (!activeClass) {
       return { ok: false, reason: '无法解析你所在的教学班级，请联系任课教师完成分班后再进入' };
     }
@@ -1310,10 +1243,10 @@ export class AuthManager {
     let activeTask = null;
     const tasks = this.getTasks();
     if (taskId) {
-      activeTask = tasks.find(t => t.id === taskId) || null;
+      activeTask = tasks.find(t => isSameId(t.id, taskId)) || null;
     }
     if (!activeTask && tasks.length > 0) {
-      const clsTasks = tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === activeClass.id);
+      const clsTasks = tasks.filter(t => !t.classId || normalizeId(t.classId) === 'all' || isSameId(t.classId, activeClass.id));
       activeTask = clsTasks.length > 0 ? clsTasks[0] : tasks[0];
     }
     const resolvedTaskId = activeTask ? activeTask.id : `task_${activeClass.id}_default`;
@@ -1424,15 +1357,6 @@ export class AuthManager {
     if (permanent || !classId) {
       // 彻底从全平台注销删除
       users = users.filter(u => u.id !== userId);
-      try {
-        let deletedUserIds = JSON.parse(localStorage.getItem('jizhi_deleted_user_ids')) || [];
-        if (!Array.isArray(deletedUserIds)) deletedUserIds = [];
-        const cleanId = String(userId).trim().toLowerCase();
-        if (!deletedUserIds.includes(cleanId)) {
-          deletedUserIds.push(cleanId);
-          localStorage.setItem('jizhi_deleted_user_ids', JSON.stringify(deletedUserIds));
-        }
-      } catch (e) {}
       classes.forEach(c => {
         if (c.studentIds) c.studentIds = c.studentIds.filter(id => id !== userId);
         if (c.groups) {
@@ -1636,15 +1560,15 @@ export class AuthManager {
     // 1. 优先从指定班级真实分组中检索该小组及其成员
     let targetGrp = null;
     if (classId) {
-      const cls = classes.find(c => c.id === classId);
+      const cls = classes.find(c => isSameId(c.id, classId));
       if (cls && Array.isArray(cls.groups)) {
-        targetGrp = cls.groups.find(g => g && g.id === groupId);
+        targetGrp = cls.groups.find(g => g && isSameId(g.id, groupId));
       }
     }
     if (!targetGrp) {
       for (const c of classes) {
         if (Array.isArray(c.groups)) {
-          const foundG = c.groups.find(g => g && g.id === groupId);
+          const foundG = c.groups.find(g => g && isSameId(g.id, groupId));
           if (foundG) { targetGrp = foundG; break; }
         }
       }
@@ -1672,7 +1596,7 @@ export class AuthManager {
     } else {
       // 2. 兜底：从 users 列表中按 groupId 匹配
       users.forEach(u => {
-        if (u && u.groupId === groupId && u.role !== 'teacher') groupUsers.push(u);
+        if (u && isSameId(u.groupId, groupId) && u.role !== 'teacher') groupUsers.push(u);
       });
     }
 
@@ -1743,15 +1667,6 @@ export class AuthManager {
       createdAt: defaultStart,
       instructions, resources
     };
-
-    // 🛡️ 确保新任务 ID 不在已删除黑名单中
-    try {
-      let deletedTaskIds = JSON.parse(localStorage.getItem('jizhi_deleted_task_ids')) || [];
-      if (Array.isArray(deletedTaskIds) && deletedTaskIds.includes(newTask.id)) {
-        deletedTaskIds = deletedTaskIds.filter(id => id !== newTask.id);
-        localStorage.setItem('jizhi_deleted_task_ids', JSON.stringify(deletedTaskIds));
-      }
-    } catch (e) {}
 
     tasks.unshift(newTask);
     localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
@@ -1908,16 +1823,6 @@ export class AuthManager {
     const deletedTask = tasks.find(t => t.id === taskId);
     const deletedTaskTitle = deletedTask ? deletedTask.title : '写作任务';
 
-    // 🛡️ 记录已删除任务 ID，杜绝旧云端快照反向复活
-    try {
-      let deletedTaskIds = JSON.parse(localStorage.getItem('jizhi_deleted_task_ids')) || [];
-      if (!Array.isArray(deletedTaskIds)) deletedTaskIds = [];
-      if (!deletedTaskIds.includes(taskId)) {
-        deletedTaskIds.push(taskId);
-        localStorage.setItem('jizhi_deleted_task_ids', JSON.stringify(deletedTaskIds));
-      }
-    } catch (e) {}
-
     tasks = tasks.filter(t => t.id !== taskId);
     localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
 
@@ -1998,14 +1903,6 @@ export class AuthManager {
       author: '老师', readStatus: {}
     };
 
-    try {
-      let deletedAnnIds = JSON.parse(localStorage.getItem('jizhi_deleted_ann_ids')) || [];
-      if (Array.isArray(deletedAnnIds) && deletedAnnIds.includes(newAnn.id)) {
-        deletedAnnIds = deletedAnnIds.filter(id => id !== newAnn.id);
-        localStorage.setItem('jizhi_deleted_ann_ids', JSON.stringify(deletedAnnIds));
-      }
-    } catch (e) {}
-
     announcements.unshift(newAnn);
 
     // 🧹 最多保留最新 15 条通知，超出部分从最旧一条（末尾）自动滚动删除，保持轻量高效
@@ -2030,14 +1927,6 @@ export class AuthManager {
   deleteAnnouncement(annId) {
     let announcements = this.getAnnouncements();
     announcements = announcements.filter(a => a.id !== annId);
-    try {
-      let deletedAnnIds = JSON.parse(localStorage.getItem('jizhi_deleted_ann_ids')) || [];
-      if (!Array.isArray(deletedAnnIds)) deletedAnnIds = [];
-      if (!deletedAnnIds.includes(annId)) {
-        deletedAnnIds.push(annId);
-        localStorage.setItem('jizhi_deleted_ann_ids', JSON.stringify(deletedAnnIds));
-      }
-    } catch (e) {}
     localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
     this.pushGlobalMeta();
 
@@ -2193,14 +2082,6 @@ export class AuthManager {
       author: '任课教师'
     };
 
-    try {
-      let deletedPaperIds = JSON.parse(localStorage.getItem('jizhi_deleted_paper_ids')) || [];
-      if (Array.isArray(deletedPaperIds) && deletedPaperIds.includes(newPaper.id)) {
-        deletedPaperIds = deletedPaperIds.filter(id => id !== newPaper.id);
-        localStorage.setItem('jizhi_deleted_paper_ids', JSON.stringify(deletedPaperIds));
-      }
-    } catch (e) {}
-
     papers.unshift(newPaper);
     try {
       localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers));
@@ -2225,14 +2106,6 @@ export class AuthManager {
     let papers = this.getAllReferencePapers();
     papers = papers.filter(p => p.id !== paperId);
     if (window._paperMemoryBlobMap) window._paperMemoryBlobMap.delete(paperId);
-    try {
-      let deletedPaperIds = JSON.parse(localStorage.getItem('jizhi_deleted_paper_ids')) || [];
-      if (!Array.isArray(deletedPaperIds)) deletedPaperIds = [];
-      if (!deletedPaperIds.includes(paperId)) {
-        deletedPaperIds.push(paperId);
-        localStorage.setItem('jizhi_deleted_paper_ids', JSON.stringify(deletedPaperIds));
-      }
-    } catch (e) {}
     localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers));
     this.pushGlobalMeta();
 

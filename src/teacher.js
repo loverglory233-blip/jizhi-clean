@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260905_v2812";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260905_v2812";
+} from "./constants.js?v=20260905_v2545";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260905_v2545";
 
 /* ==========================================================================
    6.8 TEACHER MONITOR IN-PLACE INCREMENTAL UPDATER (PREVENT IFRAME THRASHING)
@@ -412,23 +412,24 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
         const isGroupSwitched = (state._lastActiveGId !== currentGId);
         state._lastActiveGId = currentGId;
 
-        const lastEpHash = isGroupSwitched ? '' : (state._lastEpHashMap[padName] || '');
-        const epRes = await fetch(`sync.php?action=get_pad_html&padId=${encodeURIComponent(padName)}&clientHash=${encodeURIComponent(lastEpHash)}`).then(r => r.json()).catch(() => null);
         let padTextChanged = isGroupSwitched;
-        if (epRes && epRes.hash) {
-          if (state._lastEpHashMap[padName] !== epRes.hash) {
-            state._lastEpHashMap[padName] = epRes.hash;
+        let latestPadText = state.stage2?.unifiedContent || '';
+
+        if (state.currentStage === 'stage2' || state.currentStage === 'stage3') {
+          const lastEpHash = isGroupSwitched ? '' : (state._lastEpHashMap[padName] || '');
+          const epRes = await fetch(`sync.php?action=get_pad_html&padId=${encodeURIComponent(padName)}&clientHash=${encodeURIComponent(lastEpHash)}`).then(r => r.json()).catch(() => null);
+          if (epRes && epRes.hash) {
+            if (state._lastEpHashMap[padName] !== epRes.hash) {
+              state._lastEpHashMap[padName] = epRes.hash;
+              padTextChanged = true;
+            }
+          }
+          if (epRes && epRes.success && !epRes.unchanged && (epRes.html || epRes.text)) {
+            latestPadText = epRes.html || epRes.text;
+            if (!state.stage2) state.stage2 = {};
+            state.stage2.unifiedContent = latestPadText;
             padTextChanged = true;
           }
-        }
-        let latestPadText = '';
-        if (epRes && epRes.success && !epRes.unchanged && (epRes.html || epRes.text)) {
-          latestPadText = epRes.html || epRes.text;
-          if (!state.stage2) state.stage2 = {};
-          state.stage2.unifiedContent = latestPadText;
-          padTextChanged = true;
-        } else if (state.stage2?.unifiedContent) {
-          latestPadText = state.stage2.unifiedContent;
         }
 
         const curT = authManager.getCurrentUser();
