@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2610";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2610";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2610";
-import { AuthManager } from "./auth.js?v=20260905_v2610";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2610";
-import { renderLoginView } from "./login.js?v=20260905_v2610";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2610";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2610";
+} from "./constants.js?v=20260905_v2611";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2611";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2611";
+import { AuthManager } from "./auth.js?v=20260905_v2611";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2611";
+import { renderLoginView } from "./login.js?v=20260905_v2611";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2611";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2611";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2610";
+} from "./editor.js?v=20260905_v2611";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -7331,6 +7331,20 @@ ${chatSnippet}
         }
       },
       onSwitchStage3Tab: (tabKey) => {
+        if (tabKey === 'editor') {
+          const s3 = this.state.stage3 || {};
+          const confirmedRevMap = s3.confirmedMembers || {};
+          const membersList = Object.values(this.state.members || {});
+          const totalMembersCount = (this.getMemberList ? this.getMemberList() : [])?.length || membersList.length || 1;
+          const confirmedRevCount = membersList.filter(m => isMemberDone(confirmedRevMap, m)).length;
+          const isRevisionFullyConfirmed = (s3.isRevisionConfirmed || confirmedRevCount >= totalMembersCount) && totalMembersCount > 0;
+          if (!isRevisionFullyConfirmed) {
+            const currentTaskType = this.getCurrentTaskType();
+            const docName = currentTaskType === 'instructional' ? '教学设计' : '论文';
+            alert(`⚠️ 需组内全员确认进入终稿修改后，方可解锁进入【修改${docName}终稿】协同编辑！\n\n当前确认进度：${confirmedRevCount}/${totalMembersCount} 人已确认。\n请提醒组内其他同学点击右上角【✍️ 确认进入终稿修改】！`);
+            return;
+          }
+        }
         this.state.stage3.activeTab = tabKey;
         this.syncStage3();
         this.renderStudentWorkspace();
