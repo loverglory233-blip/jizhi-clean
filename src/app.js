@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2673";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2673";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2673";
-import { AuthManager } from "./auth.js?v=20260906_v2673";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2673";
-import { renderLoginView } from "./login.js?v=20260906_v2673";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2673";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2673";
+} from "./constants.js?v=20260906_v2674";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2674";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2674";
+import { AuthManager } from "./auth.js?v=20260906_v2674";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2674";
+import { renderLoginView } from "./login.js?v=20260906_v2674";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2674";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2674";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2673";
+} from "./editor.js?v=20260906_v2674";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1760,11 +1760,15 @@ export class App {
 
 
         // ======================================================================
-        // 📌 质检/讨论梯度 B：半程会议自查打卡（3 分钟未打卡静默提醒，全场严格仅 1 次）
+        // 📌 质检/讨论梯度 B & C：半程会议自查打卡与二审修正清单商定（静默守护）
         // ======================================================================
         const existMeetingCheckinNudge = s2Chats.some(m => m && m.text?.includes('半程会议参与提示'));
-        const lastMeetingMsg = [...s2Chats].reverse().find(m => m && m.sender === 'managingEditor' && (m.text?.includes('半程研讨号召') || m.text?.includes('半程会议号召') || m.text?.includes('半程自查') || m.text?.includes('半程会议')));
-        const isMeetingActive = (lastMeetingMsg || s2.meetingStep) && s2.meetingStep !== 'completed' && !s2.isDraftConfirmed;
+        const lastMeetingMsg = [...s2Chats].reverse().find(m => m && (
+          (m.sender === 'managingEditor' && (m.text?.includes('半程研讨号召') || m.text?.includes('半程会议号召') || m.text?.includes('半程自查') || m.text?.includes('半程会议') || m.text?.includes('自查研判') || m.text?.includes('研讨共识小结'))) ||
+          (m.sender === 'reviewingEditor' && (m.text?.includes('二审修正清单') || m.text?.includes('磨课修正清单') || m.text?.includes('二审意见') || m.text?.includes('半程修正清单')))
+        ));
+        const isChecklistActive = s2Chats.some(m => m && (m.text?.includes('二审修正清单') || m.text?.includes('半程修正清单') || m.text?.includes('磨课修正清单') || m.text?.includes('二审意见')));
+        const isMeetingActive = (lastMeetingMsg || s2.meetingStep || isChecklistActive || (s2.actionPlan && s2.actionPlan.isGenerated)) && s2.meetingStep !== 'completed' && !s2.isDraftConfirmed;
 
         if (isMeetingActive) {
           const meetingMsgTime = parseMsgTime(lastMeetingMsg) || s2.meetingCalledTime || this.stage2StartTime || (now - 60000);
@@ -1806,7 +1810,7 @@ export class App {
           // 🚀 核心强制弹窗：会议发起满 3 分钟（180,000ms），凡是当前登录学生【尚未完成自查打卡】：
           // 无论何时切回或刷新，直接在屏幕正中央强制弹出自查打卡弹窗（若用户主动关闭过则不再重复强弹）
           const isModalOpen = !!document.querySelector('.modal-overlay');
-          if (this.state.currentStage === 'stage2' && isMeetingActive && meetingElapsed >= 180000 && !isMemberSubmitted(currUserObj) && !this._meetingModalDismissedByUser) {
+          if (this.state.currentStage === 'stage2' && isMeetingActive && meetingElapsed >= 180000 && !isMemberSubmitted(currUserObj) && !this._meetingModalDismissedByUser && !isChecklistActive) {
             if (!isModalOpen && !this._meetingModalForceShown && typeof this.showMeetingModal === 'function') {
               this._meetingModalForceShown = true;
               this.showMeetingModal();
@@ -1816,14 +1820,17 @@ export class App {
           // ======================================================================
           // 📌 质检/讨论梯度 C：针对《二审修正清单》的修改方案商定（审稿编辑负责学术研讨引导与静默守护）
           // ======================================================================
-          if (!hasUnsubmitted) {
-            const checklistMsg = [...s2Chats].reverse().find(m => m && (m.text?.includes('二审修正清单') || m.text?.includes('半程修正清单') || m.text?.includes('半程编辑修正清单')));
+          if (!hasUnsubmitted || isChecklistActive) {
+            const checklistMsg = [...s2Chats].reverse().find(m => m && (m.text?.includes('二审修正清单') || m.text?.includes('半程修正清单') || m.text?.includes('半程编辑修正清单') || m.text?.includes('磨课修正清单') || m.text?.includes('二审意见')));
             const checklistTime = parseMsgTime(checklistMsg) || meetingMsgTime || this.stage2StartTime || (now - 60000);
             const checklistElapsed = Math.max(0, now - checklistTime);
             const studentMsgAfterChecklist = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && parseMsgTime(m) > checklistTime);
             const lastStudentMsgAfterChecklist = studentMsgAfterChecklist.length > 0 ? studentMsgAfterChecklist[studentMsgAfterChecklist.length - 1] : null;
             const lastStudentMsgAfterChecklistTime = parseMsgTime(lastStudentMsgAfterChecklist);
             const silenceAfterChecklist = lastStudentMsgAfterChecklistTime ? Math.max(0, now - lastStudentMsgAfterChecklistTime) : checklistElapsed;
+
+            const taskType = this.getCurrentTaskType();
+            const isInst = (taskType === 'instructional');
 
             // ── ① 3 分钟没讨论：责任编辑一致性研讨破冰点拨 ──
             const exist3mNudge = s2Chats.some(m => m && (m.text?.includes('一致性研讨点拨') || m.text?.includes('自查研讨点拨') || m.text?.includes('一致性协同研讨')));
@@ -1834,8 +1841,8 @@ export class App {
               this._nudgeCounts['s2_consistency_silence_3m'] = 1;
               const msg = {
                 sender: 'managingEditor',
-                senderName: '协同调度 · 责任编辑',
-                text: `🤝 【责任编辑·一致性协同研讨】：自查研判已下发！请大家对照自查暴露的前后脱节与章节偏离，在讨论区展开深度协同研讨，互相听取同伴的修改设想，共同商定全组一致的对齐思路与衔接方案！`,
+                senderName: isInst ? '协同调度 · 备课组长' : '协同调度 · 责任编辑',
+                text: `🤝 【${isInst ? '备课组长' : '责任编辑'}·一致性协同研讨】：自查研判已下发！请大家对照自查暴露的前后脱节与章节偏离，在讨论区展开深度协同研讨，互相听取同伴的修改设想，共同商定全组一致的对齐思路与衔接方案！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
@@ -1849,16 +1856,17 @@ export class App {
             }
 
             // ── ② 3 分钟没讨论修正清单：审稿编辑二审修改研讨提示 ──
-            const existChecklistNudge = s2Chats.some(m => m && (m.text?.includes('二审修改研讨提示') || m.text?.includes('二审协同修改研讨')));
-            const isReviewingSummaryPending = s2Chats.some(m => m && m.text?.includes('二审修正清单')) && !s2Chats.some(m => m && (m.text?.includes('修改确认与写作冲刺') || m.text?.includes('二审修改落实决议')));
+            const existChecklistNudge = s2Chats.some(m => m && (m.text?.includes('二审修改研讨提示') || m.text?.includes('二审协同修改研讨') || m.text?.includes('磨课协同修改研讨')));
+            const isReviewingSummaryPending = isChecklistActive && !s2Chats.some(m => m && (m.text?.includes('修改确认与写作冲刺') || m.text?.includes('二审修改落实决议') || m.text?.includes('修改落实确认')));
             if (studentMsgAfterChecklist.length > 0) {
               this._nudgeCounts['s2_checklist_silence_3m'] = 1;
             } else if (!existChecklistNudge && isReviewingSummaryPending && checklistElapsed >= 180000 && !s2.isDraftConfirmed) {
               this._nudgeCounts['s2_checklist_silence_3m'] = 1;
+              const reviewingName = isInst ? '教研专家' : '审稿编辑';
               const msg = {
                 sender: 'reviewingEditor',
-                senderName: '学术质量 · 审稿编辑',
-                text: `📝 【审稿编辑·二审协同修改研讨】：二审修正清单已送达！请全组成员围绕清单指出的诊断问题充分交流修改对策，大家集思广益共同打磨出具体的补全与完善方案；商定差不多后，点击下方【📝 讨论差不多了？让审稿编辑总结】！`,
+                senderName: isInst ? '教学质量 · 教研专家' : '学术质量 · 审稿编辑',
+                text: `📝 【${reviewingName}·二审协同修改研讨】：${isInst ? '磨课修正清单' : '二审修正清单'}已送达！请全组成员围绕清单指出的诊断问题充分交流修改对策，大家集思广益共同打磨出具体的补全与完善方案；商定差不多后，点击下方【📝 讨论差不多了？让${reviewingName}总结】！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
