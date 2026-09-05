@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260906_v2660"
+TARGET_VERSION="20260906_v2661"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -350,20 +350,15 @@ if [ -n "$EP_DIR" ]; then
     done
   fi
 
-  # 写入高可用无拦截且让插件自动挂载的标准 settings.json (使用生产级 MySQL 存储，开启协同与色彩)
+  # 写入高可用无拦截且让插件自动挂载的标准 settings.json (使用官方原生极速高稳定 DirtyDB 存储，开启协同与色彩)
   cat << 'EPSETEOF' > "$EP_DIR/settings.json"
 {
   "title": "JIZHI Academic Pad",
   "ip": "0.0.0.0",
   "port": 9001,
-  "dbType": "mysql",
+  "dbType": "dirty",
   "dbSettings": {
-    "user": "jizhi",
-    "host": "127.0.0.1",
-    "port": 3306,
-    "password": "KxDmdtSWaTtHafdZ",
-    "database": "jizhi",
-    "charset": "utf8mb4"
+    "filename": "var/dirty.db"
   },
   "trustProxy": true,
   "skinName": "colibris",
