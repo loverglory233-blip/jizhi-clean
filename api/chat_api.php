@@ -381,9 +381,8 @@ curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
 curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
 curl_setopt($ch, CURLOPT_TCP_NODELAY, 1);
-curl_setopt($ch, CURLOPT_ENCODING, '');
-curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 4);
-curl_setopt($ch, CURLOPT_TIMEOUT, 35);
+curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+curl_setopt($ch, CURLOPT_TIMEOUT, 75);
 
 $resp = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);

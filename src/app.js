@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2696";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2696";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2696";
-import { AuthManager } from "./auth.js?v=20260906_v2696";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2696";
-import { renderLoginView } from "./login.js?v=20260906_v2696";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2696";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2696";
+} from "./constants.js?v=20260906_v2697";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2697";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2697";
+import { AuthManager } from "./auth.js?v=20260906_v2697";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2697";
+import { renderLoginView } from "./login.js?v=20260906_v2697";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2697";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2697";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2696";
+} from "./editor.js?v=20260906_v2697";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5478,7 +5478,7 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
       const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues, taskType });
       let managingText = (respManaging && respManaging.trim().length > 0) ? respManaging.trim() : '';
       if (!managingText) {
-        managingText = `🤝 【${managingName}·研讨共识小结】：结合全组自查反馈，大家已针对《${topic}》的修改瓶颈（${bottlenecks}）形成明确的修改思路共识。现将研讨成果正式交棒${reviewingName}，请专家通读全篇草稿并下发《${isInst ? '磨课修正清单' : '二审修正清单'}》！`;
+        managingText = `🤝 【${managingName}·提示】：📡 正在提炼研讨共识，大模型生成未完成。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:5px 14px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新调用生成研讨共识小结</button>`;
       } else {
         if (!managingText.startsWith('🤝')) managingText = `🤝 【${managingName}·研讨共识小结】：${managingText}`;
       }
@@ -5487,7 +5487,7 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
       s2ChatLogs.push(msgManaging);
       this.sendSingleChatMessage(msgManaging, 'stage2');
 
-      this.setActiveAgentAnalyzing({ icon: '📝', title: `【${reviewingName}】正在下发《${isInst ? '磨课修正清单' : '二审修正清单'}》...`, detail: '正在深度审阅正文草稿并结合自查瓶颈，生成包含【诊断问题+改进建议】的双结构清单...' });
+      this.setActiveAgentAnalyzing({ icon: '📝', title: `【${reviewingName}】正在下发《${isInst ? '磨课修正清单' : '二审修正清单'}》...`, detail: '正在通读全篇草稿并结合自查瓶颈，生成包含【诊断问题+改进建议】的双结构清单...' });
       await new Promise(r => setTimeout(r, 1200));
 
       const reviewingPrompt = `${genreDesc}
@@ -5497,7 +5497,7 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
 【组内关于修改思路的讨论记录】:
 ${chatSnippet}
 
-【正文草稿】：
+【正文草稿全文】：
 ${rawDoc || '（小组成员正在协作起草正文草稿）'}
 
 请按以下格式输出（严禁输出任何 Markdown 代码块，必须直接输出纯文本）：
@@ -5511,14 +5511,14 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
 
       let reviewingText = '';
       try {
-        const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues, rawDoc: (rawDoc.length > 1800 ? rawDoc.slice(0, 1600) + '...' : rawDoc), taskType });
+        const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues, rawDoc, taskType });
         reviewingText = (respReviewing && respReviewing.trim().length > 0) ? respReviewing.trim() : '';
       } catch (err) {
         console.warn('Reviewing agent call err:', err);
       }
 
       if (!reviewingText) {
-        reviewingText = `📝 【${reviewingName}·${isInst ? '磨课质检' : '二审修正'}】：通读全篇草稿，结合组员自查瓶颈，下发《${isInst ? '磨课修正清单' : '二审修正清单'}》：\n【${isInst ? '磨课修正清单' : '二审修正清单'}】：\n1. 🎯 [诊断问题]：${bottlenecks || '核心概念与具体论证环节的衔接仍需强化'}；[改进建议]：在核心章节进一步明确关键概念内涵并补齐实操论据。\n2. 🎯 [诊断问题]：${focusIssues || '主体设计与论证细节略显单薄'}；[改进建议]：充实具体设计环节与步骤阐释，强化逻辑支撑。\n3. 🎯 [诊断问题]：总结与反思部分针对性有待提升；[改进建议]：提炼具体的实施启示与应用推广边界。`;
+        reviewingText = `📝 【${reviewingName}·提示】：📡 通读全篇草稿生成清单未完成。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:5px 14px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新调用下发《${isInst ? '磨课修正清单' : '二审修正清单'}》</button>`;
       } else {
         if (!reviewingText.startsWith('📝')) reviewingText = `📝 【${reviewingName}·${isInst ? '磨课质检' : '二审修正'}】：${reviewingText}`;
       }
@@ -5531,18 +5531,12 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
           parsedItems.push(cleanLine);
         }
       });
-      if (parsedItems.length === 0) {
-        parsedItems = [
-          `🎯 [诊断问题]：${bottlenecks || '前后章节衔接与概念统领需加强'}；[改进建议]：明确核心概念界定并强化前后论述口径一致性。`,
-          `🎯 [诊断问题]：${focusIssues || '设计操作化与实践论据略显单薄'}；[改进建议]：补充具体操作化步骤与实证论据支撑。`,
-          `🎯 [诊断问题]：总结与反思深度有待提升；[改进建议]：拓展实践应用价值与实施局限反思。`
-        ];
+      if (parsedItems.length > 0) {
+        const finalItems = this.assembleActionPlanItems(parsedItems, s2);
+        s2.actionPlan = { isGenerated: true, generatedAt: Date.now(), items: finalItems, completedMap: {} };
+        s2.meetingStep = 'discussing_checklist';
+        s2.reviewMilestone = 'second_review_received';
       }
-
-      const finalItems = this.assembleActionPlanItems(parsedItems, s2);
-      s2.actionPlan = { isGenerated: true, generatedAt: Date.now(), items: finalItems, completedMap: {} };
-      s2.meetingStep = 'discussing_checklist';
-      s2.reviewMilestone = 'second_review_received';
 
       const msgReviewing = { sender: 'reviewingEditor', senderName: isInst ? '教学质量 · 教研专家' : '学术质量 · 审稿编辑', text: reviewingText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() + 10 };
       s2ChatLogs.push(msgReviewing);
@@ -6048,7 +6042,7 @@ ${chatSnippet}
 态度客观严谨、温和建设，纯自然语言输出，200~260字。`;
 
         try {
-          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 50000));
+          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 60000));
           const promises = [];
           if (!hasProp) {
             promises.push(Promise.race([
@@ -6071,22 +6065,31 @@ ${chatSnippet}
           }
 
           const [pResult, oResult] = await Promise.all(promises);
-          propText = pResult || '';
-          oppText = oResult || '';
+          propText = (pResult && typeof pResult === 'string') ? pResult.trim() : '';
+          oppText = (oResult && typeof oResult === 'string') ? oResult.trim() : '';
         } catch (e) {
           console.warn('[Stage3 Committee] 并行请求警告:', e);
         }
 
-        // 🛡️ 高可用兜底自愈机制：大模型偶发超时/拥堵时秒级补全高水准专业质询，绝不挂起或白等
-        if (!propText || propText.trim().length === 0) {
-          propText = `🟢 【${isInst ? '正方评审专家·肯定支持' : '正方委员·立论支持'}】：通读全组${docName}《${topic}》的当前草稿，立意明确且探索深入。\n①【选题与立意创新】：课题紧密契合现实教学与学术探索痛点，立意深远且切口聚焦；\n②【设计与主体严密】：核心论点与关键环节层层递进，设计逻辑连贯；\n③【实践落地与推广价值】：方案具备突出的实操示范性。请全组坚定立论自信，积极展开后续答辩！`;
-        }
-        if (!oppText || oppText.trim().length === 0) {
-          oppText = `🔴 【${isInst ? '反方质询专家·针对实质询' : '反方委员·学术质询'}】：通读全篇草稿，从评审把关角度提出以下 3 项针对实质询：\n①【核心概念界定与论点一致性】：正文在部分核心概念与具体论证环节的衔接仍需进一步厘清，前后口径如何确保严密统一？\n②【设计操作化与方法严密性】：设计环节的方法论与实践细节略显单薄，在真实场景中落地可能面临哪些挑战及应对预案？\n③【反思局限与推广边界】：结论推导的外推边界与实际局限性论述尚显不足，请全组给出进一步的辩护阐释与补救方案。`;
+        // 🛡️ 纯粹大模型真实生成：若未生成完成则提示重试，绝不注入假保底内容
+        if (!propText || !oppText) {
+          const errPipelineMsg = {
+            id: 'msg_s3_pipeline_err_' + Date.now(),
+            sender: 'neutral',
+            senderName: chairName,
+            text: `⚖️ 【${chairShort}·提醒】：📡 正反方评审大模型通读全篇生成未完成或网络异常。<br><button class="btn-retry-ai" onclick="window.app.runStage3CommitteePipeline(this)" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:5px 14px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新调用大模型审阅全篇</button>`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          };
+          logs.push(errPipelineMsg);
+          this.sendSingleChatMessage(errPipelineMsg, 'stage3');
+          this.syncChatLogs();
+          if (typeof window.renderChat === 'function') window.renderChat(this.state);
+          return;
         }
 
         // 🛡️ 清理历史残留的网络提醒错误气泡
-        this.state.chatLogs.stage3 = (this.state.chatLogs.stage3 || []).filter(m => !m || !(m.text || '').includes('网络提醒'));
+        this.state.chatLogs.stage3 = (this.state.chatLogs.stage3 || []).filter(m => !m || !(m.text || '').includes('网络提醒') && !(m.text || '').includes('大模型通读全篇生成未完成'));
 
         if (!hasProp) {
           const propMsg = {
@@ -6172,23 +6175,36 @@ ${chatSnippet}
 
         let chairText = '';
         try {
-          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 25000));
+          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 45000));
           chairText = await Promise.race([
             callCozeAgentAPI('neutral', chairPrompt, { stage: 'stage3', topic, prop: propText, opp: oppText, queryPoint: 1, taskType }),
             timeoutPromise
           ]);
+          chairText = (chairText && typeof chairText === 'string') ? chairText.trim() : '';
         } catch (err) {
           console.warn('[Stage3 Neutral Chair] 引导生成警告:', err);
         } finally {
           this.setActiveAgentAnalyzing(null);
         }
 
-        if (!chairText || chairText.trim().length === 0) {
-          chairText = `🟡 【${chairShort}·针对质询 ① 答辩思路引导】：各位${isInst ? '备课教师' : '研究者'}，正反两方评审意见已正式送达左侧【答辩裁决矩阵】！反方重点指出了【核心概念界定与论点一致性】等深层问题。针对【意见 1 / 质询 ①】，建议全组重点聚焦：在草稿中如何进一步明确核心概念的界定，并强化前后章节逻辑衔接。商讨达成共识后，请点击上方【💡 意见 1 讨论差不多了？帮我总结并填入】按钮！`;
+        if (!chairText) {
+          const errChairMsg = {
+            id: 'msg_s3_chair_err_' + Date.now(),
+            sender: 'neutral',
+            senderName: chairName,
+            text: `🟡 【${chairShort}·提醒】：📡 答辩思路引导大模型生成未完成。<br><button class="btn-retry-ai" onclick="window.app.runStage3CommitteePipeline(this)" style="margin-top:6px; background:#d97706; color:#fff; border:none; padding:5px 14px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 点击重新生成答辩思路引导</button>`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          };
+          logs.push(errChairMsg);
+          this.sendSingleChatMessage(errChairMsg, 'stage3');
+          this.syncChatLogs();
+          if (typeof window.renderChat === 'function') window.renderChat(this.state);
+          return;
         }
 
         // 🛡️ 清理历史残留的网络提醒错误气泡
-        this.state.chatLogs.stage3 = (this.state.chatLogs.stage3 || []).filter(m => !m || !(m.text || '').includes('网络提醒'));
+        this.state.chatLogs.stage3 = (this.state.chatLogs.stage3 || []).filter(m => !m || !(m.text || '').includes('网络提醒') && !(m.text || '').includes('生成未完成'));
 
         const chairMsg = {
           sender: 'neutral',
