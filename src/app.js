@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2553";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2553";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2553";
-import { AuthManager } from "./auth.js?v=20260905_v2553";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2553";
-import { renderLoginView } from "./login.js?v=20260905_v2553";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2553";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2553";
+} from "./constants.js?v=20260905_v2554";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2554";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2554";
+import { AuthManager } from "./auth.js?v=20260905_v2554";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2554";
+import { renderLoginView } from "./login.js?v=20260905_v2554";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2554";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2554";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2553";
+} from "./editor.js?v=20260905_v2554";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -798,10 +798,17 @@ export class App {
 
           // ── 0. 【阶段一守卫：3分钟静默破冰、6分钟无提案强催促(点名)、提案全齐先交流】 ──
           const isContractConfirmed = !!(this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.isConfirmed);
+          const taskType = this.getCurrentTaskType();
+          const isInst = (taskType === 'instructional');
+
           if (currentStage === 'stage1' && !isContractConfirmed) {
             const s1 = this.state.stage1 || {};
             const propList = s1.proposals || [];
             const propCount = propList.length;
+            const s1AgentTitle = isInst ? '备课引导师' : '学术拍卖师';
+            const s1AgentSender = 'auctioneer';
+            const s1AgentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
+
             // ① 开场 3 分钟研讨静默破冰启发（严格从引导消息起算 3 分钟，有人在讨论区发言即解除静默）
             const s1Chats = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
             const introMsg = s1Chats.find(m => m && (m.sender === 'auctioneer' || String(m.id || '').includes('auctioneer')) && (m.text?.includes('拍卖师开场') || m.text?.includes('引导师开场') || m.text?.includes('阶段一')));
@@ -824,9 +831,9 @@ export class App {
                 groupId: currentGroupId,
                 taskId: activeTaskId,
                 stage: 'stage1',
-                sender: 'auctioneer',
-                senderName: '头脑风暴 · 学术拍卖师',
-                text: `🎪 【学术拍卖师·头脑风暴协同破冰】：头脑风暴已经开启 3 分钟啦～建议各位研究者在讨论区交流各自的教学关切或学术灵感，相互启发、互相支架！有初步构想随时在左侧【提交提案】卡片提交，全组一起协同打磨！`,
+                sender: s1AgentSender,
+                senderName: s1AgentSenderName,
+                text: `🎪 【${s1AgentTitle}·头脑风暴协同破冰】：头脑风暴已经开启 3 分钟啦～建议各位${isInst ? '教研同仁' : '研究者'}在讨论区交流各自的教学关切或学术灵感，相互启发、互相支架！有初步构想随时在左侧【提交提案】卡片提交，全组一起协同打磨！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: nowMs
               };
@@ -850,9 +857,9 @@ export class App {
                 groupId: currentGroupId,
                 taskId: activeTaskId,
                 stage: 'stage1',
-                sender: 'auctioneer',
-                senderName: '头脑风暴 · 学术拍卖师',
-                text: `🎪 【学术拍卖师·全员提案催促】：头脑风暴已进行 6 分钟啦！目前全组尚未收到任何成员提交的初步提案。请各位研究者加紧构思，尽快在左侧卡片提交您的课题初步设想，开启组内协同研讨！`,
+                sender: s1AgentSender,
+                senderName: s1AgentSenderName,
+                text: `🎪 【${s1AgentTitle}·全员提案催促】：头脑风暴已进行 6 分钟啦！目前全组尚未收到任何成员提交的初步提案。请各位${isInst ? '老师' : '研究者'}加紧构思，尽快在左侧卡片提交您的${isInst ? '备课初步设想' : '课题初步设想'}，开启组内协同研讨！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: nowMs
               };
@@ -863,7 +870,7 @@ export class App {
             }
 
             // ③ 有人提交提案后满 3 分钟仍有同学未提交（点名未提交提案同学）
-            const isProposalActive = (!s1.flowStep || s1.flowStep === 'proposals') && !s1.contractStep && !s1Chats.some(m => m && (m.text?.includes('投票') || m.text?.includes('方案研讨') || m.text?.includes('落槌')));
+            const isProposalActive = (!s1.flowStep || s1.flowStep === 'proposals') && !s1._voteTallyAndGuidanceTriggered && !s1.mergedTitle && !s1.contractStep && !s1Chats.some(m => m && (m.text?.includes('投票') || m.text?.includes('方案研讨') || m.text?.includes('落槌')));
             if (!isProposalActive) {
               this.state.s1_propPartialNudgeSent = true;
             }
@@ -887,9 +894,9 @@ export class App {
                 groupId: currentGroupId,
                 taskId: activeTaskId,
                 stage: 'stage1',
-                sender: 'auctioneer',
-                senderName: '头脑风暴 · 学术拍卖师',
-                text: `🎪 【学术拍卖师·提案协同催促】：组内已有同学提交了课题提案，目前全组提案进度为【${propCount}/${membersList.length} 篇】，看到 ${unsubmittedPropNames} 同学尚未提交。请大家抓紧在左侧卡片录入设想，全员提交后即可开启投票推选！`,
+                sender: s1AgentSender,
+                senderName: s1AgentSenderName,
+                text: `🎪 【${s1AgentTitle}·提案协同催促】：组内已有同学提交了${isInst ? '备课' : '课题'}提案，目前全组提案进度为【${propCount}/${membersList.length} 篇】，看到 ${unsubmittedPropNames} 同学尚未提交。请大家抓紧在左侧卡片录入设想，全员提交后即可开启投票推选！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: nowMs
               };
@@ -929,9 +936,9 @@ export class App {
                 groupId: currentGroupId,
                 taskId: activeTaskId,
                 stage: 'stage1',
-                sender: 'auctioneer',
-                senderName: '头脑风暴 · 学术拍卖师',
-                text: `🎪 【学术拍卖师·投票推选提示】：组内已有同学完成推选投票，目前全组投票进度为【${totalVotesCast}/${membersList.length} 人】，看到 ${unvotedNames} 同学尚未完成投票。请尽快在左侧卡片为您认同的课题方案投出关键一票！`,
+                sender: s1AgentSender,
+                senderName: s1AgentSenderName,
+                text: `🎪 【${s1AgentTitle}·投票推选提示】：组内已有同学完成推选投票，目前全组投票进度为【${totalVotesCast}/${membersList.length} 人】，看到 ${unvotedNames} 同学尚未完成投票。请尽快在左侧卡片为您认同的${isInst ? '备课方案' : '课题方案'}投出关键一票！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: nowMs
               };
@@ -952,10 +959,10 @@ export class App {
             const firstSignTime = this.state._firstSignTimeMs || s1.contract?._firstSignTimeMs || nowMs;
             const timeSinceFirstSign = nowMs - firstSignTime;
             const existSignNudge = s1Chats.some(m => m && (m.sender === 'auctioneer' || String(m.id || '').includes('auctioneer')) && (m.text?.includes('公约签署提示') || m.text?.includes('尚未确认签署')));
-            if (existSignNudge || unsignedMembers.length === 0) {
+            if (existSignNudge || unsignedMembers.length === 0 || s1.contract?.isConfirmed || s1.contractStep === 'confirmed') {
               this.state.s1_signNudgeSent = true;
             }
-            if (!this.state.s1_signNudgeSent && !existSignNudge && isDraftDone && confirmedCount > 0 && unsignedMembers.length > 0 && confirmedCount < membersList.length && timeSinceFirstSign >= 180000) {
+            if (!this.state.s1_signNudgeSent && !existSignNudge && !s1.contract?.isConfirmed && s1.contractStep !== 'confirmed' && isDraftDone && confirmedCount > 0 && unsignedMembers.length > 0 && confirmedCount < membersList.length && timeSinceFirstSign >= 180000) {
               this.state.s1_signNudgeSent = true;
               const unsignedNames = unsignedMembers.map(m => m.name || m.id).join('、');
               const msgSignNudge = {
@@ -964,9 +971,9 @@ export class App {
                 groupId: currentGroupId,
                 taskId: activeTaskId,
                 stage: 'stage1',
-                sender: 'auctioneer',
-                senderName: '头脑风暴 · 学术拍卖师',
-                text: `🏛️ 【学术拍卖师·公约签署提示】：公约草案已有成员确认签署，目前全组签署进度为【${confirmedCount}/${membersList.length} 人】，看到 ${unsignedNames} 同学尚未确认签署。请尽快在左侧公约下方核对分工与时间规划并点击【✍️ 确认签署】，全员签署后将正式解锁阶段二！`,
+                sender: s1AgentSender,
+                senderName: s1AgentSenderName,
+                text: `🏛️ 【${s1AgentTitle}·公约签署提示】：公约草案已有成员确认签署，目前全组签署进度为【${confirmedCount}/${membersList.length} 人】，看到 ${unsignedNames} 同学尚未确认签署。请尽快在左侧公约下方核对分工与时间规划并点击【✍️ 确认签署】，全员签署后将正式解锁阶段二！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: nowMs
               };
@@ -994,14 +1001,12 @@ export class App {
             const firstS2SignTime = this.state._firstS2SignTimeMs || s2._firstSignTimeMs || nowMs;
             const timeSinceFirstS2Sign = nowMs - firstS2SignTime;
             const existS2SignNudge = s2Chats.some(m => m && (m.text?.includes('初稿签署提示') || m.text?.includes('尚未确认')));
-            if (existS2SignNudge || s2UnconfMembers.length === 0) {
+            if (existS2SignNudge || s2UnconfMembers.length === 0 || s2.isDraftConfirmed || s2.isCompleted) {
               this.state.s2_signNudgeSent = true;
             }
-            if (!this.state.s2_signNudgeSent && !existS2SignNudge && s2ConfCount > 0 && s2UnconfMembers.length > 0 && s2ConfCount < membersList.length && timeSinceFirstS2Sign >= 180000) {
+            if (!this.state.s2_signNudgeSent && !existS2SignNudge && !s2.isDraftConfirmed && !s2.isCompleted && s2ConfCount > 0 && s2UnconfMembers.length > 0 && s2ConfCount < membersList.length && timeSinceFirstS2Sign >= 180000) {
               this.state.s2_signNudgeSent = true;
               const s2UnconfNames = s2UnconfMembers.map(m => m.name || m.id).join('、');
-              const taskType = this.getCurrentTaskType();
-              const isInst = (taskType === 'instructional');
               const managingName = isInst ? '备课组长' : '责任编辑';
               const msgS2SignNudge = {
                 id: `msg_s2_sign_nudge_${activeTaskId}_${currentGroupId}`,
@@ -1026,6 +1031,9 @@ export class App {
           if (currentStage === 'stage3') {
             const s3 = this.state.stage3 || {};
             const s3Chats = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
+            const chairTitle = isInst ? '答辩主席' : '答辩主审';
+            const chairSenderName = isInst ? '答辩主席 · 答辩委员会主席' : '答辩主审 · 中间委员';
+
             // 阶段三：答辩/修改矩阵确认催促（自第一位成员确认起满 3 分钟）
             const s3ConfMap = s3.confirmedMembers || {};
             const s3ConfCount = membersList.filter(m => isMemberDone(s3ConfMap, m)).length;
@@ -1036,10 +1044,10 @@ export class App {
             const firstS3SignTime = this.state._firstS3SignTimeMs || s3._firstSignTimeMs || nowMs;
             const timeSinceFirstS3Sign = nowMs - firstS3SignTime;
             const existS3SignNudge = s3Chats.some(m => m && (m.text?.includes('答辩确认提示') || m.text?.includes('尚未确认')));
-            if (existS3SignNudge || s3UnconfMembers.length === 0) {
+            if (existS3SignNudge || s3UnconfMembers.length === 0 || s3.isDefenseConfirmed || s3.defenseConfirmed || this.state.isFinalSubmitted) {
               this.state.s3_signNudgeSent = true;
             }
-            if (!this.state.s3_signNudgeSent && !existS3SignNudge && s3ConfCount > 0 && s3UnconfMembers.length > 0 && s3ConfCount < membersList.length && timeSinceFirstS3Sign >= 180000) {
+            if (!this.state.s3_signNudgeSent && !existS3SignNudge && !s3.isDefenseConfirmed && !s3.defenseConfirmed && !this.state.isFinalSubmitted && s3ConfCount > 0 && s3UnconfMembers.length > 0 && s3ConfCount < membersList.length && timeSinceFirstS3Sign >= 180000) {
               this.state.s3_signNudgeSent = true;
               const s3UnconfNames = s3UnconfMembers.map(m => m.name || m.id).join('、');
               const msgS3SignNudge = {
@@ -1049,8 +1057,8 @@ export class App {
                 taskId: activeTaskId,
                 stage: 'stage3',
                 sender: 'neutral',
-                senderName: '答辩主审 · 中间委员',
-                text: `🎓 【答辩主审·答辩确认提示】：组内已有同学确认完成答辩与修改清单，目前全组确认进度为【${s3ConfCount}/${membersList.length} 人】，看到 ${s3UnconfNames} 同学尚未确认。请尽快在下方核对并点击【✍️ 确认答辩】，全员确认后将解锁终稿修改面板！`,
+                senderName: chairSenderName,
+                text: `🎓 【${chairTitle}·答辩确认提示】：组内已有同学确认完成答辩与修改清单，目前全组确认进度为【${s3ConfCount}/${membersList.length} 人】，看到 ${s3UnconfNames} 同学尚未确认。请尽快在下方核对并点击【✍️ 确认答辩】，全员确认后将解锁终稿修改面板！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: nowMs
               };
@@ -1070,10 +1078,10 @@ export class App {
             const firstS3FinalTime = this.state._firstS3FinalTimeMs || s3._firstFinalSubmitTimeMs || nowMs;
             const timeSinceFirstS3Final = nowMs - firstS3FinalTime;
             const existS3FinalNudge = s3Chats.some(m => m && (m.text?.includes('终稿全员提交催促') || m.text?.includes('尚未确认提交')));
-            if (existS3FinalNudge || s3UnfinalMembers.length === 0) {
+            if (existS3FinalNudge || s3UnfinalMembers.length === 0 || this.state.isFinalSubmitted) {
               this.state.s3_finalNudgeSent = true;
             }
-            if (!this.state.s3_finalNudgeSent && !existS3FinalNudge && s3FinalCount > 0 && s3UnfinalMembers.length > 0 && s3FinalCount < membersList.length && timeSinceFirstS3Final >= 180000) {
+            if (!this.state.s3_finalNudgeSent && !existS3FinalNudge && !this.state.isFinalSubmitted && s3FinalCount > 0 && s3UnfinalMembers.length > 0 && s3FinalCount < membersList.length && timeSinceFirstS3Final >= 180000) {
               this.state.s3_finalNudgeSent = true;
               const s3UnfinalNames = s3UnfinalMembers.map(m => m.name || m.id).join('、');
               const msgS3FinalNudge = {
@@ -1083,8 +1091,8 @@ export class App {
                 taskId: activeTaskId,
                 stage: 'stage3',
                 sender: 'neutral',
-                senderName: '答辩主审 · 中间委员',
-                text: `🎓 【答辩主审·终稿全员提交催促】：组内已有同学确认提交终稿，目前全组提交确认进度为【${s3FinalCount}/${membersList.length} 人】，看到 ${s3UnfinalNames} 同学尚未确认提交。请尚未确认的同学尽快点击【🚀 提交终稿】，全员确认后将正式封稿归档！`,
+                senderName: chairSenderName,
+                text: `🎓 【${chairTitle}·终稿全员提交催促】：组内已有同学确认提交终稿，目前全组提交确认进度为【${s3FinalCount}/${membersList.length} 人】，看到 ${s3UnfinalNames} 同学尚未确认提交。请尚未确认的同学尽快点击【🚀 提交终稿】，全员确认后将正式封稿归档！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: nowMs
               };

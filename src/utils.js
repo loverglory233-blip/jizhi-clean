@@ -593,13 +593,49 @@ export function filterAndDeduplicateChatLogs(messages) {
         seenAgentOpenings.add(greetKey);
       }
 
-      // 🛡️ 阶段一防过期投票提示：若已有投票结果或方案研讨指引，任何投票催促提示均视作过期残渣丢弃
+      // 🛡️ 阶段一至阶段三防过期催促与提示：若后续节点已达成，前面的过渡催促视作过期残渣丢弃
       const hasVoteConcluded = messages.some(other => {
         if (!other || typeof other !== 'object') return false;
         const oTxt = String(other.text || '');
         return oTxt.includes('投票结果') || oTxt.includes('落槌与方案研讨') || oTxt.includes('方案研讨') || String(other.id || '').startsWith('vote_');
       });
-      if (hasVoteConcluded && (txt.includes('投票推选提示') || txt.includes('尚未完成投票') || txt.includes('提案协同催促') || txt.includes('尚未提交提案'))) {
+      if (hasVoteConcluded && (txt.includes('投票推选提示') || txt.includes('尚未完成投票') || txt.includes('提案协同催促') || txt.includes('尚未提交提案') || txt.includes('全员提案催促'))) {
+        continue;
+      }
+
+      const hasContractConcluded = messages.some(other => {
+        if (!other || typeof other !== 'object') return false;
+        const oTxt = String(other.text || '');
+        return oTxt.includes('团队公约已全员签署') || oTxt.includes('公约达成') || oTxt.includes('解锁阶段二') || String(other.id || '').includes('contract_concluded');
+      });
+      if (hasContractConcluded && (txt.includes('公约签署提示') || txt.includes('尚未确认签署') || txt.includes('投票推选提示') || txt.includes('尚未完成投票') || txt.includes('提案协同催促') || txt.includes('全员提案催促'))) {
+        continue;
+      }
+
+      const hasDraftConcluded = messages.some(other => {
+        if (!other || typeof other !== 'object') return false;
+        const oTxt = String(other.text || '');
+        return oTxt.includes('初稿已全员确认') || oTxt.includes('解锁阶段三') || String(other.id || '').includes('draft_concluded');
+      });
+      if (hasDraftConcluded && (txt.includes('初稿签署提示') || txt.includes('尚未确认初稿') || txt.includes('尚未确认'))) {
+        continue;
+      }
+
+      const hasDefenseConcluded = messages.some(other => {
+        if (!other || typeof other !== 'object') return false;
+        const oTxt = String(other.text || '');
+        return oTxt.includes('答辩已全员确认') || oTxt.includes('答辩总结与修改清单') || oTxt.includes('终稿修改面板');
+      });
+      if (hasDefenseConcluded && (txt.includes('答辩确认提示') || txt.includes('答辩完成确认'))) {
+        continue;
+      }
+
+      const hasFinalConcluded = messages.some(other => {
+        if (!other || typeof other !== 'object') return false;
+        const oTxt = String(other.text || '');
+        return oTxt.includes('终稿已全员确认') || oTxt.includes('正式封稿归档') || oTxt.includes('封稿归档');
+      });
+      if (hasFinalConcluded && (txt.includes('终稿全员提交催促') || txt.includes('尚未确认提交'))) {
         continue;
       }
 
