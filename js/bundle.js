@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2678
+ * Version: 20260906_v2679
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2678';
+  const APP_VERSION = '20260906_v2679';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11667,61 +11667,17 @@
       const innerBody = innerDoc.querySelector('.innerdocbody') || innerDoc.body;
       if (!innerBody) return null;
 
-      // 🛡️ localStorage 历史作者类名持久化存储（防止刷新页面后 localUserId 变更导致前序字数归属丢失）
-      const userKey = currUser ? (currUser.id || currUser.studentCode || currUser.name || 'user') : 'user';
-      const storageKey = `jizhi_author_ids_${activeTaskId}_${targetGid}_${userKey}`;
-
-      if (!window._jizhiLocalAuthorClasses) {
-        window._jizhiLocalAuthorClasses = new Set();
-        try {
-          const rawSaved = localStorage.getItem(storageKey);
-          if (rawSaved) {
-            const arr = JSON.parse(rawSaved);
-            if (Array.isArray(arr)) arr.forEach(c => window._jizhiLocalAuthorClasses.add(c));
-          }
-        } catch (e) {}
-      }
-
-      const saveLocalAuthorClass = (cls) => {
-        if (!cls) return;
-        if (!window._jizhiLocalAuthorClasses) window._jizhiLocalAuthorClasses = new Set();
-        window._jizhiLocalAuthorClasses.add(cls);
-        const raw = cls.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
-        if (raw) {
-          window._jizhiLocalAuthorClasses.add('a.' + raw);
-          window._jizhiLocalAuthorClasses.add('a-' + raw);
-          window._jizhiLocalAuthorClasses.add('a_' + raw);
-          window._jizhiLocalAuthorClasses.add(raw);
-        }
-        try {
-          localStorage.setItem(storageKey, JSON.stringify(Array.from(window._jizhiLocalAuthorClasses)));
-        } catch (e) {}
-      };
-
       if (!innerBody._jizhiInputBound) {
         innerBody._jizhiInputBound = true;
         const markLocalTyping = (e) => {
           window._lastLocalPadInputTime = Date.now();
           window._lastLocalActionType = e?.type || 'input';
-          try {
-            const sel = innerDoc.getSelection();
-            if (sel && sel.anchorNode) {
-              const el = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
-              const aCls = getAuthorClassFromEl(el, innerBody);
-              if (aCls) {
-                window._localDetectedAuthorClass = aCls;
-                saveLocalAuthorClass(aCls);
-              }
-            }
-          } catch(err) {}
         };
         innerBody.addEventListener('input', markLocalTyping, true);
         innerBody.addEventListener('keydown', markLocalTyping, true);
         innerBody.addEventListener('keyup', markLocalTyping, true);
         innerBody.addEventListener('paste', markLocalTyping, true);
         innerBody.addEventListener('compositionend', markLocalTyping, true);
-        innerBody.addEventListener('mouseup', markLocalTyping, true);
-        innerDoc.addEventListener('selectionchange', markLocalTyping, true);
       }
 
       const rawText = (innerBody.innerText || '').replace(/\r\n/g, '\n').trim();
@@ -11793,13 +11749,11 @@
       const walker = innerDoc.createTreeWalker(innerBody, NodeFilter.SHOW_TEXT, null, false);
       const rawCounts = {};
       let node;
-      let walkTotal = 0;
 
       while ((node = walker.nextNode())) {
         const txt = (node.nodeValue || '').replace(/[\r\n\t]/g, '');
         const len = txt.length;
         if (len === 0) continue;
-        walkTotal += len;
         const aClass = getAuthorClassFromEl(node.parentElement, innerBody) || 'unassigned';
         rawCounts[aClass] = (rawCounts[aClass] || 0) + len;
       }
@@ -11823,34 +11777,9 @@
           try { localUserId = padWin.pad.getUserId(); } catch(e){}
         }
       }
-      if (localUserId) {
-        saveLocalAuthorClass(localUserId);
-      }
-
       const rawLocalId = localUserId ? localUserId.replace(/^(author[-_]|a[._-])/i, '').toLowerCase() : '';
-      if (rawLocalId && selfMem) {
-        authorMap.set(rawLocalId, selfMem);
-        authorMap.set('a.' + rawLocalId, selfMem);
-        authorMap.set('a-' + rawLocalId, selfMem);
-        authorMap.set('a_' + rawLocalId, selfMem);
-        authorMap.set(localUserId, selfMem);
-      }
 
-      // 将 localStorage 中已知属于当前用户的作者类名全部预映射为 selfMem
-      if (window._jizhiLocalAuthorClasses && selfMem) {
-        window._jizhiLocalAuthorClasses.forEach(cls => {
-          const raw = cls.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
-          authorMap.set(cls, selfMem);
-          if (raw) {
-            authorMap.set(raw, selfMem);
-            authorMap.set('a.' + raw, selfMem);
-            authorMap.set('a-' + raw, selfMem);
-            authorMap.set('a_' + raw, selfMem);
-          }
-        });
-      }
-
-      // 1. 遍历 authorData，依据姓名与颜色权威绑定组内成员
+      // 1. 权威依据 Etherpad authorData (历史与当前全量作者数据) 进行姓名与颜色绑定
       Object.entries(authorData).forEach(([aKey, aObj]) => {
         if (!aKey || !aObj) return;
         const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
@@ -11889,9 +11818,18 @@
         }
       });
 
+      // 2. 当前客户端 localUserId 保底绑定为当前登录用户 selfMem
+      if (rawLocalId && selfMem && !authorMap.has(rawLocalId)) {
+        authorMap.set(rawLocalId, selfMem);
+        authorMap.set('a.' + rawLocalId, selfMem);
+        authorMap.set('a-' + rawLocalId, selfMem);
+        authorMap.set('a_' + rawLocalId, selfMem);
+        authorMap.set(localUserId, selfMem);
+      }
+
       const assignedAuthors = new Map();
 
-      // 2. 权威分配 DOM 中的每一个 authorClass
+      // 3. 权威分配 DOM 中的每一个 authorClass
       Object.keys(rawCounts).forEach(aKey => {
         if (aKey === 'unassigned') return;
         const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
@@ -11920,12 +11858,8 @@
           }
         }
 
-        const isLocalKey = (rawId && rawId === rawLocalId) || 
-                          (window._localDetectedAuthorClass === aKey) || 
-                          (window._jizhiLocalAuthorClasses && (window._jizhiLocalAuthorClasses.has(aKey) || window._jizhiLocalAuthorClasses.has(rawId)));
-
         if (!matched) {
-          if (isLocalKey && selfMem) {
+          if (rawId && rawId === rawLocalId && selfMem) {
             matched = selfMem;
           } else if (otherMembers.length === 1) {
             matched = otherMembers[0];
@@ -11940,7 +11874,7 @@
         }
       });
 
-      // 3. 累计各成员字数
+      // 4. 累计各成员字数
       let totalAssignedChars = 0;
       Object.keys(rawCounts).forEach(aKey => {
         const count = rawCounts[aKey];
@@ -16123,12 +16057,10 @@
         let rawTotal = 0;
         membersList.forEach(m => { rawTotal += getVal(m); });
 
-        const docLen = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.length : 0;
         contribLabelsContainer.innerHTML = membersList.map((m) => {
           const rawVal = getVal(m);
           const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
-          const displayWords = (docLen > 0 && rawTotal > 0) ? Math.round((rawVal / rawTotal) * docLen) : rawVal;
-          return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}% (${displayWords}字)</span>`;
+          return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}% (${rawVal}字)</span>`;
         }).join('');
 
         if (rawTotal === 0) {

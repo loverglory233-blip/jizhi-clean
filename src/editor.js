@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2678";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2678";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2678";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2679";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2679";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2679";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -282,61 +282,17 @@ export function getEtherpadAuthorStats(frameId = 'stage2-etherpad-frame', member
     const innerBody = innerDoc.querySelector('.innerdocbody') || innerDoc.body;
     if (!innerBody) return null;
 
-    // 🛡️ localStorage 历史作者类名持久化存储（防止刷新页面后 localUserId 变更导致前序字数归属丢失）
-    const userKey = currUser ? (currUser.id || currUser.studentCode || currUser.name || 'user') : 'user';
-    const storageKey = `jizhi_author_ids_${activeTaskId}_${targetGid}_${userKey}`;
-
-    if (!window._jizhiLocalAuthorClasses) {
-      window._jizhiLocalAuthorClasses = new Set();
-      try {
-        const rawSaved = localStorage.getItem(storageKey);
-        if (rawSaved) {
-          const arr = JSON.parse(rawSaved);
-          if (Array.isArray(arr)) arr.forEach(c => window._jizhiLocalAuthorClasses.add(c));
-        }
-      } catch (e) {}
-    }
-
-    const saveLocalAuthorClass = (cls) => {
-      if (!cls) return;
-      if (!window._jizhiLocalAuthorClasses) window._jizhiLocalAuthorClasses = new Set();
-      window._jizhiLocalAuthorClasses.add(cls);
-      const raw = cls.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
-      if (raw) {
-        window._jizhiLocalAuthorClasses.add('a.' + raw);
-        window._jizhiLocalAuthorClasses.add('a-' + raw);
-        window._jizhiLocalAuthorClasses.add('a_' + raw);
-        window._jizhiLocalAuthorClasses.add(raw);
-      }
-      try {
-        localStorage.setItem(storageKey, JSON.stringify(Array.from(window._jizhiLocalAuthorClasses)));
-      } catch (e) {}
-    };
-
     if (!innerBody._jizhiInputBound) {
       innerBody._jizhiInputBound = true;
       const markLocalTyping = (e) => {
         window._lastLocalPadInputTime = Date.now();
         window._lastLocalActionType = e?.type || 'input';
-        try {
-          const sel = innerDoc.getSelection();
-          if (sel && sel.anchorNode) {
-            const el = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
-            const aCls = getAuthorClassFromEl(el, innerBody);
-            if (aCls) {
-              window._localDetectedAuthorClass = aCls;
-              saveLocalAuthorClass(aCls);
-            }
-          }
-        } catch(err) {}
       };
       innerBody.addEventListener('input', markLocalTyping, true);
       innerBody.addEventListener('keydown', markLocalTyping, true);
       innerBody.addEventListener('keyup', markLocalTyping, true);
       innerBody.addEventListener('paste', markLocalTyping, true);
       innerBody.addEventListener('compositionend', markLocalTyping, true);
-      innerBody.addEventListener('mouseup', markLocalTyping, true);
-      innerDoc.addEventListener('selectionchange', markLocalTyping, true);
     }
 
     const rawText = (innerBody.innerText || '').replace(/\r\n/g, '\n').trim();
@@ -408,13 +364,11 @@ export function getEtherpadAuthorStats(frameId = 'stage2-etherpad-frame', member
     const walker = innerDoc.createTreeWalker(innerBody, NodeFilter.SHOW_TEXT, null, false);
     const rawCounts = {};
     let node;
-    let walkTotal = 0;
 
     while ((node = walker.nextNode())) {
       const txt = (node.nodeValue || '').replace(/[\r\n\t]/g, '');
       const len = txt.length;
       if (len === 0) continue;
-      walkTotal += len;
       const aClass = getAuthorClassFromEl(node.parentElement, innerBody) || 'unassigned';
       rawCounts[aClass] = (rawCounts[aClass] || 0) + len;
     }
@@ -438,34 +392,9 @@ export function getEtherpadAuthorStats(frameId = 'stage2-etherpad-frame', member
         try { localUserId = padWin.pad.getUserId(); } catch(e){}
       }
     }
-    if (localUserId) {
-      saveLocalAuthorClass(localUserId);
-    }
-
     const rawLocalId = localUserId ? localUserId.replace(/^(author[-_]|a[._-])/i, '').toLowerCase() : '';
-    if (rawLocalId && selfMem) {
-      authorMap.set(rawLocalId, selfMem);
-      authorMap.set('a.' + rawLocalId, selfMem);
-      authorMap.set('a-' + rawLocalId, selfMem);
-      authorMap.set('a_' + rawLocalId, selfMem);
-      authorMap.set(localUserId, selfMem);
-    }
 
-    // 将 localStorage 中已知属于当前用户的作者类名全部预映射为 selfMem
-    if (window._jizhiLocalAuthorClasses && selfMem) {
-      window._jizhiLocalAuthorClasses.forEach(cls => {
-        const raw = cls.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
-        authorMap.set(cls, selfMem);
-        if (raw) {
-          authorMap.set(raw, selfMem);
-          authorMap.set('a.' + raw, selfMem);
-          authorMap.set('a-' + raw, selfMem);
-          authorMap.set('a_' + raw, selfMem);
-        }
-      });
-    }
-
-    // 1. 遍历 authorData，依据姓名与颜色权威绑定组内成员
+    // 1. 权威依据 Etherpad authorData (历史与当前全量作者数据) 进行姓名与颜色绑定
     Object.entries(authorData).forEach(([aKey, aObj]) => {
       if (!aKey || !aObj) return;
       const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
@@ -504,9 +433,18 @@ export function getEtherpadAuthorStats(frameId = 'stage2-etherpad-frame', member
       }
     });
 
+    // 2. 当前客户端 localUserId 保底绑定为当前登录用户 selfMem
+    if (rawLocalId && selfMem && !authorMap.has(rawLocalId)) {
+      authorMap.set(rawLocalId, selfMem);
+      authorMap.set('a.' + rawLocalId, selfMem);
+      authorMap.set('a-' + rawLocalId, selfMem);
+      authorMap.set('a_' + rawLocalId, selfMem);
+      authorMap.set(localUserId, selfMem);
+    }
+
     const assignedAuthors = new Map();
 
-    // 2. 权威分配 DOM 中的每一个 authorClass
+    // 3. 权威分配 DOM 中的每一个 authorClass
     Object.keys(rawCounts).forEach(aKey => {
       if (aKey === 'unassigned') return;
       const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
@@ -535,12 +473,8 @@ export function getEtherpadAuthorStats(frameId = 'stage2-etherpad-frame', member
         }
       }
 
-      const isLocalKey = (rawId && rawId === rawLocalId) || 
-                        (window._localDetectedAuthorClass === aKey) || 
-                        (window._jizhiLocalAuthorClasses && (window._jizhiLocalAuthorClasses.has(aKey) || window._jizhiLocalAuthorClasses.has(rawId)));
-
       if (!matched) {
-        if (isLocalKey && selfMem) {
+        if (rawId && rawId === rawLocalId && selfMem) {
           matched = selfMem;
         } else if (otherMembers.length === 1) {
           matched = otherMembers[0];
@@ -555,7 +489,7 @@ export function getEtherpadAuthorStats(frameId = 'stage2-etherpad-frame', member
       }
     });
 
-    // 3. 累计各成员字数
+    // 4. 累计各成员字数
     let totalAssignedChars = 0;
     Object.keys(rawCounts).forEach(aKey => {
       const count = rawCounts[aKey];
