@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2692
+ * Version: 20260906_v2693
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2692';
+  const APP_VERSION = '20260906_v2693';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11452,11 +11452,11 @@
     const currState = state || (app ? app.state : null);
     if (!currState) return null;
 
-    // 1. 如果已有显式的 activeAgentAnalyzing 且未超时（60秒大模型兜底保护）
+    // 1. 如果已有显式的 activeAgentAnalyzing 且未超时（120秒大模型兜底保护）
     const explicitAnalyzing = currState.activeAgentAnalyzing || (app && app.state && app.state.activeAgentAnalyzing);
     if (explicitAnalyzing && typeof explicitAnalyzing === 'object') {
       const ts = explicitAnalyzing._ts || explicitAnalyzing.timestamp || 0;
-      if (!ts || (Date.now() - ts < 60000)) {
+      if (!ts || (Date.now() - ts < 120000)) {
         return explicitAnalyzing;
       } else {
         if (currState.activeAgentAnalyzing) currState.activeAgentAnalyzing = null;
@@ -11470,6 +11470,14 @@
     const isInst = (currentTaskType === 'instructional');
 
     if (app) {
+      if (!app._extractingTimestamps) app._extractingTimestamps = {};
+      const getStartTs = (key) => {
+        if (!app._extractingTimestamps[key]) {
+          app._extractingTimestamps[key] = Date.now();
+        }
+        return app._extractingTimestamps[key];
+      };
+
       // 阶段一：投票后方案细化/融合研讨引导
       if (app._isTriggeringVoteGuidance || (currState.stage1 && currState.stage1._guidanceCallingTimestamp && (Date.now() - Number(currState.stage1._guidanceCallingTimestamp) < 60000))) {
         const role = isInst ? '备课引导师' : '学术拍卖师';
@@ -11477,7 +11485,7 @@
           icon: isInst ? '📐' : '🎪',
           title: role,
           isExtracting: true,
-          _ts: Date.now(),
+          _ts: (currState.stage1 && currState.stage1._guidanceCallingTimestamp) ? Number(currState.stage1._guidanceCallingTimestamp) : getStartTs('vote_guidance'),
           detail: `${role}正在分析全组投票意向与方案细化维度...`
         };
       }
@@ -11488,7 +11496,7 @@
           icon: isInst ? '📐' : '🎪',
           title: role,
           isExtracting: true,
-          _ts: Date.now(),
+          _ts: getStartTs('topic'),
           detail: `${role}正在根据讨论区研讨记录提炼【${isInst ? '教学课题与方案概述' : '论文主题与研究方案'}】...`
         };
       }
@@ -11499,7 +11507,7 @@
           icon: '⏱️',
           title: role,
           isExtracting: true,
-          _ts: Date.now(),
+          _ts: getStartTs('time'),
           detail: `${role}正在根据研讨成果提炼并规划【${isInst ? '教学各环节时间分配' : '论文研究各阶段时间分配'}】...`
         };
       }
@@ -11510,7 +11518,7 @@
           icon: '👥',
           title: role,
           isExtracting: true,
-          _ts: Date.now(),
+          _ts: getStartTs('tasks'),
           detail: `${role}正在根据研讨过程提炼【各组员具体任务分工与职责】...`
         };
       }
@@ -11521,7 +11529,7 @@
           icon: '📋',
           title: role,
           isExtracting: true,
-          _ts: Date.now(),
+          _ts: getStartTs('contract'),
           detail: `${role}正在整合主题、时间与分工，生成完整的团队协同公约草案...`
         };
       }
@@ -11532,7 +11540,7 @@
           icon: '🤝',
           title: role,
           isExtracting: true,
-          _ts: Date.now(),
+          _ts: getStartTs('s2_managing'),
           detail: `${isInst ? '备课组长与教研专家' : '责任编辑与审稿专家'}正在研判研讨记录与正文草稿，生成修正清单...`
         };
       }
@@ -11543,7 +11551,7 @@
           icon: '📝',
           title: role,
           isExtracting: true,
-          _ts: Date.now(),
+          _ts: getStartTs('s2_reviewing'),
           detail: `${role}正在评估全组修改对策与落实方案，下发修改确认与冲刺寄语...`
         };
       }
@@ -11554,7 +11562,7 @@
           icon: '⚖️',
           title: role,
           isExtracting: true,
-          _ts: Date.now(),
+          _ts: getStartTs('s3_inquiry'),
           detail: `${role}正在综合质询辩驳与各评委观点，下发终审定案裁决...`
         };
       }
@@ -11564,6 +11572,18 @@
   }
   if (typeof window !== 'undefined') {
     window.getEffectiveAgentAnalyzing = getEffectiveAgentAnalyzing;
+  }
+
+  /**
+   * ⏱️ 格式化智能体耗时计时器 HTML（直接计算当前精确耗时秒数，防止切页或重渲染时瞬间归零闪烁）
+   */
+  function formatElapsedTimerSpan(ts, label = '动态分析中') {
+    const start = Number(ts) || Date.now();
+    const sec = Math.max(0, Math.floor((Date.now() - start) / 1000));
+    return `⏳ ${label} <span class="agent-elapsed-timer" data-start="${start}">(已耗时 ${sec}s)</span>`;
+  }
+  if (typeof window !== 'undefined') {
+    window.formatElapsedTimerSpan = formatElapsedTimerSpan;
   }
 
   /**
@@ -12368,7 +12388,7 @@
             </div>
           </div>
           <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-            ⏳ 动态分析中 <span class="agent-elapsed-timer" data-start="${effectiveAnalyzing._ts || Date.now()}">(已耗时 0s)</span>
+            ${formatElapsedTimerSpan(effectiveAnalyzing._ts, '动态分析中')}
           </span>
         </div>
       ` : ''}
@@ -13664,7 +13684,7 @@
               </div>
             </div>
             <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-              ⏳ 深度质检中 <span class="agent-elapsed-timer" data-start="${effectiveAnalyzing._ts || Date.now()}">(已耗时 0s)</span>
+              ${formatElapsedTimerSpan(effectiveAnalyzing._ts, '深度质检中')}
             </span>
           </div>
         `;
@@ -13902,7 +13922,7 @@
               </div>
             </div>
             <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-              ⏳ 深度质检中 <span class="agent-elapsed-timer" data-start="${effAnalyzing._ts || Date.now()}">(已耗时 0s)</span>
+              ${formatElapsedTimerSpan(effAnalyzing._ts, '深度质检中')}
             </span>
           </div>
           `;
@@ -14289,7 +14309,7 @@
               </div>
             </div>
             <span style="font-size:11px; font-weight:800; color:#a16207; background:#ffffff; border:1px solid #fef08a; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-              ⏳ 答辩定案中 <span class="agent-elapsed-timer" data-start="${effectiveAnalyzing._ts || Date.now()}">(已耗时 0s)</span>
+              ${formatElapsedTimerSpan(effectiveAnalyzing._ts, '答辩定案中')}
             </span>
           </div>
         `;
@@ -14382,7 +14402,7 @@
               </div>
             </div>
             <span style="font-size:11px; font-weight:800; color:#a16207; background:#ffffff; border:1px solid #fef08a; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-              ⏳ 答辩定案中 <span class="agent-elapsed-timer" data-start="${effAnalyzingStage3._ts || Date.now()}">(已耗时 0s)</span>
+              ${formatElapsedTimerSpan(effAnalyzingStage3._ts, '答辩定案中')}
             </span>
           </div>
         ` : ''}
@@ -15069,7 +15089,7 @@
               ${escapeHtml((analyzing.title || '智能体专家').replace(/[【】]/g, ''))}
             </span>
             <span style="font-size:10px; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:1px 6px; border-radius:10px; margin-left:6px; font-weight:700;">
-              ⏳ 正在深度研读与质检中... <span class="agent-elapsed-timer" data-start="${analyzing._ts || Date.now()}">(已耗时 0s)</span>
+              ${formatElapsedTimerSpan(analyzing._ts, '正在深度研读与质检中...')}
             </span>
           </div>
           <div class="msg-bubble thinking-bubble" style="background:#f8fafc; border:1.5px dashed #3b82f6; display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:12px; color:#1e40af; box-shadow:0 1px 3px rgba(37,99,235,0.06);">
@@ -15996,7 +16016,15 @@
     // 🤖 智能体正在分析动态状态设置器（全端毫秒级实时同步广播）
     setActiveAgentAnalyzing(info = null) {
       if (info && typeof info === 'object') {
-        if (!info._ts) info._ts = Date.now();
+        // 🛡️ 保持整个协同研讨/质检流程时间连续：如果前序已有正在进行的分析且未提供新 _ts，则继承前序 _ts
+        const prevTs = this.state.activeAgentAnalyzing && this.state.activeAgentAnalyzing._ts;
+        if (!info._ts) {
+          info._ts = prevTs || Date.now();
+        }
+      } else {
+        if (this._extractingTimestamps) {
+          this._extractingTimestamps = {};
+        }
       }
       this.state.activeAgentAnalyzing = info;
       if (this.cloudSyncEngine && typeof this.cloudSyncEngine.pushSnapshot === 'function') {
@@ -21954,7 +21982,7 @@
                   </div>
                 </div>
                 <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-                  ⏳ 动态分析中 <span class="agent-elapsed-timer" data-start="${analyzing._ts || Date.now()}">(已耗时 0s)</span>
+                  ${(typeof window.formatElapsedTimerSpan === 'function') ? window.formatElapsedTimerSpan(analyzing._ts, '动态分析中') : `⏳ 动态分析中 <span class="agent-elapsed-timer" data-start="${analyzing._ts || Date.now()}">(已耗时 ${Math.max(0, Math.floor((Date.now() - (analyzing._ts || Date.now())) / 1000))}s)</span>`}
                 </span>
               </div>
             `;

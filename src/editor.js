@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2692";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2692";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2692";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2693";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2693";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2693";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -15,11 +15,11 @@ export function getEffectiveAgentAnalyzing(state = null) {
   const currState = state || (app ? app.state : null);
   if (!currState) return null;
 
-  // 1. 如果已有显式的 activeAgentAnalyzing 且未超时（60秒大模型兜底保护）
+  // 1. 如果已有显式的 activeAgentAnalyzing 且未超时（120秒大模型兜底保护）
   const explicitAnalyzing = currState.activeAgentAnalyzing || (app && app.state && app.state.activeAgentAnalyzing);
   if (explicitAnalyzing && typeof explicitAnalyzing === 'object') {
     const ts = explicitAnalyzing._ts || explicitAnalyzing.timestamp || 0;
-    if (!ts || (Date.now() - ts < 60000)) {
+    if (!ts || (Date.now() - ts < 120000)) {
       return explicitAnalyzing;
     } else {
       if (currState.activeAgentAnalyzing) currState.activeAgentAnalyzing = null;
@@ -33,6 +33,14 @@ export function getEffectiveAgentAnalyzing(state = null) {
   const isInst = (currentTaskType === 'instructional');
 
   if (app) {
+    if (!app._extractingTimestamps) app._extractingTimestamps = {};
+    const getStartTs = (key) => {
+      if (!app._extractingTimestamps[key]) {
+        app._extractingTimestamps[key] = Date.now();
+      }
+      return app._extractingTimestamps[key];
+    };
+
     // 阶段一：投票后方案细化/融合研讨引导
     if (app._isTriggeringVoteGuidance || (currState.stage1 && currState.stage1._guidanceCallingTimestamp && (Date.now() - Number(currState.stage1._guidanceCallingTimestamp) < 60000))) {
       const role = isInst ? '备课引导师' : '学术拍卖师';
@@ -40,7 +48,7 @@ export function getEffectiveAgentAnalyzing(state = null) {
         icon: isInst ? '📐' : '🎪',
         title: role,
         isExtracting: true,
-        _ts: Date.now(),
+        _ts: (currState.stage1 && currState.stage1._guidanceCallingTimestamp) ? Number(currState.stage1._guidanceCallingTimestamp) : getStartTs('vote_guidance'),
         detail: `${role}正在分析全组投票意向与方案细化维度...`
       };
     }
@@ -51,7 +59,7 @@ export function getEffectiveAgentAnalyzing(state = null) {
         icon: isInst ? '📐' : '🎪',
         title: role,
         isExtracting: true,
-        _ts: Date.now(),
+        _ts: getStartTs('topic'),
         detail: `${role}正在根据讨论区研讨记录提炼【${isInst ? '教学课题与方案概述' : '论文主题与研究方案'}】...`
       };
     }
@@ -62,7 +70,7 @@ export function getEffectiveAgentAnalyzing(state = null) {
         icon: '⏱️',
         title: role,
         isExtracting: true,
-        _ts: Date.now(),
+        _ts: getStartTs('time'),
         detail: `${role}正在根据研讨成果提炼并规划【${isInst ? '教学各环节时间分配' : '论文研究各阶段时间分配'}】...`
       };
     }
@@ -73,7 +81,7 @@ export function getEffectiveAgentAnalyzing(state = null) {
         icon: '👥',
         title: role,
         isExtracting: true,
-        _ts: Date.now(),
+        _ts: getStartTs('tasks'),
         detail: `${role}正在根据研讨过程提炼【各组员具体任务分工与职责】...`
       };
     }
@@ -84,7 +92,7 @@ export function getEffectiveAgentAnalyzing(state = null) {
         icon: '📋',
         title: role,
         isExtracting: true,
-        _ts: Date.now(),
+        _ts: getStartTs('contract'),
         detail: `${role}正在整合主题、时间与分工，生成完整的团队协同公约草案...`
       };
     }
@@ -95,7 +103,7 @@ export function getEffectiveAgentAnalyzing(state = null) {
         icon: '🤝',
         title: role,
         isExtracting: true,
-        _ts: Date.now(),
+        _ts: getStartTs('s2_managing'),
         detail: `${isInst ? '备课组长与教研专家' : '责任编辑与审稿专家'}正在研判研讨记录与正文草稿，生成修正清单...`
       };
     }
@@ -106,7 +114,7 @@ export function getEffectiveAgentAnalyzing(state = null) {
         icon: '📝',
         title: role,
         isExtracting: true,
-        _ts: Date.now(),
+        _ts: getStartTs('s2_reviewing'),
         detail: `${role}正在评估全组修改对策与落实方案，下发修改确认与冲刺寄语...`
       };
     }
@@ -117,7 +125,7 @@ export function getEffectiveAgentAnalyzing(state = null) {
         icon: '⚖️',
         title: role,
         isExtracting: true,
-        _ts: Date.now(),
+        _ts: getStartTs('s3_inquiry'),
         detail: `${role}正在综合质询辩驳与各评委观点，下发终审定案裁决...`
       };
     }
@@ -127,6 +135,18 @@ export function getEffectiveAgentAnalyzing(state = null) {
 }
 if (typeof window !== 'undefined') {
   window.getEffectiveAgentAnalyzing = getEffectiveAgentAnalyzing;
+}
+
+/**
+ * ⏱️ 格式化智能体耗时计时器 HTML（直接计算当前精确耗时秒数，防止切页或重渲染时瞬间归零闪烁）
+ */
+export function formatElapsedTimerSpan(ts, label = '动态分析中') {
+  const start = Number(ts) || Date.now();
+  const sec = Math.max(0, Math.floor((Date.now() - start) / 1000));
+  return `⏳ ${label} <span class="agent-elapsed-timer" data-start="${start}">(已耗时 ${sec}s)</span>`;
+}
+if (typeof window !== 'undefined') {
+  window.formatElapsedTimerSpan = formatElapsedTimerSpan;
 }
 
 /**
@@ -931,7 +951,7 @@ function renderStage1Canvas(canvas, state, handlers) {
           </div>
         </div>
         <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-          ⏳ 动态分析中 <span class="agent-elapsed-timer" data-start="${effectiveAnalyzing._ts || Date.now()}">(已耗时 0s)</span>
+          ${formatElapsedTimerSpan(effectiveAnalyzing._ts, '动态分析中')}
         </span>
       </div>
     ` : ''}
@@ -2227,7 +2247,7 @@ function renderStage2Canvas(canvas, state, handlers) {
             </div>
           </div>
           <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-            ⏳ 深度质检中 <span class="agent-elapsed-timer" data-start="${effectiveAnalyzing._ts || Date.now()}">(已耗时 0s)</span>
+            ${formatElapsedTimerSpan(effectiveAnalyzing._ts, '深度质检中')}
           </span>
         </div>
       `;
@@ -2465,7 +2485,7 @@ function renderStage2Canvas(canvas, state, handlers) {
             </div>
           </div>
           <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-            ⏳ 深度质检中 <span class="agent-elapsed-timer" data-start="${effAnalyzing._ts || Date.now()}">(已耗时 0s)</span>
+            ${formatElapsedTimerSpan(effAnalyzing._ts, '深度质检中')}
           </span>
         </div>
         `;
@@ -2852,7 +2872,7 @@ function renderStage3Canvas(canvas, state, handlers) {
             </div>
           </div>
           <span style="font-size:11px; font-weight:800; color:#a16207; background:#ffffff; border:1px solid #fef08a; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-            ⏳ 答辩定案中 <span class="agent-elapsed-timer" data-start="${effectiveAnalyzing._ts || Date.now()}">(已耗时 0s)</span>
+            ${formatElapsedTimerSpan(effectiveAnalyzing._ts, '答辩定案中')}
           </span>
         </div>
       `;
@@ -2945,7 +2965,7 @@ function renderStage3Canvas(canvas, state, handlers) {
             </div>
           </div>
           <span style="font-size:11px; font-weight:800; color:#a16207; background:#ffffff; border:1px solid #fef08a; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-            ⏳ 答辩定案中 <span class="agent-elapsed-timer" data-start="${effAnalyzingStage3._ts || Date.now()}">(已耗时 0s)</span>
+            ${formatElapsedTimerSpan(effAnalyzingStage3._ts, '答辩定案中')}
           </span>
         </div>
       ` : ''}
@@ -3632,7 +3652,7 @@ export function renderChat(state) {
             ${escapeHtml((analyzing.title || '智能体专家').replace(/[【】]/g, ''))}
           </span>
           <span style="font-size:10px; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:1px 6px; border-radius:10px; margin-left:6px; font-weight:700;">
-            ⏳ 正在深度研读与质检中... <span class="agent-elapsed-timer" data-start="${analyzing._ts || Date.now()}">(已耗时 0s)</span>
+            ${formatElapsedTimerSpan(analyzing._ts, '正在深度研读与质检中...')}
           </span>
         </div>
         <div class="msg-bubble thinking-bubble" style="background:#f8fafc; border:1.5px dashed #3b82f6; display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:12px; color:#1e40af; box-shadow:0 1px 3px rgba(37,99,235,0.06);">
