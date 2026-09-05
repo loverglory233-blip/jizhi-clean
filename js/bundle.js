@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2810
+ * Version: 20260905_v2811
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2810';
+  const APP_VERSION = '20260905_v2811';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -16022,11 +16022,6 @@
       this.stageInactivityTimer = setInterval(async () => {
         const currUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
         if (!currUserObj || currUserObj.role === 'teacher') return;
-
-        // 🔄 0. 极速版本心跳同步：拉取教师端最新发布的通知、任务与延期 (基于服务端版本戳，版本未变 0 开销)
-        if (this.authManager && this.authManager.pullGlobalMeta) {
-          try { await this.authManager.pullGlobalMeta(); } catch (e) {}
-        }
 
         const allTasks = this.authManager ? this.authManager.getTasks() : [];
         const effClassId = this.state.activeStudentClassId || currUserObj.classId || null;
