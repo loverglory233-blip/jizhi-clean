@@ -1,5 +1,5 @@
-import { escapeHtml } from "./utils.js?v=20260905_v2592";
-import { APP_VERSION } from "./constants.js?v=20260905_v2592";
+import { escapeHtml, isSameId } from "./utils.js?v=20260905_v2593";
+import { APP_VERSION } from "./constants.js?v=20260905_v2593";
 
 export function renderLoginView(container, authManager, onLoginSuccess) {
   if (authManager && authManager.pullGlobalMeta) {
@@ -91,7 +91,7 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
     if (!val) return;
     const allUsers = (authManager && authManager.getUsers) ? authManager.getUsers() : [];
     const isTeacher = allUsers.some(u => 
-      (u.role === 'teacher' || u.isTeacher) && u.id && u.id.toLowerCase() === val
+      (u.role === 'teacher' || u.isTeacher) && isSameId(u.id, val)
     );
     if (isTeacher) {
       const teacherRadio = container.querySelector('input[name="login-role"][value="teacher"]');

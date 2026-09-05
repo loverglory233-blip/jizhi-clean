@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260905_v2592";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260905_v2592";
+} from "./constants.js?v=20260905_v2593";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260905_v2593";
 
 export const getPanoGroupData = (pano, gid) => {
   if (!pano || typeof pano !== 'object' || !gid) return null;
@@ -2365,7 +2365,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
       if (!name || !code) { alert('⚠️ 请填齐学生姓名和学号！'); return; }
       try {
         const users = authManager.getUsers();
-        const isAlreadyExist = users.some(u => (u.id && u.id.trim().toLowerCase() === code.toLowerCase()));
+        const isAlreadyExist = users.some(u => isSameId(u.id, code));
         const targetUser = authManager.addStudentToClass(name, code, targetCls ? targetCls.id : null, pwd || '123');
         if (targetCls) {
           if (isAlreadyExist) {
