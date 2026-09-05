@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2691
+ * Version: 20260906_v2692
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2691';
+  const APP_VERSION = '20260906_v2692';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4624,12 +4624,20 @@
         try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
       }
 
+      if (!prevDeadline || !t.deadline) return;
+      const prevMs = new Date(String(prevDeadline).replace(/-/g, '/')).getTime();
+      const newMs = new Date(String(t.deadline).replace(/-/g, '/')).getTime();
+      if (isNaN(prevMs) || isNaN(newMs) || newMs <= prevMs) return;
+      const addedMin = Math.round((newMs - prevMs) / 60000);
+      if (addedMin <= 0) return;
+
       let shownEvents = {};
-      try { shownEvents = JSON.parse(sessionStorage.getItem('jizhi_shown_deadline_events') || '{}'); } catch (e) {}
+      try { shownEvents = JSON.parse(localStorage.getItem('jizhi_shown_deadline_events') || '{}'); } catch (e) {}
       const eventKey = `${t.id}_${t.deadline}`;
       const isNoticeAlreadyShown = !!shownEvents[eventKey];
+      if (isNoticeAlreadyShown) return;
       shownEvents[eventKey] = true;
-      try { sessionStorage.setItem('jizhi_shown_deadline_events', JSON.stringify(shownEvents)); } catch (e) {}
+      try { localStorage.setItem('jizhi_shown_deadline_events', JSON.stringify(shownEvents)); } catch (e) {}
 
       const prevExpired = isTaskExpired(prevDeadline);
       const nowExpired = isTaskExpired(t);
@@ -4642,7 +4650,7 @@
         (t.title && badgeText.includes(t.title))
       );
       const isTaskHall = !isWorkspace || this.app.state.studentViewMode === 'task_list';
-      const extDurationStr = t.lastExtension?.extendDurationStr || (t.lastExtension?.addedMinutes ? `（增加了 ${t.lastExtension.addedMinutes} 分钟）` : '');
+      const extDurationStr = `（增加了 ${addedMin} 分钟）`;
 
       if (isCurrentTask) {
         // 🎯 场景 1：学生正处于该任务工作台内部
@@ -23257,8 +23265,8 @@
       const isS1Confirmed = !!(this.state.stage1?.contract?.isConfirmed);
       if (isS1Confirmed && (!this.state.groupMaxStage || this.state.groupMaxStage === 'stage1') && this.state.currentStage === 'stage1') {
         const autoKey = `jizhi_autoadvanced_${activeTaskId}_stage2`;
-        if (!sessionStorage.getItem(autoKey)) {
-          sessionStorage.setItem(autoKey, '1');
+        if (!localStorage.getItem(autoKey)) {
+          localStorage.setItem(autoKey, '1');
           const stage2Title = isInst ? '阶段二：集体备课室' : '阶段二：学术编辑部';
           const contractTitle = isInst ? '备课合作公约' : '学术合作公约';
           this.showStageMilestoneModal({
@@ -23278,8 +23286,8 @@
       const isS2DraftConfirmed = !!(this.state.stage2?.isDraftConfirmed);
       if (isS2DraftConfirmed && (this.state.groupMaxStage === 'stage2' || this.state.groupMaxStage === 'stage1') && this.state.currentStage === 'stage2') {
         const autoKey = `jizhi_autoadvanced_${activeTaskId}_stage3`;
-        if (!sessionStorage.getItem(autoKey)) {
-          sessionStorage.setItem(autoKey, '1');
+        if (!localStorage.getItem(autoKey)) {
+          localStorage.setItem(autoKey, '1');
           const stage3Title = isInst ? '阶段三：答辩评审会' : '阶段三：答辩擂台';
           this.showStageMilestoneModal({
             icon: '🎓',
@@ -23298,8 +23306,8 @@
       const isS3RevisionConfirmed = !!(this.state.stage3?.isRevisionConfirmed);
       if (isS3RevisionConfirmed && this.state.currentStage === 'stage3' && this.state.stage3?.activeTab !== 'editor') {
         const autoKey = `jizhi_autoadvanced_${activeTaskId}_stage3_editor`;
-        if (!sessionStorage.getItem(autoKey)) {
-          sessionStorage.setItem(autoKey, '1');
+        if (!localStorage.getItem(autoKey)) {
+          localStorage.setItem(autoKey, '1');
           const docName = isInst ? '教学方案' : '论文';
           this.showStageMilestoneModal({
             icon: '📝',
@@ -23322,8 +23330,8 @@
       // 4. 阶段三终稿全员提交 -> 归档完成与问卷
       if (this.state.isFinalSubmitted) {
         const finalModalKey = `jizhi_autoadvanced_${activeTaskId}_final_modal`;
-        if (!sessionStorage.getItem(finalModalKey)) {
-          sessionStorage.setItem(finalModalKey, '1');
+        if (!localStorage.getItem(finalModalKey)) {
+          localStorage.setItem(finalModalKey, '1');
           const docName = isInst ? '教学方案' : '论文';
           showGlobalBannerNotice(`🏆 ${docName}终稿已全员提交归档`, `热烈祝贺组内全员已全部完成${docName}终稿提交！请全组成员填写课程体验与 SSRL 评估问卷。`, 'success', 10000);
           setTimeout(() => {
