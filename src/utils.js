@@ -1198,15 +1198,28 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
         }
       }
 
-      // 4. 安全注入 pad.myUserInfo 与原生用户名输入框
-      if (userName && padWin.pad && padWin.pad.myUserInfo) {
-        padWin.pad.myUserInfo.name = userName;
-        padWin.pad.myUserInfo.colorId = color;
+      // 4. 安全注入 pad.myUserInfo 与原生用户名输入框及 collabClient
+      if (userName && padWin.pad) {
+        if (padWin.pad.myUserInfo) {
+          padWin.pad.myUserInfo.name = userName;
+          padWin.pad.myUserInfo.colorId = color;
+        }
+        if (typeof padWin.pad.notifyChangeName === 'function') {
+          try { padWin.pad.notifyChangeName(userName); } catch(e){}
+        }
+        if (typeof padWin.pad.notifyChangeColor === 'function') {
+          try { padWin.pad.notifyChangeColor(color); } catch(e){}
+        }
+        if (padWin.pad.collabClient && typeof padWin.pad.collabClient.setUserInfo === 'function') {
+          try { padWin.pad.collabClient.setUserInfo({ name: userName, colorId: color }); } catch(e){}
+        }
       }
       try {
         const nameInput = padWin.document && padWin.document.getElementById('myusernameedit');
         if (nameInput && nameInput.value !== userName) {
           nameInput.value = userName;
+          nameInput.dispatchEvent(new Event('change', { bubbles: true }));
+          nameInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
       } catch(e) {}
     } catch(err) {}
