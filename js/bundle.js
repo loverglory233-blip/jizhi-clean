@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2584
+ * Version: 20260905_v2585
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2584';
+  const APP_VERSION = '20260905_v2585';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -17981,6 +17981,7 @@
 
       // 🛡️ 1. 并发防抖与去重锁：防止同一提案同时发起多个请求造成刷屏与 Token 浪费
       this._inFlightEvaluations = this._inFlightEvaluations || new Set();
+      this._activeEvaluatingProposals = this._activeEvaluatingProposals || new Map();
       const evalKey = `${normTitle}__${normAuthor}`;
       if (this._inFlightEvaluations.has(evalKey)) {
         console.log('🛡️ 提案速评请求进行中，已自动防抖拦截:', evalKey);
@@ -17996,6 +17997,7 @@
       }
 
       this._inFlightEvaluations.add(evalKey);
+      this._activeEvaluatingProposals.set(evalKey, { title: normTitle, author: normAuthor, agentRole });
 
       // 🛡️ 3. 清理已有的同提案失败气泡与思考中占位气泡
       this.state.chatLogs[currentStage] = this.state.chatLogs[currentStage].filter(m => {
@@ -18005,10 +18007,19 @@
         return true;
       });
 
+      const activeList = Array.from(this._activeEvaluatingProposals.values());
+      let analyzingDetail = '';
+      if (activeList.length <= 1) {
+        analyzingDetail = `${agentRole}正在研读评估《${normTitle}》（作者：${normAuthor}）...`;
+      } else {
+        const titles = activeList.map(p => `《${p.title}》`).join('、');
+        analyzingDetail = `${agentRole}正在依次研读评估${titles}...`;
+      }
+
       this.setActiveAgentAnalyzing({
         icon: isInst ? '📐' : '🎪',
         title: agentRole,
-        detail: `${agentRole}正在研读评估《${normTitle}》（作者：${normAuthor}）...`
+        detail: analyzingDetail
       });
 
       const taskPrompt = `小组成员【${normAuthor}】在选题池${isModify ? '修改完善了' : '提出了新'}提案《${normTitle}》。
@@ -18090,7 +18101,29 @@
         renderChat(this.state);
       } finally {
         this._inFlightEvaluations.delete(evalKey);
-        this.setActiveAgentAnalyzing(null);
+        if (this._activeEvaluatingProposals) {
+          this._activeEvaluatingProposals.delete(evalKey);
+        }
+        if (this._inFlightEvaluations.size > 0 && this._activeEvaluatingProposals && this._activeEvaluatingProposals.size > 0) {
+          const remaining = Array.from(this._activeEvaluatingProposals.values());
+          if (remaining.length === 1) {
+            const item = remaining[0];
+            this.setActiveAgentAnalyzing({
+              icon: isInst ? '📐' : '🎪',
+              title: item.agentRole || agentRole,
+              detail: `${item.agentRole || agentRole}正在研读评估《${item.title}》（作者：${item.author}）...`
+            });
+          } else {
+            const titles = remaining.map(r => `《${r.title}》`).join('、');
+            this.setActiveAgentAnalyzing({
+              icon: isInst ? '📐' : '🎪',
+              title: agentRole,
+              detail: `${agentRole}正在依次研读评估${titles}...`
+            });
+          }
+        } else {
+          this.setActiveAgentAnalyzing(null);
+        }
       }
     }
 
@@ -18349,6 +18382,14 @@
           s1.contractStep = 'topic'; // 初始锁定第一步：主题与方案提炼
           this.syncStage1();
           this.syncChatLogs();
+
+          // 🌟 立即在此刻点亮"正在分析全组投票意向与方案细化维度..."动效，公布票数瞬间无缝呈现！
+          this.setActiveAgentAnalyzing({
+            icon: isInst ? '📐' : '🎪',
+            title: agentTitle,
+            detail: `${agentTitle}正在分析全组投票意向与方案细化维度...`
+          });
+
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           if (typeof window.renderChat === 'function') {
             window.renderChat(this.state);

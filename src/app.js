@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2584";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2584";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2584";
-import { AuthManager } from "./auth.js?v=20260905_v2584";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2584";
-import { renderLoginView } from "./login.js?v=20260905_v2584";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2584";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2584";
+} from "./constants.js?v=20260905_v2585";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2585";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2585";
+import { AuthManager } from "./auth.js?v=20260905_v2585";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2585";
+import { renderLoginView } from "./login.js?v=20260905_v2585";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2585";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2585";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2584";
+} from "./editor.js?v=20260905_v2585";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3006,6 +3006,7 @@ export class App {
 
     // 🛡️ 1. 并发防抖与去重锁：防止同一提案同时发起多个请求造成刷屏与 Token 浪费
     this._inFlightEvaluations = this._inFlightEvaluations || new Set();
+    this._activeEvaluatingProposals = this._activeEvaluatingProposals || new Map();
     const evalKey = `${normTitle}__${normAuthor}`;
     if (this._inFlightEvaluations.has(evalKey)) {
       console.log('🛡️ 提案速评请求进行中，已自动防抖拦截:', evalKey);
@@ -3021,6 +3022,7 @@ export class App {
     }
 
     this._inFlightEvaluations.add(evalKey);
+    this._activeEvaluatingProposals.set(evalKey, { title: normTitle, author: normAuthor, agentRole });
 
     // 🛡️ 3. 清理已有的同提案失败气泡与思考中占位气泡
     this.state.chatLogs[currentStage] = this.state.chatLogs[currentStage].filter(m => {
@@ -3030,10 +3032,19 @@ export class App {
       return true;
     });
 
+    const activeList = Array.from(this._activeEvaluatingProposals.values());
+    let analyzingDetail = '';
+    if (activeList.length <= 1) {
+      analyzingDetail = `${agentRole}正在研读评估《${normTitle}》（作者：${normAuthor}）...`;
+    } else {
+      const titles = activeList.map(p => `《${p.title}》`).join('、');
+      analyzingDetail = `${agentRole}正在依次研读评估${titles}...`;
+    }
+
     this.setActiveAgentAnalyzing({
       icon: isInst ? '📐' : '🎪',
       title: agentRole,
-      detail: `${agentRole}正在研读评估《${normTitle}》（作者：${normAuthor}）...`
+      detail: analyzingDetail
     });
 
     const taskPrompt = `小组成员【${normAuthor}】在选题池${isModify ? '修改完善了' : '提出了新'}提案《${normTitle}》。
@@ -3115,7 +3126,29 @@ export class App {
       renderChat(this.state);
     } finally {
       this._inFlightEvaluations.delete(evalKey);
-      this.setActiveAgentAnalyzing(null);
+      if (this._activeEvaluatingProposals) {
+        this._activeEvaluatingProposals.delete(evalKey);
+      }
+      if (this._inFlightEvaluations.size > 0 && this._activeEvaluatingProposals && this._activeEvaluatingProposals.size > 0) {
+        const remaining = Array.from(this._activeEvaluatingProposals.values());
+        if (remaining.length === 1) {
+          const item = remaining[0];
+          this.setActiveAgentAnalyzing({
+            icon: isInst ? '📐' : '🎪',
+            title: item.agentRole || agentRole,
+            detail: `${item.agentRole || agentRole}正在研读评估《${item.title}》（作者：${item.author}）...`
+          });
+        } else {
+          const titles = remaining.map(r => `《${r.title}》`).join('、');
+          this.setActiveAgentAnalyzing({
+            icon: isInst ? '📐' : '🎪',
+            title: agentRole,
+            detail: `${agentRole}正在依次研读评估${titles}...`
+          });
+        }
+      } else {
+        this.setActiveAgentAnalyzing(null);
+      }
     }
   }
 
@@ -3374,6 +3407,14 @@ export class App {
         s1.contractStep = 'topic'; // 初始锁定第一步：主题与方案提炼
         this.syncStage1();
         this.syncChatLogs();
+
+        // 🌟 立即在此刻点亮"正在分析全组投票意向与方案细化维度..."动效，公布票数瞬间无缝呈现！
+        this.setActiveAgentAnalyzing({
+          icon: isInst ? '📐' : '🎪',
+          title: agentTitle,
+          detail: `${agentTitle}正在分析全组投票意向与方案细化维度...`
+        });
+
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         if (typeof window.renderChat === 'function') {
           window.renderChat(this.state);
