@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2561";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2561";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2561";
-import { AuthManager } from "./auth.js?v=20260905_v2561";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2561";
-import { renderLoginView } from "./login.js?v=20260905_v2561";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2561";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2561";
+} from "./constants.js?v=20260905_v2562";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2562";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2562";
+import { AuthManager } from "./auth.js?v=20260905_v2562";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2562";
+import { renderLoginView } from "./login.js?v=20260905_v2562";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2562";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2562";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2561";
+} from "./editor.js?v=20260905_v2562";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3719,21 +3719,21 @@ ${votedDetails}
 
     const extractPrompt = `【任务指令：请根据讨论区研讨记录，为小组成员同时提炼出【槽位1 课题名称】与 120~200 字【槽位2 方案概述】】
 
-【小组成员在讨论区的全部真实研讨发言（从引导后至点击前的研讨切片，学生发言可能较口语化、随性交流）】:
+【小组成员在讨论区的全部真实研讨发言（从引导后至点击前的研讨切片，学生发言完全是日常口语交流、随性沟通、碎片化构想）】:
 ${chatSnippet || '（小组成员在讨论区暂无更多方案研讨发言）'}
 
 【小组成员提交的提案参考】:
 ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员主要通过讨论区直接交流）')}
 
-【提炼核心规则（最高红线：尽力分析学生口语化发言，两个槽位一次性全部提炼出来；若完全没有方案研讨则写“暂无”，绝对不编造套话）】：
-1. 深入理解与尽力分析：小组成员使用的是日常口语、随性交流。请通读切片发言，尽最大努力理解学生的构想、案例情境、教学活动或研究方法，提炼出 120~200 字结构化【方案概述】(overview)！
-2. 真实判断：若讨论区或提案中有相关思路，请忠实提炼；若讨论区确实完全没有提及任何方案思路或发言完全无关，方案概述 (overview) 直接明确输出“暂无”；
+【提炼核心规则（最高红线：智能体必须具备高容错语义理解能力，严禁要求学生必须使用规范学术用语）】：
+1. 强大的口语化与碎片化理解：学生使用的是日常口语随性交流（如“我想搞个...”、“我们可以弄个...情境”、“主要探究...”、“重点在活动”等）。智能体必须发挥大模型强大的语义联想与意图理解能力，敏锐捕捉学生的任何微小想法与构思线索，并在输出中【代为提炼、升华为学术规范与逻辑严谨的 120~200 字结构化【方案概述】(overview)】！
+2. 真实忠实：只要讨论区或提案中有任何相关设想或碎片线索，请全力提炼并规范升华；若讨论区确实完全空白没有任何发言且提案无任何内容，方案概述 (overview) 直接输出“暂无”；
 3. 规范提炼【${isInst ? '教学课题' : '论文题目'}】(topic)：以《${currentCandidate}》为基础规范润色或沿用；
 
 请务必按以下 JSON 格式输出：
 {
   "topic": "${currentCandidate}",
-  "overview": "根据上述组员真实讨论尽力提炼的 120~200 字${isInst ? '教学方案概述（涵盖学情情境、教学目标与活动链）' : '研究方案概述（涵盖情境案例、核心科学问题与实证方法）'}，若确实无相关讨论则直接输出'暂无'",
+  "overview": "根据上述组员真实讨论尽力提炼并学术升华的 120~200 字${isInst ? '教学方案概述（涵盖学情情境、教学目标与活动链）' : '研究方案概述（涵盖情境案例、核心科学问题与实证方法）'}，若确实无相关讨论则直接输出'暂无'",
   "guideText": "${isInst ? '教学课题与教学方案概述' : '论文主题与研究方案概述'}已成功生成并录入公约看板！接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定后点击【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！"
 }`;
 
