@@ -2593,8 +2593,8 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // 🛡️ 实体表实时入库：将所有通知 announcements 100% 同步 upsert 至 announcements 实体表
                 if (isset($decoded['announcements']) && is_array($decoded['announcements'])) {
-                    @$pdo->exec("ALTER TABLE `announcements` ADD COLUMN `attachment` LONGTEXT NULL");
-                    @$pdo->exec("ALTER TABLE `announcements` ADD COLUMN `confirmed_members` LONGTEXT NULL");
+                    try { @$pdo->exec("ALTER TABLE `announcements` ADD COLUMN `attachment` LONGTEXT NULL"); } catch (\Throwable $e) {}
+                    try { @$pdo->exec("ALTER TABLE `announcements` ADD COLUMN `confirmed_members` LONGTEXT NULL"); } catch (\Throwable $e) {}
                     $stmtAnnUpsert = $pdo->prepare("INSERT INTO `announcements` (`id`, `title`, `content`, `created_at_str`, `target_class_ids`, `is_pinned`, `attachment`, `confirmed_members`)
                         VALUES (:id, :title, :content, :created_at, :cids, :pinned, :att, :conf)
                         ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `content`=VALUES(`content`), `created_at_str`=VALUES(`created_at_str`), `target_class_ids`=VALUES(`target_class_ids`), `is_pinned`=VALUES(`is_pinned`), `attachment`=VALUES(`attachment`), `confirmed_members`=VALUES(`confirmed_members`)");
