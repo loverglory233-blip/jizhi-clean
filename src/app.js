@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2646";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2646";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2646";
-import { AuthManager } from "./auth.js?v=20260906_v2646";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2646";
-import { renderLoginView } from "./login.js?v=20260906_v2646";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2646";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2646";
+} from "./constants.js?v=20260906_v2647";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2647";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2647";
+import { AuthManager } from "./auth.js?v=20260906_v2647";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2647";
+import { renderLoginView } from "./login.js?v=20260906_v2647";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2647";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2647";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2646";
+} from "./editor.js?v=20260906_v2647";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -187,8 +187,20 @@ export class App {
             if (this.state.studentViewMode === 'task_list') {
               this.renderMain();
             } else if (this.state.studentViewMode === 'workspace' && isSameId(this.state.activeTaskId, extTask.id)) {
+              this._isTriggeringFirstReview = false;
+              this._isTriggeringSecondReview = false;
+              this._isTriggeringFinalReview = false;
+              this._isGeneratingManagingSummary = false;
+              this._isAgentReplyInProgress = false;
+              this._isStage3PipelineRunning = false;
               this.renderHeader();
               this.renderCanvas();
+              renderChat(this.state);
+              if (this.state.stage2?.unifiedContent) {
+                setTimeout(() => {
+                  this.checkAgentTriggersOnContent(this.state.stage2.unifiedContent);
+                }, 1000);
+              }
               const extDurationStr = extTask.lastExtension?.extendDurationStr || (extTask.lastExtension?.addedMinutes ? `（增加了 ${extTask.lastExtension.addedMinutes} 分钟）` : '');
               showGlobalBannerNotice('⏳ 任务延期提醒', `本任务截止时间已由任课教师延长至 ${extTask.deadline || '新截止时间'} ${extDurationStr}！`, 'info', 8000);
             }
@@ -6473,6 +6485,9 @@ ${chatSnippet}
     const user = this.authManager ? this.authManager.getCurrentUser() : null;
     const isTeacher = user && (user.isTeacher || user.role === 'teacher');
     if (isTeacher || this.state.isTeacherMonitorView || this.state.isTeacherView) return true;
+    const allTasks = this.authManager ? this.authManager.getTasks() : [];
+    const curTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
+    if (curTask && isTaskExpired(curTask)) return true;
     return false;
   }
 
@@ -7564,7 +7579,6 @@ ${chatSnippet}
 
   checkAgentTriggersOnContent(newContent) {
     if (!newContent || this.state.isFinalSubmitted || this.isCurrentTaskReadOnly()) return;
-    if (!this.isGroupCoordinator()) return;
     const currentStage = this.state.currentStage;
     if (currentStage !== 'stage2') return;
 

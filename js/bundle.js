@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2646
+ * Version: 20260906_v2647
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2646';
+  const APP_VERSION = '20260906_v2647';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -15740,8 +15740,20 @@
               if (this.state.studentViewMode === 'task_list') {
                 this.renderMain();
               } else if (this.state.studentViewMode === 'workspace' && isSameId(this.state.activeTaskId, extTask.id)) {
+                this._isTriggeringFirstReview = false;
+                this._isTriggeringSecondReview = false;
+                this._isTriggeringFinalReview = false;
+                this._isGeneratingManagingSummary = false;
+                this._isAgentReplyInProgress = false;
+                this._isStage3PipelineRunning = false;
                 this.renderHeader();
                 this.renderCanvas();
+                renderChat(this.state);
+                if (this.state.stage2?.unifiedContent) {
+                  setTimeout(() => {
+                    this.checkAgentTriggersOnContent(this.state.stage2.unifiedContent);
+                  }, 1000);
+                }
                 const extDurationStr = extTask.lastExtension?.extendDurationStr || (extTask.lastExtension?.addedMinutes ? `（增加了 ${extTask.lastExtension.addedMinutes} 分钟）` : '');
                 showGlobalBannerNotice('⏳ 任务延期提醒', `本任务截止时间已由任课教师延长至 ${extTask.deadline || '新截止时间'} ${extDurationStr}！`, 'info', 8000);
               }
@@ -22026,6 +22038,9 @@
       const user = this.authManager ? this.authManager.getCurrentUser() : null;
       const isTeacher = user && (user.isTeacher || user.role === 'teacher');
       if (isTeacher || this.state.isTeacherMonitorView || this.state.isTeacherView) return true;
+      const allTasks = this.authManager ? this.authManager.getTasks() : [];
+      const curTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
+      if (curTask && isTaskExpired(curTask)) return true;
       return false;
     }
 
@@ -23117,7 +23132,6 @@
 
     checkAgentTriggersOnContent(newContent) {
       if (!newContent || this.state.isFinalSubmitted || this.isCurrentTaskReadOnly()) return;
-      if (!this.isGroupCoordinator()) return;
       const currentStage = this.state.currentStage;
       if (currentStage !== 'stage2') return;
 
