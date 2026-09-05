@@ -4588,13 +4588,13 @@
     initPolling() {
       this.pullFromServer();
       this.sendPresencePing(); // ⚡ 进入工作台 0ms 瞬间首发上线心跳，告别等待
-      // ⚡ 动静分级智能心跳与轮询阶梯（平衡实时协同与服务器开销）：
-      // • 活跃态 (< 2分钟有操作): 轮询 1.5s，心跳 8s (轻量精准，彻底杜绝 PHP 进程池拥塞)
-      // • 静止态 (> 2分钟无操作): 轮询 10s，心跳 20s
-      // • 息屏态 (切后台/休眠): 轮询 20s，心跳 40s
+      // ⚡ 动静分级智能心跳与轮询阶梯（兼顾百人并发流畅度与 2核2G 低带宽服务器长效稳定）：
+      // • 活跃态 (< 30秒有操作): 轮询 1.8s，心跳 8s
+      // • 静止态 (> 30秒无操作): 轮询 3.5s，心跳 12s
+      // • 息屏态 (切后台/休眠): 轮询 6.0s，心跳 15s (切回前台时 0ms 瞬间唤醒)
       let lastUserActivity = Date.now();
       const markActive = () => {
-        const wasIdle = (Date.now() - lastUserActivity > 120000);
+        const wasIdle = (Date.now() - lastUserActivity > 30000);
         lastUserActivity = Date.now();
         if (wasIdle && !this.isLoggingOut) {
           this.sendPresencePing();
@@ -4606,9 +4606,9 @@
       });
 
       const isHidden = () => document.hidden || document.visibilityState === 'hidden';
-      const isIdle = () => (Date.now() - lastUserActivity > 60000);
-      const getPollInterval = () => (isHidden() ? 2500 : (isIdle() ? 1500 : 1000));
-      const getPingInterval = () => (isHidden() ? 10000 : 4000);
+      const isIdle = () => (Date.now() - lastUserActivity > 30000);
+      const getPollInterval = () => (isHidden() ? 6000 : (isIdle() ? 3500 : 1800));
+      const getPingInterval = () => (isHidden() ? 15000 : 8000);
 
       const runPoll = () => {
         if (this.isLoggingOut) return;
@@ -6599,8 +6599,8 @@
         } catch (e) {}
       }
 
-      // ⚡ 教师同屏实时监控模式下，保持 1.0 秒极速实时刷新，后台窗口保持 2.5 秒
-      const tInterval = document.hidden ? 2500 : 1000;
+      // ⚡ 教师同屏实时监控模式下，保持 1.8 秒极速刷新，后台窗口保持 6.0 秒
+      const tInterval = document.hidden ? 6000 : 1800;
       window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInterval);
     };
     if (window._teacherPortalSyncTimer) clearTimeout(window._teacherPortalSyncTimer);
@@ -6647,7 +6647,7 @@
       }, { passive: true });
     }
 
-    const tInitInterval = (document.hidden ? 2500 : 1000);
+    const tInitInterval = (document.hidden ? 6000 : 1800);
     window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInitInterval);
 
     const allStudents = allUsers.filter(u => u.role !== 'teacher');
