@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2685";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2685";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2685";
-import { AuthManager } from "./auth.js?v=20260906_v2685";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2685";
-import { renderLoginView } from "./login.js?v=20260906_v2685";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2685";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2685";
+} from "./constants.js?v=20260906_v2686";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2686";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2686";
+import { AuthManager } from "./auth.js?v=20260906_v2686";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2686";
+import { renderLoginView } from "./login.js?v=20260906_v2686";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2686";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2686";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2685";
+} from "./editor.js?v=20260906_v2686";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
