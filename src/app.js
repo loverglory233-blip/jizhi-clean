@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2573";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2573";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2573";
-import { AuthManager } from "./auth.js?v=20260905_v2573";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2573";
-import { renderLoginView } from "./login.js?v=20260905_v2573";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2573";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2573";
+} from "./constants.js?v=20260905_v2575";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2575";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2575";
+import { AuthManager } from "./auth.js?v=20260905_v2575";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2575";
+import { renderLoginView } from "./login.js?v=20260905_v2575";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2575";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2575";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2573";
+} from "./editor.js?v=20260905_v2575";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -307,7 +307,8 @@ export class App {
 
     let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : null);
     if (!taskId && isTeacher) {
-      taskId = `task_${effectiveClassId}_default`;
+      const allTasks = this.authManager ? this.authManager.getTasks() : [];
+      taskId = allTasks[0] ? allTasks[0].id : '';
     }
     this.state.activeTaskId = taskId;
     this.state.activeGroupId = groupId;
@@ -512,7 +513,10 @@ export class App {
     const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || null;
     let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : null);
     if (!taskId) {
-      if (isTeacher) taskId = `task_${effectiveClassId}_default`;
+      if (isTeacher) {
+        const allTasks = this.authManager ? this.authManager.getTasks() : [];
+        taskId = allTasks[0] ? allTasks[0].id : '';
+      }
       else return; // 学生端必须有真实任务 ID
     }
 
@@ -5481,7 +5485,10 @@ ${chatSnippet}
     const groupId = this.getEffectiveGroupId();
     let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : null);
     if (!taskId) {
-      if (isTeacher) taskId = `task_${effectiveClassId}_default`;
+      if (isTeacher) {
+        const allTasks = this.authManager ? this.authManager.getTasks() : [];
+        taskId = allTasks[0] ? allTasks[0].id : '';
+      }
       else return; // 学生未选定真实任务时绝不触发开场白
     }
 

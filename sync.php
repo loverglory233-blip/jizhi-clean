@@ -158,7 +158,7 @@ if (empty($taskId) && isset($REQ_DATA['message']['taskId'])) {
 $passedScopeKey = isset($_GET['scopeKey']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['scopeKey']) : (isset($REQ_DATA['scopeKey']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $REQ_DATA['scopeKey']) : '');
 if (!empty($passedScopeKey)) {
     $scopeKey = $passedScopeKey;
-    if (empty($taskId) || $taskId === 'task_' . $classId . '_default') {
+    if (empty($taskId)) {
         if (preg_match('/^(task_[a-zA-Z0-9_-]+)_(group_[a-zA-Z0-9_-]+)$/', $scopeKey, $sm)) {
             $taskId = $sm[1];
             $groupId = $sm[2];
@@ -2141,8 +2141,7 @@ if ($action === 'extend_task_deadline' && $_SERVER['REQUEST_METHOD'] === 'POST')
         $reqTitle = trim($req['taskTitle'] ?? '');
 
         foreach ($gm['tasks'] as &$tsk) {
-            $isIdMatch = isset($tsk['id']) && (is_same_id_php($tsk['id'], $taskId) || 
-                (strpos($taskId, 'default') !== false && strpos($tsk['id'], 'default') !== false));
+            $isIdMatch = isset($tsk['id']) && is_same_id_php($tsk['id'], $taskId);
             $isTitleMatch = (!empty($reqTitle) && isset($tsk['title']) && is_same_id_php($tsk['title'], $reqTitle));
 
             if ($isIdMatch || $isTitleMatch) {
