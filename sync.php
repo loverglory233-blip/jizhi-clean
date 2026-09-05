@@ -35,20 +35,15 @@ register_shutdown_function(function() {
     }
 });
 
-// 🆔 全局 ID 统一归一化工具（消除 class_、group_、task_ 前缀差异，保障精准严格匹配）
+// 🆔 全局 ID 严格比对工具（完全保留完整 ID 结构与前缀，严格精确比对）
 function normalize_id_php($id) {
     if ($id === null || $id === '') return '';
-    $s = trim(strtolower((string)$id));
-    if ($s === 'all' || $s === '*' || $s === 'task_all' || $s === 'class_all' || $s === 'group_all') return '*';
-    return preg_replace('/^(class_|group_|task_)/i', '', $s);
+    return trim((string)$id);
 }
 
 function is_same_id_php($id1, $id2) {
-    $n1 = normalize_id_php($id1);
-    $n2 = normalize_id_php($id2);
-    if ($n1 === '' || $n2 === '') return false;
-    if ($n1 === '*' || $n2 === '*') return true;
-    return $n1 === $n2;
+    if ($id1 === null || $id1 === '' || $id2 === null || $id2 === '') return false;
+    return strtolower(trim((string)$id1)) === strtolower(trim((string)$id2));
 }
 
 // 🛠️ 智能 Base64 图片文件化清洗迁移器（无损提取为物理文件并回写极短 URL，彻底杜绝内存撑爆与数据截断）
