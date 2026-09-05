@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2641";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2641";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2641";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2642";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2642";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2642";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -1574,10 +1574,12 @@ function renderStage2Canvas(canvas, state, handlers) {
   const isDraftFullyConfirmed = !!s2.isDraftConfirmed && (confirmedDraftCount >= actualTotalCount && actualTotalCount > 0);
 
   // 🛡️ 阶段二只读状态权威判定：
-  // 1) 只要学生在阶段二正常撰写（currentStage === 'stage2'），编辑器 100% 保持解锁可编辑状态，绝不因历史快照或截止时间误锁！
-  // 2) 仅当全员已真正全员完成初稿签署且已进入阶段三（currentStage === 'stage3'），或者在回看历史阶段时，阶段二初稿才作为只读归档展示！
+  // 1) 任务已截止（isTaskDeadlineExpired）：100% 严格锁定为只读，并自动冻结截止时刻的贡献比快照，杜绝超时加字；
+  // 2) 阶段二初稿已全员签署推进至阶段三（isStage2Archived）：阶段二初稿作为历史底稿锁定为只读；
+  // 3) 组内已最终答辩归档（isFinalSubmitted）或回看历史阶段：保持只读；
+  // 4) 教师若延长时间（延长后未截止）：自动实时解锁恢复可写绿灯！
   const isStage2Archived = isDraftFullyConfirmed && (state.currentStage === 'stage3');
-  const isEditorReadonly = isStage2Archived || (state.currentStage !== 'stage2' && !!state.isFinalSubmitted) || !!(window.app && window.app.isViewingPastStage);
+  const isEditorReadonly = isTaskDeadlineExpired || isStage2Archived || (state.currentStage !== 'stage2' && !!state.isFinalSubmitted) || !!(window.app && window.app.isViewingPastStage);
 
   if (!userGroupId || userGroupId === 'null' || String(userGroupId || '').startsWith('group_unassigned')) {
     canvas.innerHTML = showResolutionBlock('未检测到您被分配的具体协作小组，请联系教师在教务空间分配小组后再进入');
@@ -2910,9 +2912,10 @@ function renderStage3Canvas(canvas, state, handlers) {
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
   const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || (state.activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
   const taskGenreKey = currentTask?.taskType || state.taskType || 'experiment';
-  // 🛡️ 阶段三终稿区：仅当全员已完成终稿提交确认，或整个小组已被标记提交归档时，才锁定为只读归档
+  const isTaskDeadlineExpired = currentTask ? isTaskExpired(currentTask) : false;
+  // 🛡️ 阶段三终稿区：全员已完成终稿提交确认、或任务已截止时，锁定为只读归档
   const isFinalSubmitted = isAllFinalSubmitted || !!state.isFinalSubmitted;
-  const isDefenseLocked = isRevisionFullyConfirmed || isFinalSubmitted;
+  const isDefenseLocked = isRevisionFullyConfirmed || isFinalSubmitted || isTaskDeadlineExpired;
 
   // 🛡️ Safari 滚动记忆防回弹：预先记录用户此前的滚动高度与聚焦输入状态
   const oldDefenseCard = canvas.querySelector('#stage3-defense-card');
@@ -3016,7 +3019,7 @@ function renderStage3Canvas(canvas, state, handlers) {
     }
 
     if (existingFrame) {
-      if (isFinalSubmitted) {
+      if (isFinalSubmitted || isTaskDeadlineExpired) {
         existingFrame._wasPreviouslyReadonly = true;
         enforceEtherpadReadonly(existingFrame);
       } else {
@@ -3216,7 +3219,7 @@ function renderStage3Canvas(canvas, state, handlers) {
     }
   }
 
-  if (isFinalSubmitted) {
+  if (isFinalSubmitted || isTaskDeadlineExpired) {
     const s3Frame = canvas.querySelector('#stage3-etherpad-frame');
     if (s3Frame) enforceEtherpadReadonly(s3Frame);
   } else {
