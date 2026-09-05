@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2638";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2638";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2638";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2639";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2639";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2639";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -1577,7 +1577,7 @@ function renderStage2Canvas(canvas, state, handlers) {
   // 1) 处于阶段二进行中（当前在阶段二或初稿未全员确认）：只要任务未截止，阶段二绝对保持协同可写；
   // 2) 仅当全员已真正全员完成初稿签署且推进至阶段三时，阶段二初稿才锁定为【只读归档】！
   const isStage2Archived = isDraftFullyConfirmed && (state.currentStage === 'stage3' || state.isFinalSubmitted);
-  const isEditorReadonly = isTaskDeadlineExpired || isStage2Archived;
+  const isEditorReadonly = isStage2Archived || !!state.isFinalSubmitted;
 
   if (!userGroupId || userGroupId === 'null' || String(userGroupId || '').startsWith('group_unassigned')) {
     canvas.innerHTML = showResolutionBlock('未检测到您被分配的具体协作小组，请联系教师在教务空间分配小组后再进入');
@@ -3154,7 +3154,7 @@ function renderStage3Canvas(canvas, state, handlers) {
           if (!currUserName) currUserName = currUserCode || '组员';
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
 
-          const isEditorReadonly = isFinalSubmitted || isTaskDeadlineExpired;
+          const isEditorReadonly = !!state.isFinalSubmitted;
 
           const targetPad = rawPadName;
           const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans`;
