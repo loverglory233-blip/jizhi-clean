@@ -103,11 +103,25 @@ def sync_versions(new_ver):
                 f.write(content)
     print(f"   🏷️ [Version Sync] 全局版本戳已成功统一更新为: {new_ver}")
 
+def get_next_version(explicit_arg=None):
+    if explicit_arg:
+        return explicit_arg
+    from datetime import datetime
+    today = datetime.now().strftime("%Y%m%d")
+    c_path = os.path.join(SRC_DIR, "constants.js")
+    last_num = 2545
+    if os.path.exists(c_path):
+        with open(c_path, "r", encoding="utf-8") as f:
+            c = f.read()
+        m = re.search(r"APP_VERSION\s*=\s*['\"]\d{8}_v(\d+)['\"]", c)
+        if m:
+            last_num = int(m.group(1))
+    next_num = max(last_num + 1, 2546)
+    return f"{today}_v{next_num}"
+
 def build():
     import sys
-    from datetime import datetime
-    auto_ver = datetime.now().strftime("%Y%m%d_v%H%M")
-    NEW_VERSION = sys.argv[1] if len(sys.argv) > 1 else auto_ver
+    NEW_VERSION = get_next_version(sys.argv[1] if len(sys.argv) > 1 else None)
     sync_versions(NEW_VERSION)
     
     print("🚀 [ESM Build] 开始验证并装配 JIZHI 现代化模块...")
