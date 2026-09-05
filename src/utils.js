@@ -1273,16 +1273,20 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
                     html, body, #innerdocbody {
                       background-color: #ffffff !important;
                       background: #ffffff !important;
-                      color: #0f172a !important;
+                      color: #0f172a;
                       color-scheme: light !important;
                     }
-                    #innerdocbody, #innerdocbody * {
-                      color: #0f172a !important;
+                    /* 默认段落和文本继承深色黑字，杜绝深色模式下变白字 */
+                    #innerdocbody div, #innerdocbody p, #innerdocbody li, .ace-line {
+                      color: #0f172a;
                     }
-                    span[class*="author-"], .author, #innerdocbody span[class*="author-"], .ace-line {
+                    /* 仅将作者身份底色设为透明（消除全篇作者色块），但保留用户主动设置的高亮色 */
+                    span[class*="author-"], .author {
                       background-color: transparent !important;
-                      background: transparent !important;
-                      color: #0f172a !important;
+                    }
+                    /* 默认未染色文本保持深黑字 */
+                    #innerdocbody span:not([class*="color"]):not([style*="color"]):not([class*="highlight"]) {
+                      color: #0f172a;
                     }
                   `;
                   if (!innerStyle) {
