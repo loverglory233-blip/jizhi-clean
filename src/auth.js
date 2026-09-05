@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2546';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260905_v2546';
+} from './constants.js?v=20260905_v2547';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260905_v2547';
 
 export class AuthManager {
   constructor() {
@@ -358,8 +358,8 @@ export class AuthManager {
             // 🛡️ 核心守卫：当前任务被教师删除时立即弹窗通知并安全返回任务大厅
             if (window.app && window.app.state && window.app.state.studentViewMode === 'workspace' && window.app.state.activeTaskId) {
               const activeTid = window.app.state.activeTaskId;
-              const isTaskStillAlive = taskMap.has(activeTid);
-              if (taskMap.size > 0 && !isTaskStillAlive && !window.app._isHandlingTaskRevoked) {
+              const isTaskStillAlive = mergedTasks.some(t => t && isSameId(t.id, activeTid));
+              if (!isTaskStillAlive && !window.app._isHandlingTaskRevoked) {
                 window.app.showTaskRevokedModal(window.app.state.activeTaskTitle || '当前写作任务');
                 return;
               }
@@ -1819,23 +1819,25 @@ export class AuthManager {
 
   deleteTask(taskId) {
     let tasks = this.getTasks();
-    const deletedTask = tasks.find(t => t.id === taskId);
+    const deletedTask = tasks.find(t => isSameId(t.id, taskId));
     const deletedTaskTitle = deletedTask ? deletedTask.title : '写作任务';
 
-    tasks = tasks.filter(t => t.id !== taskId);
+    tasks = tasks.filter(t => !isSameId(t.id, taskId));
     localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
+    localStorage.setItem('jizhi_pure_v10_tasks_db', JSON.stringify(tasks));
 
     let announcements = this.getAnnouncements();
-    announcements = announcements.filter(a => a.taskId !== taskId);
+    announcements = announcements.filter(a => !isSameId(a.taskId, taskId));
     localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
 
     let papers = this.getAllReferencePapers();
-    papers = papers.filter(p => p.taskId !== taskId);
+    papers = papers.filter(p => !isSameId(p.taskId, taskId));
     localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers));
+    localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(papers));
 
     let surveysList = this.getSurveysList();
     const origLen = surveysList.length;
-    surveysList = surveysList.filter(s => s.taskId !== taskId);
+    surveysList = surveysList.filter(s => !isSameId(s.taskId, taskId));
     if (surveysList.length !== origLen) {
       localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(surveysList));
     }
