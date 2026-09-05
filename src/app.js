@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2594";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2594";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2594";
-import { AuthManager } from "./auth.js?v=20260905_v2594";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2594";
-import { renderLoginView } from "./login.js?v=20260905_v2594";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2594";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2594";
+} from "./constants.js?v=20260905_v2595";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2595";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2595";
+import { AuthManager } from "./auth.js?v=20260905_v2595";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2595";
+import { renderLoginView } from "./login.js?v=20260905_v2595";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2595";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2595";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2594";
+} from "./editor.js?v=20260905_v2595";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3711,8 +3711,8 @@ ${votedDetails}
   /**
    * 🛡️ 稳健精确统计指定步骤已确认成员人数（严格按用户唯一 ID 匹配，剔除泛化通用名，绝不单人冒充全组）
    */
-  getStepConfirmedCount(stepKey, memberList = null) {
-    let members = memberList;
+  getStepConfirmedCount(stepKey, membersList = null) {
+    let members = membersList;
     if (!members || members.length === 0) {
       if (this.authManager) {
         const u = this.authManager.getCurrentUser();
@@ -3728,16 +3728,8 @@ ${votedDetails}
     }
     if (!Array.isArray(members)) members = Object.values(members || {});
     const confMap = (this.state.stepConfirmations && this.state.stepConfirmations[stepKey]) || {};
-    const genericNames = ['学生', '组员', '我', '未分配', '匿名', 'a', 'b', 'c', 'user', 'undefined', 'null'];
 
-    return members.filter(m => {
-      if (!m) return false;
-      const mId = String(m.id || m.userId || (typeof m === 'string' ? m : '')).trim().toLowerCase();
-      const mName = String(m.name || '').trim().toLowerCase();
-      if (mId && (confMap[mId] || confMap[mId.toUpperCase()])) return true;
-      if (mName && !genericNames.includes(mName) && confMap[mName]) return true;
-      return false;
-    }).length;
+    return members.filter(m => isMemberDone(confMap, m)).length;
   }
 
   /**
@@ -3759,11 +3751,7 @@ ${votedDetails}
     const primaryKey = String(currUserObj?.id || user || '').trim();
     if (!primaryKey) return;
 
-    const genericNames = ['学生', '组员', '我', '未分配', '匿名', 'a', 'b', 'c', 'user', 'undefined', 'null'];
-    const userKeys = [primaryKey];
-    if (currUserObj?.name && !genericNames.includes(String(currUserObj.name).trim().toLowerCase())) {
-      userKeys.push(String(currUserObj.name).trim());
-    }
+    const userKeys = getUserAllKeys(currUserObj || user);
 
     let members = [];
     if (this.authManager) {
@@ -3781,7 +3769,7 @@ ${votedDetails}
     if (!Array.isArray(members)) members = Object.values(members || {});
     const totalCount = (members && members.length > 0) ? members.length : 1;
 
-    const isAlreadyDone = userKeys.some(k => this.state.stepConfirmations[stepKey][k]);
+    const isAlreadyDone = isMemberDone(this.state.stepConfirmations[stepKey], currUserObj || user);
     if (isAlreadyDone) {
       const currentCount = this.getStepConfirmedCount(stepKey, members);
       if (currentCount < totalCount) {
@@ -3817,7 +3805,8 @@ ${votedDetails}
           scopeKey: targetScopeKey,
           stepKey: stepKey,
           userKey: primaryKey,
-          userName: currUserObj?.name || primaryKey
+          userName: currUserObj?.name || primaryKey,
+          userKeys: userKeys
         })
       });
       const resData = await res.json();

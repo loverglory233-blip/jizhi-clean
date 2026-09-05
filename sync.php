@@ -2750,9 +2750,11 @@ if ($action === 'confirm_step' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $stepKey = isset($req['stepKey']) ? trim((string)$req['stepKey']) : '';
     $userKey = isset($req['userKey']) ? trim((string)$req['userKey']) : '';
+    $userName = isset($req['userName']) ? trim((string)$req['userName']) : '';
+    $userKeys = isset($req['userKeys']) && is_array($req['userKeys']) ? $req['userKeys'] : [];
     $nowMs = round(microtime(true) * 1000);
 
-    if (!empty($stepKey) && !empty($userKey) && $pdo) {
+    if (!empty($stepKey) && (!empty($userKey) || !empty($userKeys)) && $pdo) {
         $metaKey = 'confs_' . $scopeKey;
         $stmtGet = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
         $stmtGet->execute([':k' => $metaKey]);
@@ -2762,7 +2764,28 @@ if ($action === 'confirm_step' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!isset($confs[$stepKey]) || !is_array($confs[$stepKey])) {
             $confs[$stepKey] = [];
         }
-        $confs[$stepKey][$userKey] = true;
+        if (!empty($userKey)) {
+            $confs[$stepKey][$userKey] = true;
+            if (strpos($userKey, 'u_') === 0) {
+                $confs[$stepKey][substr($userKey, 2)] = true;
+            } elseif (ctype_digit($userKey)) {
+                $confs[$stepKey]['u_' . $userKey] = true;
+            }
+        }
+        if (!empty($userName)) {
+            $confs[$stepKey][$userName] = true;
+        }
+        foreach ($userKeys as $uk) {
+            if (!empty($uk)) {
+                $ukStr = trim((string)$uk);
+                $confs[$stepKey][$ukStr] = true;
+                if (strpos($ukStr, 'u_') === 0) {
+                    $confs[$stepKey][substr($ukStr, 2)] = true;
+                } elseif (ctype_digit($ukStr)) {
+                    $confs[$stepKey]['u_' . $ukStr] = true;
+                }
+            }
+        }
 
         $confJson = json_encode($confs, JSON_UNESCAPED_UNICODE);
         $stmtSave = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value, updated_at) VALUES (:k, :v, :ts) ON DUPLICATE KEY UPDATE meta_value = :v2, updated_at = :ts2");

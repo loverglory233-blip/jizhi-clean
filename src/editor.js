@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2594";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2594";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2594";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2595";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2595";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2595";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -140,14 +140,7 @@ export function getEffectiveAgentAnalyzing(state = null) {
 
     const countConfirmed = (stepKey) => {
       if (!confs || !confs[stepKey]) return 0;
-      const stepConfMap = confs[stepKey];
-      let count = 0;
-      members.forEach(m => {
-        const keys = [m.id, m.userId, m.name, m.username, m.loginUser].filter(Boolean).map(k => String(k).trim().toLowerCase());
-        const hasConf = Object.entries(stepConfMap).some(([k, v]) => v && keys.includes(String(k).trim().toLowerCase()));
-        if (hasConf) count++;
-      });
-      return count;
+      return members.filter(m => isMemberDone(confs[stepKey], m)).length;
     };
 
     if (s1.contractStep === 'tasks') {
@@ -694,22 +687,11 @@ function renderStage1Canvas(canvas, state, handlers) {
 
               const isDoneHelper = (map) => {
                 if (!map) return 0;
-                return membersList.filter(m => {
-                  if (!m) return false;
-                  const mId = String(m.id || m.userId || (typeof m === 'string' ? m : '')).trim().toLowerCase();
-                  const mName = String(m.name || '').trim().toLowerCase();
-                  if (mId && (map[mId] || map[mId.toUpperCase()])) return true;
-                  if (mName && !genericNames.includes(mName) && map[mName]) return true;
-                  return false;
-                }).length;
+                return membersList.filter(m => isMemberDone(map, m)).length;
               };
               const isMyDoneHelper = (map) => {
                 if (!map) return false;
-                const myUid = String(currUserObj?.id || currentUser || '').trim().toLowerCase();
-                const myName = String(currentUserName || currUserObj?.name || '').trim().toLowerCase();
-                if (myUid && (map[myUid] || map[myUid.toUpperCase()])) return true;
-                if (myName && !genericNames.includes(myName) && map[myName]) return true;
-                return false;
+                return isMemberDone(map, currUserObj || currentUser);
               };
 
               if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
@@ -3679,30 +3661,12 @@ export function renderChatActionBar(state) {
 
   const isDoneHelper = (map) => {
     if (!map) return 0;
-    return membersList.filter(m => {
-      let fullUser = (typeof m === 'object') ? m : null;
-      if (!fullUser && window.app && window.app.authManager && window.app.authManager.findUserByKey) {
-        fullUser = window.app.authManager.findUserByKey(m);
-      }
-      const mId = String(m?.id || fullUser?.id || (typeof m === 'string' ? m : '')).trim().toLowerCase();
-      const mName = String(m?.name || fullUser?.name || '').trim().toLowerCase();
-      if (mId && (map[mId] || map[mId.toUpperCase()])) return true;
-      if (mName && !genericNames.includes(mName) && (map[mName] || map[mName.toUpperCase()])) return true;
-      return false;
-    }).length;
+    return membersList.filter(m => isMemberDone(map, m)).length;
   };
 
   const isMyDoneHelper = (map) => {
     if (!map) return false;
-    let fullUser = currUser;
-    if (!fullUser && window.app && window.app.authManager && window.app.authManager.findUserByKey) {
-      fullUser = window.app.authManager.findUserByKey(myCode);
-    }
-    const myId = String(currUser?.id || fullUser?.id || myCode || '').trim().toLowerCase();
-    const myName = String(currUser?.name || fullUser?.name || '').trim().toLowerCase();
-    if (myId && (map[myId] || map[myId.toUpperCase()])) return true;
-    if (myName && !genericNames.includes(myName) && (map[myName] || map[myName.toUpperCase()])) return true;
-    return false;
+    return isMemberDone(map, currUser || myCode);
   };
 
   const s2Subs = s2.meetingSubmissions || {};
