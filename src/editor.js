@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2595";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2595";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2595";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2596";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2596";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2596";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -2853,13 +2853,13 @@ function renderStage3Canvas(canvas, state, handlers) {
   const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
   const currUserCode = currUser?.id || state.currentUser || 'A';
   const confirmedRevMap = s3.confirmedMembers || {};
-  const confirmedRevCount = membersList.filter(m => !!(confirmedRevMap[m.id] || (m.name && confirmedRevMap[m.name]))).length;
-  const isUserRevisionConfirmed = !!(confirmedRevMap[currUserCode] || (currUser && confirmedRevMap[currUser.id]));
+  const confirmedRevCount = membersList.filter(m => isMemberDone(confirmedRevMap, m)).length;
+  const isUserRevisionConfirmed = isMemberDone(confirmedRevMap, currUser || currUserCode);
   const isRevisionFullyConfirmed = confirmedRevCount >= totalCount && totalCount > 0;
   
   const finalSubmittedMap = s3.finalSubmittedMembers || {};
-  const finalSubmittedCount = membersList.filter(m => !!(finalSubmittedMap[m.id] || (m.name && finalSubmittedMap[m.name]))).length;
-  const isUserFinalSubmitted = !!(finalSubmittedMap[currUserCode] || (currUser && finalSubmittedMap[currUser.id]));
+  const finalSubmittedCount = membersList.filter(m => isMemberDone(finalSubmittedMap, m)).length;
+  const isUserFinalSubmitted = isMemberDone(finalSubmittedMap, currUser || currUserCode);
   const isAllFinalSubmitted = state.isFinalSubmitted || (finalSubmittedCount >= totalCount && totalCount > 0);
 
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
