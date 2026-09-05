@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260905_v2570";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260905_v2570";
+} from "./constants.js?v=20260905_v2571";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260905_v2571";
 
 export const getPanoGroupData = (pano, gid) => {
   if (!pano || typeof pano !== 'object' || !gid) return null;
@@ -1614,7 +1614,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                         <!-- 1. 【第一步】💡 组员初始提案展台 -->
                         <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:12px; padding:14px; flex-shrink:0;">
                           <div style="font-size:13.5px; font-weight:800; color:#1e40af; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
-                            <span>💡 组员初始${isInst ? '教学' : '学术'}提案展台 (${(state.stage1?.proposals || []).length}/${monitorMembersList.length || 3} 人已提交):</span>
+                            <span>💡 组员初始${isInst ? '教学' : '学术'}提案展台 (${(state.stage1?.proposals || []).length}/${monitorMembersList.length || 1} 人已提交):</span>
                             <span style="font-size:11.5px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">
                               共投 ${monitorMembersList.filter(m => state.stage1?.hasVoted && (state.stage1.hasVoted[m.id] || (m.name && state.stage1.hasVoted[m.name]))).length} 票
                             </span>
@@ -1749,7 +1749,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                   const s2ActionPlan = state.stage2?.actionPlan;
                   const s2Subs = state.stage2?.meetingSubmissions || {};
                   const s2SubCount = Object.keys(s2Subs).length;
-                  const totalMemberCount = monitorMembersList.length || 3;
+                  const totalMemberCount = (monitorMembersList && monitorMembersList.length > 0) ? monitorMembersList.length : 1;
                   const confirmedDraftCount = monitorMembersList.filter(m => state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id]  || (m.name && state.stage2.confirmedMembers[m.name]))).length;
 
                   return `

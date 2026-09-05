@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2570";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2570";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2570";
-import { AuthManager } from "./auth.js?v=20260905_v2570";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2570";
-import { renderLoginView } from "./login.js?v=20260905_v2570";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2570";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2570";
+} from "./constants.js?v=20260905_v2571";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2571";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2571";
+import { AuthManager } from "./auth.js?v=20260905_v2571";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2571";
+import { renderLoginView } from "./login.js?v=20260905_v2571";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2571";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2571";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2570";
+} from "./editor.js?v=20260905_v2571";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1678,7 +1678,7 @@ export class App {
           const effClassId = this.state.activeStudentClassId || currUserObj.classId || null;
           const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUserObj, effClassId) : null;
           const allGroupMembers = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0) ? effGroup.members : membersList;
-          const totalCount = allGroupMembers.length || 2;
+          const totalCount = (allGroupMembers && allGroupMembers.length > 0) ? allGroupMembers.length : 1;
 
           const isMemberSubmitted = (m) => {
             if (!m) return false;
@@ -3268,7 +3268,7 @@ export class App {
     const allGroupMembers = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0)
       ? effGroup.members
       : ((this.getMemberList ? this.getMemberList(this.state.groupId) : []) || Object.values(this.state.members || {}));
-    const totalMembersCount = allGroupMembers.length > 0 ? allGroupMembers.length : (Object.keys(this.state.members || {}).length || 2);
+    const totalMembersCount = (allGroupMembers && allGroupMembers.length > 0) ? allGroupMembers.length : (Object.keys(this.state.members || {}).length || 1);
     const votesCastCount = allGroupMembers.filter(m => isMemberDone(s1.hasVoted, m)).length;
     const proposalTitle = proposal ? proposal.title : proposalId;
 
@@ -3673,7 +3673,7 @@ ${votedDetails}
       else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
     }
     if (!Array.isArray(members)) members = Object.values(members || {});
-    const totalCount = (members && members.length > 0) ? members.length : 2;
+    const totalCount = (members && members.length > 0) ? members.length : 1;
 
     const isAlreadyDone = userKeys.some(k => this.state.stepConfirmations[stepKey][k]);
     if (isAlreadyDone) {
@@ -3778,7 +3778,7 @@ ${votedDetails}
     }
     const s1 = this.state.stage1 || {};
     const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
-    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 2;
+    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
     const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && (s1.hasVoted[m.id] || (m.name && s1.hasVoted[m.name]))))).length;
     const isVotingComplete = (totalCount > 0 && totalVotesCast >= totalCount);
     if (!isVotingComplete) {
@@ -4023,7 +4023,7 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
     }
     const s1 = this.state.stage1 || {};
     const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
-    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 2;
+    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
     const count = this.getStepConfirmedCount('s1_time', membersList);
     if (count >= totalCount && totalCount > 0) {
       return this._doExtractTime();
@@ -4234,7 +4234,7 @@ ${chatSnippet}
     }
     const s1 = this.state.stage1 || {};
     const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
-    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 2;
+    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
     const count = this.getStepConfirmedCount('s1_tasks', membersList);
     if (count >= totalCount && totalCount > 0) {
       return this._doExtractTasks();
@@ -4443,7 +4443,7 @@ ${chatSnippet}
       return;
     }
     const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
-    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 2;
+    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
     const count = this.getStepConfirmedCount('s1_full_contract', membersList);
     if (count >= totalCount && totalCount > 0) {
       return this._doOneClickGenerateContract();
@@ -4831,7 +4831,7 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
     }
     const currMemObj = memberArr.find(m => m && (isSameUser(m, user) || m.id === user || m.name === user));
     const memberName = currMemObj ? currMemObj.name : user;
-    const totalMembersCount = (memberArr && memberArr.length > 0) ? memberArr.length : 2;
+    const totalMembersCount = (memberArr && memberArr.length > 0) ? memberArr.length : 1;
 
     const userAlreadySigned = !!(s1.contract.confirmedMembers[user] || (currMemObj && (s1.contract.confirmedMembers[currMemObj.id] || (currMemObj.name && s1.contract.confirmedMembers[currMemObj.name]))));
 
@@ -4956,7 +4956,7 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
     const membersList = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0) 
       ? effGroup.members 
       : Object.values(this.state.members || {});
-    const totalCount = membersList.length || 2;
+    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
 
     const isDoneHelper = (map) => {
       if (!map) return 0;
@@ -5241,7 +5241,7 @@ ${chatSnippet}
     const membersList = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0) 
       ? effGroup.members 
       : Object.values(this.state.members || {});
-    const totalCount = membersList.length || 2;
+    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
 
     const isDoneHelper = (map) => {
       if (!map) return 0;
@@ -6305,7 +6305,7 @@ ${chatSnippet}
       const progressBadge = document.getElementById('proposal-vote-progress-badge');
       if (progressBadge) {
         const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && (s1.hasVoted[m.id] || s1.hasVoted[m.id]  || (m.name && s1.hasVoted[m.name]))))).length;
-        const totalMembersCount = membersList.length || 2;
+        const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 1;
         const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
         progressBadge.innerHTML = isVotingComplete
           ? `🎉 投票已完成 (共投出 ${totalVotesCast} 票)`
@@ -6378,7 +6378,7 @@ ${chatSnippet}
       // 🛡️ 实时动态更新公约顶部操作提炼按钮及协同确认计数 (全链路互斥置灰与精准法定人数)
       const contractActionBarMount = document.getElementById('stage1-contract-action-bar-mount');
       if (contractActionBarMount && !isContractLocked) {
-        const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 2;
+        const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 1;
         const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && (s1.hasVoted[m.id] || (m.name && s1.hasVoted[m.name]))))).length;
         const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
         const currUserCode = this.state.currentUser;
@@ -6514,7 +6514,7 @@ ${chatSnippet}
       const signMatrixMount = document.getElementById('stage1-contract-sign-matrix-mount');
       const signActionMount = document.getElementById('stage1-contract-sign-action-mount');
       if (signMatrixMount || signActionMount) {
-        const totalMembersCount = membersList.length || 2;
+        const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 1;
         const currUserCode = this.state.currentUser;
         const matchedMem = membersList.find(m => m && (m.id   === currUserCode || m.name === currUserCode));
         const currentUserName = matchedMem?.name || currentUserObj?.name || currUserCode || '组员';
@@ -6669,7 +6669,7 @@ ${chatSnippet}
         if (!Array.isArray(memberArr)) {
           memberArr = Object.values(memberArr || {});
         }
-        const totalMembersCount = (memberArr && memberArr.length > 0) ? memberArr.length : 2;
+        const totalMembersCount = (memberArr && memberArr.length > 0) ? memberArr.length : 1;
 
         // 🛡️ 守卫拦截：必须先走完二审半程自查与会议全流程（全员打卡完成），或者总时间临近截止（<= 5分钟），才允许点击确认初稿！
         const subs = s2.meetingSubmissions || {};
@@ -6784,7 +6784,7 @@ ${chatSnippet}
         if (!Array.isArray(memberArr)) {
           memberArr = Object.values(memberArr || {});
         }
-        const totalMembersCount = Math.max(memberArr.length, 2);
+        const totalMembersCount = (memberArr && memberArr.length > 0) ? memberArr.length : 1;
 
         // 🛡️ 守卫拦截：必须先完成全部答辩质询陈述，或者总时间临近截止（<= 5分钟），才允许点击确认答辩！
         const items = s3.feedbackItems || [];
@@ -6988,7 +6988,7 @@ ${chatSnippet}
         if (!Array.isArray(memberArr)) {
           memberArr = Object.values(memberArr || {});
         }
-        const totalMembersCount = Math.max(memberArr.length, 2);
+        const totalMembersCount = (memberArr && memberArr.length > 0) ? memberArr.length : 1;
 
         if (!s3.finalSubmittedMembers) s3.finalSubmittedMembers = {};
         s3.finalSubmittedMembers[user] = true;
@@ -7516,7 +7516,7 @@ ${contentSnippet}
     }
     const membersList = actualGroupMembers.length > 0 ? actualGroupMembers : Object.values(this.state.members || {});
     const subs = this.state.stage2?.meetingSubmissions || {};
-    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 2;
+    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
     const subCount = membersList.filter(m => isMemberDone(subs, m)).length;
 
     const existingSub = subs[userKey] || (currUser?.name && subs[currUser.name]) || (currUser?.id && subs[currUser.id]) || (currUser?.id && subs[currUser.id]) || (this.state.currentUser && subs[this.state.currentUser]);
@@ -7758,7 +7758,7 @@ ${contentSnippet}
         actualGroupMembers = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
       }
       const membersList = actualGroupMembers.length > 0 ? actualGroupMembers : Object.values(this.state.members || {});
-      const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 2;
+      const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 1;
 
       if (!this.state.stage2.meetingSubmissions) this.state.stage2.meetingSubmissions = {};
       this.state.stage2.meetingSubmissions[userKey] = {

@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2570";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2570";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2570";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2571";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2571";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2571";
 
 /**
  * 🛡️ 全局提炼互斥状态判定工具函数
@@ -289,7 +289,7 @@ function renderStage1Canvas(canvas, state, handlers) {
   const currUserObj = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
   const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
   const membersList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
-  const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 2;
+  const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 1;
 
   if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
   if (!s1.contract.timeAllocations) s1.contract.timeAllocations = {};
@@ -1422,7 +1422,7 @@ function renderStage2Canvas(canvas, state, handlers) {
   const confirmedDraftMap = s2.confirmedMembers || {};
   const membersList = Object.values(state.members || {});
   const allGroupMembers = (activeGroupObj && Array.isArray(activeGroupObj.members) && activeGroupObj.members.length > 0) ? activeGroupObj.members : membersList;
-  const actualTotalCount = allGroupMembers.length > 0 ? allGroupMembers.length : (membersList.length || 2);
+  const actualTotalCount = allGroupMembers.length > 0 ? allGroupMembers.length : (membersList.length || 1);
   const totalCount = actualTotalCount;
   const confirmedDraftCount = allGroupMembers.filter(m => isMemberDone(confirmedDraftMap, m)).length;
   const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, currUser || { id: currUserCode, name: currUserName });
@@ -2074,7 +2074,7 @@ function renderStage2Canvas(canvas, state, handlers) {
     }
 
     // 🌟 增量就地刷新右上角【会议打卡】与【初稿确认】小药丸
-      const totalCount = membersList.length || 2;
+      const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
       const subs = s2.meetingSubmissions || {};
       const subCount = Object.keys(subs).length;
       const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
@@ -2606,7 +2606,7 @@ function renderStage3Canvas(canvas, state, handlers) {
   const s3 = state.stage3;
   const activeTab = s3.activeTab || 'defense';
   const membersList = Object.values(state.members || {});
-  const totalCount = membersList.length || 3;
+  const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
   
   const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
   const currUserCode = currUser?.id || state.currentUser || 'A';
@@ -3410,7 +3410,7 @@ export function renderChatActionBar(state) {
   const s2 = state.stage2 || {};
   const curStage = state.currentStage || 'stage1';
   const membersList = Object.values(state.members || []);
-  const totalCount = (membersList && membersList.length > 0) ? membersList.length : 2;
+  const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
   const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
   const myCode = currUser?.id || state.currentUser || '';
   const confs = Object.assign({}, state.stepConfirmations || {}, s2.confirmations || {});
