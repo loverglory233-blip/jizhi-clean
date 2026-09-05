@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2624
+ * Version: 20260905_v2625
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2624';
+  const APP_VERSION = '20260905_v2625';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4683,13 +4683,49 @@
 
             const f2 = document.getElementById('stage2-etherpad-frame');
             if (f2) {
-              liftEtherpadReadonly(f2);
+              const currentSrc = f2.src || f2.getAttribute('src') || '';
+              if (currentSrc.includes('readOnly=true') || f2._wasPreviouslyReadonly) {
+                f2._wasPreviouslyReadonly = false;
+                f2._isReadonlyEnforced = false;
+                const container = f2.parentElement;
+                if (container) {
+                  container.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+                  let cleanSrc = currentSrc.replace(/[&?]readOnly=true/g, '').replace(/[&?]showControls=false/g, '&showControls=true');
+                  if (!cleanSrc.includes('_t=')) cleanSrc += `&_t=${Date.now()}`;
+                  const newIframe = document.createElement('iframe');
+                  newIframe.id = 'stage2-etherpad-frame';
+                  newIframe.src = cleanSrc;
+                  newIframe.style.cssText = 'width:100%; height:100%; min-height:440px; border:none; display:block; background:#ffffff;';
+                  newIframe.setAttribute('allow', 'clipboard-read; clipboard-write; fullscreen');
+                  f2.replaceWith(newIframe);
+                }
+              } else {
+                liftEtherpadReadonly(f2);
+              }
             }
           }
           if (!isS3FinalDone) {
             const f3 = document.getElementById('stage3-etherpad-frame');
             if (f3) {
-              liftEtherpadReadonly(f3);
+              const currentSrc = f3.src || f3.getAttribute('src') || '';
+              if (currentSrc.includes('readOnly=true') || f3._wasPreviouslyReadonly) {
+                f3._wasPreviouslyReadonly = false;
+                f3._isReadonlyEnforced = false;
+                const container = f3.parentElement;
+                if (container) {
+                  container.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+                  let cleanSrc = currentSrc.replace(/[&?]readOnly=true/g, '').replace(/[&?]showControls=false/g, '&showControls=true');
+                  if (!cleanSrc.includes('_t=')) cleanSrc += `&_t=${Date.now()}`;
+                  const newIframe = document.createElement('iframe');
+                  newIframe.id = 'stage3-etherpad-frame';
+                  newIframe.src = cleanSrc;
+                  newIframe.style.cssText = 'width:100%; height:100%; min-height:540px; border:none; display:block;';
+                  newIframe.setAttribute('allow', 'clipboard-read; clipboard-write');
+                  f3.replaceWith(newIframe);
+                }
+              } else {
+                liftEtherpadReadonly(f3);
+              }
             }
           }
         }
