@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2560
+ * Version: 20260905_v2561
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2560';
+  const APP_VERSION = '20260905_v2561';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -18634,19 +18634,51 @@
 
         if (resp && resp.trim().length > 0) {
           try {
-            const jsonMatch = resp.match(/\{[\s\S]*\}/);
+            let cleanedResp = resp.replace(/```(?:json)?\s*/gi, '').replace(/```\s*$/gi, '').trim();
+            const jsonMatch = cleanedResp.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               const parsed = safeJsonParse(jsonMatch[0]);
-              if (parsed && parsed.background !== undefined && !isNaN(Number(parsed.background))) timeAlloc.background = Math.max(5, Math.round(Number(parsed.background)));
-              if (parsed && parsed.literature !== undefined && !isNaN(Number(parsed.literature))) timeAlloc.literature = Math.max(5, Math.round(Number(parsed.literature)));
-              if (parsed && parsed.questions !== undefined && !isNaN(Number(parsed.questions))) timeAlloc.questions = Math.max(5, Math.round(Number(parsed.questions)));
-              if (parsed && parsed.method !== undefined && !isNaN(Number(parsed.method))) timeAlloc.method = Math.max(5, Math.round(Number(parsed.method)));
-              if (parsed && parsed.reflection !== undefined && !isNaN(Number(parsed.reflection))) timeAlloc.reflection = Math.max(5, Math.round(Number(parsed.reflection)));
-              if (parsed && parsed.references !== undefined && !isNaN(Number(parsed.references))) timeAlloc.references = Math.max(5, Math.round(Number(parsed.references)));
-              if (parsed && parsed.guideText && parsed.guideText.trim().length > 0) guideSpeech = parsed.guideText.trim();
+              if (parsed) {
+                if (parsed.background !== undefined && !isNaN(Number(parsed.background))) timeAlloc.background = Math.max(5, Math.round(Number(parsed.background)));
+                if (parsed.literature !== undefined && !isNaN(Number(parsed.literature))) timeAlloc.literature = Math.max(5, Math.round(Number(parsed.literature)));
+                if (parsed.questions !== undefined && !isNaN(Number(parsed.questions))) timeAlloc.questions = Math.max(5, Math.round(Number(parsed.questions)));
+                if (parsed.method !== undefined && !isNaN(Number(parsed.method))) timeAlloc.method = Math.max(5, Math.round(Number(parsed.method)));
+                if (parsed.reflection !== undefined && !isNaN(Number(parsed.reflection))) timeAlloc.reflection = Math.max(5, Math.round(Number(parsed.reflection)));
+                if (parsed.references !== undefined && !isNaN(Number(parsed.references))) timeAlloc.references = Math.max(5, Math.round(Number(parsed.references)));
+                if (parsed.guideText && parsed.guideText.trim().length > 0) guideSpeech = parsed.guideText.trim();
+              }
             }
+
+            // 2. 自然语言与 Markdown 列表提取容错
+            const extractNum = (patterns) => {
+              for (const p of patterns) {
+                const m = resp.match(p);
+                if (m && m[1] && !isNaN(Number(m[1]))) {
+                  return Math.max(5, Math.round(Number(m[1])));
+                }
+              }
+              return null;
+            };
+
+            const bgNum = extractNum([/(?:背景|教材|学情)[^\d\n]*?(\d+)\s*(?:分钟|分|%|min)?/i]);
+            if (bgNum) timeAlloc.background = bgNum;
+
+            const litNum = extractNum([/(?:文献|目标|重难点)[^\d\n]*?(\d+)\s*(?:分钟|分|%|min)?/i]);
+            if (litNum) timeAlloc.literature = litNum;
+
+            const qNum = extractNum([/(?:问题|假设|导入|情境)[^\d\n]*?(\d+)\s*(?:分钟|分|%|min)?/i]);
+            if (qNum) timeAlloc.questions = qNum;
+
+            const metNum = extractNum([/(?:方法|探究|建构|活动)[^\d\n]*?(\d+)\s*(?:分钟|分|%|min)?/i]);
+            if (metNum) timeAlloc.method = metNum;
+
+            const refNum = extractNum([/(?:反思|不足|评价|练习)[^\d\n]*?(\d+)\s*(?:分钟|分|%|min)?/i]);
+            if (refNum) timeAlloc.reflection = refNum;
+
+            const refsNum = extractNum([/(?:参考|引文|板书|道具)[^\d\n]*?(\d+)\s*(?:分钟|分|%|min)?/i]);
+            if (refsNum) timeAlloc.references = refsNum;
           } catch (e) {
-            console.warn('Parse time allocation JSON fail, keep default', e);
+            console.warn('Parse time allocation fail, keep default', e);
           }
         }
 
@@ -18796,19 +18828,36 @@
 
         if (resp && resp.trim().length > 0) {
           try {
-            const jsonMatch = resp.match(/\{[\s\S]*\}/);
+            let cleanedResp = resp.replace(/```(?:json)?\s*/gi, '').replace(/```\s*$/gi, '').trim();
+            const jsonMatch = cleanedResp.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               const parsed = safeJsonParse(jsonMatch[0]);
               if (parsed && parsed.assignments && typeof parsed.assignments === 'object') {
                 members.forEach((m, idx) => {
                   const mKey = m.id || m.name;
                   const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id];
-                  if (matchedVal) taskAssignments[mKey] = matchedVal;
+                  if (matchedVal) taskAssignments[mKey] = String(matchedVal).trim();
                 });
               }
               if (parsed && parsed.guideText) guideSpeech = parsed.guideText;
             }
-          } catch (e) {}
+
+            // 2. 自然语言与列表按成员名字提取容错
+            members.forEach(m => {
+              const mKey = m.id || m.name;
+              const names = [m.name, m.id].filter(Boolean);
+              for (const name of names) {
+                const reg = new RegExp(`(?:[-*•\\d.]\\s*)?(?:${name})[：:\\s\\-]+([^\n\r]+)`, 'i');
+                const match = resp.match(reg);
+                if (match && match[1] && match[1].trim().length > 3) {
+                  taskAssignments[mKey] = match[1].trim().replace(/^[：:\s"“]+|[”"\s]+$/g, '');
+                  break;
+                }
+              }
+            });
+          } catch (e) {
+            console.warn('Parse tasks fail, keep default', e);
+          }
         }
 
         // 🛡️ 移除正在提炼中的思考消息与残留网络提醒
