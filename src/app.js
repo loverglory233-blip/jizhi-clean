@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2602";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2602";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2602";
-import { AuthManager } from "./auth.js?v=20260905_v2602";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2602";
-import { renderLoginView } from "./login.js?v=20260905_v2602";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2602";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2602";
+} from "./constants.js?v=20260905_v2603";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2603";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2603";
+import { AuthManager } from "./auth.js?v=20260905_v2603";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2603";
+import { renderLoginView } from "./login.js?v=20260905_v2603";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2603";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2603";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2602";
+} from "./editor.js?v=20260905_v2603";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -36,6 +36,20 @@ if (typeof window !== "undefined") {
   window.addEventListener('compositionend', () => { window._isGlobalComposing = false; }, true);
   // 🛡️ Safari 兜底：合成被 blur/Esc 打断时 compositionend 可能不触发，导致标志永久卡 true（进而跳过重渲染）
   window.addEventListener('blur', () => { window._isGlobalComposing = false; }, true);
+
+  // ⏱️ 智能体动态耗时秒数定时器（每秒自动更新界面中的全部 .agent-elapsed-timer）
+  if (!window._agentTimerIntervalStarted) {
+    window._agentTimerIntervalStarted = true;
+    setInterval(() => {
+      document.querySelectorAll('.agent-elapsed-timer').forEach(el => {
+        const startTs = Number(el.dataset.start);
+        if (startTs && !isNaN(startTs)) {
+          const elapsedSec = Math.max(0, Math.floor((Date.now() - startTs) / 1000));
+          el.textContent = `(已耗时 ${elapsedSec}s)`;
+        }
+      });
+    }, 1000);
+  }
 }
 
 /* ==========================================================================
@@ -4120,9 +4134,22 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
       s1.contractStep = 'time'; // 顺推至时间分配阶段
 
       const overviewInp = document.getElementById('contract-overview-input');
-      if (overviewInp) overviewInp.value = finalOverview;
+      if (overviewInp) {
+        overviewInp.value = finalOverview;
+        overviewInp.dispatchEvent(new Event('input', { bubbles: true }));
+      }
       const topicInp = document.getElementById('contract-topic-input');
-      if (topicInp) topicInp.value = finalTopic;
+      if (topicInp) {
+        topicInp.value = finalTopic;
+        topicInp.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+
+      if (this.state.stage1) this.state.stage1._topicExtractFailed = false;
+      await this.clearStepConfirmation('s1_topic');
+      this.syncStage1();
+      this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      this.renderStudentWorkspace();
 
       guideSpeech = guideSpeech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师|备课引导师|引导师)[·\s]*(?:方案确立|主题与方案确立|方案提炼)?】[：:]\s*/g, '');
       const noticeText = `🏛️ 【${agentRole}·主题与方案确立】：全组${isInst ? '教学论题' : '研究论题'}《${finalTopic}》与方案概述已成功提炼并录入公约看板！👉 接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定完成后点击左侧【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！`;
@@ -4140,12 +4167,6 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
         this.sendSingleChatMessage(noticeMsg, 'stage1');
       }
 
-      if (this.state.stage1) this.state.stage1._topicExtractFailed = false;
-      await this.clearStepConfirmation('s1_topic');
-      this.syncStage1();
-      this.syncChatLogs();
-      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-      this.renderStudentWorkspace();
       renderChat(this.state);
       if (typeof showGlobalBannerNotice === 'function') {
         showGlobalBannerNotice('✅ 提炼成功', '已成功提炼并录入公约看板，请继续讨论【时间分配】！', 'success', 5000);
@@ -4342,6 +4363,21 @@ ${chatSnippet}
       s1.contract._timeGeneratedByAi = true;
       s1.contractStep = 'tasks'; // 推进至第三步：任务分工
 
+      document.querySelectorAll('.contract-time-input').forEach(inp => {
+        const k = inp.dataset.key;
+        if (k && timeAlloc[k] !== undefined) {
+          inp.value = timeAlloc[k];
+          inp.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      });
+
+      if (this.state.stage1) this.state.stage1._timeExtractFailed = false;
+      await this.clearStepConfirmation('s1_time');
+      this.syncStage1();
+      this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      this.renderStudentWorkspace();
+
       guideSpeech = guideSpeech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师|备课引导师|引导师)[·\s]*(?:时间预算确立|时间分配)?】[：:]\s*/g, '');
       const noticeText = `🏛️ 【${agentRole}·时间预算确立】：6 大${isInst ? '模块' : '章节'}时间规划已提炼录入看板！👉 请全组成员在左侧仔细审查核对，如对时间规划有异议可直接在左侧输入框修改调整；接下来请在讨论区商讨组员具体分工认领，商定后点击左侧【👥 分工讨论差不多了？一键提炼【任务分工】】！`;
 
@@ -4358,12 +4394,6 @@ ${chatSnippet}
         this.sendSingleChatMessage(noticeMsg, 'stage1');
       }
 
-      if (this.state.stage1) this.state.stage1._timeExtractFailed = false;
-      await this.clearStepConfirmation('s1_time');
-      this.syncStage1();
-      this.syncChatLogs();
-      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-      this.renderStudentWorkspace();
       renderChat(this.state);
       if (typeof showGlobalBannerNotice === 'function') {
         showGlobalBannerNotice('✅ 提炼成功', '已成功提炼时间分配预算！请继续在讨论区研讨【任务分工】。', 'success', 5000);
@@ -4494,9 +4524,13 @@ ${chatSnippet}
         '负责数据分析模型构建与研究工具问卷设计'
       ];
 
+      // 1. 初始化全员默认保底分工（绝不留空）
       members.forEach((m, idx) => {
-        const mKey = m.id || m.name;
-        taskAssignments[mKey] = defaultTasks[idx % defaultTasks.length];
+        const mKey = m.id || m.name || `mem_${idx}`;
+        const def = defaultTasks[idx % defaultTasks.length];
+        taskAssignments[mKey] = def;
+        if (m.id) taskAssignments[m.id] = def;
+        if (m.name) taskAssignments[m.name] = def;
       });
 
       if (resp && resp.trim().length > 0) {
@@ -4506,24 +4540,41 @@ ${chatSnippet}
           if (jsonMatch) {
             const parsed = safeJsonParse(jsonMatch[0]);
             if (parsed && parsed.assignments && typeof parsed.assignments === 'object') {
+              const assignObj = parsed.assignments;
               members.forEach((m, idx) => {
-                const mKey = m.id || m.name;
-                const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id];
-                if (matchedVal) taskAssignments[mKey] = String(matchedVal).trim();
+                const mKey = m.id || m.name || `mem_${idx}`;
+                let matchedVal = assignObj[m.name] || assignObj[m.id] || assignObj[mKey];
+                if (!matchedVal) {
+                  for (const [k, v] of Object.entries(assignObj)) {
+                    if (v && (k.includes(m.name) || (m.id && k.includes(m.id)) || (m.name && m.name.includes(k)))) {
+                      matchedVal = v;
+                      break;
+                    }
+                  }
+                }
+                if (matchedVal && typeof matchedVal === 'string' && matchedVal.trim().length > 0) {
+                  const cleanVal = matchedVal.trim();
+                  taskAssignments[mKey] = cleanVal;
+                  if (m.id) taskAssignments[m.id] = cleanVal;
+                  if (m.name) taskAssignments[m.name] = cleanVal;
+                }
               });
             }
             if (parsed && parsed.guideText) guideSpeech = parsed.guideText;
           }
 
-          // 2. 自然语言与列表按成员名字提取容错
-          members.forEach(m => {
-            const mKey = m.id || m.name;
+          // 2. 自然语言与列表按成员名字模糊正则提取容错
+          members.forEach((m, idx) => {
+            const mKey = m.id || m.name || `mem_${idx}`;
             const names = [m.name, m.id].filter(Boolean);
             for (const name of names) {
               const reg = new RegExp(`(?:[-*•\\d.]\\s*)?(?:${name})[：:\\s\\-]+([^\n\r]+)`, 'i');
               const match = resp.match(reg);
               if (match && match[1] && match[1].trim().length > 3) {
-                taskAssignments[mKey] = match[1].trim().replace(/^[：:\s"“]+|[”"\s]+$/g, '');
+                const cleanVal = match[1].trim().replace(/^[：:\s"“]+|[”"\s]+$/g, '');
+                taskAssignments[mKey] = cleanVal;
+                if (m.id) taskAssignments[m.id] = cleanVal;
+                if (m.name) taskAssignments[m.name] = cleanVal;
                 break;
               }
             }
@@ -4541,12 +4592,31 @@ ${chatSnippet}
         return true;
       });
 
+      // 3. 确保存入状态并直接写入 DOM 实体输入框
       if (!s1.contract) s1.contract = {};
       s1.contract.taskAssignments = taskAssignments;
       s1.contract._tasksGeneratedByAi = true;
       s1.contract.isDraftGenerated = true;
       s1.contract._draftedTime = Date.now();
       s1.contractStep = 'completed'; // 提炼全部完成
+
+      document.querySelectorAll('.task-assignment-input').forEach(inp => {
+        const mKey = inp.dataset.mkey;
+        const mId = inp.dataset.id;
+        const mName = inp.dataset.name;
+        const val = taskAssignments[mKey] || (mId ? taskAssignments[mId] : '') || (mName ? taskAssignments[mName] : '');
+        if (val) {
+          inp.value = val;
+          inp.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      });
+
+      if (this.state.stage1) this.state.stage1._tasksExtractFailed = false;
+      await this.clearStepConfirmation('s1_tasks');
+      this.syncStage1();
+      this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      this.renderStudentWorkspace();
 
       guideSpeech = guideSpeech.replace(/^(?:📜|🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师|备课引导师|引导师)[·\s]*(?:公约生成完毕|任务分工|草案就绪)?】[：:]\s*/g, '');
       const noticeText = `🏛️ 【${agentRole}·公约草案就绪】：全组成员分工已成功配置，公约草案已全部生成就绪！👉 请全组成员在左侧公约看板仔细审查核对，如对论题、方案、时间或分工有异议，可直接在左侧看板修改调整或在讨论区商议；确认无误后请在公约下方点击【✍️ 签署确认${contractTitle}】！全员签署后将正式解锁【${stage2Title}】！`;
@@ -4564,12 +4634,6 @@ ${chatSnippet}
         this.sendSingleChatMessage(noticeMsg, 'stage1');
       }
 
-      if (this.state.stage1) this.state.stage1._tasksExtractFailed = false;
-      await this.clearStepConfirmation('s1_tasks');
-      this.syncStage1();
-      this.syncChatLogs();
-      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-      this.renderStudentWorkspace();
       renderChat(this.state);
       if (typeof showGlobalBannerNotice === 'function') {
         showGlobalBannerNotice('✅ 提炼成功', '公约草案已全部生成就绪，请全组成员核对并在下方签署！', 'success', 5000);
@@ -4833,17 +4897,48 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
                 finalTimes = Object.assign({}, defaultTimes, parsed.timeAllocations);
               }
               if (parsed.assignments && typeof parsed.assignments === 'object') {
+                const assignObj = parsed.assignments;
                 membersList.forEach((m, idx) => {
-                  const mKey = m.id || m.name;
-                  const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id];
-                  if (matchedVal) finalAssignments[mKey] = matchedVal;
+                  const mKey = m.id || m.name || `mem_${idx}`;
+                  let matchedVal = assignObj[m.name] || assignObj[m.id] || assignObj[mKey];
+                  if (!matchedVal) {
+                    for (const [k, v] of Object.entries(assignObj)) {
+                      if (v && (k.includes(m.name) || (m.id && k.includes(m.id)) || (m.name && m.name.includes(k)))) {
+                        matchedVal = v;
+                        break;
+                      }
+                    }
+                  }
+                  if (matchedVal && typeof matchedVal === 'string' && matchedVal.trim().length > 0) {
+                    const cleanVal = matchedVal.trim();
+                    finalAssignments[mKey] = cleanVal;
+                    if (m.id) finalAssignments[m.id] = cleanVal;
+                    if (m.name) finalAssignments[m.name] = cleanVal;
+                  }
                 });
               }
               isSuccess = true;
             }
           }
 
-          // 2. 若未由左侧按键生成且 JSON 未能提取出 overview，进入正则与自然语言容错提取
+          // 2. 正则与自然语言列表按成员名字模糊匹配容错
+          membersList.forEach((m, idx) => {
+            const mKey = m.id || m.name || `mem_${idx}`;
+            const names = [m.name, m.id].filter(Boolean);
+            for (const name of names) {
+              const reg = new RegExp(`(?:[-*•\\d.]\\s*)?(?:${name})[：:\\s\\-]+([^\n\r]+)`, 'i');
+              const match = resp.match(reg);
+              if (match && match[1] && match[1].trim().length > 3) {
+                const cleanVal = match[1].trim().replace(/^[：:\s"“]+|[”"\s]+$/g, '');
+                finalAssignments[mKey] = cleanVal;
+                if (m.id) finalAssignments[m.id] = cleanVal;
+                if (m.name) finalAssignments[m.name] = cleanVal;
+                break;
+              }
+            }
+          });
+
+          // 3. 若未由左侧按键生成且 JSON 未能提取出 overview，进入正则与自然语言容错提取
           if (!hasTopicFromLeftAgent && (!finalOverview || !finalOverview.trim())) {
             const tMatch = resp.match(/(?:【(?:教学)?(?:研究)?(?:课题|论文题目|题目|课题名称|选题)】|(?:课题|论文题目|课题名称|题目|选题)[：:\s]*)[《“"]?([^》”"\n\r]+)[》”"]?/i);
             if (tMatch && tMatch[1] && tMatch[1].trim().length > 1) {
@@ -4944,6 +5039,24 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
     s1.contractStep = 'completed'; // 提炼全部完成，左侧3个分步按钮全部退场
     s1.flowStep = 'refining';
 
+    // 3. 确保存入状态并直接写入 DOM 实体输入框
+    document.querySelectorAll('.task-assignment-input').forEach(inp => {
+      const mKey = inp.dataset.mkey;
+      const mId = inp.dataset.id;
+      const mName = inp.dataset.name;
+      const val = finalAssignments[mKey] || (mId ? finalAssignments[mId] : '') || (mName ? finalAssignments[mName] : '');
+      if (val) {
+        inp.value = val;
+        inp.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+
+    await this.clearStepConfirmation('s1_full_contract');
+    this.syncStage1();
+    this.syncChatLogs();
+    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+    this.renderStudentWorkspace();
+
     let noticeText = '';
     if (hasTopicFromLeftAgent && hasTimeFromLeftAgent) {
       noticeText = `🏛️ 【${agentRole}·公约草案就绪】：已保留左侧确立的主题、方案与时间预算，全组成员分工已成功提炼配置，公约草案已全部就绪！👉 请全组成员在左侧仔细审查核对，可自由微调修改，确认无误后点击【✍️ 签署确认${contractTitle}】！`;
@@ -4966,10 +5079,7 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
       this.sendSingleChatMessage(noticeMsg, 'stage1');
     }
 
-    await this.clearStepConfirmation('s1_full_contract');
-    this.syncStage1();
-    this.syncChatLogs();
-    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+    if (typeof renderChat === 'function') renderChat(this.state);
     this.renderStudentWorkspace();
     renderChat(this.state);
 
@@ -6436,7 +6546,7 @@ ${chatSnippet}
                 </div>
               </div>
               <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-                ⏳ 动态分析中
+                ⏳ 动态分析中 <span class="agent-elapsed-timer" data-start="${analyzing._ts || Date.now()}">(已耗时 0s)</span>
               </span>
             </div>
           `;
@@ -6748,7 +6858,33 @@ ${chatSnippet}
           overviewInp.style.cursor = isContractLocked ? 'not-allowed' : 'text';
           overviewInp.style.background = isContractLocked ? '#f8fafc' : '#ffffff';
         }
-        document.querySelectorAll('.contract-time-input, .task-assignment-input').forEach(inp => {
+        document.querySelectorAll('.contract-time-input').forEach(inp => {
+          const modKey = inp.dataset.key;
+          if (modKey && s1.contract?.timeAllocations && s1.contract.timeAllocations[modKey] !== undefined) {
+            const val = s1.contract.timeAllocations[modKey];
+            if (document.activeElement !== inp && inp.value != val) inp.value = val;
+          }
+          if (document.activeElement !== inp) {
+            inp.disabled = isContractLocked;
+            inp.readOnly = isContractLocked;
+            inp.style.opacity = isContractLocked ? '0.8' : '1';
+            inp.style.cursor = isContractLocked ? 'not-allowed' : (inp.tagName === 'INPUT' ? 'text' : 'auto');
+            inp.style.background = isContractLocked ? '#f8fafc' : '#ffffff';
+          }
+        });
+
+        document.querySelectorAll('.task-assignment-input').forEach(inp => {
+          const mKey = inp.dataset.mkey;
+          const mId = inp.dataset.id;
+          const mName = inp.dataset.name;
+          if (s1.contract?.taskAssignments) {
+            const val = (mKey && s1.contract.taskAssignments[mKey] !== undefined) ? s1.contract.taskAssignments[mKey] :
+              ((mId && s1.contract.taskAssignments[mId] !== undefined) ? s1.contract.taskAssignments[mId] :
+              ((mName && s1.contract.taskAssignments[mName] !== undefined) ? s1.contract.taskAssignments[mName] : ''));
+            if (val && document.activeElement !== inp && inp.value !== val) {
+              inp.value = val;
+            }
+          }
           if (document.activeElement !== inp) {
             inp.disabled = isContractLocked;
             inp.readOnly = isContractLocked;
