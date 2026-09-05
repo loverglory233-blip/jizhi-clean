@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2599";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2599";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2599";
-import { AuthManager } from "./auth.js?v=20260905_v2599";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2599";
-import { renderLoginView } from "./login.js?v=20260905_v2599";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2599";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2599";
+} from "./constants.js?v=20260905_v2600";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2600";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2600";
+import { AuthManager } from "./auth.js?v=20260905_v2600";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2600";
+import { renderLoginView } from "./login.js?v=20260905_v2600";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2600";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2600";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2599";
+} from "./editor.js?v=20260905_v2600";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6633,9 +6633,11 @@ ${chatSnippet}
               this.handleExtractTasks();
             });
           } else {
+            const isDisabled = isTasksRunning || isExtractingAny || (isMe && !isFull);
+            const btnBg = isTasksRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')));
             contractActionBarMount.innerHTML = `
-              <button id="btn-extract-tasks" ${isTasksRunning || isExtractingAny || isFull ? 'disabled' : ''} style="background:${isTasksRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTasksRunning || isExtractingAny || isFull ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
-                ${isTasksRunning ? `⏳ 正在提炼【任务分工】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 智能体提炼中...` : (isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`)))}
+              <button id="btn-extract-tasks" ${isDisabled ? 'disabled' : ''} style="background:${btnBg}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isDisabled ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
+                ${isTasksRunning ? `⏳ 正在提炼【任务分工】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点此开始提炼【任务分工】` : (isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`)))}
               </button>
             `;
             contractActionBarMount.querySelector('#btn-extract-tasks')?.addEventListener('click', () => {
@@ -6674,9 +6676,11 @@ ${chatSnippet}
               this.handleExtractTime();
             });
           } else {
+            const isDisabled = isTimeRunning || isExtractingAny || (isMe && !isFull);
+            const btnBg = isTimeRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)')));
             contractActionBarMount.innerHTML = `
-              <button id="btn-extract-time" ${isTimeRunning || isExtractingAny || isFull ? 'disabled' : ''} style="background:${isTimeRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTimeRunning || isExtractingAny || isFull ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
-                ${isTimeRunning ? `⏳ 正在提炼【时间分配】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 智能体提炼中...` : (isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`)))}
+              <button id="btn-extract-time" ${isDisabled ? 'disabled' : ''} style="background:${btnBg}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isDisabled ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
+                ${isTimeRunning ? `⏳ 正在提炼【时间分配】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点此开始提炼【时间分配】` : (isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`)))}
               </button>
             `;
             contractActionBarMount.querySelector('#btn-extract-time')?.addEventListener('click', () => {
@@ -6726,9 +6730,11 @@ ${chatSnippet}
               this.handleExtractTopic();
             });
           } else {
+            const isDisabled = isTopicRunning || isExtractingAny || (isMe && !isFull);
+            const btnBg = isTopicRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)')));
             contractActionBarMount.innerHTML = `
-              <button id="btn-extract-topic" ${isTopicRunning || isExtractingAny || isFull ? 'disabled' : ''} style="background:${isTopicRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTopicRunning || isExtractingAny || isFull ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
-                ${isTopicRunning ? `⏳ 正在提炼【${extractName}】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 智能体提炼中...` : (isMe ? `✅ 您已确认提炼${extractName} (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【${extractName}】 (${count}/${totalMembersCount})`)))}
+              <button id="btn-extract-topic" ${isDisabled ? 'disabled' : ''} style="background:${btnBg}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isDisabled ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
+                ${isTopicRunning ? `⏳ 正在提炼【${extractName}】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点此开始提炼【${extractName}】` : (isMe ? `✅ 您已确认提炼${extractName} (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【${extractName}】 (${count}/${totalMembersCount})`)))}
               </button>
             `;
             contractActionBarMount.querySelector('#btn-extract-topic')?.addEventListener('click', () => {
