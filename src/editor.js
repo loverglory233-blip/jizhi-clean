@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2662";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2662";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2662";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2663";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2663";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2663";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -15,12 +15,52 @@ export function getEffectiveAgentAnalyzing(state = null) {
   const currState = state || (app ? app.state : null);
   if (!currState) return null;
 
-  // 1. 如果已有显式的 activeAgentAnalyzing 且未超时（90秒兜底）
+  // 1. 如果已有显式的 activeAgentAnalyzing 且未超时（35秒兜底）
   const explicitAnalyzing = currState.activeAgentAnalyzing || (app && app.state && app.state.activeAgentAnalyzing);
   if (explicitAnalyzing && typeof explicitAnalyzing === 'object') {
     const ts = explicitAnalyzing._ts || explicitAnalyzing.timestamp || 0;
+    
+    // 🛡️ 智能状态防呆：检查对应的智能体结果是否已经产出或下发，若已下发立即自动清除并返回 null
+    const s2Logs = (currState.chatLogs && currState.chatLogs.stage2) || (app && app.state && app.state.chatLogs && app.state.chatLogs.stage2) || [];
+    const s1Logs = (currState.chatLogs && currState.chatLogs.stage1) || (app && app.state && app.state.chatLogs && app.state.chatLogs.stage1) || [];
+    const titleStr = String(explicitAnalyzing.title || '');
+
+    // 阶段二：责任编辑自查研判与对齐引导
+    if (titleStr.includes('责任编辑') || titleStr.includes('自查') || titleStr.includes('备课组长')) {
+      const hasFinished = s2Logs.some(m => m && (m.sender === 'managingEditor' || (m.text && (m.text.includes('自查研判') || m.text.includes('对齐引导') || m.text.includes('一致性研讨')))));
+      if (hasFinished) {
+        if (currState.activeAgentAnalyzing) currState.activeAgentAnalyzing = null;
+        if (app && app.state) app.state.activeAgentAnalyzing = null;
+        return null;
+      }
+    }
+
+    // 阶段二：审稿编辑二审修正清单
+    if (titleStr.includes('审稿') || titleStr.includes('修正清单') || titleStr.includes('教研专家')) {
+      const isPlanDone = !!(currState.stage2?.actionPlan?.isGenerated);
+      const hasReviewMsg = s2Logs.some(m => m && (m.sender === 'reviewingEditor' || (m.text && (m.text.includes('修正清单') || m.text.includes('二审意见')))));
+      if (isPlanDone || hasReviewMsg) {
+        if (currState.activeAgentAnalyzing) currState.activeAgentAnalyzing = null;
+        if (app && app.state) app.state.activeAgentAnalyzing = null;
+        return null;
+      }
+    }
+
+    // 阶段一：公约各环节提炼
+    if (titleStr.includes('拍卖师') || titleStr.includes('公约') || titleStr.includes('规划师') || titleStr.includes('调度员')) {
+      if (currState.stage1?.contract?.isConfirmed || currState.stage1?.contractStep === 'completed') {
+        if (currState.activeAgentAnalyzing) currState.activeAgentAnalyzing = null;
+        if (app && app.state) app.state.activeAgentAnalyzing = null;
+        return null;
+      }
+    }
+
     if (!ts || (Date.now() - ts < 35000)) {
       return explicitAnalyzing;
+    } else {
+      if (currState.activeAgentAnalyzing) currState.activeAgentAnalyzing = null;
+      if (app && app.state) app.state.activeAgentAnalyzing = null;
+      return null;
     }
   }
 
