@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2643";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2643";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2643";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2644";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2644";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2644";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -2017,8 +2017,6 @@ function renderStage2Canvas(canvas, state, handlers) {
     return maxVal;
   };
 
-  const updateContribDom = () => {
-    const labelsEl = document.getElementById('stage2-contrib-labels');
   const getEffectiveContribs = () => {
     if (state.stage2 && state.stage2.frozenContributions && Object.keys(state.stage2.frozenContributions).length > 0) {
       let fTotal = 0;

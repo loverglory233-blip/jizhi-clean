@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2643
+ * Version: 20260906_v2644
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2643';
+  const APP_VERSION = '20260906_v2644';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13496,8 +13496,6 @@
       return maxVal;
     };
 
-    const updateContribDom = () => {
-      const labelsEl = document.getElementById('stage2-contrib-labels');
     const getEffectiveContribs = () => {
       if (state.stage2 && state.stage2.frozenContributions && Object.keys(state.stage2.frozenContributions).length > 0) {
         let fTotal = 0;
