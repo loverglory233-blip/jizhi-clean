@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2602';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2602';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2603';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2603';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1326,16 +1326,19 @@ export class CloudSyncEngine {
       if (remoteS1.contract?.taskAssignments) {
         document.querySelectorAll('.task-assignment-input').forEach(inp => {
           const mKey = inp.dataset.mkey;
-          const mid = inp.dataset.mid;
+          const mid = inp.dataset.id || inp.dataset.mid;
+          const mName = inp.dataset.name;
           let remoteVal = undefined;
           if (mKey && remoteS1.contract.taskAssignments[mKey] !== undefined) {
             remoteVal = remoteS1.contract.taskAssignments[mKey];
           } else if (mid && remoteS1.contract.taskAssignments[mid] !== undefined) {
             remoteVal = remoteS1.contract.taskAssignments[mid];
+          } else if (mName && remoteS1.contract.taskAssignments[mName] !== undefined) {
+            remoteVal = remoteS1.contract.taskAssignments[mName];
           } else {
             // 兼容性模糊匹配（如学号/用户名/ID交叉）
             for (const [k, v] of Object.entries(remoteS1.contract.taskAssignments)) {
-              if (k === mKey || k === mid || (mKey && (k.endsWith(mKey) || mKey.endsWith(k)))) {
+              if (k === mKey || k === mid || k === mName || (mKey && (k.endsWith(mKey) || mKey.endsWith(k))) || (mName && (k.includes(mName) || mName.includes(k)))) {
                 remoteVal = v;
                 break;
               }
