@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2699';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2699';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2700';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2700';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -589,13 +589,28 @@ export class CloudSyncEngine {
       return;
     }
 
+    // 🛡️ 同步带宽防护：每个 stage 聊天记录最多保留最新 120 条（智能体消息优先保留）
+    const capChatLogs = (logs) => {
+      if (!Array.isArray(logs) || logs.length <= 120) return logs;
+      // 保留所有智能体消息 + 最新用户消息，总计不超过 120 条
+      const agentMsgs = logs.filter(m => m && m.sender && ['auctioneer','managingEditor','reviewingEditor','proponent','opponent','neutral','system'].includes(m.sender));
+      const userMsgs = logs.filter(m => m && m.sender && !['auctioneer','managingEditor','reviewingEditor','proponent','opponent','neutral','system'].includes(m.sender));
+      const keepUser = userMsgs.slice(-Math.max(0, 120 - agentMsgs.length));
+      return [...agentMsgs, ...keepUser].sort((a, b) => (a._timeMs || 0) - (b._timeMs || 0));
+    };
+    const rawChatLogs = this.app.state.chatLogs || {};
+
     const snapshot = {
       timestamp: Date.now(),
       groupId: groupId,
       revisionId: this.lastRevisionId || 0,
       members: this.app.state.members,
       presence: this.app.state.presence || {},
-      chatLogs: this.app.state.chatLogs,
+      chatLogs: {
+        stage1: capChatLogs(rawChatLogs.stage1),
+        stage2: capChatLogs(rawChatLogs.stage2),
+        stage3: capChatLogs(rawChatLogs.stage3),
+      },
       stage1: this.app.state.stage1,
       stage2: this.app.state.stage2,
       stage3: this.app.state.stage3,

@@ -26,6 +26,22 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !$isPoll) {
     exit;
 }
 
+// 🛡️ 给足 PHP 执行时间：lock 等待最长 15s + curl 75s + buffer，避免 max_execution_time 过早终止
+set_time_limit(120);
+
+// 🧹 定期清理过期 milestone lock 文件（5% 概率触发，避免 /tmp 积累）
+if (mt_rand(1, 20) === 1) {
+    $cleanDir = sys_get_temp_dir() . '/jizhi_coze_milestones';
+    if (is_dir($cleanDir)) {
+        foreach (glob($cleanDir . '/*.json') as $f) {
+            if (file_exists($f) && (time() - @filemtime($f)) > 3600) { @unlink($f); }
+        }
+        foreach (glob($cleanDir . '/*.lock') as $f) {
+            if (file_exists($f) && (time() - @filemtime($f)) > 3600) { @unlink($f); }
+        }
+    }
+}
+
 global $RAW_INPUT, $REQ_DATA;
 $rawInput = !empty($RAW_INPUT) ? $RAW_INPUT : @file_get_contents('php://input');
 $req = !empty($REQ_DATA) ? $REQ_DATA : (@json_decode($rawInput, true) ?: []);
