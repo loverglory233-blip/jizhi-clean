@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2579";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2579";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2579";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2580";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2580";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2580";
 
 /**
  * 🛡️ 全局提炼互斥状态判定工具函数
@@ -1308,9 +1308,6 @@ function renderStage1Canvas(canvas, state, handlers) {
           return;
         }
         if (s1._topicExtractFailed) {
-          if (typeof showGlobalBannerNotice === 'function') {
-            showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
-          }
           return;
         }
         if (isAnyExtracting(state)) {
@@ -1329,9 +1326,6 @@ function renderStage1Canvas(canvas, state, handlers) {
     if (btnExtractTime) {
       btnExtractTime.addEventListener('click', () => {
         if (s1._timeExtractFailed) {
-          if (typeof showGlobalBannerNotice === 'function') {
-            showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
-          }
           return;
         }
         if (isAnyExtracting(state)) {
@@ -1350,9 +1344,6 @@ function renderStage1Canvas(canvas, state, handlers) {
     if (btnExtractTasks) {
       btnExtractTasks.addEventListener('click', () => {
         if (s1._tasksExtractFailed) {
-          if (typeof showGlobalBannerNotice === 'function') {
-            showGlobalBannerNotice('⚠️ 请在讨论区重试', '全员已完成确认。提炼稍有延迟，请直接在右侧讨论区点击【重新提炼】按钮！', 'warning', 5000);
-          }
           return;
         }
         if (isAnyExtracting(state)) {
