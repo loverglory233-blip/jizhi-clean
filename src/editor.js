@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2684";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2684";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2684";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2685";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2685";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2685";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -1249,8 +1249,6 @@ function renderStage1Canvas(canvas, state, handlers) {
       if (isContractLocked || isVotingComplete || userHasVoted || totalVotesCast > 0) {
         if (typeof showGlobalBannerNotice === 'function') {
           showGlobalBannerNotice('🔒 提案已锁定', '投票已开始或已完成，选题提案已锁定，不可再提交或修改！', 'info', 4000);
-        } else {
-          alert('🔒 投票已开始或已完成，选题提案已锁定，不可再提交或修改！');
         }
         return;
       }
@@ -1304,8 +1302,6 @@ function renderStage1Canvas(canvas, state, handlers) {
         if (isContractLocked || isVotingComplete || userHasVoted || totalVotesCast > 0) {
           if (typeof showGlobalBannerNotice === 'function') {
             showGlobalBannerNotice('🔒 提案已锁定', '投票已开始或已完成，选题提案已锁定，不可修改！', 'info', 4000);
-          } else {
-            alert('🔒 投票已开始或已完成，选题提案已锁定，不可修改！');
           }
           closeModal();
           return;
@@ -1314,8 +1310,6 @@ function renderStage1Canvas(canvas, state, handlers) {
         if (!title) {
           if (typeof showGlobalBannerNotice === 'function') {
             showGlobalBannerNotice('⚠️ 提示', '请输入选题名称！', 'warning', 3000);
-          } else {
-            alert('⚠️ 请输入选题名称！');
           }
           return;
         }
@@ -1882,16 +1876,12 @@ function renderStage1Canvas(canvas, state, handlers) {
         if (!isVotingComplete) {
           if (typeof showGlobalBannerNotice === 'function') {
             showGlobalBannerNotice('🔒 请先完成投票', `当前全组投票进度：${totalVotesCast}/${totalMembersCount} 人已投票。投票结束后拍卖师将落槌揭晓结果，随后方可开启提炼。`, 'warning', 5000);
-          } else {
-            alert(`🔒 请先完成全员提案提交与投票推选！\n\n当前全组投票进度：${totalVotesCast}/${totalMembersCount} 人已投票。\n投票结束后拍卖师将落槌揭晓结果，随后方可开启主题与方案提炼。`);
           }
           return;
         }
         if (isAnyExtracting(state)) {
           if (typeof showGlobalBannerNotice === 'function') {
             showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
-          } else {
-            alert('⏳ 智能体当前正在分析提炼中，请稍候完成后再操作！');
           }
           return;
         }
@@ -1905,8 +1895,6 @@ function renderStage1Canvas(canvas, state, handlers) {
         if (isAnyExtracting(state)) {
           if (typeof showGlobalBannerNotice === 'function') {
             showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
-          } else {
-            alert('⏳ 智能体当前正在分析提炼中，请稍候完成后再操作！');
           }
           return;
         }
@@ -1920,8 +1908,6 @@ function renderStage1Canvas(canvas, state, handlers) {
         if (isAnyExtracting(state)) {
           if (typeof showGlobalBannerNotice === 'function') {
             showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
-          } else {
-            alert('⏳ 智能体当前正在分析提炼中，请稍候完成后再操作！');
           }
           return;
         }
@@ -3266,8 +3252,6 @@ function renderStage3Canvas(canvas, state, handlers) {
       if (!isRevisionFullyConfirmed) {
         if (typeof showGlobalBannerNotice === 'function') {
           showGlobalBannerNotice('🔒 终稿修改尚未解锁', `需组内全员确认进入终稿修改后方可解锁（当前进度：${confirmedRevCount}/${totalCount} 人）。请提醒组内同学点击右上角【✍️ 确认进入终稿修改】！`, 'warning', 5000);
-        } else {
-          alert(`⚠️ 需组内全员确认进入终稿修改后，方可解锁进入【修改${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿】协同编辑！\n\n当前确认进度：${confirmedRevCount}/${totalCount} 人已确认。\n请提醒组内其他同学点击右上角【✍️ 确认进入终稿修改】！`);
         }
         return;
       }
@@ -3313,8 +3297,6 @@ function renderStage3Canvas(canvas, state, handlers) {
         if (!text) {
           if (typeof showGlobalBannerNotice === 'function') {
             showGlobalBannerNotice('⚠️ 提示', '请输入本组针对该条意见的简要答复结论后再保存！', 'warning', 3000);
-          } else {
-            alert('⚠️ 请输入本组针对该条意见的简要答复结论后再保存！');
           }
           return;
         }
@@ -3848,8 +3830,6 @@ export function renderChatActionBar(state) {
         if (isExtractingAny || isGeneratingContract) {
           if (typeof showGlobalBannerNotice === 'function') {
             showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
-          } else {
-            alert('⏳ 智能体当前正在分析提炼中，请稍候完成后再操作！');
           }
           return;
         }
@@ -3895,8 +3875,6 @@ export function renderChatActionBar(state) {
         actionBar.querySelector('#btn-s2-locked-notice')?.addEventListener('click', () => {
           if (typeof showGlobalBannerNotice === 'function') {
             showGlobalBannerNotice('🔒 请先完成打卡', `请先在正文上方点击【📢 参与【${meetingName}】】完成半程自查打卡（当前打卡进度：${s2SubCount}/${totalCount} 人）。全员打卡完成后将由${managingTitle}主持会议。`, 'warning', 5000);
-          } else {
-            alert(`🔒 请先在正文上方点击【📢 参与【${meetingName}】】完成半程自查打卡！\n\n当前打卡进度：${s2SubCount}/${totalCount} 人。\n全员打卡完成后，${managingTitle}将主持会议，届时方可点击总结。`);
           }
         });
       } else if (!hasReviewingIssued) {

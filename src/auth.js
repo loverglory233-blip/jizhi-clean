@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260906_v2684';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260906_v2684';
+} from './constants.js?v=20260906_v2685';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260906_v2685';
 
 export class AuthManager {
   constructor() {
@@ -238,7 +238,9 @@ export class AuthManager {
         const data = await res.json();
         if (data && data.kicked) {
           this.logout();
-          alert('⚠️ 您的账号已在另一台设备登录，当前页面已自动下线。');
+          if (typeof showGlobalBannerNotice === 'function') {
+            showGlobalBannerNotice('⚠️ 账号下线提醒', '您的账号已在另一台设备登录，当前页面已自动下线。', 'warning', 8000);
+          }
           if (window.app && typeof window.app.renderMain === 'function') {
             window.app.renderMain();
           } else {
@@ -2283,13 +2285,17 @@ export class AuthManager {
     const res = await fetch(`sync.php?action=get_class_all_chats&classId=${encodeURIComponent(classId)}&taskId=${encodeURIComponent(taskId || '')}&userId=${encodeURIComponent(tId)}&token=${encodeURIComponent(tToken)}`).then(r => r.json()).catch(() => null);
 
     if (!res || !res.success || !res.groups) {
-      alert('⚠️ 获取全班研讨数据失败，请检查网络或重试');
+      if (typeof showGlobalBannerNotice === 'function') {
+        showGlobalBannerNotice('⚠️ 获取失败', '获取全班研讨数据失败，请检查网络或重试', 'error', 5000);
+      }
       return;
     }
 
     const groupList = Object.values(res.groups);
     if (groupList.length === 0) {
-      alert('⚠️ 当前班级暂无分组数据');
+      if (typeof showGlobalBannerNotice === 'function') {
+        showGlobalBannerNotice('⚠️ 暂无数据', '当前班级暂无分组研讨数据', 'info', 4000);
+      }
       return;
     }
 
@@ -2355,7 +2361,9 @@ export class AuthManager {
     });
 
     setTimeout(() => {
-      alert(`🎉 成功导出【${res.className || curCls.name}】全班共 ${exportedCount} 个小组的独立研讨记录 (${format.toUpperCase()}) 文件！\n所有文件已分别下载保存。`);
+      if (typeof showGlobalBannerNotice === 'function') {
+        showGlobalBannerNotice('🎉 导出成功', `成功导出【${res.className || curCls.name}】全班共 ${exportedCount} 个小组的独立研讨记录 (${format.toUpperCase()}) 文件！所有文件已分别下载保存。`, 'success', 8000);
+      }
     }, groupList.length * 250 + 300);
   }
 
@@ -2419,124 +2427,144 @@ export class AuthManager {
             <input type="text" id="input-pwd-account" value="${account}" ${isTeacher ? 'readonly style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;background:#f8fafc;font-weight:700;color:#64748b;cursor:not-allowed;"' : 'style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;background:#ffffff;font-weight:700;color:#1e293b;"'}>
           </div>
           <div style="margin-bottom:14px;">
-            <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">原密码 (初始默认密码为 123)</label>
-            <input type="password" id="input-pwd-old" placeholder="请输入当前原密码" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;">
+      <div style="background:#ffffff; border-radius:14px; width:90%; max-width:380px; padding:24px 22px; box-shadow:0 20px 40px rgba(0,0,0,0.25); border:1px solid #e2e8f0; animation:modalPop 0.2s ease;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 style="margin:0; font-size:16px; color:#1e293b; font-weight:800; display:flex; align-items:center; gap:6px;">
+            <span>🔑</span> 修改登录密码
+          </h3>
+          <button id="btn-close-pwd-modal" style="background:none; border:none; font-size:16px; cursor:pointer; color:#94a3b8; padding:4px;">✕</button>
+        </div>
+        <div id="pwd-modal-msg" style="display:none; padding:8px 12px; border-radius:6px; font-size:12px; margin-bottom:12px;"></div>
+        <div style="display:flex; flex-direction:column; gap:12px;">
+          <div>
+            <label style="font-size:12px; font-weight:700; color:#475569; margin-bottom:4px; display:block;">原密码</label>
+            <input type="password" id="inp-old-pwd" placeholder="请输入当前密码..." style="width:100%; box-sizing:border-box; padding:8px 12px; font-size:13px; border:1px solid #cbd5e1; border-radius:6px; outline:none;" />
           </div>
-          <div style="margin-bottom:14px;">
-            <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">设置新密码</label>
-            <input type="password" id="input-pwd-new" placeholder="请输入新密码 (不少于3位)" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;">
+          <div>
+            <label style="font-size:12px; font-weight:700; color:#475569; margin-bottom:4px; display:block;">新密码 (至少4位)</label>
+            <input type="password" id="inp-new-pwd" placeholder="请输入新密码..." style="width:100%; box-sizing:border-box; padding:8px 12px; font-size:13px; border:1px solid #cbd5e1; border-radius:6px; outline:none;" />
           </div>
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">确认新密码</label>
-            <input type="password" id="input-pwd-confirm" placeholder="请再次输入新密码" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;">
+          <div>
+            <label style="font-size:12px; font-weight:700; color:#475569; margin-bottom:4px; display:block;">确认新密码</label>
+            <input type="password" id="inp-confirm-pwd" placeholder="请再次输入新密码..." style="width:100%; box-sizing:border-box; padding:8px 12px; font-size:13px; border:1px solid #cbd5e1; border-radius:6px; outline:none;" />
           </div>
-          <div id="pwd-modal-msg" style="display:none;padding:10px;border-radius:8px;font-size:13px;margin-bottom:16px;"></div>
-          <div style="display:flex;gap:12px;justify-content:flex-end;">
-            <button id="btn-cancel-pwd" style="background:#f1f5f9;color:#475569;border:none;padding:10px 18px;border-radius:8px;font-weight:600;cursor:pointer;">取消</button>
-            <button id="btn-submit-pwd" style="background:#4f46e5;color:#fff;border:none;padding:10px 22px;border-radius:8px;font-weight:600;cursor:pointer;">确认修改</button>
-          </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:20px;">
+          <button id="btn-cancel-pwd" style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:7px 16px; border-radius:6px; font-size:13px; cursor:pointer; font-weight:700;">取消</button>
+          <button id="btn-submit-pwd" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); color:#ffffff; border:none; padding:7px 18px; border-radius:6px; font-size:13px; cursor:pointer; font-weight:700; box-shadow:0 2px 6px rgba(37,99,235,0.3);">确认修改</button>
         </div>
       </div>
     `;
+
     document.body.appendChild(modal);
 
-    const closeBtn = document.getElementById('btn-close-pwd-modal');
-    const cancelBtn = document.getElementById('btn-cancel-pwd');
-    const submitBtn = document.getElementById('btn-submit-pwd');
-    const msgDiv = document.getElementById('pwd-modal-msg');
+    const onEsc = (e) => {
+      if (e.key === 'Escape') closeModal();
+    };
+    document.addEventListener('keydown', onEsc);
 
-    const closeModal = () => modal.remove();
-    if (closeBtn) closeBtn.onclick = closeModal;
-    if (cancelBtn) cancelBtn.onclick = closeModal;
+    const closeModal = () => {
+      document.removeEventListener('keydown', onEsc);
+      modal.remove();
+    };
 
-    if (submitBtn) {
-      submitBtn.onclick = async () => {
-        const acc = document.getElementById('input-pwd-account').value.trim();
-        const oldP = document.getElementById('input-pwd-old').value.trim();
-        const newP = document.getElementById('input-pwd-new').value.trim();
-        const confP = document.getElementById('input-pwd-confirm').value.trim();
+    modal.querySelector('#btn-close-pwd-modal').onclick = closeModal;
+    modal.querySelector('#btn-cancel-pwd').onclick = closeModal;
+    modal.onclick = (e) => { if (e.target === modal) closeModal(); };
 
-        if (!acc || !newP) {
-          msgDiv.style.display = 'block';
-          msgDiv.style.background = '#fef2f2';
-          msgDiv.style.color = '#dc2626';
-          msgDiv.textContent = '❌ 账号与新密码不能为空';
-          return;
-        }
-        if (newP !== confP) {
-          msgDiv.style.display = 'block';
-          msgDiv.style.background = '#fef2f2';
-          msgDiv.style.color = '#dc2626';
-          msgDiv.textContent = '❌ 两次输入的新密码不一致';
-          return;
-        }
-        submitBtn.disabled = true;
-        submitBtn.textContent = '保存中...';
+    modal.querySelector('#btn-submit-pwd').onclick = async () => {
+      const oldPwd = modal.querySelector('#inp-old-pwd').value.trim();
+      const newPwd = modal.querySelector('#inp-new-pwd').value.trim();
+      const confirmPwd = modal.querySelector('#inp-confirm-pwd').value.trim();
+      const msgDiv = modal.querySelector('#pwd-modal-msg');
+      const submitBtn = modal.querySelector('#btn-submit-pwd');
 
-        try {
-          const res = await fetch('sync.php?action=change_password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              account: acc,
-              userId: currentUser ? currentUser.id : '',
-              name: currentUser ? currentUser.name : '',
-              role: currentUser ? (currentUser.role || (currentUser.isTeacher ? 'teacher' : 'student')) : '',
-              oldPassword: oldP,
-              newPassword: newP
-            })
-          });
-          let data = null;
-          try {
-            data = await res.json();
-          } catch (jsonErr) {}
+      if (!oldPwd) {
+        msgDiv.style.display = 'block';
+        msgDiv.style.background = '#fef2f2';
+        msgDiv.style.color = '#dc2626';
+        msgDiv.textContent = '❌ 请输入原密码';
+        return;
+      }
+      if (!newPwd || newPwd.length < 4) {
+        msgDiv.style.display = 'block';
+        msgDiv.style.background = '#fef2f2';
+        msgDiv.style.color = '#dc2626';
+        msgDiv.textContent = '❌ 新密码长度至少为 4 位';
+        return;
+      }
+      if (newPwd !== confirmPwd) {
+        msgDiv.style.display = 'block';
+        msgDiv.style.background = '#fef2f2';
+        msgDiv.style.color = '#dc2626';
+        msgDiv.textContent = '❌ 两次输入的新密码不一致';
+        return;
+      }
 
-          if (data && data.success) {
-            if (currentUser) {
-              currentUser.password = newP;
-              sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(currentUser));
-              localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(currentUser));
+      submitBtn.disabled = true;
+      submitBtn.textContent = '正在修改...';
+      msgDiv.style.display = 'none';
+
+      try {
+        const currentUser = this.getCurrentUser();
+        const userKey = currentUser ? currentUser.id : '';
+        const sessToken = currentUser ? (currentUser.activeSessionId || currentUser.token || '') : '';
+        const res = await fetch('sync.php?action=change_password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: userKey,
+            oldPassword: oldPwd,
+            newPassword: newPwd,
+            token: sessToken
+          })
+        });
+
+        const data = await res.json().catch(() => null);
+
+        if (res.ok && data && data.success) {
+          // 同步更新本地缓存
+          const users = this.getUsers();
+          users.forEach(u => {
+            if (u.id === userKey || u.studentCode === userKey || u.name === userKey) {
+              u.password = newPwd;
             }
-            const users = this.getUsers();
-            users.forEach(u => {
-              if (u.id === (currentUser?.id) || u.id === acc) {
-                u.password = newP;
-              }
-            });
-            localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+          });
+          localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
 
-            msgDiv.style.display = 'block';
-            msgDiv.style.background = '#f0fdf4';
-            msgDiv.style.color = '#16a34a';
-            msgDiv.textContent = '✅ ' + (data.message || '密码修改成功！');
-            setTimeout(() => {
-              closeModal();
-              alert('🎉 密码修改成功！为了您的账号安全，请使用新密码重新登录。');
-              this.logout();
-              if (window.app && typeof window.app.handleLogout === 'function') {
-                window.app.handleLogout();
-              } else {
-                window.location.reload();
-              }
-            }, 300);
-          } else {
-            msgDiv.style.display = 'block';
-            msgDiv.style.background = '#fef2f2';
-            msgDiv.style.color = '#dc2626';
-            const serverMsg = (data && data.message) ? data.message : `❌ 请求失败 (HTTP ${res.status}): ${res.statusText || '服务端无响应或返回空'}`;
-            msgDiv.textContent = serverMsg.startsWith('❌') ? serverMsg : ('❌ ' + serverMsg);
-            submitBtn.disabled = false;
-            submitBtn.textContent = '确认修改';
-          }
-        } catch (e) {
+          msgDiv.style.display = 'block';
+          msgDiv.style.background = '#f0fdf4';
+          msgDiv.style.color = '#16a34a';
+          msgDiv.textContent = '✅ ' + (data.message || '密码修改成功！');
+          setTimeout(() => {
+            closeModal();
+            if (typeof showGlobalBannerNotice === 'function') {
+              showGlobalBannerNotice('🎉 密码修改成功', '密码修改成功！为了您的账号安全，请使用新密码重新登录。', 'success', 6000);
+            }
+            this.logout();
+            if (window.app && typeof window.app.handleLogout === 'function') {
+              window.app.handleLogout();
+            } else {
+              window.location.reload();
+            }
+          }, 300);
+        } else {
           msgDiv.style.display = 'block';
           msgDiv.style.background = '#fef2f2';
           msgDiv.style.color = '#dc2626';
-          msgDiv.textContent = '❌ 网络请求异常: ' + (e.message || '请检查网络连接后重试');
+          const serverMsg = (data && data.message) ? data.message : `❌ 请求失败 (HTTP ${res.status}): ${res.statusText || '服务端无响应或返回空'}`;
+          msgDiv.textContent = serverMsg.startsWith('❌') ? serverMsg : ('❌ ' + serverMsg);
           submitBtn.disabled = false;
           submitBtn.textContent = '确认修改';
         }
-      };
-    }
+      } catch (err) {
+        msgDiv.style.display = 'block';
+        msgDiv.style.background = '#fef2f2';
+        msgDiv.style.color = '#dc2626';
+        msgDiv.textContent = '❌ 网络异常，修改密码失败';
+        submitBtn.disabled = false;
+        submitBtn.textContent = '确认修改';
+      }
+    };
   }
 }

@@ -474,13 +474,13 @@ export function parseXLSXOrCSVFile(file, callback) {
             const fallbackScript = document.createElement('script');
             fallbackScript.src = 'https://cdn.bootcdn.net/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
             fallbackScript.onload = () => parseXLSXOrCSVFile(file, callback);
-            fallbackScript.onerror = () => alert('⚠️ 无法加载 Excel 解析引擎，请尝试将表格保存为 .csv 格式后直接上传！');
+            fallbackScript.onerror = () => showGlobalBannerNotice('⚠️ 解析异常', '无法加载 Excel 解析引擎，请尝试将表格保存为 .csv 格式后直接上传！', 'error', 5000);
             document.head.appendChild(fallbackScript);
           };
           document.head.appendChild(script);
         }
       } catch (err) {
-        alert('⚠️ XLSX 文件解析异常，请另存为 CSV 文件后导入！');
+        showGlobalBannerNotice('⚠️ 解析异常', 'XLSX 文件解析异常，请另存为 CSV 文件后导入！', 'error', 5000);
       }
     };
     reader.readAsArrayBuffer(file);
@@ -839,7 +839,13 @@ export function showTaskExtendedUnlockModal(task, prevDeadline, isUnlockedNow = 
 
   document.body.appendChild(modal);
 
+  const onEsc = (e) => {
+    if (e.key === 'Escape') closeModal();
+  };
+  document.addEventListener('keydown', onEsc);
+
   const closeModal = () => {
+    document.removeEventListener('keydown', onEsc);
     if (modal && modal.parentElement) modal.remove();
   };
 
