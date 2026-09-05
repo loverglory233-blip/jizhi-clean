@@ -1228,6 +1228,7 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
                 span[class*="author-"], .author {
                   background-color: transparent !important;
                   background: transparent !important;
+                  color: #0f172a !important;
                 }
               `;
               (doc.head || doc.documentElement).appendChild(styleEl);
@@ -1245,12 +1246,21 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
                     innerStyle = innerDoc.createElement('style');
                     innerStyle.id = 'jizhi-author-white-bg-style';
                     innerStyle.textContent = `
-                      span[class*="author-"], .author, #innerdocbody span[class*="author-"] {
+                      span[class*="author-"], .author, #innerdocbody span[class*="author-"], #innerdocbody {
                         background-color: transparent !important;
                         background: transparent !important;
+                        color: #0f172a !important;
                       }
                     `;
                     (innerDoc.head || innerDoc.documentElement).appendChild(innerStyle);
+                  } else {
+                    innerStyle.textContent = `
+                      span[class*="author-"], .author, #innerdocbody span[class*="author-"], #innerdocbody {
+                        background-color: transparent !important;
+                        background: transparent !important;
+                        color: #0f172a !important;
+                      }
+                    `;
                   }
                 }
               }
