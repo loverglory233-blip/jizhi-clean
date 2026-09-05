@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2595";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2595";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2595";
-import { AuthManager } from "./auth.js?v=20260905_v2595";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2595";
-import { renderLoginView } from "./login.js?v=20260905_v2595";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2595";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2595";
+} from "./constants.js?v=20260905_v2596";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2596";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2596";
+import { AuthManager } from "./auth.js?v=20260905_v2596";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2596";
+import { renderLoginView } from "./login.js?v=20260905_v2596";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2596";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2596";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2595";
+} from "./editor.js?v=20260905_v2596";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5144,9 +5144,8 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
     const currUserCode = this.state.currentUser || currUser?.id || currUser?.name || 'A';
     
     // 1. 记录当前用户的确认
-    s2.confirmations.s2_managing[currUserCode] = true;
-    if (currUser?.id) s2.confirmations.s2_managing[currUser.id] = true;
-    if (currUser?.name) s2.confirmations.s2_managing[currUser.name] = true;
+    const myKeys = getUserAllKeys(currUser || currUserCode);
+    myKeys.forEach(k => { s2.confirmations.s2_managing[k] = true; });
     if (!s2._firstManagingSummaryTimeMs) s2._firstManagingSummaryTimeMs = Date.now();
     s2._lastManagingSummaryTimeMs = Date.now();
 
@@ -5158,22 +5157,7 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
       : Object.values(this.state.members || {});
     const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
 
-    const isDoneHelper = (map) => {
-      if (!map) return 0;
-      return membersList.filter(m => {
-        let fullUser = (typeof m === 'object') ? m : null;
-        if (!fullUser && this.authManager && this.authManager.findUserByKey) {
-          fullUser = this.authManager.findUserByKey(m);
-        }
-        const keys = [
-          typeof m === 'string' ? m : null,
-          m?.id, m?.name,
-          fullUser?.id, fullUser?.name
-        ].filter(Boolean).map(k => String(k).trim().toLowerCase());
-        return keys.some(k => map[k] || map[String(k)]);
-      }).length;
-    };
-    const confirmedCount = isDoneHelper(s2.confirmations.s2_managing);
+    const confirmedCount = membersList.filter(m => isMemberDone(s2.confirmations.s2_managing, m)).length;
 
     // 立即同步并更新聊天框底栏按钮展示
     this.syncStage2();
@@ -5429,9 +5413,8 @@ ${chatSnippet}
     const currUserCode = this.state.currentUser || currUser?.id || currUser?.name || 'A';
     
     // 1. 记录当前用户的确认
-    s2.confirmations.s2_reviewing[currUserCode] = true;
-    if (currUser?.id) s2.confirmations.s2_reviewing[currUser.id] = true;
-    if (currUser?.name) s2.confirmations.s2_reviewing[currUser.name] = true;
+    const myKeys = getUserAllKeys(currUser || currUserCode);
+    myKeys.forEach(k => { s2.confirmations.s2_reviewing[k] = true; });
     if (!s2._firstReviewingSummaryTimeMs) s2._firstReviewingSummaryTimeMs = Date.now();
     s2._lastReviewingSummaryTimeMs = Date.now();
 
@@ -5443,23 +5426,7 @@ ${chatSnippet}
       : Object.values(this.state.members || {});
     const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
 
-    const isDoneHelper = (map) => {
-      if (!map) return 0;
-      return membersList.filter(m => {
-        let fullUser = (typeof m === 'object') ? m : null;
-        if (!fullUser && this.authManager && this.authManager.findUserByKey) {
-          fullUser = this.authManager.findUserByKey(m);
-        }
-        const keys = [
-          typeof m === 'string' ? m : null,
-          m?.id, m?.name,
-          fullUser?.id, fullUser?.name
-        ].filter(Boolean).map(k => String(k).trim().toLowerCase());
-        return keys.some(k => map[k] || map[String(k)]);
-      }).length;
-    };
-
-    const confirmedCount = isDoneHelper(s2.confirmations.s2_reviewing);
+    const confirmedCount = membersList.filter(m => isMemberDone(s2.confirmations.s2_reviewing, m)).length;
 
     // 立即同步并更新聊天框底栏按钮展示
     this.syncStage2();
@@ -6801,8 +6768,8 @@ ${chatSnippet}
         const matchedMem = membersList.find(m => m && (m.id   === currUserCode || m.name === currUserCode));
         const currentUserName = matchedMem?.name || currentUserObj?.name || currUserCode || '组员';
         const confirmedMembers = s1.contract?.confirmedMembers || {};
-        const confirmedCount = membersList.filter(m => (confirmedMembers[m.id] || (m.name && confirmedMembers[m.name]))).length;
-        const userHasConfirmed = !!(confirmedMembers[currUserCode] || (currentUserObj && (confirmedMembers[currentUserObj.id] || confirmedMembers[currentUserObj.name])));
+        const confirmedCount = membersList.filter(m => isMemberDone(confirmedMembers, m)).length;
+        const userHasConfirmed = isMemberDone(confirmedMembers, currentUserObj || currUserCode);
 
         if (signMatrixMount) {
           signMatrixMount.innerHTML = `
@@ -6812,7 +6779,7 @@ ${chatSnippet}
             </div>
             <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:13px;">
               ${membersList.map(m => {
-                const isConf = !!(confirmedMembers[m.id] || (m.name && confirmedMembers[m.name]));
+                const isConf = isMemberDone(confirmedMembers, m);
                 return `
                   <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#ffffff'}; padding:6px 12px; border-radius:8px; font-weight:600;">
                     ${m.avatar || '👤'} ${m.name}: <b>${isConf ? '✅ 已确认签署' : '⏳ 未确认'}</b>
@@ -6987,20 +6954,14 @@ ${chatSnippet}
         }
         if (!s2.confirmedMembers) s2.confirmedMembers = {};
 
-        const isMemDone = (map, m) => {
-          if (!map || !m) return false;
-          const id = typeof m === 'object' ? (m.id || m.name) : m;
-          return !!(map[m.id] || (typeof m === 'object' && m.name && map[m.name]));
-        };
         const currMemObj = memberArr.find(m => m && (m.id === user || m.name === user));
-        const userKey = currMemObj ? currMemObj.id : user;
-        s2.confirmedMembers[userKey] = true;
-        if (currMemObj && currMemObj.name) s2.confirmedMembers[currMemObj.name] = true;
+        const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
+        const allKeys = getUserAllKeys(currMemObj || currUserObj || user);
+        allKeys.forEach(k => { s2.confirmedMembers[k] = true; });
         if (!s2._firstSignTimeMs) s2._firstSignTimeMs = Date.now();
         s2._lastSignTimeMs = Date.now();
 
-        const confirmedCount = memberArr.filter(m => isMemDone(s2.confirmedMembers, m)).length;
-        const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
+        const confirmedCount = memberArr.filter(m => isMemberDone(s2.confirmedMembers, m)).length;
         const memberName = currMemObj?.name || currUserObj?.name || '组员';
 
         this.syncStage2();
@@ -7086,17 +7047,14 @@ ${chatSnippet}
         }
 
         if (!s3.confirmedMembers) s3.confirmedMembers = {};
-        s3.confirmedMembers[user] = true;
         const currMemObj = memberArr.find(m => m && (m.id === user || m.name === user));
-        if (currMemObj) {
-          if (currMemObj.id) s3.confirmedMembers[currMemObj.id] = true;
-          if (currMemObj.name) s3.confirmedMembers[currMemObj.name] = true;
-        }
+        const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
+        const allKeys = getUserAllKeys(currMemObj || currUserObj || user);
+        allKeys.forEach(k => { s3.confirmedMembers[k] = true; });
         if (!s3._firstSignTimeMs) s3._firstSignTimeMs = Date.now();
         s3._lastSignTimeMs = Date.now();
 
         const confirmedCount = memberArr.filter(m => isMemberDone(s3.confirmedMembers, m)).length;
-        const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
         const memberName = currMemObj?.name || currUserObj?.name || '组员';
 
         const taskType = this.getCurrentTaskType();

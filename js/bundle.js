@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2595
+ * Version: 20260905_v2596
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2595';
+  const APP_VERSION = '20260905_v2596';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14013,13 +14013,13 @@
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
     const currUserCode = currUser?.id || state.currentUser || 'A';
     const confirmedRevMap = s3.confirmedMembers || {};
-    const confirmedRevCount = membersList.filter(m => !!(confirmedRevMap[m.id] || (m.name && confirmedRevMap[m.name]))).length;
-    const isUserRevisionConfirmed = !!(confirmedRevMap[currUserCode] || (currUser && confirmedRevMap[currUser.id]));
+    const confirmedRevCount = membersList.filter(m => isMemberDone(confirmedRevMap, m)).length;
+    const isUserRevisionConfirmed = isMemberDone(confirmedRevMap, currUser || currUserCode);
     const isRevisionFullyConfirmed = confirmedRevCount >= totalCount && totalCount > 0;
 
     const finalSubmittedMap = s3.finalSubmittedMembers || {};
-    const finalSubmittedCount = membersList.filter(m => !!(finalSubmittedMap[m.id] || (m.name && finalSubmittedMap[m.name]))).length;
-    const isUserFinalSubmitted = !!(finalSubmittedMap[currUserCode] || (currUser && finalSubmittedMap[currUser.id]));
+    const finalSubmittedCount = membersList.filter(m => isMemberDone(finalSubmittedMap, m)).length;
+    const isUserFinalSubmitted = isMemberDone(finalSubmittedMap, currUser || currUserCode);
     const isAllFinalSubmitted = state.isFinalSubmitted || (finalSubmittedCount >= totalCount && totalCount > 0);
 
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
@@ -20204,9 +20204,8 @@
       const currUserCode = this.state.currentUser || currUser?.id || currUser?.name || 'A';
 
       // 1. 记录当前用户的确认
-      s2.confirmations.s2_managing[currUserCode] = true;
-      if (currUser?.id) s2.confirmations.s2_managing[currUser.id] = true;
-      if (currUser?.name) s2.confirmations.s2_managing[currUser.name] = true;
+      const myKeys = getUserAllKeys(currUser || currUserCode);
+      myKeys.forEach(k => { s2.confirmations.s2_managing[k] = true; });
       if (!s2._firstManagingSummaryTimeMs) s2._firstManagingSummaryTimeMs = Date.now();
       s2._lastManagingSummaryTimeMs = Date.now();
 
@@ -20218,22 +20217,7 @@
         : Object.values(this.state.members || {});
       const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
 
-      const isDoneHelper = (map) => {
-        if (!map) return 0;
-        return membersList.filter(m => {
-          let fullUser = (typeof m === 'object') ? m : null;
-          if (!fullUser && this.authManager && this.authManager.findUserByKey) {
-            fullUser = this.authManager.findUserByKey(m);
-          }
-          const keys = [
-            typeof m === 'string' ? m : null,
-            m?.id, m?.name,
-            fullUser?.id, fullUser?.name
-          ].filter(Boolean).map(k => String(k).trim().toLowerCase());
-          return keys.some(k => map[k] || map[String(k)]);
-        }).length;
-      };
-      const confirmedCount = isDoneHelper(s2.confirmations.s2_managing);
+      const confirmedCount = membersList.filter(m => isMemberDone(s2.confirmations.s2_managing, m)).length;
 
       // 立即同步并更新聊天框底栏按钮展示
       this.syncStage2();
@@ -20489,9 +20473,8 @@
       const currUserCode = this.state.currentUser || currUser?.id || currUser?.name || 'A';
 
       // 1. 记录当前用户的确认
-      s2.confirmations.s2_reviewing[currUserCode] = true;
-      if (currUser?.id) s2.confirmations.s2_reviewing[currUser.id] = true;
-      if (currUser?.name) s2.confirmations.s2_reviewing[currUser.name] = true;
+      const myKeys = getUserAllKeys(currUser || currUserCode);
+      myKeys.forEach(k => { s2.confirmations.s2_reviewing[k] = true; });
       if (!s2._firstReviewingSummaryTimeMs) s2._firstReviewingSummaryTimeMs = Date.now();
       s2._lastReviewingSummaryTimeMs = Date.now();
 
@@ -20503,23 +20486,7 @@
         : Object.values(this.state.members || {});
       const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
 
-      const isDoneHelper = (map) => {
-        if (!map) return 0;
-        return membersList.filter(m => {
-          let fullUser = (typeof m === 'object') ? m : null;
-          if (!fullUser && this.authManager && this.authManager.findUserByKey) {
-            fullUser = this.authManager.findUserByKey(m);
-          }
-          const keys = [
-            typeof m === 'string' ? m : null,
-            m?.id, m?.name,
-            fullUser?.id, fullUser?.name
-          ].filter(Boolean).map(k => String(k).trim().toLowerCase());
-          return keys.some(k => map[k] || map[String(k)]);
-        }).length;
-      };
-
-      const confirmedCount = isDoneHelper(s2.confirmations.s2_reviewing);
+      const confirmedCount = membersList.filter(m => isMemberDone(s2.confirmations.s2_reviewing, m)).length;
 
       // 立即同步并更新聊天框底栏按钮展示
       this.syncStage2();
@@ -21861,8 +21828,8 @@
           const matchedMem = membersList.find(m => m && (m.id   === currUserCode || m.name === currUserCode));
           const currentUserName = matchedMem?.name || currentUserObj?.name || currUserCode || '组员';
           const confirmedMembers = s1.contract?.confirmedMembers || {};
-          const confirmedCount = membersList.filter(m => (confirmedMembers[m.id] || (m.name && confirmedMembers[m.name]))).length;
-          const userHasConfirmed = !!(confirmedMembers[currUserCode] || (currentUserObj && (confirmedMembers[currentUserObj.id] || confirmedMembers[currentUserObj.name])));
+          const confirmedCount = membersList.filter(m => isMemberDone(confirmedMembers, m)).length;
+          const userHasConfirmed = isMemberDone(confirmedMembers, currentUserObj || currUserCode);
 
           if (signMatrixMount) {
             signMatrixMount.innerHTML = `
@@ -21872,7 +21839,7 @@
               </div>
               <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:13px;">
                 ${membersList.map(m => {
-                  const isConf = !!(confirmedMembers[m.id] || (m.name && confirmedMembers[m.name]));
+                  const isConf = isMemberDone(confirmedMembers, m);
                   return `
                     <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#ffffff'}; padding:6px 12px; border-radius:8px; font-weight:600;">
                       ${m.avatar || '👤'} ${m.name}: <b>${isConf ? '✅ 已确认签署' : '⏳ 未确认'}</b>
@@ -22047,20 +22014,14 @@
           }
           if (!s2.confirmedMembers) s2.confirmedMembers = {};
 
-          const isMemDone = (map, m) => {
-            if (!map || !m) return false;
-            const id = typeof m === 'object' ? (m.id || m.name) : m;
-            return !!(map[m.id] || (typeof m === 'object' && m.name && map[m.name]));
-          };
           const currMemObj = memberArr.find(m => m && (m.id === user || m.name === user));
-          const userKey = currMemObj ? currMemObj.id : user;
-          s2.confirmedMembers[userKey] = true;
-          if (currMemObj && currMemObj.name) s2.confirmedMembers[currMemObj.name] = true;
+          const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
+          const allKeys = getUserAllKeys(currMemObj || currUserObj || user);
+          allKeys.forEach(k => { s2.confirmedMembers[k] = true; });
           if (!s2._firstSignTimeMs) s2._firstSignTimeMs = Date.now();
           s2._lastSignTimeMs = Date.now();
 
-          const confirmedCount = memberArr.filter(m => isMemDone(s2.confirmedMembers, m)).length;
-          const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
+          const confirmedCount = memberArr.filter(m => isMemberDone(s2.confirmedMembers, m)).length;
           const memberName = currMemObj?.name || currUserObj?.name || '组员';
 
           this.syncStage2();
@@ -22146,17 +22107,14 @@
           }
 
           if (!s3.confirmedMembers) s3.confirmedMembers = {};
-          s3.confirmedMembers[user] = true;
           const currMemObj = memberArr.find(m => m && (m.id === user || m.name === user));
-          if (currMemObj) {
-            if (currMemObj.id) s3.confirmedMembers[currMemObj.id] = true;
-            if (currMemObj.name) s3.confirmedMembers[currMemObj.name] = true;
-          }
+          const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
+          const allKeys = getUserAllKeys(currMemObj || currUserObj || user);
+          allKeys.forEach(k => { s3.confirmedMembers[k] = true; });
           if (!s3._firstSignTimeMs) s3._firstSignTimeMs = Date.now();
           s3._lastSignTimeMs = Date.now();
 
           const confirmedCount = memberArr.filter(m => isMemberDone(s3.confirmedMembers, m)).length;
-          const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
           const memberName = currMemObj?.name || currUserObj?.name || '组员';
 
           const taskType = this.getCurrentTaskType();
