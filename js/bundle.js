@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2570
+ * Version: 20260905_v2571
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2570';
+  const APP_VERSION = '20260905_v2571';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -7707,7 +7707,7 @@
                           <!-- 1. 【第一步】💡 组员初始提案展台 -->
                           <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:12px; padding:14px; flex-shrink:0;">
                             <div style="font-size:13.5px; font-weight:800; color:#1e40af; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
-                              <span>💡 组员初始${isInst ? '教学' : '学术'}提案展台 (${(state.stage1?.proposals || []).length}/${monitorMembersList.length || 3} 人已提交):</span>
+                              <span>💡 组员初始${isInst ? '教学' : '学术'}提案展台 (${(state.stage1?.proposals || []).length}/${monitorMembersList.length || 1} 人已提交):</span>
                               <span style="font-size:11.5px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">
                                 共投 ${monitorMembersList.filter(m => state.stage1?.hasVoted && (state.stage1.hasVoted[m.id] || (m.name && state.stage1.hasVoted[m.name]))).length} 票
                               </span>
@@ -7842,7 +7842,7 @@
                     const s2ActionPlan = state.stage2?.actionPlan;
                     const s2Subs = state.stage2?.meetingSubmissions || {};
                     const s2SubCount = Object.keys(s2Subs).length;
-                    const totalMemberCount = monitorMembersList.length || 3;
+                    const totalMemberCount = (monitorMembersList && monitorMembersList.length > 0) ? monitorMembersList.length : 1;
                     const confirmedDraftCount = monitorMembersList.filter(m => state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id]  || (m.name && state.stage2.confirmedMembers[m.name]))).length;
 
                     return `
@@ -11390,7 +11390,7 @@
     const currUserObj = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
     const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
     const membersList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
-    const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 2;
+    const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 1;
 
     if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
     if (!s1.contract.timeAllocations) s1.contract.timeAllocations = {};
@@ -12523,7 +12523,7 @@
     const confirmedDraftMap = s2.confirmedMembers || {};
     const membersList = Object.values(state.members || {});
     const allGroupMembers = (activeGroupObj && Array.isArray(activeGroupObj.members) && activeGroupObj.members.length > 0) ? activeGroupObj.members : membersList;
-    const actualTotalCount = allGroupMembers.length > 0 ? allGroupMembers.length : (membersList.length || 2);
+    const actualTotalCount = allGroupMembers.length > 0 ? allGroupMembers.length : (membersList.length || 1);
     const totalCount = actualTotalCount;
     const confirmedDraftCount = allGroupMembers.filter(m => isMemberDone(confirmedDraftMap, m)).length;
     const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, currUser || { id: currUserCode, name: currUserName });
@@ -13175,7 +13175,7 @@
       }
 
       // 🌟 增量就地刷新右上角【会议打卡】与【初稿确认】小药丸
-        const totalCount = membersList.length || 2;
+        const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
         const subs = s2.meetingSubmissions || {};
         const subCount = Object.keys(subs).length;
         const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
@@ -13707,7 +13707,7 @@
     const s3 = state.stage3;
     const activeTab = s3.activeTab || 'defense';
     const membersList = Object.values(state.members || {});
-    const totalCount = membersList.length || 3;
+    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
 
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
     const currUserCode = currUser?.id || state.currentUser || 'A';
@@ -14511,7 +14511,7 @@
     const s2 = state.stage2 || {};
     const curStage = state.currentStage || 'stage1';
     const membersList = Object.values(state.members || []);
-    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 2;
+    const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
     const myCode = currUser?.id || state.currentUser || '';
     const confs = Object.assign({}, state.stepConfirmations || {}, s2.confirmations || {});
@@ -16447,7 +16447,7 @@
             const effClassId = this.state.activeStudentClassId || currUserObj.classId || null;
             const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUserObj, effClassId) : null;
             const allGroupMembers = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0) ? effGroup.members : membersList;
-            const totalCount = allGroupMembers.length || 2;
+            const totalCount = (allGroupMembers && allGroupMembers.length > 0) ? allGroupMembers.length : 1;
 
             const isMemberSubmitted = (m) => {
               if (!m) return false;
@@ -18037,7 +18037,7 @@
       const allGroupMembers = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0)
         ? effGroup.members
         : ((this.getMemberList ? this.getMemberList(this.state.groupId) : []) || Object.values(this.state.members || {}));
-      const totalMembersCount = allGroupMembers.length > 0 ? allGroupMembers.length : (Object.keys(this.state.members || {}).length || 2);
+      const totalMembersCount = (allGroupMembers && allGroupMembers.length > 0) ? allGroupMembers.length : (Object.keys(this.state.members || {}).length || 1);
       const votesCastCount = allGroupMembers.filter(m => isMemberDone(s1.hasVoted, m)).length;
       const proposalTitle = proposal ? proposal.title : proposalId;
 
@@ -18442,7 +18442,7 @@
         else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
       }
       if (!Array.isArray(members)) members = Object.values(members || {});
-      const totalCount = (members && members.length > 0) ? members.length : 2;
+      const totalCount = (members && members.length > 0) ? members.length : 1;
 
       const isAlreadyDone = userKeys.some(k => this.state.stepConfirmations[stepKey][k]);
       if (isAlreadyDone) {
@@ -18547,7 +18547,7 @@
       }
       const s1 = this.state.stage1 || {};
       const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
-      const totalCount = (membersList && membersList.length > 0) ? membersList.length : 2;
+      const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
       const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && (s1.hasVoted[m.id] || (m.name && s1.hasVoted[m.name]))))).length;
       const isVotingComplete = (totalCount > 0 && totalVotesCast >= totalCount);
       if (!isVotingComplete) {
@@ -18792,7 +18792,7 @@
       }
       const s1 = this.state.stage1 || {};
       const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
-      const totalCount = (membersList && membersList.length > 0) ? membersList.length : 2;
+      const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
       const count = this.getStepConfirmedCount('s1_time', membersList);
       if (count >= totalCount && totalCount > 0) {
         return this._doExtractTime();
@@ -19003,7 +19003,7 @@
       }
       const s1 = this.state.stage1 || {};
       const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
-      const totalCount = (membersList && membersList.length > 0) ? membersList.length : 2;
+      const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
       const count = this.getStepConfirmedCount('s1_tasks', membersList);
       if (count >= totalCount && totalCount > 0) {
         return this._doExtractTasks();
@@ -19212,7 +19212,7 @@
         return;
       }
       const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
-      const totalCount = (membersList && membersList.length > 0) ? membersList.length : 2;
+      const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
       const count = this.getStepConfirmedCount('s1_full_contract', membersList);
       if (count >= totalCount && totalCount > 0) {
         return this._doOneClickGenerateContract();
@@ -19600,7 +19600,7 @@
       }
       const currMemObj = memberArr.find(m => m && (isSameUser(m, user) || m.id === user || m.name === user));
       const memberName = currMemObj ? currMemObj.name : user;
-      const totalMembersCount = (memberArr && memberArr.length > 0) ? memberArr.length : 2;
+      const totalMembersCount = (memberArr && memberArr.length > 0) ? memberArr.length : 1;
 
       const userAlreadySigned = !!(s1.contract.confirmedMembers[user] || (currMemObj && (s1.contract.confirmedMembers[currMemObj.id] || (currMemObj.name && s1.contract.confirmedMembers[currMemObj.name]))));
 
@@ -19725,7 +19725,7 @@
       const membersList = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0) 
         ? effGroup.members 
         : Object.values(this.state.members || {});
-      const totalCount = membersList.length || 2;
+      const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
 
       const isDoneHelper = (map) => {
         if (!map) return 0;
@@ -20010,7 +20010,7 @@
       const membersList = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0) 
         ? effGroup.members 
         : Object.values(this.state.members || {});
-      const totalCount = membersList.length || 2;
+      const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
 
       const isDoneHelper = (map) => {
         if (!map) return 0;
@@ -21074,7 +21074,7 @@
         const progressBadge = document.getElementById('proposal-vote-progress-badge');
         if (progressBadge) {
           const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && (s1.hasVoted[m.id] || s1.hasVoted[m.id]  || (m.name && s1.hasVoted[m.name]))))).length;
-          const totalMembersCount = membersList.length || 2;
+          const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 1;
           const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
           progressBadge.innerHTML = isVotingComplete
             ? `🎉 投票已完成 (共投出 ${totalVotesCast} 票)`
@@ -21147,7 +21147,7 @@
         // 🛡️ 实时动态更新公约顶部操作提炼按钮及协同确认计数 (全链路互斥置灰与精准法定人数)
         const contractActionBarMount = document.getElementById('stage1-contract-action-bar-mount');
         if (contractActionBarMount && !isContractLocked) {
-          const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 2;
+          const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 1;
           const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && (s1.hasVoted[m.id] || (m.name && s1.hasVoted[m.name]))))).length;
           const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
           const currUserCode = this.state.currentUser;
@@ -21283,7 +21283,7 @@
         const signMatrixMount = document.getElementById('stage1-contract-sign-matrix-mount');
         const signActionMount = document.getElementById('stage1-contract-sign-action-mount');
         if (signMatrixMount || signActionMount) {
-          const totalMembersCount = membersList.length || 2;
+          const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 1;
           const currUserCode = this.state.currentUser;
           const matchedMem = membersList.find(m => m && (m.id   === currUserCode || m.name === currUserCode));
           const currentUserName = matchedMem?.name || currentUserObj?.name || currUserCode || '组员';
@@ -21438,7 +21438,7 @@
           if (!Array.isArray(memberArr)) {
             memberArr = Object.values(memberArr || {});
           }
-          const totalMembersCount = (memberArr && memberArr.length > 0) ? memberArr.length : 2;
+          const totalMembersCount = (memberArr && memberArr.length > 0) ? memberArr.length : 1;
 
           // 🛡️ 守卫拦截：必须先走完二审半程自查与会议全流程（全员打卡完成），或者总时间临近截止（<= 5分钟），才允许点击确认初稿！
           const subs = s2.meetingSubmissions || {};
@@ -21553,7 +21553,7 @@
           if (!Array.isArray(memberArr)) {
             memberArr = Object.values(memberArr || {});
           }
-          const totalMembersCount = Math.max(memberArr.length, 2);
+          const totalMembersCount = (memberArr && memberArr.length > 0) ? memberArr.length : 1;
 
           // 🛡️ 守卫拦截：必须先完成全部答辩质询陈述，或者总时间临近截止（<= 5分钟），才允许点击确认答辩！
           const items = s3.feedbackItems || [];
@@ -21757,7 +21757,7 @@
           if (!Array.isArray(memberArr)) {
             memberArr = Object.values(memberArr || {});
           }
-          const totalMembersCount = Math.max(memberArr.length, 2);
+          const totalMembersCount = (memberArr && memberArr.length > 0) ? memberArr.length : 1;
 
           if (!s3.finalSubmittedMembers) s3.finalSubmittedMembers = {};
           s3.finalSubmittedMembers[user] = true;
@@ -22285,7 +22285,7 @@
       }
       const membersList = actualGroupMembers.length > 0 ? actualGroupMembers : Object.values(this.state.members || {});
       const subs = this.state.stage2?.meetingSubmissions || {};
-      const totalCount = (membersList && membersList.length > 0) ? membersList.length : 2;
+      const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
       const subCount = membersList.filter(m => isMemberDone(subs, m)).length;
 
       const existingSub = subs[userKey] || (currUser?.name && subs[currUser.name]) || (currUser?.id && subs[currUser.id]) || (currUser?.id && subs[currUser.id]) || (this.state.currentUser && subs[this.state.currentUser]);
@@ -22527,7 +22527,7 @@
           actualGroupMembers = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
         }
         const membersList = actualGroupMembers.length > 0 ? actualGroupMembers : Object.values(this.state.members || {});
-        const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 2;
+        const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 1;
 
         if (!this.state.stage2.meetingSubmissions) this.state.stage2.meetingSubmissions = {};
         this.state.stage2.meetingSubmissions[userKey] = {
