@@ -4642,22 +4642,29 @@
         }
       });
 
-      // 🌟 多场景感知：当切回标签页或重新获得窗口焦点时，0毫秒瞬间发送心跳并拉取全量
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && !this.isLoggingOut) {
-          markActive();
-          lastPingTime = Date.now();
-          this.sendPresencePing();
+      // 🌟 多场景感知：当切回标签页或重新获得窗口焦点时，0毫秒瞬间发送心跳并拉取全量（彻底实现无感更新）
+      const triggerImmediateSync = () => {
+        if (this.isLoggingOut) return;
+        markActive();
+        lastPingTime = Date.now();
+        this.sendPresencePing();
+        if (this.isPulling) {
+          this._needsImmediatePull = true;
+        } else {
+          if (this.pollTimer) {
+            clearTimeout(this.pollTimer);
+            this.pollTimer = null;
+          }
           this.pullFromServer();
+        }
+      };
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          triggerImmediateSync();
         }
       });
       window.addEventListener('focus', () => {
-        if (!this.isLoggingOut) {
-          markActive();
-          lastPingTime = Date.now();
-          this.sendPresencePing();
-          this.pullFromServer();
-        }
+        triggerImmediateSync();
       });
 
       // 🚪 页面关闭/退出时立即发送离线信标，秒级通知教师端
@@ -4711,6 +4718,10 @@
           } catch (e) {
           } finally {
             this.isPulling = false;
+            if (this._needsImmediatePull && !this.isLoggingOut) {
+              this._needsImmediatePull = false;
+              setTimeout(() => this.pullFromServer(), 30);
+            }
           }
         }
         return; // 学生在大厅/登录页时，不拉取任何具体任务工作台的协同快照，但持续轮询全局元数据以实时感知新任务/通知
@@ -4761,6 +4772,10 @@
         console.error('[SyncEngine] pullFromServer fatal error:', err);
       } finally {
         this.isPulling = false;
+        if (this._needsImmediatePull && !this.isLoggingOut) {
+          this._needsImmediatePull = false;
+          setTimeout(() => this.pullFromServer(), 30);
+        }
       }
     }
 
@@ -6602,6 +6617,20 @@
       window.addEventListener(evt, markTeacherActive, { passive: true });
     });
 
+    if (!window._teacherVisibilityHandlerAttached) {
+      window._teacherVisibilityHandlerAttached = true;
+      const triggerTeacherImmediate = () => {
+        if (!isDashboard && (classTab === 'live_monitor' || classTab === 'live_monitoring')) {
+          if (window._teacherPortalSyncTimer) clearTimeout(window._teacherPortalSyncTimer);
+          teacherPullAndRefresh();
+        }
+      };
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') triggerTeacherImmediate();
+      });
+      window.addEventListener('focus', triggerTeacherImmediate);
+    }
+
     if (!window._teacherWheelHandlerAttached) {
       window._teacherWheelHandlerAttached = true;
       window.addEventListener('wheel', (e) => {
@@ -6618,7 +6647,7 @@
       }, { passive: true });
     }
 
-    const tInitInterval = (document.hidden ? 15000 : 1800);
+    const tInitInterval = (document.hidden ? 2500 : 1000);
     window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInitInterval);
 
     const allStudents = allUsers.filter(u => u.role !== 'teacher');
