@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2682';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2682';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2683';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2683';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1160,7 +1160,18 @@ export class CloudSyncEngine {
             </div>
           `;
           document.body.appendChild(lockModal);
-          lockModal.querySelector('#btn-close-lock-modal').addEventListener('click', () => lockModal.remove());
+          const closeLockModal = () => {
+            document.removeEventListener('keydown', onEscLock);
+            lockModal.remove();
+          };
+          const onEscLock = (e) => {
+            if (e.key === 'Escape') closeLockModal();
+          };
+          document.addEventListener('keydown', onEscLock);
+          lockModal.querySelector('#btn-close-lock-modal')?.addEventListener('click', closeLockModal);
+          lockModal.addEventListener('click', (e) => {
+            if (e.target === lockModal) closeLockModal();
+          });
 
           this.app.renderStudentWorkspace(true);
         }

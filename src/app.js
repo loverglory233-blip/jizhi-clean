@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2682";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2682";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2682";
-import { AuthManager } from "./auth.js?v=20260906_v2682";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2682";
-import { renderLoginView } from "./login.js?v=20260906_v2682";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2682";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2682";
+} from "./constants.js?v=20260906_v2683";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2683";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2683";
+import { AuthManager } from "./auth.js?v=20260906_v2683";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2683";
+import { renderLoginView } from "./login.js?v=20260906_v2683";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2683";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2683";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2682";
+} from "./editor.js?v=20260906_v2683";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5266,7 +5266,11 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
       return;
     }
     if (userAlreadySigned) {
-      alert(`✅ 您 (${memberName}) 此前已完成签署确认！正在等待组内其他同学签署。`);
+      if (typeof showGlobalBannerNotice === 'function') {
+        showGlobalBannerNotice('💡 已签署', `您 (${memberName}) 此前已完成签署确认！正在等待组内其他同学签署。`, 'info', 4000);
+      } else {
+        alert(`✅ 您 (${memberName}) 此前已完成签署确认！正在等待组内其他同学签署。`);
+      }
       return;
     }
 
@@ -7042,9 +7046,10 @@ ${chatSnippet}
         const isDeadlineNear = isTaskExpired(curTask) || (curTask?.deadline && (new Date(curTask.deadline.replace(/-/g, '/')).getTime() - Date.now() <= 300000));
 
         if (!isMeetingDone && !isDeadlineNear) {
-          alert(`⚠️ 无法确认初稿：全组尚未完成【半程全篇综合自查与${isInst ? '磨课会议' : '二审会议'}】（当前打卡进度：${subCount}/${totalMembersCount} 人）！\n\n请全组成员先完成半程自查打卡与${isInst ? '磨课修改研讨' : '二审修改研讨'}，或等待任务总时间临近结束（最后 5 分钟内）再进行初稿定稿确认。`);
           if (typeof showGlobalBannerNotice === 'function') {
-            showGlobalBannerNotice('⚠️ 请先完成半程自查', `当前半程${isInst ? '磨课' : '编辑'}会议打卡进度为 ${subCount}/${totalMembersCount} 人，请先走完自查研讨流程或等待临近结课再确认初稿。`, 'warning', 6000);
+            showGlobalBannerNotice('⚠️ 请先完成半程自查', `全组尚未完成【半程全篇综合自查与${isInst ? '磨课会议' : '二审会议'}】（当前打卡进度：${subCount}/${totalMembersCount} 人）！请全组成员先完成自查打卡与研讨，或等待任务最后 5 分钟再确认初稿。`, 'warning', 6000);
+          } else {
+            alert(`⚠️ 无法确认初稿：全组尚未完成【半程全篇综合自查与${isInst ? '磨课会议' : '二审会议'}】（当前打卡进度：${subCount}/${totalMembersCount} 人）！\n\n请全组成员先完成半程自查打卡与${isInst ? '磨课修改研讨' : '二审修改研讨'}，或等待任务总时间临近结束（最后 5 分钟内）再进行初稿定稿确认。`);
           }
           return;
         }
@@ -7154,9 +7159,10 @@ ${chatSnippet}
 
         if (!isAllDefenseDone && !isDeadlineNear) {
           const remainCount = unrespondedItems.length > 0 ? unrespondedItems.length : (items.length === 0 ? '答辩尚未就绪' : 0);
-          alert(`⚠️ 无法确认答辩：目前仍有【${remainCount} 条】反方专家的学术质询尚未完成答辩陈述！\n\n请全组成员在下方答辩卡片录入答辩结论，或等待任务总时间临近结束（最后 5 分钟内）再进行确认。`);
           if (typeof showGlobalBannerNotice === 'function') {
             showGlobalBannerNotice('⚠️ 答辩尚未完成', `目前仍有 ${remainCount} 条学术质询待答辩，请先完成答辩陈述或等待临近结课再确认。`, 'warning', 6000);
+          } else {
+            alert(`⚠️ 无法确认答辩：目前仍有【${remainCount} 条】反方专家的学术质询尚未完成答辩陈述！\n\n请全组成员在下方答辩卡片录入答辩结论，或等待任务总时间临近结束（最后 5 分钟内）再进行确认。`);
           }
           return;
         }
@@ -7234,7 +7240,11 @@ ${chatSnippet}
           if (!isRevisionFullyConfirmed) {
             const currentTaskType = this.getCurrentTaskType();
             const docName = currentTaskType === 'instructional' ? '教学设计' : '论文';
-            alert(`⚠️ 需组内全员确认进入终稿修改后，方可解锁进入【修改${docName}终稿】协同编辑！\n\n当前确认进度：${confirmedRevCount}/${totalMembersCount} 人已确认。\n请提醒组内其他同学点击右上角【✍️ 确认进入终稿修改】！`);
+            if (typeof showGlobalBannerNotice === 'function') {
+              showGlobalBannerNotice('🔒 终稿修改尚未解锁', `需组内全员确认进入终稿修改后方可解锁（当前进度：${confirmedRevCount}/${totalMembersCount} 人）。请提醒组内同学点击右上角【✍️ 确认进入终稿修改】！`, 'warning', 5000);
+            } else {
+              alert(`⚠️ 需组内全员确认进入终稿修改后，方可解锁进入【修改${docName}终稿】协同编辑！\n\n当前确认进度：${confirmedRevCount}/${totalMembersCount} 人已确认。\n请提醒组内其他同学点击右上角【✍️ 确认进入终稿修改】！`);
+            }
             return;
           }
         }
@@ -7244,7 +7254,11 @@ ${chatSnippet}
       },
       onSaveDirectFeedback: async (id, respText) => {
         if (this.state.isFinalSubmitted || this.state.stage3?.isRevisionConfirmed) {
-          alert('🔒 全组已全员确认进入终稿修改或已提交终稿，答辩裁决矩阵已处于锁定归档模式！无法再修改答辩结论。');
+          if (typeof showGlobalBannerNotice === 'function') {
+            showGlobalBannerNotice('🔒 答辩已锁定归档', '全组已全员确认进入终稿修改或已提交终稿，答辩裁决矩阵已处于锁定归档模式！', 'info', 4000);
+          } else {
+            alert('🔒 全组已全员确认进入终稿修改或已提交终稿，答辩裁决矩阵已处于锁定归档模式！无法再修改答辩结论。');
+          }
           return;
         }
         if (this._isSavingDirectFeedback) return;
@@ -7330,7 +7344,11 @@ ${chatSnippet}
         const chairSenderTitle = isInst ? '答辩委员会主席' : '中间委员';
 
         if (this.state.isFinalSubmitted) {
-          alert(`🔒 ${docName}终稿已于此前成功全员提交！目前处于全盘只读归档模式，可随时切页查阅各阶段记录。`);
+          if (typeof showGlobalBannerNotice === 'function') {
+            showGlobalBannerNotice('🔒 终稿已归档', `${docName}终稿已于此前成功全员提交！目前处于全盘只读归档模式。`, 'info', 4000);
+          } else {
+            alert(`🔒 ${docName}终稿已于此前成功全员提交！目前处于全盘只读归档模式，可随时切页查阅各阶段记录。`);
+          }
           return;
         }
         const user = this.state.currentUser;
@@ -7414,7 +7432,11 @@ ${chatSnippet}
           this.renderStudentWorkspace();
           renderChat(this.state);
 
-          alert(`✅ 您 (${memberName}) 已成功确认提交${docName}终稿！\n\n当前组内终稿提交确认进度：${finalSubmittedCount}/${totalMembersCount} 人已确认。\n⚠️ 必须全组所有成员均完成确认提交后，系统才会正式将终稿归档提交至教师端！请提醒组内其他同学尽快确认提交。`);
+          if (typeof showGlobalBannerNotice === 'function') {
+            showGlobalBannerNotice('✅ 终稿确认提交成功', `您 (${memberName}) 已成功确认提交${docName}终稿！当前全组进度：${finalSubmittedCount}/${totalMembersCount} 人已确认。需全员完成后正式呈递归档！`, 'info', 6000);
+          } else {
+            alert(`✅ 您 (${memberName}) 已成功确认提交${docName}终稿！\n\n当前组内终稿提交确认进度：${finalSubmittedCount}/${totalMembersCount} 人已确认。\n⚠️ 必须全组所有成员均完成确认提交后，系统才会正式将终稿归档提交至教师端！请提醒组内其他同学尽快确认提交。`);
+          }
         }
       }
     };
@@ -7925,7 +7947,8 @@ ${contentSnippet}
     
     let remainingSec = 5;
     modal.innerHTML = `
-      <div style="background:#ffffff; width:92%; max-width:500px; border-radius:16px; box-shadow:0 24px 48px rgba(15,23,42,0.3); border:1px solid #cbd5e1; overflow:hidden; display:flex; flex-direction:column; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; text-align:center; overscroll-behavior:contain;">
+      <div style="background:#ffffff; width:92%; max-width:500px; border-radius:16px; box-shadow:0 24px 48px rgba(15,23,42,0.3); border:1px solid #cbd5e1; overflow:hidden; display:flex; flex-direction:column; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; text-align:center; overscroll-behavior:contain; position:relative;">
+        <button id="btn-close-milestone-x" style="position:absolute; top:12px; right:12px; background:rgba(255,255,255,0.2); border:1px solid rgba(255,255,255,0.35); color:#ffffff; width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:14px; z-index:10; transition:all 0.15s ease;" title="关闭">✕</button>
         <div style="background:linear-gradient(135deg, #1e40af, #1e293b); padding:24px 20px 20px; color:#ffffff; display:flex; flex-direction:column; align-items:center;">
           <div style="width:56px; height:56px; border-radius:50%; background:rgba(255,255,255,0.15); display:flex; align-items:center; justify-content:center; font-size:28px; margin-bottom:12px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
             ${icon}
@@ -7952,10 +7975,16 @@ ${contentSnippet}
     let isDone = false;
     let timerId = null;
 
+    const onEsc = (e) => {
+      if (e.key === 'Escape') proceed();
+    };
+    document.addEventListener('keydown', onEsc);
+
     const proceed = () => {
       if (isDone) return;
       isDone = true;
       if (timerId) clearInterval(timerId);
+      document.removeEventListener('keydown', onEsc);
       try { modal.remove(); } catch(e){}
       try {
         if (typeof onProceed === 'function') onProceed();
@@ -7974,6 +8003,7 @@ ${contentSnippet}
     }, 1000);
 
     modal.querySelector('#btn-milestone-proceed')?.addEventListener('click', proceed);
+    modal.querySelector('#btn-close-milestone-x')?.addEventListener('click', proceed);
     modal.addEventListener('click', (e) => {
       if (e.target === modal) proceed();
     });
@@ -8216,12 +8246,21 @@ ${contentSnippet}
       });
     }
 
+    const onEsc = (e) => {
+      if (e.key === 'Escape') closeModal();
+    };
+    document.addEventListener('keydown', onEsc);
+
     const closeModal = () => {
       this._meetingModalDismissedByUser = true;
+      document.removeEventListener('keydown', onEsc);
       if (modal.parentNode) modal.parentNode.removeChild(modal);
     };
     modal.querySelector('#btn-close-meeting').addEventListener('click', closeModal);
     modal.querySelector('#btn-cancel-meeting').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
 
     if (!isCurrentUserSubmitted) {
       modal.querySelectorAll('#star-rating-logic .star').forEach(s => {
@@ -8287,7 +8326,11 @@ ${contentSnippet}
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         this.renderStudentWorkspace();
         renderChat(this.state);
-        alert(`✅ 你 (${memberName}) 已成功提交半程自查与互阅打卡！\n\n目前组内已打卡：${submittedCount}/${totalMembersCount} 人。\n需组内所有 ${totalMembersCount} 名成员全部完成打卡后，将自动为全组汇总生成【半程修正清单】！`);
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('✅ 打卡成功', `您 (${memberName}) 已成功提交半程自查与互阅打卡！当前组内已打卡：${submittedCount}/${totalMembersCount} 人。需全员完成后将自动生成【半程修正清单】！`, 'success', 6000);
+        } else {
+          alert(`✅ 你 (${memberName}) 已成功提交半程自查与互阅打卡！\n\n目前组内已打卡：${submittedCount}/${totalMembersCount} 人。\n需组内所有 ${totalMembersCount} 名成员全部完成打卡后，将自动为全组汇总生成【半程修正清单】！`);
+        }
         return;
       }
 
@@ -8335,7 +8378,11 @@ ${contentSnippet}
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       this.renderStudentWorkspace();
 
-      alert(`✅ 你 (${memberName}) 已成功提交半程自查与互阅打卡！\n\n目前组内已打卡：${submittedCount}/${totalMembersCount} 人。\n全组成员已集齐！责任编辑正在右侧研讨区梳理全组自查认知分歧，请稍候...`);
+      if (typeof showGlobalBannerNotice === 'function') {
+        showGlobalBannerNotice('🎉 全员打卡完成', `您 (${memberName}) 已完成打卡！当前组内进度：${submittedCount}/${totalMembersCount} 人，全员已集齐！责任编辑正在梳理全组自查分歧...`, 'success', 8000);
+      } else {
+        alert(`✅ 你 (${memberName}) 已成功提交半程自查与互阅打卡！\n\n目前组内已打卡：${submittedCount}/${totalMembersCount} 人。\n全组成员已集齐！责任编辑正在右侧研讨区梳理全组自查认知分歧，请稍候...`);
+      }
 
       this.setActiveAgentAnalyzing({
         icon: '🤝',
