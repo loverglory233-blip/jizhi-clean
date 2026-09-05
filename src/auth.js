@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260906_v2689';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260906_v2689';
+} from './constants.js?v=20260906_v2690';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260906_v2690';
 
 export class AuthManager {
   constructor() {
@@ -367,7 +367,7 @@ export class AuthManager {
               }
             }
 
-            // ⏰ 检查任务截止时间是否延长并实时通知工作台
+            // ⏰ 检查任务截止时间是否延长并在实时变动时通知工作台（初次加载只初始化基准值，不误弹窗）
             if (window.app && window.app.cloudSyncEngine) {
               mergedTasks.forEach(t => {
                 if (!t || !t.id) return;
@@ -375,9 +375,6 @@ export class AuthManager {
                 if (oldDeadline !== undefined && t.deadline && oldDeadline !== t.deadline) {
                   window.app.cloudSyncEngine._knownTaskDeadlines[t.id] = t.deadline;
                   window.app.cloudSyncEngine.handleTaskDeadlineChange(t, oldDeadline);
-                } else if (oldDeadline === undefined && t.lastExtension && (Date.now() - (t.lastExtension.extendedAt || 0) < 180000)) {
-                  window.app.cloudSyncEngine._knownTaskDeadlines[t.id] = t.deadline;
-                  window.app.cloudSyncEngine.handleTaskDeadlineChange(t, '');
                 } else if (t.deadline) {
                   window.app.cloudSyncEngine._knownTaskDeadlines[t.id] = t.deadline;
                 }

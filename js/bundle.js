@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2689
+ * Version: 20260906_v2690
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2689';
+  const APP_VERSION = '20260906_v2690';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2231,7 +2231,7 @@
                 }
               }
 
-              // ⏰ 检查任务截止时间是否延长并实时通知工作台
+              // ⏰ 检查任务截止时间是否延长并在实时变动时通知工作台（初次加载只初始化基准值，不误弹窗）
               if (window.app && window.app.cloudSyncEngine) {
                 mergedTasks.forEach(t => {
                   if (!t || !t.id) return;
@@ -2239,9 +2239,6 @@
                   if (oldDeadline !== undefined && t.deadline && oldDeadline !== t.deadline) {
                     window.app.cloudSyncEngine._knownTaskDeadlines[t.id] = t.deadline;
                     window.app.cloudSyncEngine.handleTaskDeadlineChange(t, oldDeadline);
-                  } else if (oldDeadline === undefined && t.lastExtension && (Date.now() - (t.lastExtension.extendedAt || 0) < 180000)) {
-                    window.app.cloudSyncEngine._knownTaskDeadlines[t.id] = t.deadline;
-                    window.app.cloudSyncEngine.handleTaskDeadlineChange(t, '');
                   } else if (t.deadline) {
                     window.app.cloudSyncEngine._knownTaskDeadlines[t.id] = t.deadline;
                   }
@@ -5295,9 +5292,6 @@
               this.handleTaskDeadlineChange(t, oldDeadlineKey);
             } else if (oldDeadlineKey === undefined) {
               this._knownTaskDeadlines[t.id] = currentDeadlineKey;
-              if (t.lastExtension && (Date.now() - (t.lastExtension.extendedAt || 0) < 180000)) {
-                this.handleTaskDeadlineChange(t, '');
-              }
             }
           });
 
@@ -21890,46 +21884,7 @@
         () => this.backToTaskList()
       );
 
-      // 🔔 检查并通知当前任务的延期
-      if (this.authManager) {
-        const allTasks = this.authManager.getTasks();
-        const currentTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
-        if (currentTask && currentTask.deadline) {
-          const dlKey = `jizhi_known_deadline_${currentTask.id}`;
-          const unreadKey = `jizhi_unread_deadline_ext_${currentTask.id}`;
-          const prevDl = localStorage.getItem(dlKey);
-          const newDlMs = new Date(currentTask.deadline.replace(/-/g, '/')).getTime();
-          let shouldNotify = false;
-          if (localStorage.getItem(unreadKey)) {
-            shouldNotify = true;
-            localStorage.removeItem(unreadKey);
-          } else if (prevDl) {
-            const prevDlMs = Number(prevDl);
-            if (newDlMs > prevDlMs + 60000) {
-              shouldNotify = true;
-            }
-          }
-          localStorage.setItem(dlKey, String(newDlMs));
 
-          if (shouldNotify) {
-            showGlobalBannerNotice(
-              `指导教师已延长本任务写作时间！`,
-              `截止时间已自动更新至：${formatStandardDateDash(currentTask.deadline)}，剩余时间已增加。`
-            );
-          }
-        }
-        // 记录其他任务的未读延期标记
-        allTasks.forEach(t => {
-          if (!t || !t.id || t.id === this.state.activeTaskId || !t.deadline) return;
-          const dlKey = `jizhi_known_deadline_${t.id}`;
-          const prevDl = localStorage.getItem(dlKey);
-          const newDlMs = new Date(t.deadline.replace(/-/g, '/')).getTime();
-          if (prevDl && newDlMs > Number(prevDl) + 60000) {
-            localStorage.setItem(`jizhi_unread_deadline_ext_${t.id}`, '1');
-            localStorage.setItem(dlKey, String(newDlMs));
-          }
-        });
-      }
 
       // 默认自动触发当前阶段对应智能体的开场白与阶段三专家评审（仅在可编辑状态下触发，只读模式严禁触发任何新智能体）
       if (!this.isCurrentTaskReadOnly()) {

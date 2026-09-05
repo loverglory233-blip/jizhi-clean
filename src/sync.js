@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2689';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2689';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2690';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2690';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -859,9 +859,6 @@ export class CloudSyncEngine {
             this.handleTaskDeadlineChange(t, oldDeadlineKey);
           } else if (oldDeadlineKey === undefined) {
             this._knownTaskDeadlines[t.id] = currentDeadlineKey;
-            if (t.lastExtension && (Date.now() - (t.lastExtension.extendedAt || 0) < 180000)) {
-              this.handleTaskDeadlineChange(t, '');
-            }
           }
         });
 
