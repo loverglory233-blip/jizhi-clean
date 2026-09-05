@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2808";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260905_v2808";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2808";
-import { AuthManager } from "./auth.js?v=20260905_v2808";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2808";
-import { renderLoginView } from "./login.js?v=20260905_v2808";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2808";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2808";
+} from "./constants.js?v=20260905_v2809";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260905_v2809";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2809";
+import { AuthManager } from "./auth.js?v=20260905_v2809";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2809";
+import { renderLoginView } from "./login.js?v=20260905_v2809";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2809";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2809";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2808";
+} from "./editor.js?v=20260905_v2809";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5679,15 +5679,6 @@ ${chatSnippet}
     return `${classId}_${activeTaskId}_${groupId}`;
   }
 
-  isGroupMilestoneInitiator() {
-    const user = this.authManager ? this.authManager.getCurrentUser() : null;
-    if (!user) return true;
-    const myId = String(user.id || user.name || '').trim().toLowerCase();
-    const presenceKeys = Object.keys(this.state.presence || {}).filter(Boolean);
-    if (presenceKeys.length <= 1) return true;
-    const sortedPresence = presenceKeys.map(k => String(k).trim().toLowerCase()).sort();
-    return sortedPresence[0] === myId;
-  }
 
   getAgentSenderName(key) {
     return getAgentDisplayName(key, this.getCurrentTaskType());
@@ -6644,9 +6635,8 @@ ${chatSnippet}
       }
     }
 
-    // 🛡️ 组内主发起人选举与非首选客户端退避（避免多人并发调用大模型消耗双倍 Token）
-    const isInitiator = this.isGroupMilestoneInitiator();
-    const delayMs = isInitiator ? 500 : 3000;
+    // 🛡️ 300ms 防抖节流（由后端分布式原子排他锁与缓存池保障全组仅调用 1 次大模型）
+    const delayMs = 300;
 
     // 🛡️ 如果之前触发中途因异常未完成且已超过 20 秒，允许重置重试
     const isReview1InProgressTimedOut = (s2.reviewMilestone === 'first_review_in_progress' && (!s2._review1StartTime || (now - s2._review1StartTime > 20000)));
