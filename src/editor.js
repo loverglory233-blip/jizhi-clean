@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2635";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2635";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2635";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2636";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2636";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2636";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -1671,6 +1671,7 @@ function renderStage2Canvas(canvas, state, handlers) {
         innerBody._jizhiInputBound = true;
         const markLocalTyping = (e) => {
           window._lastLocalPadInputTime = Date.now();
+          window._lastLocalActionType = e?.type || 'input';
           try {
             const sel = innerDoc.getSelection();
             if (sel && sel.anchorNode) {
@@ -1678,11 +1679,21 @@ function renderStage2Canvas(canvas, state, handlers) {
               const aCls = getAuthorClass(el);
               if (aCls) {
                 window._localDetectedAuthorClass = aCls;
+                if (!window._jizhiLocalAuthorClasses) window._jizhiLocalAuthorClasses = new Set();
+                window._jizhiLocalAuthorClasses.add(aCls);
+                const raw = aCls.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
+                if (raw) {
+                  window._jizhiLocalAuthorClasses.add('a.' + raw);
+                  window._jizhiLocalAuthorClasses.add('a-' + raw);
+                  window._jizhiLocalAuthorClasses.add('a_' + raw);
+                }
               }
             }
           } catch(err) {}
           if (typeof syncPadMetrics === 'function') {
-            setTimeout(syncPadMetrics, 100);
+            setTimeout(syncPadMetrics, 50);
+            setTimeout(syncPadMetrics, 300);
+            setTimeout(syncPadMetrics, 1000);
           }
         };
         innerBody.addEventListener('input', markLocalTyping, true);
@@ -1690,6 +1701,8 @@ function renderStage2Canvas(canvas, state, handlers) {
         innerBody.addEventListener('keyup', markLocalTyping, true);
         innerBody.addEventListener('paste', markLocalTyping, true);
         innerBody.addEventListener('compositionend', markLocalTyping, true);
+        innerBody.addEventListener('mouseup', markLocalTyping, true);
+        innerDoc.addEventListener('selectionchange', markLocalTyping, true);
       }
 
       const rawText = (innerBody.innerText || '').replace(/\r\n/g, '\n').trim();
@@ -1791,7 +1804,16 @@ function renderStage2Canvas(canvas, state, handlers) {
       // 匹配每个 authorClass 到真实的 membersList 成员
       const selfMem = membersList.find(m => isSameUser(m, currUser) || isSameUser(m, currUserCode) || (currUserName && m.name === currUserName) || (currUser?.id && isSameId(m.id, currUser.id))) || currUser;
 
+      // 🛡️ 全局永久作者-成员映射缓存：杜绝任何重入波动与跨成员冒领
+      if (!window._jizhiAuthorToMemberMap) {
+        window._jizhiAuthorToMemberMap = new Map();
+      }
+      const authorMap = window._jizhiAuthorToMemberMap;
+
       const localAuthorIdCandidates = new Set();
+      if (window._jizhiLocalAuthorClasses) {
+        window._jizhiLocalAuthorClasses.forEach(c => localAuthorIdCandidates.add(c));
+      }
       if (padWin) {
         if (padWin.clientVars) {
           if (padWin.clientVars.userId) localAuthorIdCandidates.add(padWin.clientVars.userId);
@@ -1817,8 +1839,19 @@ function renderStage2Canvas(canvas, state, handlers) {
         localAuthorIdCandidates.add(window._localDetectedAuthorClass);
       }
 
-      const assignedAuthors = new Map();
-      const unassignedKeys = [];
+      // 1. 本地所有已检测到的 Author ID 100% 权威强绑定给当前登录用户 selfMem
+      for (const cand of localAuthorIdCandidates) {
+        if (!cand) continue;
+        const candStr = String(cand).trim().toLowerCase();
+        const candRaw = candStr.replace(/^(author[-_]|a[._-])/i, '');
+        if (candRaw && selfMem) {
+          authorMap.set(candRaw, selfMem);
+          authorMap.set('a.' + candRaw, selfMem);
+          authorMap.set('a-' + candRaw, selfMem);
+          authorMap.set('a_' + candRaw, selfMem);
+          authorMap.set(candStr, selfMem);
+        }
+      }
 
       const isPlaceholderName = (nameStr) => {
         if (!nameStr) return true;
@@ -1826,118 +1859,101 @@ function renderStage2Canvas(canvas, state, handlers) {
         return s === '' || s === '组员' || s === '学术组员' || s === 'unnamed' || s === 'author' || s === 'guest' || s === 'null' || s === 'undefined';
       };
 
-      const matchMemberForAuthor = (aKey, authorName, authorColor) => {
+      // 2. 遍历 authorData 注册组内各同伴的真实作者标记
+      Object.entries(authorData).forEach(([aKey, aObj]) => {
+        if (!aKey || !aObj) return;
         const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
-        const normDot = 'a.' + rawId;
-        const normHyphen = 'a-' + rawId;
-        const normUnderscore = 'a_' + rawId;
+        if (!rawId) return;
 
-        // 1. 本地当前活跃操作作者 / 键盘输入捕获类名 -> 100% 绑定为当前登录用户
-        for (const cand of localAuthorIdCandidates) {
-          if (!cand) continue;
-          const candStr = String(cand).trim().toLowerCase();
-          const candRaw = candStr.replace(/^(author[-_]|a[._-])/i, '');
-          if (aKey.toLowerCase() === candStr || normDot === candStr || normHyphen === candStr || normUnderscore === candStr || (rawId && candRaw && rawId === candRaw)) {
-            if (selfMem) return selfMem;
-          }
-        }
+        // 如果该 ID 已经被判定为本地当前用户，绝不覆盖
+        if (authorMap.has(rawId) && authorMap.get(rawId) === selfMem) return;
 
-        // 2. 精确姓名 / ID 匹配（剔除占位符）
-        if (authorName && !isPlaceholderName(authorName)) {
-          const cleanAuthorName = authorName.trim().toLowerCase();
+        const aName = (aObj.name && !isPlaceholderName(aObj.name)) ? String(aObj.name).trim() : '';
+        const aColor = aObj.colorId !== undefined ? aObj.colorId : aObj.color;
+
+        // 优先依据姓名匹配同伴
+        if (aName) {
+          const cleanAName = aName.toLowerCase();
           const nameMatched = membersList.find(m => {
             if (!m) return false;
             const mKeys = getUserAllKeys(m);
-            return mKeys.some(k => k.toLowerCase() === cleanAuthorName || cleanAuthorName.includes(k.toLowerCase()) || k.toLowerCase().includes(cleanAuthorName));
+            return mKeys.some(k => k.toLowerCase() === cleanAName || cleanAName.includes(k.toLowerCase()) || k.toLowerCase().includes(cleanAName));
           });
-          if (nameMatched) return nameMatched;
-        }
-
-        // 3. 颜色精确匹配
-        const effColor = authorColor || domAuthorColors[aKey] || domAuthorColors[normDot] || domAuthorColors[rawId];
-        if (effColor) {
-          const colorMatched = membersList.find(m => m.color && areColorsEqual(m.color, effColor));
-          if (colorMatched) return colorMatched;
-        }
-
-        return null;
-      };
-
-      Object.keys(rawCounts).forEach(aKey => {
-        if (aKey === 'unassigned') return;
-        let authorName = '';
-        let authorColor = null;
-
-        const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
-        const normDot = 'a.' + rawId;
-        const normHyphen = 'a-' + rawId;
-        const normUnderscore = 'a_' + rawId;
-
-        let foundAuthorObj = null;
-        for (const k of [aKey, normDot, normHyphen, normUnderscore, rawId]) {
-          if (authorData[k]) {
-            foundAuthorObj = authorData[k];
-            break;
+          if (nameMatched) {
+            authorMap.set(rawId, nameMatched);
+            authorMap.set('a.' + rawId, nameMatched);
+            authorMap.set('a-' + rawId, nameMatched);
+            authorMap.set('a_' + rawId, nameMatched);
+            authorMap.set(aKey, nameMatched);
+            return;
           }
         }
-        if (!foundAuthorObj) {
-          for (const k of Object.keys(authorData)) {
-            const kRaw = k.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
-            if (k.toLowerCase() === aKey.toLowerCase() || (rawId && (kRaw === rawId || k.includes(rawId) || aKey.includes(kRaw)))) {
-              foundAuthorObj = authorData[k];
-              break;
+
+        // 依据颜色匹配同伴
+        if (aColor) {
+          const colorMatched = membersList.find(m => m.color && areColorsEqual(m.color, aColor));
+          if (colorMatched) {
+            authorMap.set(rawId, colorMatched);
+            authorMap.set('a.' + rawId, colorMatched);
+            authorMap.set('a-' + rawId, colorMatched);
+            authorMap.set('a_' + rawId, colorMatched);
+            authorMap.set(aKey, colorMatched);
+            return;
+          }
+        }
+      });
+
+      const isRecentlyTypingLocally = (Date.now() - (window._lastLocalPadInputTime || 0) < 20000);
+      const assignedAuthors = new Map();
+
+      // 3. 权威分配 DOM 中的每一个 authorClass
+      Object.keys(rawCounts).forEach(aKey => {
+        if (aKey === 'unassigned') return;
+        const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
+
+        let matched = authorMap.get(aKey) || authorMap.get(rawId) || authorMap.get('a.' + rawId) || authorMap.get('a-' + rawId) || authorMap.get('a_' + rawId);
+
+        if (!matched) {
+          let authorName = '';
+          let authorColor = null;
+          let foundAuthorObj = authorData[aKey] || authorData[rawId] || authorData['a.' + rawId];
+          if (foundAuthorObj) {
+            if (foundAuthorObj.name && !isPlaceholderName(foundAuthorObj.name)) authorName = String(foundAuthorObj.name).trim();
+            authorColor = foundAuthorObj.colorId !== undefined ? foundAuthorObj.colorId : foundAuthorObj.color;
+          }
+          if (authorName && !isPlaceholderName(authorName)) {
+            const cleanAuthorName = authorName.trim().toLowerCase();
+            matched = membersList.find(m => {
+              if (!m) return false;
+              const mKeys = getUserAllKeys(m);
+              return mKeys.some(k => k.toLowerCase() === cleanAuthorName || cleanAuthorName.includes(k.toLowerCase()) || k.toLowerCase().includes(cleanAuthorName));
+            });
+          }
+          if (!matched && (authorColor || domAuthorColors[aKey] || domAuthorColors['a.' + rawId])) {
+            const effColor = authorColor || domAuthorColors[aKey] || domAuthorColors['a.' + rawId];
+            matched = membersList.find(m => m.color && areColorsEqual(m.color, effColor));
+          }
+        }
+
+        // 🛡️ 智能兜底：若作者类名仍未匹配到同伴，且当前是本地粘贴/输入产生的 authorClass，100% 绑定为当前用户
+        if (!matched) {
+          if (isRecentlyTypingLocally || selfMem) {
+            matched = selfMem;
+            if (rawId) {
+              authorMap.set(rawId, selfMem);
+              authorMap.set('a.' + rawId, selfMem);
+              authorMap.set('a-' + rawId, selfMem);
+              authorMap.set(aKey, selfMem);
             }
           }
         }
 
-        if (foundAuthorObj) {
-          if (foundAuthorObj.name && !isPlaceholderName(foundAuthorObj.name)) {
-            authorName = String(foundAuthorObj.name).trim();
-          }
-          if (foundAuthorObj.colorId !== undefined || foundAuthorObj.color) {
-            authorColor = foundAuthorObj.colorId !== undefined ? foundAuthorObj.colorId : foundAuthorObj.color;
-          }
-        }
-
-        const matched = matchMemberForAuthor(aKey, authorName, authorColor);
         if (matched) {
           assignedAuthors.set(aKey, matched);
-        } else {
-          unassignedKeys.push(aKey);
         }
       });
 
-      // 4. 对尚未精确匹配的 authorClass，优先分配给当前登录用户
-      const nonUnassignedKeys = Object.keys(rawCounts).filter(k => k !== 'unassigned');
-      if (nonUnassignedKeys.length === 1 && selfMem) {
-        // 单人编辑或首次输入：唯一 authorClass 100% 归属于当前登录用户
-        assignedAuthors.set(nonUnassignedKeys[0], selfMem);
-      } else {
-        const alreadyAssignedMemberIds = new Set(Array.from(assignedAuthors.values()).map(m => m?.id || m?.studentCode || m?.name));
-        const remainingMembers = [];
-        if (selfMem && !alreadyAssignedMemberIds.has(selfMem.id) && !alreadyAssignedMemberIds.has(selfMem.studentCode) && !alreadyAssignedMemberIds.has(selfMem.name)) {
-          remainingMembers.push(selfMem);
-        }
-        membersList.forEach(m => {
-          const mKey = m?.id || m?.studentCode || m?.name;
-          if (!alreadyAssignedMemberIds.has(mKey) && (!selfMem || (m.id !== selfMem.id && m.name !== selfMem.name))) {
-            remainingMembers.push(m);
-          }
-        });
-
-        let remIdx = 0;
-        unassignedKeys.forEach(aKey => {
-          if (remIdx < remainingMembers.length) {
-            assignedAuthors.set(aKey, remainingMembers[remIdx]);
-            remIdx++;
-          } else if (selfMem) {
-            // 若所有未分配位耗尽，默认归属本地登录作者
-            assignedAuthors.set(aKey, selfMem);
-          }
-        });
-      }
-
-      // 5. 累计各成员字数（未匹配作者严禁冒领，按作者特征或平分处理）
+      // 4. 累计各成员字数（杜绝冒领与闪烁）
       let totalAssignedChars = 0;
       Object.keys(rawCounts).forEach(aKey => {
         const count = rawCounts[aKey];
@@ -1954,14 +1970,26 @@ function renderStage2Canvas(canvas, state, handlers) {
         }
       });
 
-      // 如果有未归属文本 (例如初始模板内容)，且已有成员撰写了内容，若没有任何归属则平分给成员
+      // 5. 处理 unassigned 裸文本（例如刚粘贴进来的大段文字）
       const unassignedChars = rawCounts['unassigned'] || 0;
-      if (unassignedChars > 0 && totalAssignedChars === 0) {
-        const splitCount = Math.floor(unassignedChars / membersList.length);
-        membersList.forEach(m => {
-          memberCounts[m.id] = (memberCounts[m.id] || 0) + splitCount;
-          if (m.name) memberCounts[m.name] = (memberCounts[m.name] || 0) + splitCount;
-        });
+      if (unassignedChars > 0) {
+        if (isRecentlyTypingLocally && selfMem) {
+          // 本地刚发生键盘输入或大段文本粘贴：直接计入当前作者
+          memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + unassignedChars;
+          if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + unassignedChars;
+          totalAssignedChars += unassignedChars;
+        } else if (totalAssignedChars === 0 && membersList.length > 0) {
+          // 初始模板全篇无作者：平分
+          const splitCount = Math.floor(unassignedChars / membersList.length);
+          membersList.forEach(m => {
+            memberCounts[m.id] = (memberCounts[m.id] || 0) + splitCount;
+            if (m.name) memberCounts[m.name] = (memberCounts[m.name] || 0) + splitCount;
+          });
+        } else if (selfMem) {
+          memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + unassignedChars;
+          if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + unassignedChars;
+          totalAssignedChars += unassignedChars;
+        }
       }
 
       const resObj = {
