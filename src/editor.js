@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2612";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2612";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260905_v2612";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2613";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2613";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260905_v2613";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -2601,7 +2601,7 @@ function renderStage2Canvas(canvas, state, handlers) {
             </div>
           </div>
           <div style="flex:1; height:100%; min-height:440px; position:relative; background:#ffffff;">
-            <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; min-height:440px; border:none; display:block; background:#ffffff; ${isEditorReadonly ? 'user-select:none;' : ''}" allow="clipboard-read; clipboard-write; fullscreen" onload="const el=document.getElementById('ep-status-text-s2'); if(el) el.innerText='${isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)'}'; const f=document.getElementById('stage2-etherpad-frame'); if(f && ${isEditorReadonly ? 'true' : 'false'}) { try { if(window.enforceEtherpadReadonly) window.enforceEtherpadReadonly(f); } catch(e){} }"></iframe>
+            <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; min-height:440px; border:none; display:block; background:#ffffff; ${isEditorReadonly ? 'user-select:none;' : ''}" allow="clipboard-read; clipboard-write; fullscreen" onload="const el=document.getElementById('ep-status-text-s2'); if(el) el.innerText='${isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)'}'; const f=document.getElementById('stage2-etherpad-frame'); if(f) { if(${isEditorReadonly ? 'true' : 'false'}) { try { if(window.enforceEtherpadReadonly) window.enforceEtherpadReadonly(f); } catch(e){} } else { try { if(window.liftEtherpadReadonly) window.liftEtherpadReadonly(f); } catch(e){} } }"></iframe>
             ${isEditorReadonly ? '<div class="etherpad-readonly-shield" style="position:absolute; top:0; left:0; right:20px; bottom:0; z-index:50; background:transparent; cursor:default; pointer-events:auto;" title="🔒 正文已截止锁定为只读模式"></div>' : ''}
             ${isEditorReadonly ? '<div style="position:absolute; top:12px; right:12px; z-index:99; pointer-events:none; display:flex; align-items:center; justify-content:center;" title="🔒 正文已截止锁定为只读模式"><div style="background:rgba(15,23,42,0.8); color:#ffffff; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; pointer-events:none; box-shadow:0 4px 12px rgba(0,0,0,0.18);">🔒 任务已截止/初稿已锁定 (只读查阅模式)</div></div>' : ''}
           </div>
@@ -3112,7 +3112,7 @@ function renderStage3Canvas(canvas, state, handlers) {
               </div>
             </div>
             <div style="flex:1; min-height:0; position:relative; background:#f1f5f9; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1;">
-              <iframe id="stage3-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; min-height:540px; border:none; display:block; ${isEditorReadonly ? 'user-select:none;' : ''}" allow="clipboard-read; clipboard-write" onload="const f=document.getElementById('stage3-etherpad-frame'); if(f && ${isEditorReadonly ? 'true' : 'false'}) { try { if(window.enforceEtherpadReadonly) window.enforceEtherpadReadonly(f); } catch(e){} }"></iframe>
+              <iframe id="stage3-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; min-height:540px; border:none; display:block; ${isEditorReadonly ? 'user-select:none;' : ''}" allow="clipboard-read; clipboard-write" onload="const f=document.getElementById('stage3-etherpad-frame'); if(f) { if(${isEditorReadonly ? 'true' : 'false'}) { try { if(window.enforceEtherpadReadonly) window.enforceEtherpadReadonly(f); } catch(e){} } else { try { if(window.liftEtherpadReadonly) window.liftEtherpadReadonly(f); } catch(e){} } }"></iframe>
               ${isEditorReadonly ? '<div class="etherpad-readonly-shield" style="position:absolute; top:0; left:0; right:20px; bottom:0; z-index:50; background:transparent; cursor:default; pointer-events:auto;" title="🔒 正文已截止锁定为只读模式"></div>' : ''}
               ${isFinalSubmitted ? `
                 <div style="position:absolute; top:12px; right:12px; z-index:99; pointer-events:none; display:flex; align-items:center; justify-content:center;" title="🔒 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿已全员提交归档锁定">
