@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2674
+ * Version: 20260906_v2675
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2674';
+  const APP_VERSION = '20260906_v2675';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -20857,7 +20857,8 @@
           }
         });
         if (parsedItems.length > 0) {
-          s2.actionPlan = { isGenerated: true, generatedAt: Date.now(), items: parsedItems, completedMap: {} };
+          const finalItems = this.assembleActionPlanItems(parsedItems, s2);
+          s2.actionPlan = { isGenerated: true, generatedAt: Date.now(), items: finalItems, completedMap: {} };
           s2.meetingStep = 'discussing_checklist';
           s2.reviewMilestone = 'second_review_received';
         }
@@ -23845,11 +23846,13 @@
           }
         });
         if (parsedItems.length > 0) {
+          const finalItems = this.assembleActionPlanItems(parsedItems, this.state.stage2);
           this.state.stage2.actionPlan = {
             isGenerated: true,
             completedMap: {},
-            items: parsedItems
+            items: finalItems
           };
+          this.state.stage2.meetingStep = 'discussing_checklist';
         }
         this.state.stage2PendingRevisionDiscussion = true;
         this.state.stage2ReviewingFinishedTime = Date.now();
@@ -23870,6 +23873,55 @@
       renderChat(this.state);
       this.renderStudentWorkspace();
       this._isTriggeringSecondReview = false;
+    }
+
+    /**
+     * 🧩 智能装配【半程修正清单】：
+     * 1. 若全组自查打卡与责任编辑梳理中存在前后脱节/构思偏离等一致性问题：
+     *    第 1 条硬性锁定为【责任编辑指出的一致性脱节与对齐修改要点】；后 2 条继承审稿编辑的质检建议。
+     * 2. 若全组自查无任何脱节/偏离（一致性良好）：
+     *    直接 100% 采用审稿编辑的 3 条二审清单。
+     */
+    assembleActionPlanItems(reviewingParsedItems, s2 = null) {
+      const stage2Data = s2 || this.state.stage2 || {};
+      const taskType = this.getCurrentTaskType();
+      const isInst = (taskType === 'instructional');
+
+      const subs = stage2Data.meetingSubmissions || {};
+      const subValues = Object.values(subs);
+      const divDetails = stage2Data.divergenceDetails || {};
+
+      const allTransSecs = Array.from(new Set(subValues.flatMap(s => s.transSections || []).filter(Boolean)));
+      const allIdeationSecs = Array.from(new Set(subValues.flatMap(s => s.ideationSections || []).filter(Boolean)));
+      const allStyleSecs = Array.from(new Set(subValues.flatMap(s => s.styleSections || []).filter(Boolean)));
+
+      const hasTransDev = divDetails.hasTransDev || subValues.some(s => (s.transitionState || '').includes('脱节')) || allTransSecs.length > 0;
+      const hasIdeationDev = divDetails.hasIdeationDev || subValues.some(s => (s.ideationConsistency || '').includes('偏离')) || allIdeationSecs.length > 0;
+      const hasStyleDev = divDetails.hasStyleDev || subValues.some(s => (s.styleState || '').includes('割裂') || (s.styleState || '').includes('混乱') || (s.styleState || '').includes('口语')) || allStyleSecs.length > 0;
+
+      const hasInconsistency = hasTransDev || hasIdeationDev || hasStyleDev || !!divDetails.hasMeetingDivergence;
+
+      if (hasInconsistency) {
+        let transSecText = divDetails.transFocusText || (allTransSecs.length > 0 ? allTransSecs.map(s => `【${s}】`).join('、') : (allIdeationSecs.length > 0 ? allIdeationSecs.map(s => `【${s}】`).join('、') : '【章节前后衔接与概念统领】'));
+        if (!transSecText.includes('【') && !transSecText.includes('《')) {
+          transSecText = `【${transSecText}】`;
+        }
+
+        const consistencyItem = isInst
+          ? `🎯 诊断问题：责任编辑研判指出${transSecText}存在教学目标与活动设计前后脱节；改进建议：对齐各环节教学目标，打通探究活动与评价设计的衔接逻辑，统一全篇教学主线。`
+          : `🎯 诊断问题：责任编辑研判指出${transSecText}存在前后逻辑脱节与概念口径不一致；改进建议：统一全篇核心概念表述，补全章节过渡逻辑与衔接段落，确保前后论证严密连贯。`;
+
+        // 过滤掉 reviewingParsedItems 中已经重复的一致性条目
+        const revItems = (reviewingParsedItems || []).filter(item => {
+          const txt = String(item || '');
+          return !txt.includes('逻辑脱节与概念口径不一致') && !txt.includes('教学目标与活动设计前后脱节');
+        });
+
+        const combined = [consistencyItem, ...revItems];
+        return combined.slice(0, 3);
+      } else {
+        return (reviewingParsedItems || []).slice(0, 3);
+      }
     }
 
     /**
@@ -23908,10 +23960,11 @@
         });
       }
       if (parsedItems.length > 0) {
+        const finalItems = this.assembleActionPlanItems(parsedItems, s2);
         s2.actionPlan = {
           isGenerated: true,
           completedMap: (s2.actionPlan && s2.actionPlan.completedMap) || {},
-          items: parsedItems.slice(0, 3)
+          items: finalItems
         };
         s2.meetingStep = 'discussing_checklist';
         this.syncStage2();
