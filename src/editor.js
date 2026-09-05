@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2645";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2645";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2645";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2646";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2646";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2646";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -1587,7 +1587,7 @@ function renderStage2Canvas(canvas, state, handlers) {
   }
 
   const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
-  const padUrl = `/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans`;
+  const padUrl = `/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans&noColors=false`;
 
   const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
   const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
@@ -1972,20 +1972,42 @@ function renderStage2Canvas(canvas, state, handlers) {
         }
       });
 
-      // 5. 处理 unassigned 裸文本（例如刚粘贴进来的大段文字，杜绝 20 秒倒计时跳变与平分波动）
+      // 5. 处理 unassigned 裸文本（例如历史底稿或模板导入，杜绝将整篇历史文本 100% 误充入单个人头）
       const unassignedChars = rawCounts['unassigned'] || 0;
       if (unassignedChars > 0) {
-        if (selfMem) {
-          // 本地写作与大段文本粘贴，权威计入当前活跃作者
-          memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + unassignedChars;
-          if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + unassignedChars;
-          totalAssignedChars += unassignedChars;
-        } else if (membersList.length > 0) {
-          const splitCount = Math.floor(unassignedChars / membersList.length);
-          membersList.forEach(m => {
-            memberCounts[m.id] = (memberCounts[m.id] || 0) + splitCount;
-            if (m.name) memberCounts[m.name] = (memberCounts[m.name] || 0) + splitCount;
+        if (totalAssignedChars > 0) {
+          // 若已有明确作者分工，未标记的辅助空白/标点按已有比例分摊
+          targetMembersList.forEach(m => {
+            const currentMemChars = memberCounts[m.id] || 0;
+            const extra = Math.round((currentMemChars / totalAssignedChars) * unassignedChars);
+            memberCounts[m.id] = (memberCounts[m.id] || 0) + extra;
+            if (m.name) memberCounts[m.name] = (memberCounts[m.name] || 0) + extra;
           });
+        } else {
+          // 若全部文本均未标记作者（如纯文本导入或未着色历史）：
+          // 优先检查 state 中是否已有服务器/历史同步的真实贡献比
+          const existingContribs = state.stage2?.frozenContributions || state.stage2?.memberContributions || {};
+          let existingTotal = 0;
+          targetMembersList.forEach(m => { existingTotal += getMemberContribVal(existingContribs, m); });
+
+          if (existingTotal > 0) {
+            targetMembersList.forEach(m => {
+              const val = getMemberContribVal(existingContribs, m);
+              memberCounts[m.id] = val;
+              if (m.name) memberCounts[m.name] = val;
+            });
+          } else if (isRecentlyTypingLocally && selfMem) {
+            // 仅在用户当前确实正在键盘敲击输入且无历史时，才计入本地用户
+            memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + unassignedChars;
+            if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + unassignedChars;
+          } else if (targetMembersList.length > 0) {
+            // 否则全组平摊初始底稿
+            const splitCount = Math.floor(unassignedChars / targetMembersList.length);
+            targetMembersList.forEach(m => {
+              memberCounts[m.id] = (memberCounts[m.id] || 0) + splitCount;
+              if (m.name) memberCounts[m.name] = (memberCounts[m.name] || 0) + splitCount;
+            });
+          }
         }
       }
 
@@ -3192,7 +3214,7 @@ function renderStage3Canvas(canvas, state, handlers) {
           const isEditorReadonly = isTaskDeadlineExpired || isFinalSubmitted || !!(window.app && window.app.isViewingPastStage);
 
           const targetPad = rawPadName;
-          const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans`;
+          const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans&noColors=false`;
 
           return `
             <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">

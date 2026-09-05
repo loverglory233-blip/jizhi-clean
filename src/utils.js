@@ -1218,7 +1218,7 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
             padWin.document.cookie = `name=${encodeURIComponent(userName)}; path=/; max-age=86400`;
           }
           
-          // 🛡️ 确保顶部原生 editbar 显示正常，并确保正文保持学术纯白底 + 深色正文字体（彻底杜绝大色块背景与白字隐形）
+          // 🛡️ 确保顶部原生 editbar 显示正常，并确保正文容器保持舒适阅读背景与清晰字色（保留原生作者色彩高亮）
           const doc = padWin.document;
           if (doc) {
             let styleEl = doc.getElementById('jizhi-etherpad-guard-style');
@@ -1230,14 +1230,7 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
               }
               html, body {
                 background-color: #ffffff !important;
-                background: #ffffff !important;
-                color: #0f172a !important;
                 color-scheme: light !important;
-              }
-              span[class*="author-"], .author {
-                background-color: transparent !important;
-                background: transparent !important;
-                color: #0f172a !important;
               }
             `;
             if (!styleEl) {
@@ -1257,8 +1250,6 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
                 const outerCss = `
                   html, body, #outerdocbody {
                     background-color: #ffffff !important;
-                    background: #ffffff !important;
-                    color: #0f172a !important;
                     color-scheme: light !important;
                   }
                 `;
@@ -1274,35 +1265,9 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
                 const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
                 if (aceInner && aceInner.contentDocument) {
                   const innerDoc = aceInner.contentDocument;
-                  let innerStyle = innerDoc.getElementById('jizhi-author-white-bg-style');
-                  const innerCss = `
-                    html, body, #innerdocbody {
-                      background-color: #ffffff !important;
-                      background: #ffffff !important;
-                      color: #0f172a;
-                      color-scheme: light !important;
-                    }
-                    /* 默认段落和文本继承深色黑字，杜绝深色模式下变白字 */
-                    #innerdocbody div, #innerdocbody p, #innerdocbody li, .ace-line {
-                      color: #0f172a;
-                    }
-                    /* 仅将作者身份底色设为透明（消除全篇作者色块），但保留用户主动设置的高亮色 */
-                    span[class*="author-"], .author {
-                      background-color: transparent !important;
-                    }
-                    /* 默认未染色文本保持深黑字 */
-                    #innerdocbody span:not([class*="color"]):not([style*="color"]):not([class*="highlight"]) {
-                      color: #0f172a;
-                    }
-                  `;
-                  if (!innerStyle) {
-                    innerStyle = innerDoc.createElement('style');
-                    innerStyle.id = 'jizhi-author-white-bg-style';
-                    innerStyle.textContent = innerCss;
-                    (innerDoc.head || innerDoc.documentElement).appendChild(innerStyle);
-                  } else {
-                    innerStyle.textContent = innerCss;
-                  }
+                  // 🛡️ 清理可能残留的白底强行覆盖样式标签
+                  const oldWhiteStyle = innerDoc.getElementById('jizhi-author-white-bg-style');
+                  if (oldWhiteStyle) oldWhiteStyle.remove();
                 }
               }
             } catch(e) {}
