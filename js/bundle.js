@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2607
+ * Version: 20260905_v2608
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2607';
+  const APP_VERSION = '20260905_v2608';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10910,11 +10910,11 @@
             const t = e.data.task;
             if (authManager) {
               const localTasks = authManager.getTasks();
-              const idx = localTasks.findIndex(lt => lt && (lt.id === t.id || (lt.title && lt.title === t.title)));
+              const idx = localTasks.findIndex(lt => lt && (isSameId(lt.id, t.id) || (lt.title && lt.title === t.title)));
               if (idx >= 0) {
                 localTasks[idx] = { ...localTasks[idx], ...t, deadline: t.deadline, durationMinutes: t.durationMinutes || localTasks[idx].durationMinutes, lastExtension: t.lastExtension };
               } else {
-                localTasks.push(t);
+                localTasks.unshift(t);
               }
               try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
             }
@@ -15366,18 +15366,27 @@
               // 3) 若在另一个任务工作台中：做减法，静默不打扰当前写作
             }
 
-            // 2.5 教师更新任务
-            if (e.data.type === 'task_updated' && e.data.task) {
+            // 2.5 教师更新任务 / 任务延期广播（秒级同步并即时刷新倒计时与编辑器权限）
+            if ((e.data.type === 'task_updated' || e.data.type === 'task_extended') && e.data.task) {
+              const extTask = e.data.task;
               if (this.authManager) {
                 const localTasks = this.authManager.getTasks();
-                const idx = localTasks.findIndex(lt => lt && lt.id === e.data.task.id);
+                const idx = localTasks.findIndex(lt => lt && (isSameId(lt.id, extTask.id) || (lt.title && lt.title === extTask.title)));
                 if (idx >= 0) {
-                  localTasks[idx] = { ...localTasks[idx], ...e.data.task };
+                  localTasks[idx] = { ...localTasks[idx], ...extTask };
+                  try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
+                } else {
+                  localTasks.unshift(extTask);
                   try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
                 }
               }
               if (this.state.studentViewMode === 'task_list') {
                 this.renderMain();
+              } else if (this.state.studentViewMode === 'workspace' && isSameId(this.state.activeTaskId, extTask.id)) {
+                this.renderHeader();
+                this.renderCanvas();
+                const extDurationStr = extTask.lastExtension?.extendDurationStr || (extTask.lastExtension?.addedMinutes ? `（增加了 ${extTask.lastExtension.addedMinutes} 分钟）` : '');
+                showGlobalBannerNotice('⏳ 任务延期提醒', `本任务截止时间已由任课教师延长至 ${extTask.deadline || '新截止时间'} ${extDurationStr}！`, 'info', 8000);
               }
             }
 
