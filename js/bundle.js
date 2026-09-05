@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2700
+ * Version: 20260906_v2701
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2700';
+  const APP_VERSION = '20260906_v2701';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -21152,7 +21152,7 @@
       });
 
       try {
-        const resp = await callCozeAgentAPI('neutral', evalInquiryPrompt, { stage: 'stage3', topic });
+        const resp = await callCozeAgentAPI('neutral', evalInquiryPrompt, { stage: 'stage3', topic, milestoneKey: `stage3_inquiry_${inqIndex}` });
         let extractedResponse = chatSnippet.slice(0, 150);
         let chairSpeech = (remainingOppCount > 0)
           ? `🟡 【${chairShort}·答辩定案与顺推】：【${inqLabel}】辩护方案已定案归档！👉 请全组将研讨焦点转向【${nextLabel}】，继续在讨论区商定对策！商定后点击上方【💡 ${nextLabel} 讨论差不多了？帮我总结并填入】！`

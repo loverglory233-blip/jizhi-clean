@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2700";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2700";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2700";
-import { AuthManager } from "./auth.js?v=20260906_v2700";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2700";
-import { renderLoginView } from "./login.js?v=20260906_v2700";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2700";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2700";
+} from "./constants.js?v=20260906_v2701";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2701";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2701";
+import { AuthManager } from "./auth.js?v=20260906_v2701";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2701";
+import { renderLoginView } from "./login.js?v=20260906_v2701";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2701";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2701";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2700";
+} from "./editor.js?v=20260906_v2701";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5689,7 +5689,7 @@ ${chatSnippet}
     });
 
     try {
-      const resp = await callCozeAgentAPI('neutral', evalInquiryPrompt, { stage: 'stage3', topic });
+      const resp = await callCozeAgentAPI('neutral', evalInquiryPrompt, { stage: 'stage3', topic, milestoneKey: `stage3_inquiry_${inqIndex}` });
       let extractedResponse = chatSnippet.slice(0, 150);
       let chairSpeech = (remainingOppCount > 0)
         ? `🟡 【${chairShort}·答辩定案与顺推】：【${inqLabel}】辩护方案已定案归档！👉 请全组将研讨焦点转向【${nextLabel}】，继续在讨论区商定对策！商定后点击上方【💡 ${nextLabel} 讨论差不多了？帮我总结并填入】！`
