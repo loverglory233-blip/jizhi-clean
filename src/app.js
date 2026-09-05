@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2607";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2607";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2607";
-import { AuthManager } from "./auth.js?v=20260905_v2607";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2607";
-import { renderLoginView } from "./login.js?v=20260905_v2607";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2607";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2607";
+} from "./constants.js?v=20260905_v2608";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2608";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2608";
+import { AuthManager } from "./auth.js?v=20260905_v2608";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2608";
+import { renderLoginView } from "./login.js?v=20260905_v2608";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2608";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2608";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2607";
+} from "./editor.js?v=20260905_v2608";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -170,18 +170,27 @@ export class App {
             // 3) 若在另一个任务工作台中：做减法，静默不打扰当前写作
           }
 
-          // 2.5 教师更新任务
-          if (e.data.type === 'task_updated' && e.data.task) {
+          // 2.5 教师更新任务 / 任务延期广播（秒级同步并即时刷新倒计时与编辑器权限）
+          if ((e.data.type === 'task_updated' || e.data.type === 'task_extended') && e.data.task) {
+            const extTask = e.data.task;
             if (this.authManager) {
               const localTasks = this.authManager.getTasks();
-              const idx = localTasks.findIndex(lt => lt && lt.id === e.data.task.id);
+              const idx = localTasks.findIndex(lt => lt && (isSameId(lt.id, extTask.id) || (lt.title && lt.title === extTask.title)));
               if (idx >= 0) {
-                localTasks[idx] = { ...localTasks[idx], ...e.data.task };
+                localTasks[idx] = { ...localTasks[idx], ...extTask };
+                try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
+              } else {
+                localTasks.unshift(extTask);
                 try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
               }
             }
             if (this.state.studentViewMode === 'task_list') {
               this.renderMain();
+            } else if (this.state.studentViewMode === 'workspace' && isSameId(this.state.activeTaskId, extTask.id)) {
+              this.renderHeader();
+              this.renderCanvas();
+              const extDurationStr = extTask.lastExtension?.extendDurationStr || (extTask.lastExtension?.addedMinutes ? `（增加了 ${extTask.lastExtension.addedMinutes} 分钟）` : '');
+              showGlobalBannerNotice('⏳ 任务延期提醒', `本任务截止时间已由任课教师延长至 ${extTask.deadline || '新截止时间'} ${extDurationStr}！`, 'info', 8000);
             }
           }
 

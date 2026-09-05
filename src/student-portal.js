@@ -8,8 +8,8 @@ import {
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES,
   TASK_GENRE_CONFIGS
-} from "./constants.js?v=20260905_v2607";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch } from "./utils.js?v=20260905_v2607";
+} from "./constants.js?v=20260905_v2608";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch, isSameId } from "./utils.js?v=20260905_v2608";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -68,11 +68,11 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
           const t = e.data.task;
           if (authManager) {
             const localTasks = authManager.getTasks();
-            const idx = localTasks.findIndex(lt => lt && (lt.id === t.id || (lt.title && lt.title === t.title)));
+            const idx = localTasks.findIndex(lt => lt && (isSameId(lt.id, t.id) || (lt.title && lt.title === t.title)));
             if (idx >= 0) {
               localTasks[idx] = { ...localTasks[idx], ...t, deadline: t.deadline, durationMinutes: t.durationMinutes || localTasks[idx].durationMinutes, lastExtension: t.lastExtension };
             } else {
-              localTasks.push(t);
+              localTasks.unshift(t);
             }
             try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
           }
