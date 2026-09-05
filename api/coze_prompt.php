@@ -6,8 +6,11 @@
 
 class CozePromptFactory {
     public static function buildPrompt($stage, $topic, $userQuery, $actualDoc = '', $botKey = '', $priorReview = '', $taskType = 'experiment') {
-        // ⚡ 若指令本身已高度结构化（包含 JSON 约束或研讨记录上下文），直接透传，确保大模型零干扰极速响应
-        if (mb_strpos($userQuery, 'JSON') !== false || mb_strpos($userQuery, '小组成员已') !== false || mb_strpos($userQuery, '【组内') !== false || mb_strpos($userQuery, '【当前任务') !== false) {
+        // ⚡ 若指令本身已包含正文全文或结构化上下文，直接透传，确保真实大模型极速响应
+        if (mb_strpos($userQuery, 'JSON') !== false || mb_strpos($userQuery, '小组成员已') !== false || mb_strpos($userQuery, '【组内') !== false || mb_strpos($userQuery, '【当前任务') !== false || mb_strpos($userQuery, '【小组当前真实正文草稿') !== false || mb_strpos($userQuery, '针对小组') !== false || mb_strpos($userQuery, '针对课题') !== false) {
+            if (!empty($actualDoc) && mb_strpos($userQuery, $actualDoc) === false) {
+                return $userQuery . "\n\n【正文草稿全文】:\n" . $actualDoc;
+            }
             return $userQuery;
         }
 
@@ -31,8 +34,7 @@ class CozePromptFactory {
         if (!empty($actualDoc)) {
             $docLen = mb_strlen($actualDoc, 'UTF-8');
             $docNoun = $isInst ? '教学设计草稿' : '正文草稿';
-            $trimmedDoc = ($docLen > 2200) ? (mb_substr($actualDoc, 0, 2000, 'UTF-8') . "\n...(正文核心主体节选)...") : $actualDoc;
-            $prompt .= "【{$docNoun}(共{$docLen}字)】:\n{$trimmedDoc}\n";
+            $prompt .= "【{$docNoun}全文(共{$docLen}字)】:\n{$actualDoc}\n";
         }
 
         $prompt .= "【本次指令】: {$userQuery}";

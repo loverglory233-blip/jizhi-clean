@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2695
+ * Version: 20260906_v2696
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2695';
+  const APP_VERSION = '20260906_v2696';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -21463,12 +21463,6 @@
             detail: '正方立论专家正在提炼肯定亮点，反方商榷专家正在研拟针对实质询...'
           });
 
-          // ⚡ 智能提炼正文核心摘要，大幅压缩大模型上下文与首字生成延迟（从 45s 压降至 6~8s）
-          let optimizedDocSnippet = rawContent;
-          if (optimizedDocSnippet.length > 1800) {
-            optimizedDocSnippet = optimizedDocSnippet.slice(0, 1600) + '\n...(正文核心主体已通读)...';
-          }
-
           const propPrompt = `${genreDesc}
 
   针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会正方评审教授发表 150~200 字的肯定支持评审意见：
@@ -21502,11 +21496,11 @@
   态度客观严谨、温和建设，纯自然语言输出，200~260字。`;
 
           try {
-            const timeoutPromise = new Promise(r => setTimeout(() => r(null), 30000));
+            const timeoutPromise = new Promise(r => setTimeout(() => r(null), 50000));
             const promises = [];
             if (!hasProp) {
               promises.push(Promise.race([
-                callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: optimizedDocSnippet, taskType }),
+                callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent, taskType }),
                 timeoutPromise
               ]));
             } else {
@@ -21516,7 +21510,7 @@
 
             if (!hasOpp) {
               promises.push(Promise.race([
-                callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: optimizedDocSnippet, taskType }),
+                callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent, taskType }),
                 timeoutPromise
               ]));
             } else {
