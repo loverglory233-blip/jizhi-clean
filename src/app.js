@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2691";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2691";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2691";
-import { AuthManager } from "./auth.js?v=20260906_v2691";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2691";
-import { renderLoginView } from "./login.js?v=20260906_v2691";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2691";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2691";
+} from "./constants.js?v=20260906_v2692";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2692";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2692";
+import { AuthManager } from "./auth.js?v=20260906_v2692";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2692";
+import { renderLoginView } from "./login.js?v=20260906_v2692";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2692";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2692";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2691";
+} from "./editor.js?v=20260906_v2692";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -7837,8 +7837,8 @@ ${contentSnippet}
     const isS1Confirmed = !!(this.state.stage1?.contract?.isConfirmed);
     if (isS1Confirmed && (!this.state.groupMaxStage || this.state.groupMaxStage === 'stage1') && this.state.currentStage === 'stage1') {
       const autoKey = `jizhi_autoadvanced_${activeTaskId}_stage2`;
-      if (!sessionStorage.getItem(autoKey)) {
-        sessionStorage.setItem(autoKey, '1');
+      if (!localStorage.getItem(autoKey)) {
+        localStorage.setItem(autoKey, '1');
         const stage2Title = isInst ? '阶段二：集体备课室' : '阶段二：学术编辑部';
         const contractTitle = isInst ? '备课合作公约' : '学术合作公约';
         this.showStageMilestoneModal({
@@ -7858,8 +7858,8 @@ ${contentSnippet}
     const isS2DraftConfirmed = !!(this.state.stage2?.isDraftConfirmed);
     if (isS2DraftConfirmed && (this.state.groupMaxStage === 'stage2' || this.state.groupMaxStage === 'stage1') && this.state.currentStage === 'stage2') {
       const autoKey = `jizhi_autoadvanced_${activeTaskId}_stage3`;
-      if (!sessionStorage.getItem(autoKey)) {
-        sessionStorage.setItem(autoKey, '1');
+      if (!localStorage.getItem(autoKey)) {
+        localStorage.setItem(autoKey, '1');
         const stage3Title = isInst ? '阶段三：答辩评审会' : '阶段三：答辩擂台';
         this.showStageMilestoneModal({
           icon: '🎓',
@@ -7878,8 +7878,8 @@ ${contentSnippet}
     const isS3RevisionConfirmed = !!(this.state.stage3?.isRevisionConfirmed);
     if (isS3RevisionConfirmed && this.state.currentStage === 'stage3' && this.state.stage3?.activeTab !== 'editor') {
       const autoKey = `jizhi_autoadvanced_${activeTaskId}_stage3_editor`;
-      if (!sessionStorage.getItem(autoKey)) {
-        sessionStorage.setItem(autoKey, '1');
+      if (!localStorage.getItem(autoKey)) {
+        localStorage.setItem(autoKey, '1');
         const docName = isInst ? '教学方案' : '论文';
         this.showStageMilestoneModal({
           icon: '📝',
@@ -7902,8 +7902,8 @@ ${contentSnippet}
     // 4. 阶段三终稿全员提交 -> 归档完成与问卷
     if (this.state.isFinalSubmitted) {
       const finalModalKey = `jizhi_autoadvanced_${activeTaskId}_final_modal`;
-      if (!sessionStorage.getItem(finalModalKey)) {
-        sessionStorage.setItem(finalModalKey, '1');
+      if (!localStorage.getItem(finalModalKey)) {
+        localStorage.setItem(finalModalKey, '1');
         const docName = isInst ? '教学方案' : '论文';
         showGlobalBannerNotice(`🏆 ${docName}终稿已全员提交归档`, `热烈祝贺组内全员已全部完成${docName}终稿提交！请全组成员填写课程体验与 SSRL 评估问卷。`, 'success', 10000);
         setTimeout(() => {

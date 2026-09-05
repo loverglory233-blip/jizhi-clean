@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2691';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2691';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2692';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2692';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -191,12 +191,20 @@ export class CloudSyncEngine {
       try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
     }
 
+    if (!prevDeadline || !t.deadline) return;
+    const prevMs = new Date(String(prevDeadline).replace(/-/g, '/')).getTime();
+    const newMs = new Date(String(t.deadline).replace(/-/g, '/')).getTime();
+    if (isNaN(prevMs) || isNaN(newMs) || newMs <= prevMs) return;
+    const addedMin = Math.round((newMs - prevMs) / 60000);
+    if (addedMin <= 0) return;
+
     let shownEvents = {};
-    try { shownEvents = JSON.parse(sessionStorage.getItem('jizhi_shown_deadline_events') || '{}'); } catch (e) {}
+    try { shownEvents = JSON.parse(localStorage.getItem('jizhi_shown_deadline_events') || '{}'); } catch (e) {}
     const eventKey = `${t.id}_${t.deadline}`;
     const isNoticeAlreadyShown = !!shownEvents[eventKey];
+    if (isNoticeAlreadyShown) return;
     shownEvents[eventKey] = true;
-    try { sessionStorage.setItem('jizhi_shown_deadline_events', JSON.stringify(shownEvents)); } catch (e) {}
+    try { localStorage.setItem('jizhi_shown_deadline_events', JSON.stringify(shownEvents)); } catch (e) {}
 
     const prevExpired = isTaskExpired(prevDeadline);
     const nowExpired = isTaskExpired(t);
@@ -209,7 +217,7 @@ export class CloudSyncEngine {
       (t.title && badgeText.includes(t.title))
     );
     const isTaskHall = !isWorkspace || this.app.state.studentViewMode === 'task_list';
-    const extDurationStr = t.lastExtension?.extendDurationStr || (t.lastExtension?.addedMinutes ? `（增加了 ${t.lastExtension.addedMinutes} 分钟）` : '');
+    const extDurationStr = `（增加了 ${addedMin} 分钟）`;
 
     if (isCurrentTask) {
       // 🎯 场景 1：学生正处于该任务工作台内部
