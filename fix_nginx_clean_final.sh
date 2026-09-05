@@ -50,32 +50,32 @@ if [ -n "$CERT_FILE" ] && [ -n "$KEY_FILE" ]; then
 fi
 
 # 4. 完整重写 47.99.110.230.conf
-cat << CONF_EOF > "$NGINX_CONF_DIR/47.99.110.230.conf"
+cat << 'CONF_EOF' > "$NGINX_CONF_DIR/47.99.110.230.conf"
 server
 {
     listen 80;
-${SSL_BLOCK}
     server_name 47.99.110.230 jizhiedu.top;
     index index.php index.html index.htm;
     root /www/wwwroot/47.99.110.230;
 
-    # 1. Etherpad 协同反向代理与全套插件静态资源支持
-    location /socket.io {
-        proxy_pass http://127.0.0.1:9001;
-        proxy_set_header Host \$host;
-        proxy_buffering off;
     # 引入宝塔标准 PHP 8.2 解析规则
     include enable-php-82.conf;
 
-    # Etherpad 9001 反向代理
+    # Etherpad WebSocket 长连接代理 (支持实时协同与多用户在线广播)
     location ^~ /socket.io {
         proxy_pass http://127.0.0.1:9001;
+        proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
-        proxy_http_version 1.1;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_buffering off;
+        proxy_read_timeout 86400s;
+        proxy_send_timeout 86400s;
     }
 
+    # Etherpad 页面与资源反向代理
     location ^~ /p/ {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host $host;
@@ -101,7 +101,7 @@ ${SSL_BLOCK}
     access_log /www/wwwlogs/47.99.110.230.log;
     error_log /www/wwwlogs/47.99.110.230.error.log;
 }
-EOF
+CONF_EOF
 
 echo "📝 正在验证 Nginx 配置文件合法性..."
 nginx -t
