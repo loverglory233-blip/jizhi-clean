@@ -3,7 +3,7 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260905_v2597';
+import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260905_v2599';
 
 export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
   // 🛡️ 终极只读熔断器：一旦任务截止进入只读模式或已终稿归档，底层彻底熔断任何大模型调用与智能体生成
@@ -38,11 +38,15 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
     }
   } catch (e) {}
 
-  // 🛡️ 高可用单次调用核心：严格执行 1 次请求，绝不静默循环重试放大扣费与 Token 消耗
+  // 🛡️ 高可用单次调用核心：严格执行 1 次请求，带 38 秒硬性超时熔断，绝不无限挂起
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timerId = controller ? setTimeout(() => controller.abort(), 38000) : null;
+
   try {
     const resp = await fetch('sync.php?action=coze_chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: controller ? controller.signal : undefined,
       body: JSON.stringify({
         bot_key: botKey,
         bot_id: botId,
@@ -59,6 +63,8 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
         scope_key: currentContext.scopeKey || currentContext.scope_key || (typeof window !== 'undefined' && window.app && typeof window.app.getGroupScopeKey === 'function' ? window.app.getGroupScopeKey() : '')
       })
     });
+
+    if (timerId) clearTimeout(timerId);
 
     if (resp.ok) {
       const data = await resp.json();
@@ -108,7 +114,8 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
       }
     }
   } catch (e) {
-    console.warn(`[Coze API] 请求偶发异常:`, e.message);
+    if (timerId) clearTimeout(timerId);
+    console.warn(`[Coze API] 请求偶发异常/超时:`, e.message);
   }
 
   return null;

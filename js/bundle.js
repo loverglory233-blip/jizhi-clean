@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2597
+ * Version: 20260905_v2599
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2597';
+  const APP_VERSION = '20260905_v2599';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1731,11 +1731,15 @@
       }
     } catch (e) {}
 
-    // 🛡️ 高可用单次调用核心：严格执行 1 次请求，绝不静默循环重试放大扣费与 Token 消耗
+    // 🛡️ 高可用单次调用核心：严格执行 1 次请求，带 38 秒硬性超时熔断，绝不无限挂起
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timerId = controller ? setTimeout(() => controller.abort(), 38000) : null;
+
     try {
       const resp = await fetch('sync.php?action=coze_chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller ? controller.signal : undefined,
         body: JSON.stringify({
           bot_key: botKey,
           bot_id: botId,
@@ -1752,6 +1756,8 @@
           scope_key: currentContext.scopeKey || currentContext.scope_key || (typeof window !== 'undefined' && window.app && typeof window.app.getGroupScopeKey === 'function' ? window.app.getGroupScopeKey() : '')
         })
       });
+
+      if (timerId) clearTimeout(timerId);
 
       if (resp.ok) {
         const data = await resp.json();
@@ -1801,7 +1807,8 @@
         }
       }
     } catch (e) {
-      console.warn(`[Coze API] 请求偶发异常:`, e.message);
+      if (timerId) clearTimeout(timerId);
+      console.warn(`[Coze API] 请求偶发异常/超时:`, e.message);
     }
 
     return null;
@@ -19033,7 +19040,7 @@
     }
 
     async _doExtractTopic(btnElement = null) {
-      if (this._isExtractingTopic || (this.state && this.state.activeAgentAnalyzing && this.state.activeAgentAnalyzing.isExtracting)) return;
+      if (this._isExtractingTopic) return;
       this._isExtractingTopic = true;
       if (this.state.stage1) this.state.stage1._topicExtractFailed = false;
       this.renderStudentWorkspace();
@@ -19282,7 +19289,7 @@
     }
 
     async _doExtractTime(btnElement = null) {
-      if (this._isExtractingTime || (this.state && this.state.activeAgentAnalyzing && this.state.activeAgentAnalyzing.isExtracting)) return;
+      if (this._isExtractingTime) return;
       this._isExtractingTime = true;
       if (this.state.stage1) this.state.stage1._timeExtractFailed = false;
       this.renderStudentWorkspace();
@@ -19504,7 +19511,7 @@
     }
 
     async _doExtractTasks(btnElement = null) {
-      if (this._isExtractingTasks || (this.state && this.state.activeAgentAnalyzing && this.state.activeAgentAnalyzing.isExtracting)) return;
+      if (this._isExtractingTasks) return;
       this._isExtractingTasks = true;
       if (this.state.stage1) this.state.stage1._tasksExtractFailed = false;
       this.renderStudentWorkspace();
@@ -19721,7 +19728,7 @@
     }
 
     async _doOneClickGenerateContract(btnElement = null) {
-      if (this._isGeneratingContract || (this.state && this.state.activeAgentAnalyzing && this.state.activeAgentAnalyzing.isExtracting)) return;
+      if (this._isGeneratingContract) return;
       this._isGeneratingContract = true;
       if (this.state.stage1) this.state.stage1._contractGenerateFailed = false;
       if (window.app) window.app._contractGenerateFailed = false;
@@ -20604,7 +20611,7 @@
      * 🎓 阶段三队列式逐条研讨：一键提炼当前质询答辩词，自动回填左侧矩阵，并顺推下一题/终审裁决
      */
     async handleS3InquirySummary(btnElement = null, targetInquiry = null) {
-      if (this._isAnalyzingS3Inquiry || (this.state && this.state.activeAgentAnalyzing && this.state.activeAgentAnalyzing.isExtracting)) {
+      if (this._isAnalyzingS3Inquiry) {
         return;
       }
       this._isAnalyzingS3Inquiry = true;

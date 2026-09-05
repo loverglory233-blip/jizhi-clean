@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2597";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2597";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2597";
-import { AuthManager } from "./auth.js?v=20260905_v2597";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2597";
-import { renderLoginView } from "./login.js?v=20260905_v2597";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2597";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2597";
+} from "./constants.js?v=20260905_v2599";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2599";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2599";
+import { AuthManager } from "./auth.js?v=20260905_v2599";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2599";
+import { renderLoginView } from "./login.js?v=20260905_v2599";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2599";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2599";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2597";
+} from "./editor.js?v=20260905_v2599";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3959,7 +3959,7 @@ ${votedDetails}
   }
 
   async _doExtractTopic(btnElement = null) {
-    if (this._isExtractingTopic || (this.state && this.state.activeAgentAnalyzing && this.state.activeAgentAnalyzing.isExtracting)) return;
+    if (this._isExtractingTopic) return;
     this._isExtractingTopic = true;
     if (this.state.stage1) this.state.stage1._topicExtractFailed = false;
     this.renderStudentWorkspace();
@@ -4208,7 +4208,7 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
   }
 
   async _doExtractTime(btnElement = null) {
-    if (this._isExtractingTime || (this.state && this.state.activeAgentAnalyzing && this.state.activeAgentAnalyzing.isExtracting)) return;
+    if (this._isExtractingTime) return;
     this._isExtractingTime = true;
     if (this.state.stage1) this.state.stage1._timeExtractFailed = false;
     this.renderStudentWorkspace();
@@ -4430,7 +4430,7 @@ ${chatSnippet}
   }
 
   async _doExtractTasks(btnElement = null) {
-    if (this._isExtractingTasks || (this.state && this.state.activeAgentAnalyzing && this.state.activeAgentAnalyzing.isExtracting)) return;
+    if (this._isExtractingTasks) return;
     this._isExtractingTasks = true;
     if (this.state.stage1) this.state.stage1._tasksExtractFailed = false;
     this.renderStudentWorkspace();
@@ -4647,7 +4647,7 @@ ${chatSnippet}
   }
 
   async _doOneClickGenerateContract(btnElement = null) {
-    if (this._isGeneratingContract || (this.state && this.state.activeAgentAnalyzing && this.state.activeAgentAnalyzing.isExtracting)) return;
+    if (this._isGeneratingContract) return;
     this._isGeneratingContract = true;
     if (this.state.stage1) this.state.stage1._contractGenerateFailed = false;
     if (window.app) window.app._contractGenerateFailed = false;
@@ -5530,7 +5530,7 @@ ${chatSnippet}
    * 🎓 阶段三队列式逐条研讨：一键提炼当前质询答辩词，自动回填左侧矩阵，并顺推下一题/终审裁决
    */
   async handleS3InquirySummary(btnElement = null, targetInquiry = null) {
-    if (this._isAnalyzingS3Inquiry || (this.state && this.state.activeAgentAnalyzing && this.state.activeAgentAnalyzing.isExtracting)) {
+    if (this._isAnalyzingS3Inquiry) {
       return;
     }
     this._isAnalyzingS3Inquiry = true;
