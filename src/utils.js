@@ -557,15 +557,13 @@ export function filterAndDeduplicateChatLogs(messages) {
     const txt = String(m.text || '').trim();
     if (!txt) continue;
 
-    // 🛡️ 过滤正在提炼中的临时过渡/思考占位消息 (如 "正在研读评估...", "收到全组成员确认！...正在根据讨论区研讨记录提炼...")
+    // 🛡️ 过滤正在提炼中的临时过渡/思考占位消息 (严格基于元数据与专用临时 ID，严禁按正文自然语言误杀)
     if (
       m.isThinking ||
+      m.isTempPlaceholder ||
       String(m.id || '').startsWith('thinking_') ||
+      String(m.id || '').startsWith('temp_analyzing_') ||
       txt.startsWith('⏳') ||
-      txt.includes('正在研读评估') ||
-      txt.includes('正在深度研读') ||
-      txt.includes('正在提炼') ||
-      txt.includes('正在整合') ||
       (txt.includes('收到全组成员确认') && txt.includes('请稍候'))
     ) {
       continue;
@@ -588,65 +586,53 @@ export function filterAndDeduplicateChatLogs(messages) {
       const opKey = `${sender}_${normTxt}`;
 
       // 🛡️ 阶段一关键里程碑消息单例防护：
-      const isAllPropsGathered = txt.includes('提案集齐与协同研讨');
+      const isAllPropsGathered = sender === 'auctioneer' && (txt.includes('【学术拍卖师·提案集齐') || txt.includes('提案集齐与协同研讨'));
       if (isAllPropsGathered) {
         if (seenAgentOpenings.has('stage1_all_props_gathered_singleton')) continue;
         seenAgentOpenings.add('stage1_all_props_gathered_singleton');
       }
 
-      const isVoteTally = txt.includes('投票结果') || String(m.id || '').startsWith('vote_tally');
+      const isVoteTally = (sender === 'auctioneer' || sender === 'system') && (txt.includes('【学术拍卖师·投票结果') || String(m.id || '').startsWith('vote_tally'));
       if (isVoteTally) {
         if (seenAgentOpenings.has('stage1_vote_tally_singleton')) continue;
         seenAgentOpenings.add('stage1_vote_tally_singleton');
       }
 
-      const isVoteGuidance = txt.includes('落槌与方案研讨') || txt.includes('方案研讨');
+      const isVoteGuidance = sender === 'auctioneer' && (txt.includes('落槌与方案研讨') || txt.includes('【学术拍卖师·落槌'));
       if (isVoteGuidance) {
         if (seenAgentOpenings.has('stage1_vote_guidance_singleton')) continue;
         seenAgentOpenings.add('stage1_vote_guidance_singleton');
       }
 
-      const isTopicDone = txt.includes('主题与方案确立') || String(m.id || '').startsWith('msg_topic_done_');
+      const isTopicDone = String(m.id || '').startsWith('msg_topic_done_');
       if (isTopicDone) {
         if (seenAgentOpenings.has('stage1_topic_done_singleton')) continue;
         seenAgentOpenings.add('stage1_topic_done_singleton');
       }
 
-      const isTimeDone = txt.includes('时间预算确立') || String(m.id || '').startsWith('msg_time_done_');
+      const isTimeDone = String(m.id || '').startsWith('msg_time_done_');
       if (isTimeDone) {
         if (seenAgentOpenings.has('stage1_time_done_singleton')) continue;
         seenAgentOpenings.add('stage1_time_done_singleton');
       }
 
-      const isTasksDone = txt.includes('公约草案就绪') || String(m.id || '').startsWith('msg_tasks_done_');
+      const isTasksDone = String(m.id || '').startsWith('msg_tasks_done_');
       if (isTasksDone) {
         if (seenAgentOpenings.has('stage1_tasks_done_singleton')) continue;
         seenAgentOpenings.add('stage1_tasks_done_singleton');
       }
 
       // 🛡️ 关键里程碑消息单例防护：同一阶段内同类型里程碑全局严格仅保留第一条
-      const isFirstReview = txt.includes('一审破题把脉') || txt.includes('初审破题把脉') || txt.includes('一审破题') || txt.includes('初审质检');
+      const isFirstReview = sender === 'reviewingEditor' && (txt.includes('一审破题把脉') || txt.includes('初审破题把脉') || txt.includes('一审破题') || txt.includes('初审质检'));
       if (isFirstReview) {
         if (seenAgentOpenings.has('stage2_first_review_singleton')) continue;
         seenAgentOpenings.add('stage2_first_review_singleton');
       }
 
-      const isSecondChecklist = txt.includes('二审修正清单') || txt.includes('二审修改落实要点');
-      if (isSecondChecklist) {
-        if (seenAgentOpenings.has('stage2_second_checklist_singleton')) continue;
-        seenAgentOpenings.add('stage2_second_checklist_singleton');
-      }
-
-      const isMeetingCall = txt.includes('半程会议号召') || txt.includes('半程研讨号召') || txt.includes('半程磨课会议') || txt.includes('半程编辑会议');
+      const isMeetingCall = sender === 'managingEditor' && (txt.includes('半程会议号召') || txt.includes('半程研讨号召') || txt.includes('半程磨课会议') || txt.includes('半程编辑会议'));
       if (isMeetingCall) {
         if (seenAgentOpenings.has('stage2_meeting_call_singleton')) continue;
         seenAgentOpenings.add('stage2_meeting_call_singleton');
-      }
-
-      const isMeetingSummary = txt.includes('一致性研讨小结') || txt.includes('半程研讨小结') || txt.includes('磨课会议小结') || txt.includes('编辑会议小结');
-      if (isMeetingSummary) {
-        if (seenAgentOpenings.has('stage2_meeting_summary_singleton')) continue;
-        seenAgentOpenings.add('stage2_meeting_summary_singleton');
       }
 
       const isOpeningGreeting = txt.includes('开场寄语');
