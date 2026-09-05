@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2626";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2626";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260905_v2626";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2627";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2627";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260905_v2627";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -1563,11 +1563,19 @@ function renderStage2Canvas(canvas, state, handlers) {
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
   const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || (state.activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
   const taskGenreKey = currentTask?.taskType || state.taskType || 'experiment';
-  const isTaskDeadlineExpired = currentTask ? isTaskExpired(currentTask) : false;
+  const confirmedDraftMap = s2.confirmedMembers || {};
+  const membersList = Object.values(state.members || {});
+  const allGroupMembers = (activeGroupObj && Array.isArray(activeGroupObj.members) && activeGroupObj.members.length > 0) ? activeGroupObj.members : membersList;
+  const actualTotalCount = allGroupMembers.length > 0 ? allGroupMembers.length : (membersList.length || 1);
+  const totalCount = actualTotalCount;
+  const confirmedDraftCount = allGroupMembers.filter(m => isMemberDone(confirmedDraftMap, m)).length;
+  const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, currUser || { id: currUserCode, name: currUserName });
+  const isDraftFullyConfirmed = !!s2.isDraftConfirmed && (confirmedDraftCount >= actualTotalCount && actualTotalCount > 0);
+
   // 🛡️ 阶段时序递进锁定铁律：
-  // 1) 处于阶段二进行中（未进阶段三且未全员确认初稿）时：只要任务未截止，阶段二绝对保持协同可写；
-  // 2) 一旦全员进入阶段三（groupMaxStage === 'stage3' 或全员初稿已确认）：前序阶段二初稿自动锁定为【只读归档】，杜绝前序阶段被窜改！
-  const isStage2Archived = (state.groupMaxStage === 'stage3' || !!s2.isDraftConfirmed);
+  // 1) 处于阶段二进行中（当前在阶段二或初稿未全员确认）：只要任务未截止，阶段二绝对保持协同可写；
+  // 2) 仅当全员已真正全员完成初稿签署且推进至阶段三时，阶段二初稿才锁定为【只读归档】！
+  const isStage2Archived = isDraftFullyConfirmed && (state.currentStage === 'stage3' || state.isFinalSubmitted);
   const isEditorReadonly = isTaskDeadlineExpired || isStage2Archived;
 
   if (!userGroupId || userGroupId === 'null' || String(userGroupId || '').startsWith('group_unassigned')) {
@@ -1580,15 +1588,6 @@ function renderStage2Canvas(canvas, state, handlers) {
 
   const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
   const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
-
-  const confirmedDraftMap = s2.confirmedMembers || {};
-  const membersList = Object.values(state.members || {});
-  const allGroupMembers = (activeGroupObj && Array.isArray(activeGroupObj.members) && activeGroupObj.members.length > 0) ? activeGroupObj.members : membersList;
-  const actualTotalCount = allGroupMembers.length > 0 ? allGroupMembers.length : (membersList.length || 1);
-  const totalCount = actualTotalCount;
-  const confirmedDraftCount = allGroupMembers.filter(m => isMemberDone(confirmedDraftMap, m)).length;
-  const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, currUser || { id: currUserCode, name: currUserName });
-  const isDraftFullyConfirmed = !!s2.isDraftConfirmed && (confirmedDraftCount >= actualTotalCount && actualTotalCount > 0);
   const meetingSubs = s2.meetingSubmissions || {};
   const isStage2MeetingLocked = s2.isMeetingLocked || (Object.keys(meetingSubs).length >= actualTotalCount && actualTotalCount > 0);
   const livePadText = (typeof getEtherpadTextDirect === 'function') ? getEtherpadTextDirect() : null;
