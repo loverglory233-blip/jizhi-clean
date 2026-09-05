@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2554";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2554";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2554";
-import { AuthManager } from "./auth.js?v=20260905_v2554";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2554";
-import { renderLoginView } from "./login.js?v=20260905_v2554";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2554";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2554";
+} from "./constants.js?v=20260905_v2555";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2555";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2555";
+import { AuthManager } from "./auth.js?v=20260905_v2555";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2555";
+import { renderLoginView } from "./login.js?v=20260905_v2555";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2555";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2555";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2554";
+} from "./editor.js?v=20260905_v2555";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -505,6 +505,7 @@ export class App {
     }
 
     const user = this.authManager ? this.authManager.getCurrentUser() : null;
+    const isTeacher = user && (user.isTeacher || user.role === 'teacher');
     const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || null;
     let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : null);
     if (!taskId) {
