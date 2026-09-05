@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2663";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2663";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2663";
-import { AuthManager } from "./auth.js?v=20260906_v2663";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2663";
-import { renderLoginView } from "./login.js?v=20260906_v2663";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2663";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2663";
+} from "./constants.js?v=20260906_v2664";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2664";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2664";
+import { AuthManager } from "./auth.js?v=20260906_v2664";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2664";
+import { renderLoginView } from "./login.js?v=20260906_v2664";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2664";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2664";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2663";
+} from "./editor.js?v=20260906_v2664";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -8267,13 +8267,39 @@ ${contentSnippet}
     `;
     document.body.appendChild(modal);
 
-    // 🛡️ 若已提交过，回填历史选择数据供查阅
+    // 联动展开逻辑与初始回填渲染
+    const ideationSel = modal.querySelector('#meeting-ideation-select');
+    const ideationBox = modal.querySelector('#meeting-ideation-sections-box');
+    const transSel = modal.querySelector('#meeting-transition-select');
+    const transBox = modal.querySelector('#meeting-transition-sections-box');
+    const styleSel = modal.querySelector('#meeting-style-select');
+    const styleBox = modal.querySelector('#meeting-style-sections-box');
+
+    const updateSubSectionBoxes = () => {
+      if (ideationBox && ideationSel) {
+        ideationBox.style.display = ideationSel.value.includes('偏离') ? 'flex' : 'none';
+      }
+      if (transBox && transSel) {
+        transBox.style.display = transSel.value.includes('脱节') ? 'flex' : 'none';
+      }
+      if (styleBox && styleSel) {
+        styleBox.style.display = (styleSel.value.includes('割裂') || styleSel.value.includes('混乱') || styleSel.value.includes('口语')) ? 'flex' : 'none';
+      }
+    };
+
+    if (ideationSel) ideationSel.addEventListener('change', updateSubSectionBoxes);
+    if (transSel) transSel.addEventListener('change', updateSubSectionBoxes);
+    if (styleSel) styleSel.addEventListener('change', updateSubSectionBoxes);
+
+    let overallRating = 4;
+
+    // 🛡️ 若已提交过，回填历史选择数据供查阅并自动展开对应二级问题
     if (existingSub) {
-      if (existingSub.ideationConsistency) modal.querySelector('#meeting-ideation-select').value = existingSub.ideationConsistency;
-      if (existingSub.transitionState) modal.querySelector('#meeting-transition-select').value = existingSub.transitionState;
-      if (existingSub.styleState) modal.querySelector('#meeting-style-select').value = existingSub.styleState;
-      if (existingSub.bAcademic) modal.querySelector('#meeting-bottleneck-academic').value = existingSub.bAcademic;
-      if (existingSub.userText) modal.querySelector('#meeting-input-text').value = existingSub.userText;
+      if (existingSub.ideationConsistency && ideationSel) ideationSel.value = existingSub.ideationConsistency;
+      if (existingSub.transitionState && transSel) transSel.value = existingSub.transitionState;
+      if (existingSub.styleState && styleSel) styleSel.value = existingSub.styleState;
+      if (existingSub.bAcademic && modal.querySelector('#meeting-bottleneck-academic')) modal.querySelector('#meeting-bottleneck-academic').value = existingSub.bAcademic;
+      if (existingSub.userText && modal.querySelector('#meeting-input-text')) modal.querySelector('#meeting-input-text').value = existingSub.userText;
       if (Array.isArray(existingSub.ideationSections)) {
         modal.querySelectorAll('input[name="ideation-sec"]').forEach(cb => { cb.checked = existingSub.ideationSections.includes(cb.value); });
       }
@@ -8283,6 +8309,20 @@ ${contentSnippet}
       if (Array.isArray(existingSub.styleSections)) {
         modal.querySelectorAll('input[name="style-div-sec"]').forEach(cb => { cb.checked = existingSub.styleSections.includes(cb.value); });
       }
+      if (existingSub.overallRating) {
+        overallRating = Number(existingSub.overallRating);
+        modal.querySelectorAll('#star-rating-logic .star').forEach(st => {
+          const v = Number(st.dataset.val);
+          st.style.color = v <= overallRating ? '#f59e0b' : '#475569';
+        });
+      }
+      // 🌟 核心：立即展开已选有脱节/偏离/割裂的二级章节复选框区域
+      updateSubSectionBoxes();
+
+      // 查阅模式下将所有选项置为只读/锁定，防止误改
+      modal.querySelectorAll('select, input').forEach(el => {
+        el.disabled = true;
+      });
     }
 
     const closeModal = () => {
@@ -8292,35 +8332,17 @@ ${contentSnippet}
     modal.querySelector('#btn-close-meeting').addEventListener('click', closeModal);
     modal.querySelector('#btn-cancel-meeting').addEventListener('click', closeModal);
 
-    // 联动展开逻辑
-    const ideationSel = modal.querySelector('#meeting-ideation-select');
-    const ideationBox = modal.querySelector('#meeting-ideation-sections-box');
-    ideationSel.addEventListener('change', () => {
-      ideationBox.style.display = ideationSel.value.includes('偏离') ? 'flex' : 'none';
-    });
-
-    const transSel = modal.querySelector('#meeting-transition-select');
-    const transBox = modal.querySelector('#meeting-transition-sections-box');
-    transSel.addEventListener('change', () => {
-      transBox.style.display = transSel.value.includes('脱节') ? 'flex' : 'none';
-    });
-
-    const styleSel = modal.querySelector('#meeting-style-select');
-    const styleBox = modal.querySelector('#meeting-style-sections-box');
-    styleSel.addEventListener('change', () => {
-      styleBox.style.display = (styleSel.value.includes('割裂') || styleSel.value.includes('混乱') || styleSel.value.includes('口语')) ? 'flex' : 'none';
-    });
-
-    let overallRating = 4;
-    modal.querySelectorAll('#star-rating-logic .star').forEach(s => {
-      s.addEventListener('click', (e) => {
-        overallRating = Number(e.target.dataset.val);
-        modal.querySelectorAll('#star-rating-logic .star').forEach(st => {
-          const v = Number(st.dataset.val);
-          st.style.color = v <= overallRating ? '#f59e0b' : '#475569';
+    if (!isCurrentUserSubmitted) {
+      modal.querySelectorAll('#star-rating-logic .star').forEach(s => {
+        s.addEventListener('click', (e) => {
+          overallRating = Number(e.target.dataset.val);
+          modal.querySelectorAll('#star-rating-logic .star').forEach(st => {
+            const v = Number(st.dataset.val);
+            st.style.color = v <= overallRating ? '#f59e0b' : '#475569';
+          });
         });
       });
-    });
+    }
 
     modal.querySelector('#btn-submit-meeting').addEventListener('click', async () => {
       const ideationConsistency = modal.querySelector('#meeting-ideation-select')?.value || '完全符合最初构思';
