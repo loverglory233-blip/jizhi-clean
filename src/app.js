@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2692";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2692";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2692";
-import { AuthManager } from "./auth.js?v=20260906_v2692";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2692";
-import { renderLoginView } from "./login.js?v=20260906_v2692";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2692";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2692";
+} from "./constants.js?v=20260906_v2693";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2693";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2693";
+import { AuthManager } from "./auth.js?v=20260906_v2693";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2693";
+import { renderLoginView } from "./login.js?v=20260906_v2693";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2693";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2693";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2692";
+} from "./editor.js?v=20260906_v2693";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -568,7 +568,15 @@ export class App {
   // 🤖 智能体正在分析动态状态设置器（全端毫秒级实时同步广播）
   setActiveAgentAnalyzing(info = null) {
     if (info && typeof info === 'object') {
-      if (!info._ts) info._ts = Date.now();
+      // 🛡️ 保持整个协同研讨/质检流程时间连续：如果前序已有正在进行的分析且未提供新 _ts，则继承前序 _ts
+      const prevTs = this.state.activeAgentAnalyzing && this.state.activeAgentAnalyzing._ts;
+      if (!info._ts) {
+        info._ts = prevTs || Date.now();
+      }
+    } else {
+      if (this._extractingTimestamps) {
+        this._extractingTimestamps = {};
+      }
     }
     this.state.activeAgentAnalyzing = info;
     if (this.cloudSyncEngine && typeof this.cloudSyncEngine.pushSnapshot === 'function') {
@@ -6526,7 +6534,7 @@ ${chatSnippet}
                 </div>
               </div>
               <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-                ⏳ 动态分析中 <span class="agent-elapsed-timer" data-start="${analyzing._ts || Date.now()}">(已耗时 0s)</span>
+                ${(typeof window.formatElapsedTimerSpan === 'function') ? window.formatElapsedTimerSpan(analyzing._ts, '动态分析中') : `⏳ 动态分析中 <span class="agent-elapsed-timer" data-start="${analyzing._ts || Date.now()}">(已耗时 ${Math.max(0, Math.floor((Date.now() - (analyzing._ts || Date.now())) / 1000))}s)</span>`}
               </span>
             </div>
           `;
