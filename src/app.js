@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2551";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2551";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2551";
-import { AuthManager } from "./auth.js?v=20260905_v2551";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2551";
-import { renderLoginView } from "./login.js?v=20260905_v2551";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2551";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2551";
+} from "./constants.js?v=20260905_v2552";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2552";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2552";
+import { AuthManager } from "./auth.js?v=20260905_v2552";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2552";
+import { renderLoginView } from "./login.js?v=20260905_v2552";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2552";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2552";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2551";
+} from "./editor.js?v=20260905_v2552";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -505,7 +505,6 @@ export class App {
     }
 
     const user = this.authManager ? this.authManager.getCurrentUser() : null;
-    const isTeacher = user && (user.isTeacher || user.role === 'teacher');
     const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || null;
     let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : null);
     if (!taskId) {
@@ -601,6 +600,20 @@ export class App {
       latestMsg._hasSentToServer = true;
       this.sendSingleChatMessage(latestMsg, targetStage);
     }
+  }
+
+  isGroupCoordinator() {
+    const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
+    if (!currUser) return true;
+    const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(currUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currUser?.classId || null));
+    const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUser, effClassId) : null;
+    if (!effGroup || !Array.isArray(effGroup.members) || effGroup.members.length === 0) return true;
+    
+    // Designated group coordinator is the first member in the members list
+    const firstMember = effGroup.members[0];
+    const currId = currUser.id || currUser.studentId || currUser.username || currUser.name;
+    const firstId = firstMember.id || firstMember.studentId || firstMember.username || firstMember.name;
+    return isSameId(currId, firstId);
   }
 
   syncStage1() {
@@ -1342,29 +1355,13 @@ export class App {
     }
   }
 
-  // 🌐 通用智能体静默/情绪提示发射器：真 AI 生成，调用期间显示 Loading 动画，失败时采用温暖兜底或提示 @智能体 重新召唤
+  // 🌐 通用智能体静默/情绪提示发射器：真 AI 生成，静默直出，失败时采用温暖兜底或提示 @智能体 重新召唤
   async queueAgentNudge(botKey, prompt, fallbackText = '', stage = 'stage2') {
     if (this._isHandlingAgentNudge || this.isCurrentTaskReadOnly()) return; // 🛡️ 严格单飞并发锁与只读锁，只读模式严禁触发大模型
     this._isHandlingAgentNudge = true;
 
-    // 1. 在聊天框推入【正在输入/思考中...】的 Loading 状态气泡
-    const loadingMsgId = 'loading_' + Date.now();
-    const loadingMsg = {
-      id: loadingMsgId,
-      sender: botKey,
-      text: '🤖 正在结合当前研讨语境生成专属学术建议...',
-      isLoading: true,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      _timeMs: Date.now()
-    };
-    if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
-    this.state.chatLogs[stage].push(loadingMsg);
-    if (typeof window.renderChat === 'function') window.renderChat(this.state);
-
     try {
       let text = await callCozeAgentAPI(botKey, prompt, { stage });
-      // 2. 移除 loading 气泡
-      this.state.chatLogs[stage] = this.state.chatLogs[stage].filter(m => m.id !== loadingMsgId);
       
       let finalText = (text && text.trim().length > 0) ? text.trim() : '';
       if (!finalText) {
@@ -1380,18 +1377,20 @@ export class App {
       }
 
       const msg = {
+        id: 'msg_nudge_' + Date.now(),
         sender: botKey,
         text: finalText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: Date.now()
       };
+      if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
       this.state.chatLogs[stage].push(msg);
+      this.sendSingleChatMessage(msg, stage);
       this.syncChatLogs();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
     } catch (e) {
       console.warn('Agent nudge error:', e);
-      this.state.chatLogs[stage] = this.state.chatLogs[stage].filter(m => m.id !== loadingMsgId);
       
       let finalText = (fallbackText && fallbackText.trim().length > 0) ? fallbackText.trim() : '';
       if (!finalText) {
@@ -1399,12 +1398,15 @@ export class App {
         finalText = `💡 【${roleName}】：网络响应稍微慢了一步～如果大家需要我的针对性指导，可以在讨论区输入 @${roleName} 重新召唤我！`;
       }
       const msg = {
+        id: 'msg_nudge_' + Date.now(),
         sender: botKey,
         text: finalText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: Date.now()
       };
+      if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
       this.state.chatLogs[stage].push(msg);
+      this.sendSingleChatMessage(msg, stage);
       this.syncChatLogs();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
@@ -1482,7 +1484,7 @@ export class App {
         return /(?:太难了|写不出来|改不动了|不知道怎么写|全废了|搞不定|来不及了|头大|想放弃|否定我们|怎么改啊)/i.test(t);
       });
 
-      if (lastNegativeChat && (!this.lastEmotionHandledId || this.lastEmotionHandledId !== lastNegativeChat._timeMs) && !this._isHandlingEmotion) {
+      if (lastNegativeChat && (!this.lastEmotionHandledId || this.lastEmotionHandledId !== lastNegativeChat._timeMs) && !this._isHandlingEmotion && this.isGroupCoordinator()) {
         const negTime = lastNegativeChat._timeMs || (now - 60000);
         const timeSinceNeg = now - negTime;
         // 观察窗口：45 秒内给同伴留出互助安慰空间
@@ -2869,29 +2871,14 @@ export class App {
     const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
     const currentTopic = this.state.stage1 ? this.state.stage1.mergedTitle : '本组课题';
     const actualDocContent = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '';
-
     const agentProfile = AgentProfiles[replyAgent] || { name: '智能体专家', avatar: '🤖', color: '#2563eb' };
-    const tempThinkingId = 'thinking_' + Date.now();
-    const thinkingMsg = {
-      id: tempThinkingId,
-      sender: replyAgent,
-      senderName: agentProfile.roleTitle || agentProfile.name,
-      text: `⏳ 【${agentProfile.name}】：正在通读上下文并为您起草学术意见...`,
-      isThinking: true,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      _timeMs: Date.now()
-    };
-    if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
-    this.state.chatLogs[stage].push(thinkingMsg);
-    renderChat(this.state);
-
     this.setActiveAgentAnalyzing({
       icon: agentProfile.avatar || '🤖',
       title: agentProfile.name,
       detail: `${agentProfile.name}正在通读上下文并为您起草学术意见...`
     });
 
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise(r => setTimeout(r, 1200));
 
     try {
       let replyText = null;
@@ -2920,11 +2907,19 @@ export class App {
         }
       }
 
-      thinkingMsg.text = replyText.trim();
-      delete thinkingMsg.isThinking;
+      const replyMsg = {
+        id: 'msg_agent_' + Date.now(),
+        sender: replyAgent,
+        senderName: agentProfile.roleTitle || agentProfile.name,
+        text: replyText.trim(),
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now()
+      };
+      if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
+      this.state.chatLogs[stage].push(replyMsg);
       
       // 🌟 核心突破：通过 sendSingleChatMessage 100% 写入 MySQL 数据库并广播全组
-      this.sendSingleChatMessage(thinkingMsg, stage);
+      this.sendSingleChatMessage(replyMsg, stage);
       this.syncChatLogs();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
@@ -3291,6 +3286,10 @@ export class App {
 
         const isUnanimous = (winningProposal && maxVotes === totalMembersCount && totalMembersCount > 0);
 
+        // 🛡️ 严格单次触发守卫：全组仅由第一位完成触发的客户端执行播报与大模型分析
+        if (s1._voteTallyAndGuidanceTriggered) return;
+        s1._voteTallyAndGuidanceTriggered = true;
+
         // 🛡️ 严格学术铁律：只有【全票一致】才自动确立课题；只要不是全票一致（无论 2:1 还是平票），一律算【存在分歧】，留由组员在讨论区协商确定！
         if (isUnanimous && winningProposal) {
           s1.mergedTitle = winningProposal.title;
@@ -3392,6 +3391,11 @@ export class App {
 
     const isUnanimous = (winningProposal && maxVotes === totalMembersCount && totalMembersCount > 0);
 
+    // 🛡️ 单次触发守卫：若非重试且已存在方案研讨指引，直接跳过避免重复调用
+    const s1Logs = this.state.chatLogs?.stage1 || [];
+    const hasExistingGuide = s1Logs.some(m => m && (m.id.startsWith('vote_unanimous') || m.id.startsWith('vote_divergence') || (m.sender === 'auctioneer' && (m.text || '').includes('方案研讨'))));
+    if (hasExistingGuide && !isRetry) return;
+
     // 🛡️ 清理已有的同类失败气泡与思考中占位气泡
     this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => {
       if (!m) return false;
@@ -3406,23 +3410,6 @@ export class App {
       title: agentTitle,
       detail: `${agentTitle}正在分析全组投票意向与方案细化维度...`
     });
-
-    const tempThinkingId = 'thinking_vote_' + Date.now();
-    const thinkingMsg = {
-      id: tempThinkingId,
-      sender: 'auctioneer',
-      senderName: senderName,
-      text: `⏳ 【${agentTitle}】：正在分析全组投票意向与方案细化维度...`,
-      isThinking: true,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      _timeMs: Date.now() + 50
-    };
-    this.state.chatLogs.stage1.push(thinkingMsg);
-    if (typeof window.renderChat === 'function') {
-      window.renderChat(this.state);
-    } else {
-      renderChat(this.state);
-    }
 
     let guideMsgId = '';
     let guideText = '';
@@ -3675,23 +3662,6 @@ ${votedDetails}
     const agentRole = isInst ? '备课引导师' : '学术拍卖师';
     const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
 
-    // 🌟 在聊天区挂载正在提炼主题的思考气泡与动效
-    const tempThinkingId = 'thinking_topic_' + Date.now();
-    const thinkingMsg = {
-      id: tempThinkingId,
-      sender: 'auctioneer',
-      senderName: agentSenderName,
-      text: `⏳ 【${agentRole}】：正在根据讨论区研讨记录提炼【${isInst ? '教学课题与方案概述' : '论文主题与研究方案'}】...`,
-      isThinking: true,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      _timeMs: Date.now()
-    };
-    if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-    this.state.chatLogs.stage1.push(thinkingMsg);
-    if (typeof this.sendSingleChatMessage === 'function') {
-      this.sendSingleChatMessage(thinkingMsg, 'stage1');
-    }
-
     this.setActiveAgentAnalyzing({
       icon: isInst ? '📐' : '🎪',
       title: agentRole,
@@ -3890,23 +3860,6 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
     const agentRole = isInst ? '备课引导师' : '学术拍卖师';
     const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
 
-    // 🌟 在聊天区挂载正在提炼时间预算的思考气泡与动效
-    const tempThinkingId = 'thinking_time_' + Date.now();
-    const thinkingMsg = {
-      id: tempThinkingId,
-      sender: 'auctioneer',
-      senderName: agentSenderName,
-      text: `⏳ 【${agentRole}】：正在根据讨论区研讨记录提炼【6大${isInst ? '模块' : '章节'}时间预算分配】...`,
-      isThinking: true,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      _timeMs: Date.now()
-    };
-    if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-    this.state.chatLogs.stage1.push(thinkingMsg);
-    if (typeof this.sendSingleChatMessage === 'function') {
-      this.sendSingleChatMessage(thinkingMsg, 'stage1');
-    }
-
     this.setActiveAgentAnalyzing({
       icon: isInst ? '📐' : '🎪',
       title: agentRole,
@@ -4052,24 +4005,6 @@ ${chatSnippet}
     const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
     const stage2Title = isInst ? '阶段二：集体备课室' : '阶段二：学术编辑部';
     const contractTitle = isInst ? '备课公约' : '学术公约';
-
-    // 🌟 在聊天区挂载正在提炼任务分工的思考气泡与动效
-    const tempThinkingId = 'thinking_tasks_' + Date.now();
-    const thinkingMsg = {
-      id: tempThinkingId,
-      sender: 'auctioneer',
-      senderName: agentSenderName,
-      text: `⏳ 【${agentRole}】：正在根据讨论区研讨记录提炼【小组成员任务分工】...`,
-      isThinking: true,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      _timeMs: Date.now()
-    };
-    if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-    this.state.chatLogs.stage1.push(thinkingMsg);
-    if (typeof this.sendSingleChatMessage === 'function') {
-      this.sendSingleChatMessage(thinkingMsg, 'stage1');
-    }
-
     this.setActiveAgentAnalyzing({
       icon: isInst ? '📐' : '🎪',
       title: agentRole,
@@ -4265,23 +4200,11 @@ ${chatSnippet}
     const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
     const stage2Title = isInst ? '阶段二：集体备课室' : '阶段二：学术编辑部';
     const contractTitle = isInst ? '备课公约' : '学术公约';
-
-    // 🌟 在聊天区挂载正在生成全套公约的思考气泡与动效
-    const tempThinkingId = 'thinking_full_contract_' + Date.now();
-    const thinkingMsg = {
-      id: tempThinkingId,
-      sender: 'auctioneer',
-      senderName: agentSenderName,
-      text: `⏳ 【${agentRole}】：正在分析讨论区全量研讨记录，一键智能生成《${contractTitle}草案》...`,
-      isThinking: true,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      _timeMs: Date.now()
-    };
-    if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-    this.state.chatLogs.stage1.push(thinkingMsg);
-    if (typeof this.sendSingleChatMessage === 'function') {
-      this.sendSingleChatMessage(thinkingMsg, 'stage1');
-    }
+    this.setActiveAgentAnalyzing({
+      icon: isInst ? '📐' : '🎪',
+      title: agentRole,
+      detail: `${agentRole}正在分析讨论区全量研讨记录，一键智能生成《${contractTitle}草案》...`
+    });
 
     if (typeof showGlobalBannerNotice === 'function') {
       showGlobalBannerNotice(`⏳ 正在一键智能生成全套${contractTitle}草案...`, `${agentRole}正在分析全组投票后的全部讨论，一一对应提炼课题方案、时间规划与成员分工...`, 'info', 4000);
@@ -5385,6 +5308,7 @@ ${chatSnippet}
       btnElement.style.cursor = 'not-allowed';
       btnElement.innerHTML = `⏳ 正在重新生成专家评审...`;
     }
+    if (!this.isGroupCoordinator() && !btnElement) return;
     if (this._isStage3PipelineRunning) return;
     this._isStage3PipelineRunning = true;
 
@@ -6707,6 +6631,7 @@ ${chatSnippet}
 
   checkAgentTriggersOnContent(newContent) {
     if (!newContent || this.state.isFinalSubmitted || this.isCurrentTaskReadOnly()) return;
+    if (!this.isGroupCoordinator()) return;
     const currentStage = this.state.currentStage;
     if (currentStage !== 'stage2') return;
 
@@ -6974,7 +6899,7 @@ ${contentSnippet}
   }
 
   async checkManagingEditorContribCare(currentDocLen, membersList, logs) {
-    if (this._isTriggeringContribCare) return;
+    if (this._isTriggeringContribCare || !this.isGroupCoordinator()) return;
     const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
 
     const now = Date.now();
