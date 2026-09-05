@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2645
+ * Version: 20260906_v2646
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2645';
+  const APP_VERSION = '20260906_v2646';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1424,7 +1424,7 @@
               padWin.document.cookie = `name=${encodeURIComponent(userName)}; path=/; max-age=86400`;
             }
 
-            // 🛡️ 确保顶部原生 editbar 显示正常，并确保正文保持学术纯白底 + 深色正文字体（彻底杜绝大色块背景与白字隐形）
+            // 🛡️ 确保顶部原生 editbar 显示正常，并确保正文容器保持舒适阅读背景与清晰字色（保留原生作者色彩高亮）
             const doc = padWin.document;
             if (doc) {
               let styleEl = doc.getElementById('jizhi-etherpad-guard-style');
@@ -1436,14 +1436,7 @@
                 }
                 html, body {
                   background-color: #ffffff !important;
-                  background: #ffffff !important;
-                  color: #0f172a !important;
                   color-scheme: light !important;
-                }
-                span[class*="author-"], .author {
-                  background-color: transparent !important;
-                  background: transparent !important;
-                  color: #0f172a !important;
                 }
               `;
               if (!styleEl) {
@@ -1463,8 +1456,6 @@
                   const outerCss = `
                     html, body, #outerdocbody {
                       background-color: #ffffff !important;
-                      background: #ffffff !important;
-                      color: #0f172a !important;
                       color-scheme: light !important;
                     }
                   `;
@@ -1480,35 +1471,9 @@
                   const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
                   if (aceInner && aceInner.contentDocument) {
                     const innerDoc = aceInner.contentDocument;
-                    let innerStyle = innerDoc.getElementById('jizhi-author-white-bg-style');
-                    const innerCss = `
-                      html, body, #innerdocbody {
-                        background-color: #ffffff !important;
-                        background: #ffffff !important;
-                        color: #0f172a;
-                        color-scheme: light !important;
-                      }
-                      /* 默认段落和文本继承深色黑字，杜绝深色模式下变白字 */
-                      #innerdocbody div, #innerdocbody p, #innerdocbody li, .ace-line {
-                        color: #0f172a;
-                      }
-                      /* 仅将作者身份底色设为透明（消除全篇作者色块），但保留用户主动设置的高亮色 */
-                      span[class*="author-"], .author {
-                        background-color: transparent !important;
-                      }
-                      /* 默认未染色文本保持深黑字 */
-                      #innerdocbody span:not([class*="color"]):not([style*="color"]):not([class*="highlight"]) {
-                        color: #0f172a;
-                      }
-                    `;
-                    if (!innerStyle) {
-                      innerStyle = innerDoc.createElement('style');
-                      innerStyle.id = 'jizhi-author-white-bg-style';
-                      innerStyle.textContent = innerCss;
-                      (innerDoc.head || innerDoc.documentElement).appendChild(innerStyle);
-                    } else {
-                      innerStyle.textContent = innerCss;
-                    }
+                    // 🛡️ 清理可能残留的白底强行覆盖样式标签
+                    const oldWhiteStyle = innerDoc.getElementById('jizhi-author-white-bg-style');
+                    if (oldWhiteStyle) oldWhiteStyle.remove();
                   }
                 }
               } catch(e) {}
@@ -13066,7 +13031,7 @@
     }
 
     const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
-    const padUrl = `/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans`;
+    const padUrl = `/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans&noColors=false`;
 
     const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
     const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
@@ -13451,20 +13416,42 @@
           }
         });
 
-        // 5. 处理 unassigned 裸文本（例如刚粘贴进来的大段文字，杜绝 20 秒倒计时跳变与平分波动）
+        // 5. 处理 unassigned 裸文本（例如历史底稿或模板导入，杜绝将整篇历史文本 100% 误充入单个人头）
         const unassignedChars = rawCounts['unassigned'] || 0;
         if (unassignedChars > 0) {
-          if (selfMem) {
-            // 本地写作与大段文本粘贴，权威计入当前活跃作者
-            memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + unassignedChars;
-            if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + unassignedChars;
-            totalAssignedChars += unassignedChars;
-          } else if (membersList.length > 0) {
-            const splitCount = Math.floor(unassignedChars / membersList.length);
-            membersList.forEach(m => {
-              memberCounts[m.id] = (memberCounts[m.id] || 0) + splitCount;
-              if (m.name) memberCounts[m.name] = (memberCounts[m.name] || 0) + splitCount;
+          if (totalAssignedChars > 0) {
+            // 若已有明确作者分工，未标记的辅助空白/标点按已有比例分摊
+            targetMembersList.forEach(m => {
+              const currentMemChars = memberCounts[m.id] || 0;
+              const extra = Math.round((currentMemChars / totalAssignedChars) * unassignedChars);
+              memberCounts[m.id] = (memberCounts[m.id] || 0) + extra;
+              if (m.name) memberCounts[m.name] = (memberCounts[m.name] || 0) + extra;
             });
+          } else {
+            // 若全部文本均未标记作者（如纯文本导入或未着色历史）：
+            // 优先检查 state 中是否已有服务器/历史同步的真实贡献比
+            const existingContribs = state.stage2?.frozenContributions || state.stage2?.memberContributions || {};
+            let existingTotal = 0;
+            targetMembersList.forEach(m => { existingTotal += getMemberContribVal(existingContribs, m); });
+
+            if (existingTotal > 0) {
+              targetMembersList.forEach(m => {
+                const val = getMemberContribVal(existingContribs, m);
+                memberCounts[m.id] = val;
+                if (m.name) memberCounts[m.name] = val;
+              });
+            } else if (isRecentlyTypingLocally && selfMem) {
+              // 仅在用户当前确实正在键盘敲击输入且无历史时，才计入本地用户
+              memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + unassignedChars;
+              if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + unassignedChars;
+            } else if (targetMembersList.length > 0) {
+              // 否则全组平摊初始底稿
+              const splitCount = Math.floor(unassignedChars / targetMembersList.length);
+              targetMembersList.forEach(m => {
+                memberCounts[m.id] = (memberCounts[m.id] || 0) + splitCount;
+                if (m.name) memberCounts[m.name] = (memberCounts[m.name] || 0) + splitCount;
+              });
+            }
           }
         }
 
@@ -14671,7 +14658,7 @@
             const isEditorReadonly = isTaskDeadlineExpired || isFinalSubmitted || !!(window.app && window.app.isViewingPastStage);
 
             const targetPad = rawPadName;
-            const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans`;
+            const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans&noColors=false`;
 
             return `
               <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
