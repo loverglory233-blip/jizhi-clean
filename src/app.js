@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2580";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2580";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2580";
-import { AuthManager } from "./auth.js?v=20260905_v2580";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2580";
-import { renderLoginView } from "./login.js?v=20260905_v2580";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2580";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2580";
+} from "./constants.js?v=20260905_v2581";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2581";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2581";
+import { AuthManager } from "./auth.js?v=20260905_v2581";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2581";
+import { renderLoginView } from "./login.js?v=20260905_v2581";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2581";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2581";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2580";
+} from "./editor.js?v=20260905_v2581";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3859,6 +3859,13 @@ ${votedDetails}
       return `提案${idx + 1}: 《${p.title || '未命名'}》${authorStr}${descStr}`;
     }).join('\n');
 
+    const defaultCandidateFallback = isInst ? '优质课教学设计方案' : '学术协同研究课题';
+    const currentCandidate = s1.mergedTitle || s1.contract?.topic || (propList[0] ? propList[0].title : defaultCandidateFallback);
+    const allPropTitles = propList.map(p => `《${p.title}》`).join('、');
+
+    const extractPrompt = `【任务指令：请根据讨论区研讨记录，为小组成员同时提炼出【槽位1 课题名称】与 120~200 字【槽位2 方案概述】】
+
+【小组成员在讨论区的全部真实研讨发言（从引导后至点击前的研讨切片，学生发言完全是日常口语交流、随性沟通、碎片化构想）】:
 ${chatSnippet || '（小组成员在讨论区暂无更多方案研讨发言）'}
 
 【小组成员提交的提案参考】:

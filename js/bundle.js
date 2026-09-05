@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2580
+ * Version: 20260905_v2581
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2580';
+  const APP_VERSION = '20260905_v2581';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -18696,6 +18696,13 @@
         return `提案${idx + 1}: 《${p.title || '未命名'}》${authorStr}${descStr}`;
       }).join('\n');
 
+      const defaultCandidateFallback = isInst ? '优质课教学设计方案' : '学术协同研究课题';
+      const currentCandidate = s1.mergedTitle || s1.contract?.topic || (propList[0] ? propList[0].title : defaultCandidateFallback);
+      const allPropTitles = propList.map(p => `《${p.title}》`).join('、');
+
+      const extractPrompt = `【任务指令：请根据讨论区研讨记录，为小组成员同时提炼出【槽位1 课题名称】与 120~200 字【槽位2 方案概述】】
+
+  【小组成员在讨论区的全部真实研讨发言（从引导后至点击前的研讨切片，学生发言完全是日常口语交流、随性沟通、碎片化构想）】:
   ${chatSnippet || '（小组成员在讨论区暂无更多方案研讨发言）'}
 
   【小组成员提交的提案参考】:
