@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2571';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260905_v2571';
+} from './constants.js?v=20260905_v2573';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260905_v2573';
 
 export class AuthManager {
   constructor() {
@@ -518,7 +518,7 @@ export class AuthManager {
         item.classId = classId;
         item.className = cObj ? cObj.name : '全校班级';
         item.taskId = taskId;
-        item.taskTitle = tObj ? tObj.title : (taskId === 'task_default' ? '默认期末写作' : '写作任务');
+        item.taskTitle = tObj ? tObj.title : '写作任务';
         item.url = cleanUrl;
         item.updatedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       }
@@ -526,9 +526,9 @@ export class AuthManager {
       const newSurvey = {
         id: 'survey_' + Date.now(),
         classId: classId || null,
-        className: cObj ? cObj.name : '《现代教育技术》2026春01班',
+        className: cObj ? cObj.name : '全校班级',
         taskId: taskId || null,
-        taskTitle: tObj ? tObj.title : (taskId === 'task_default' ? '期末协作写作 (默认测试任务)' : '写作任务'),
+        taskTitle: tObj ? tObj.title : '写作任务',
         url: cleanUrl,
         createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
@@ -1738,7 +1738,7 @@ export class AuthManager {
     let tasks = this.getTasks();
     let taskIndex = tasks.findIndex(t => t.id === taskId);
     if (taskIndex === -1) {
-      taskIndex = tasks.findIndex(t => (t.title && t.title === taskId) || (taskId === 'task_default' && t.id.includes('default')));
+      taskIndex = tasks.findIndex(t => t.title && t.title === taskId);
     }
     if (taskIndex === -1 && tasks.length > 0) {
       taskIndex = 0; // 兜底指向首个任务

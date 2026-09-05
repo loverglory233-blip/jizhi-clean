@@ -397,11 +397,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         # ⚡ SSE 毫秒级长连接推送通道 (支持 taskId + groupId 隔离)
         if '/api/stream' in self.path:
             groupId = 'group_1'
-            taskId = 'task_default'
+            taskId = ''
             if 'groupId=' in self.path:
-                groupId = _safe_id(self.path.split('groupId=')[1].split('&')[0], 'group_1')
+                groupId = _safe_id(self.path.split('groupId=')[1].split('&')[0], '')
             if 'taskId=' in self.path:
-                taskId = _safe_id(self.path.split('taskId=')[1].split('&')[0], 'task_default')
+                taskId = _safe_id(self.path.split('taskId=')[1].split('&')[0], '')
             
             channel_key = f"{taskId}_{groupId}"
 
@@ -495,21 +495,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                             "groups": []
                         }
                     ],
-                    "tasks": [
-                        {
-                            "id": "task_default",
-                            "title": "期末协作写作 (默认测试任务)",
-                            "classId": "class_101",
-                            "className": "《现代教育技术》2026春01班",
-                            "durationMinutes": 150,
-                            "startTime": "2026/08/01 08:00",
-                            "deadline": "2026/08/30 23:59",
-                            "status": "in_progress",
-                            "createdAt": "2026/08/01",
-                            "instructions": "请各小组成员协同完成多智能体学术论文研讨与写作。",
-                            "resources": []
-                        }
-                    ],
+                    "tasks": [],
                     "announcements": [],
                     "referencePapers": [],
                     "surveys": []
@@ -532,9 +518,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             groupId = 'group_1'
             if 'groupId=' in self.path:
                 groupId = _safe_id(self.path.split('groupId=')[1].split('&')[0], 'group_1')
-            taskId = 'task_default'
+            taskId = ''
             if 'taskId=' in self.path:
-                taskId = _safe_id(self.path.split('taskId=')[1].split('&')[0], 'task_default')
+                taskId = _safe_id(self.path.split('taskId=')[1].split('&')[0], '')
             db_file = os.path.join(DIR, f'db_{taskId}_{groupId}.json')
             if not os.path.exists(db_file):
                 db_file_fallback = os.path.join(DIR, f'db_{groupId}.json')
@@ -1064,9 +1050,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             groupId = 'group_1'
             if 'groupId=' in self.path:
                 groupId = _safe_id(self.path.split('groupId=')[1].split('&')[0], 'group_1')
-            taskId = 'task_default'
+            taskId = ''
             if 'taskId=' in self.path:
-                taskId = _safe_id(self.path.split('taskId=')[1].split('&')[0], 'task_default')
+                taskId = _safe_id(self.path.split('taskId=')[1].split('&')[0], '')
             length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(length)
             try:
@@ -1131,9 +1117,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             groupId = 'group_1'
             if 'groupId=' in self.path:
                 groupId = _safe_id(self.path.split('groupId=')[1].split('&')[0], 'group_1')
-            taskId = 'task_default'
+            taskId = ''
             if 'taskId=' in self.path:
-                taskId = _safe_id(self.path.split('taskId=')[1].split('&')[0], 'task_default')
+                taskId = _safe_id(self.path.split('taskId=')[1].split('&')[0], '')
             length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(length)
             try:
@@ -1183,9 +1169,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             groupId = 'group_1'
             if 'groupId=' in self.path:
                 groupId = _safe_id(self.path.split('groupId=')[1].split('&')[0], 'group_1')
-            taskId = 'task_default'
+            taskId = ''
             if 'taskId=' in self.path:
-                taskId = _safe_id(self.path.split('taskId=')[1].split('&')[0], 'task_default')
+                taskId = _safe_id(self.path.split('taskId=')[1].split('&')[0], '')
             length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(length)
             db_file = os.path.join(DIR, f'db_{taskId}_{groupId}.json')

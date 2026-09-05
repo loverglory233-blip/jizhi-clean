@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2571";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2571";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2571";
-import { AuthManager } from "./auth.js?v=20260905_v2571";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2571";
-import { renderLoginView } from "./login.js?v=20260905_v2571";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2571";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2571";
+} from "./constants.js?v=20260905_v2573";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2573";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2573";
+import { AuthManager } from "./auth.js?v=20260905_v2573";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2573";
+import { renderLoginView } from "./login.js?v=20260905_v2573";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2573";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2573";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2571";
+} from "./editor.js?v=20260905_v2573";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3598,7 +3598,7 @@ ${votedDetails}
       this._isExtractingTopic ||
       this._isExtractingTime ||
       this._isExtractingTasks ||
-      (this.state && this.state.activeAgentAnalyzing)
+      (this.state && this.state.activeAgentAnalyzing && this.state.activeAgentAnalyzing.isExtracting)
     );
   }
 
@@ -3699,6 +3699,7 @@ ${votedDetails}
     const effectiveClassId = this.state.activeStudentClassId || (currUserObj?.classId || null);
     const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(currUserObj, effectiveClassId) : null;
     const currentGroupId = activeGroupObj?.id || currUserObj?.groupId || this.state.activeGroupId || null;
+    const targetScopeKey = (typeof this.getGroupScopeKey === 'function') ? this.getGroupScopeKey() : (this.cloudSyncEngine?.scopeKey || '');
 
     try {
       const res = await fetch('sync.php?action=confirm_step', {
@@ -3707,6 +3708,7 @@ ${votedDetails}
         body: JSON.stringify({
           taskId: activeTaskId,
           groupId: currentGroupId,
+          scopeKey: targetScopeKey,
           stepKey: stepKey,
           userKey: primaryKey,
           userName: currUserObj?.name || primaryKey
@@ -3714,7 +3716,11 @@ ${votedDetails}
       });
       const resData = await res.json();
       if (resData && resData.success && resData.stepConfirmations) {
-        this.state.stepConfirmations = resData.stepConfirmations;
+        if (!this.state.stepConfirmations) this.state.stepConfirmations = {};
+        for (const [sk, uMap] of Object.entries(resData.stepConfirmations)) {
+          if (!this.state.stepConfirmations[sk]) this.state.stepConfirmations[sk] = {};
+          Object.assign(this.state.stepConfirmations[sk], uMap);
+        }
       }
     } catch (e) {
       console.warn('confirm_step API network error:', e);
@@ -3754,12 +3760,13 @@ ${votedDetails}
     const effectiveClassId = this.state.activeStudentClassId || (currUserObj?.classId || null);
     const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(currUserObj, effectiveClassId) : null;
     const currentGroupId = activeGroupObj?.id || currUserObj?.groupId || this.state.activeGroupId || null;
+    const targetScopeKey = (typeof this.getGroupScopeKey === 'function') ? this.getGroupScopeKey() : (this.cloudSyncEngine?.scopeKey || '');
 
     try {
       fetch('sync.php?action=clear_step_confirmation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId: activeTaskId, groupId: currentGroupId, stepKey: stepKey })
+        body: JSON.stringify({ taskId: activeTaskId, groupId: currentGroupId, scopeKey: targetScopeKey, stepKey: stepKey })
       }).catch(() => {});
     } catch (e) {}
   }
@@ -3812,6 +3819,7 @@ ${votedDetails}
     this.setActiveAgentAnalyzing({
       icon: isInst ? '📐' : '🎪',
       title: agentRole,
+      isExtracting: true,
       detail: `${agentRole}正在根据讨论区研讨记录提炼【${isInst ? '教学课题与方案概述' : '论文主题与研究方案'}】...`
     });
 
@@ -4051,6 +4059,7 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
     this.setActiveAgentAnalyzing({
       icon: '⏱️',
       title: agentRole,
+      isExtracting: true,
       detail: `${agentRole}正在根据讨论区研讨记录提炼【6 大${isInst ? '模块' : '章节'}时间预算分配】...`
     });
 
@@ -4263,6 +4272,7 @@ ${chatSnippet}
     this.setActiveAgentAnalyzing({
       icon: isInst ? '📐' : '🎪',
       title: agentRole,
+      isExtracting: true,
       detail: `${agentRole}正在根据讨论区研讨记录提炼【小组成员任务分工】...`
     });
 
@@ -4510,6 +4520,7 @@ ${chatSnippet}
     this.setActiveAgentAnalyzing({
       icon: isInst ? '📐' : '🎪',
       title: agentRole,
+      isExtracting: true,
       detail: `${agentRole}正在分析讨论区全量研讨记录，一键智能生成《${contractTitle}草案》...`
     });
 
@@ -4617,6 +4628,7 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
     this.setActiveAgentAnalyzing({
       icon: isInst ? '📐' : '🎪',
       title: agentRole,
+      isExtracting: true,
       detail: `${agentRole}正在通读全组研讨并一键智能提炼全套《${contractTitle}》...`
     });
 
@@ -6112,10 +6124,11 @@ ${chatSnippet}
 
   getGroupScopeKey() {
     const user = this.authManager ? this.authManager.getCurrentUser() : null;
-    const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
-    const classId = this.authManager ? this.authManager.getEffectiveStudentClassId(user, activeTaskId) : (this.state.activeStudentClassId || user?.classId || 'class_default');
+    const allTasks = this.authManager ? this.authManager.getTasks() : [];
+    const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : (allTasks[0]?.id || '');
+    const classId = this.authManager ? this.authManager.getEffectiveStudentClassId(user, activeTaskId) : (this.state.activeStudentClassId || user?.classId || '');
     const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(user, classId) : null;
-    const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj?.id || user?.groupId || 'group_default';
+    const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj?.id || user?.groupId || '';
     return `${classId}_${activeTaskId}_${groupId}`;
   }
 
@@ -6296,17 +6309,22 @@ ${chatSnippet}
       const allUsers = this.authManager ? this.authManager.getUsers() : [];
       const hasSubmittedMyProposal = (s1.proposals || []).some(p => isMyProposal(p));
 
+      const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && s1.hasVoted && (s1.hasVoted[m.id] || (m.name && s1.hasVoted[m.name]))))).length;
+      const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 1;
+      const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
+
       const btnOpenProp = document.getElementById('btn-open-submit-proposal');
       if (btnOpenProp) {
-        btnOpenProp.innerText = hasSubmittedMyProposal ? '✏️ 修改我的选题' : '+ 提交我的选题';
+        const canEditProposal = !isContractLocked && !userHasVoted && !isVotingComplete && totalVotesCast === 0;
+        btnOpenProp.style.display = canEditProposal ? 'inline-block' : 'none';
+        if (canEditProposal) {
+          btnOpenProp.innerText = hasSubmittedMyProposal ? '✏️ 修改我的选题' : '+ 提交我的选题';
+        }
       }
 
       // 🛡️ 实时动态更新顶部投票进度条 Badge (解决多端投票进度滞后未同步问题)
       const progressBadge = document.getElementById('proposal-vote-progress-badge');
       if (progressBadge) {
-        const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && (s1.hasVoted[m.id] || s1.hasVoted[m.id]  || (m.name && s1.hasVoted[m.name]))))).length;
-        const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 1;
-        const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
         progressBadge.innerHTML = isVotingComplete
           ? `🎉 投票已完成 (共投出 ${totalVotesCast} 票)`
           : `📊 投票进度: <b>${totalVotesCast}/${totalMembersCount} 人已投票</b> ${userHasVoted ? '<span style="color:#059669; font-weight:700; margin-left:4px;">(您已投票，等待其他组员)</span>' : ''}`;

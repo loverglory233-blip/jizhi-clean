@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260905_v2571";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260905_v2571";
+} from "./constants.js?v=20260905_v2573";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260905_v2573";
 
 export const getPanoGroupData = (pano, gid) => {
   if (!pano || typeof pano !== 'object' || !gid) return null;
@@ -183,7 +183,7 @@ function updateTeacherLiveMonitorInPlace(container, state, authManager, activeCl
 
     const tFrame2 = container.querySelector('#teacher-stage2-etherpad-frame');
     if (tFrame2) {
-      const curTaskPid = monitorTaskObj ? monitorTaskObj.id : (state.activeTaskId || 'task_default');
+      const curTaskPid = monitorTaskObj ? monitorTaskObj.id : (state.activeTaskId || '');
       const curGroupPid = activeMonitorGroup ? activeMonitorGroup.id : (state.activeMonitorGroupId || 'group_1');
       const expectedPad = `jizhi_${curTaskPid}_${curGroupPid}`;
       if (tFrame2.getAttribute('data-pad') !== expectedPad) {
@@ -204,7 +204,7 @@ function updateTeacherLiveMonitorInPlace(container, state, authManager, activeCl
 
     const tFrame3 = container.querySelector('#teacher-stage3-etherpad-frame');
     if (tFrame3) {
-      const curTaskPid = monitorTaskObj ? monitorTaskObj.id : (state.activeTaskId || 'task_default');
+      const curTaskPid = monitorTaskObj ? monitorTaskObj.id : (state.activeTaskId || '');
       const curGroupPid = activeMonitorGroup ? activeMonitorGroup.id : (state.activeMonitorGroupId || 'group_1');
       const expectedPad = `jizhi_${curTaskPid}_${curGroupPid}`;
       if (tFrame3.getAttribute('data-pad') !== expectedPad) {
@@ -347,10 +347,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
   const classTaskExists = currentClassTasks.some(t => t.id === state.activeTaskId);
   let effectiveMonitorTaskId = (state.activeTaskId && classTaskExists)
     ? state.activeTaskId
-    : (currentClassTasks[0] ? currentClassTasks[0].id : (activeClass ? `task_${activeClass.id}_default` : 'task_default'));
-  if (!effectiveMonitorTaskId || effectiveMonitorTaskId === 'task_default') {
-    effectiveMonitorTaskId = activeClass ? `task_${activeClass.id}_default` : 'task_default';
-  }
+    : (currentClassTasks[0] ? currentClassTasks[0].id : null);
   state.activeTaskId = effectiveMonitorTaskId;
   if (window.app && window.app.state) window.app.state.activeTaskId = effectiveMonitorTaskId;
 
@@ -382,10 +379,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
 
     if (!isDashboard && (classTab === 'live_monitor' || classTab === 'live_monitoring') && window.app && window.app.cloudSyncEngine) {
       const currentCId = state.activeClassId || activeClass.id || null;
-      let activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : `task_${currentCId}_default`);
-      if (!activeTaskId || activeTaskId === 'task_default') {
-        activeTaskId = `task_${currentCId}_default`;
-      }
+      let activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : '');
       const currentGId = state.activeMonitorGroupId || activeMonitorGId;
       window.app.cloudSyncEngine.groupId = currentGId;
       window.app.cloudSyncEngine.taskId = activeTaskId;
@@ -930,7 +924,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
           const currentClassPapers = refPapers.filter(p => (!p.classId || p.classId === 'all' || p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (Array.isArray(p.targetClassIds) && (p.targetClassIds.includes('all') || p.targetClassIds.includes(activeClass.id)))));
 
           const surveysList = authManager.getSurveysList();
-          const currentSelectedSurveyUrl = authManager.getSurveyUrl(activeClass.id, currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
+          const currentSelectedSurveyUrl = authManager.getSurveyUrl(activeClass.id, currentClassTasks[0] ? currentClassTasks[0].id : '');
 
           return `
           <div style="display:flex; flex-direction:column; gap:20px; width:100%;">
@@ -1377,7 +1371,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                     <div style="display:flex; align-items:center; gap:8px;">
                       <span style="font-size:13px; font-weight:700; color:#475569;">监控任务:</span>
                       <select id="sel-switch-monitor-task" class="teacher-input fancy" style="font-size:13px; font-weight:700; color:#1e40af; background:#f8fafc; border:1.5px solid #cbd5e1; padding:6px 12px; border-radius:8px; cursor:pointer; min-width:140px; max-width:200px;">
-                        ${currentClassTasks.length === 0 ? '<option value="task_default">默认协作任务</option>' : currentClassTasks.map(t => {
+                        ${currentClassTasks.length === 0 ? '<option value="">暂无写作任务</option>' : currentClassTasks.map(t => {
                           const isSel = (state.activeTaskId || null) === t.id;
                           return `<option value="${t.id}" ${isSel ? 'selected' : ''}>${t.title}${isTaskExpired(t) ? ' (已截止)' : ''}</option>`;
                         }).join('')}
@@ -2118,7 +2112,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
       state.teacherClassTab = 'students_groups';
       const targetC = (authManager.getClasses() || []).find(c => c.id === newCId);
       const cTasks = (authManager.getTasks() || []).filter(t => t.classId === newCId || (targetC && t.className === targetC.name));
-      state.activeTaskId = cTasks[0] ? cTasks[0].id : (targetC ? `task_${targetC.id}_default` : 'task_default');
+      state.activeTaskId = cTasks[0] ? cTasks[0].id : null;
       state.activeMonitorGroupId = (targetC && targetC.groups && targetC.groups[0]) ? targetC.groups[0].id : null;
       // 🛡️ 彻底清空旧班级全景与视图缓存
       state.monitorPanorama = null;
@@ -2229,7 +2223,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
           const nextC = remainingClasses[0] || null;
           state.activeClassId = nextC ? nextC.id : null;
           const cTasks = nextC ? (authManager.getTasks() || []).filter(t => t.classId === nextC.id) : [];
-          state.activeTaskId = cTasks[0] ? cTasks[0].id : (nextC ? `task_${nextC.id}_default` : 'task_default');
+          state.activeTaskId = cTasks[0] ? cTasks[0].id : null;
           state.activeMonitorGroupId = (nextC && nextC.groups && nextC.groups[0]) ? nextC.groups[0].id : null;
           state.monitorPanorama = null;
           state._lastMonitorHash = '';
@@ -2888,7 +2882,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
     const inputEl = container.querySelector('#input-survey-url') || container.querySelector('#survey-url-input');
     if (!inputEl) return;
     const cId = selSurveyClass ? selSurveyClass.value : activeClass.id;
-    const tId = selSurveyTask ? selSurveyTask.value : (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
+    const tId = selSurveyTask ? selSurveyTask.value : (currentClassTasks[0] ? currentClassTasks[0].id : '');
     inputEl.value = authManager.getSurveyUrl(cId, tId);
   };
 
@@ -2911,7 +2905,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
     btnSaveSurveyUrl.addEventListener('click', () => {
       const urlInput = container.querySelector('#input-survey-url') || container.querySelector('#survey-url-input');
       const targetClassId = selSurveyClass ? selSurveyClass.value : activeClass.id;
-      const targetTaskId = selSurveyTask ? selSurveyTask.value : (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
+      const targetTaskId = selSurveyTask ? selSurveyTask.value : (currentClassTasks[0] ? currentClassTasks[0].id : '');
       const url = urlInput ? urlInput.value.trim() : '';
       if (!url) { alert('⚠️ 请先填入有效的问卷链接！'); return; }
       
@@ -3996,7 +3990,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
         const selClassName = selClassId === 'all' ? '全校班级' : (selClassObj ? selClassObj.name : '指定班级');
         
         const taskId = modal.querySelector('#modal-ann-task').value;
-        if (!taskId || taskId === 'task_all' || taskId === 'task_default') {
+        if (!taskId || taskId === 'task_all') {
           alert('❌ 发布失败：请先为当前班级创建具体写作任务，通知必须锁定关联至具体任务！');
           submitBtn.disabled = false;
           submitBtn.innerText = '📢 确认发布通知';
@@ -4231,7 +4225,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
           const selClassName = selClassId === 'all' ? '全校班级' : (selClassObj ? selClassObj.name : '指定班级');
 
           const targetTaskId = modal.querySelector('#modal-paper-task') ? modal.querySelector('#modal-paper-task').value : '';
-          if (!targetTaskId || targetTaskId === 'task_all' || targetTaskId === 'task_default') {
+          if (!targetTaskId || targetTaskId === 'task_all') {
             alert('❌ 上传失败：请先为当前班级创建具体写作任务，参考文献必须锁定关联至具体任务！');
             submitBtn.disabled = false;
             submitBtn.innerText = '📚 确认上传并存入范文库';

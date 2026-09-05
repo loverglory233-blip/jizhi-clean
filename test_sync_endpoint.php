@@ -12,7 +12,10 @@ if (!$pdo) {
 
 echo "<h2>🧪 集智平台 - 多端同步全链路真实诊断</h2>";
 
-$testTaskId = 'task_default';
+// 动态获取系统中最新真实的写作任务ID
+$stmtTask = $pdo->query("SELECT id FROM tasks ORDER BY id DESC LIMIT 1");
+$latestTask = $stmtTask ? $stmtTask->fetch(PDO::FETCH_ASSOC) : null;
+$testTaskId = $latestTask['id'] ?? 'task_latest';
 $testGroupId = 'group_1';
 $scopeKey = $testTaskId . '_' . $testGroupId;
 

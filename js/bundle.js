@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2571
+ * Version: 20260905_v2573
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2571';
+  const APP_VERSION = '20260905_v2573';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2245,7 +2245,7 @@
           item.classId = classId;
           item.className = cObj ? cObj.name : '全校班级';
           item.taskId = taskId;
-          item.taskTitle = tObj ? tObj.title : (taskId === 'task_default' ? '默认期末写作' : '写作任务');
+          item.taskTitle = tObj ? tObj.title : '写作任务';
           item.url = cleanUrl;
           item.updatedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         }
@@ -2253,9 +2253,9 @@
         const newSurvey = {
           id: 'survey_' + Date.now(),
           classId: classId || null,
-          className: cObj ? cObj.name : '《现代教育技术》2026春01班',
+          className: cObj ? cObj.name : '全校班级',
           taskId: taskId || null,
-          taskTitle: tObj ? tObj.title : (taskId === 'task_default' ? '期末协作写作 (默认测试任务)' : '写作任务'),
+          taskTitle: tObj ? tObj.title : '写作任务',
           url: cleanUrl,
           createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         };
@@ -3465,7 +3465,7 @@
       let tasks = this.getTasks();
       let taskIndex = tasks.findIndex(t => t.id === taskId);
       if (taskIndex === -1) {
-        taskIndex = tasks.findIndex(t => (t.title && t.title === taskId) || (taskId === 'task_default' && t.id.includes('default')));
+        taskIndex = tasks.findIndex(t => t.title && t.title === taskId);
       }
       if (taskIndex === -1 && tasks.length > 0) {
         taskIndex = 0; // 兜底指向首个任务
@@ -5809,10 +5809,17 @@
       }
 
       if (remoteData.stepConfirmations !== undefined) {
-        const localStr = JSON.stringify(this.app.state.stepConfirmations || {});
+        const localConfs = this.app.state.stepConfirmations || {};
         const remoteConfs = remoteData.stepConfirmations || {};
-        this.app.state.stepConfirmations = remoteConfs;
-        if (JSON.stringify(remoteConfs) !== localStr) {
+        const mergedConfs = {};
+        const allSteps = new Set([...Object.keys(localConfs), ...Object.keys(remoteConfs)]);
+        for (const st of allSteps) {
+          mergedConfs[st] = Object.assign({}, localConfs[st] || {}, remoteConfs[st] || {});
+        }
+        const localStr = JSON.stringify(this.app.state.stepConfirmations || {});
+        const mergedStr = JSON.stringify(mergedConfs);
+        this.app.state.stepConfirmations = mergedConfs;
+        if (mergedStr !== localStr) {
           needWorkspaceRender = true;
         }
       }
@@ -6276,7 +6283,7 @@
 
       const tFrame2 = container.querySelector('#teacher-stage2-etherpad-frame');
       if (tFrame2) {
-        const curTaskPid = monitorTaskObj ? monitorTaskObj.id : (state.activeTaskId || 'task_default');
+        const curTaskPid = monitorTaskObj ? monitorTaskObj.id : (state.activeTaskId || '');
         const curGroupPid = activeMonitorGroup ? activeMonitorGroup.id : (state.activeMonitorGroupId || 'group_1');
         const expectedPad = `jizhi_${curTaskPid}_${curGroupPid}`;
         if (tFrame2.getAttribute('data-pad') !== expectedPad) {
@@ -6297,7 +6304,7 @@
 
       const tFrame3 = container.querySelector('#teacher-stage3-etherpad-frame');
       if (tFrame3) {
-        const curTaskPid = monitorTaskObj ? monitorTaskObj.id : (state.activeTaskId || 'task_default');
+        const curTaskPid = monitorTaskObj ? monitorTaskObj.id : (state.activeTaskId || '');
         const curGroupPid = activeMonitorGroup ? activeMonitorGroup.id : (state.activeMonitorGroupId || 'group_1');
         const expectedPad = `jizhi_${curTaskPid}_${curGroupPid}`;
         if (tFrame3.getAttribute('data-pad') !== expectedPad) {
@@ -6440,10 +6447,7 @@
     const classTaskExists = currentClassTasks.some(t => t.id === state.activeTaskId);
     let effectiveMonitorTaskId = (state.activeTaskId && classTaskExists)
       ? state.activeTaskId
-      : (currentClassTasks[0] ? currentClassTasks[0].id : (activeClass ? `task_${activeClass.id}_default` : 'task_default'));
-    if (!effectiveMonitorTaskId || effectiveMonitorTaskId === 'task_default') {
-      effectiveMonitorTaskId = activeClass ? `task_${activeClass.id}_default` : 'task_default';
-    }
+      : (currentClassTasks[0] ? currentClassTasks[0].id : null);
     state.activeTaskId = effectiveMonitorTaskId;
     if (window.app && window.app.state) window.app.state.activeTaskId = effectiveMonitorTaskId;
 
@@ -6475,10 +6479,7 @@
 
       if (!isDashboard && (classTab === 'live_monitor' || classTab === 'live_monitoring') && window.app && window.app.cloudSyncEngine) {
         const currentCId = state.activeClassId || activeClass.id || null;
-        let activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : `task_${currentCId}_default`);
-        if (!activeTaskId || activeTaskId === 'task_default') {
-          activeTaskId = `task_${currentCId}_default`;
-        }
+        let activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : '');
         const currentGId = state.activeMonitorGroupId || activeMonitorGId;
         window.app.cloudSyncEngine.groupId = currentGId;
         window.app.cloudSyncEngine.taskId = activeTaskId;
@@ -7023,7 +7024,7 @@
             const currentClassPapers = refPapers.filter(p => (!p.classId || p.classId === 'all' || p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (Array.isArray(p.targetClassIds) && (p.targetClassIds.includes('all') || p.targetClassIds.includes(activeClass.id)))));
 
             const surveysList = authManager.getSurveysList();
-            const currentSelectedSurveyUrl = authManager.getSurveyUrl(activeClass.id, currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
+            const currentSelectedSurveyUrl = authManager.getSurveyUrl(activeClass.id, currentClassTasks[0] ? currentClassTasks[0].id : '');
 
             return `
             <div style="display:flex; flex-direction:column; gap:20px; width:100%;">
@@ -7470,7 +7471,7 @@
                       <div style="display:flex; align-items:center; gap:8px;">
                         <span style="font-size:13px; font-weight:700; color:#475569;">监控任务:</span>
                         <select id="sel-switch-monitor-task" class="teacher-input fancy" style="font-size:13px; font-weight:700; color:#1e40af; background:#f8fafc; border:1.5px solid #cbd5e1; padding:6px 12px; border-radius:8px; cursor:pointer; min-width:140px; max-width:200px;">
-                          ${currentClassTasks.length === 0 ? '<option value="task_default">默认协作任务</option>' : currentClassTasks.map(t => {
+                          ${currentClassTasks.length === 0 ? '<option value="">暂无写作任务</option>' : currentClassTasks.map(t => {
                             const isSel = (state.activeTaskId || null) === t.id;
                             return `<option value="${t.id}" ${isSel ? 'selected' : ''}>${t.title}${isTaskExpired(t) ? ' (已截止)' : ''}</option>`;
                           }).join('')}
@@ -8211,7 +8212,7 @@
         state.teacherClassTab = 'students_groups';
         const targetC = (authManager.getClasses() || []).find(c => c.id === newCId);
         const cTasks = (authManager.getTasks() || []).filter(t => t.classId === newCId || (targetC && t.className === targetC.name));
-        state.activeTaskId = cTasks[0] ? cTasks[0].id : (targetC ? `task_${targetC.id}_default` : 'task_default');
+        state.activeTaskId = cTasks[0] ? cTasks[0].id : null;
         state.activeMonitorGroupId = (targetC && targetC.groups && targetC.groups[0]) ? targetC.groups[0].id : null;
         // 🛡️ 彻底清空旧班级全景与视图缓存
         state.monitorPanorama = null;
@@ -8322,7 +8323,7 @@
             const nextC = remainingClasses[0] || null;
             state.activeClassId = nextC ? nextC.id : null;
             const cTasks = nextC ? (authManager.getTasks() || []).filter(t => t.classId === nextC.id) : [];
-            state.activeTaskId = cTasks[0] ? cTasks[0].id : (nextC ? `task_${nextC.id}_default` : 'task_default');
+            state.activeTaskId = cTasks[0] ? cTasks[0].id : null;
             state.activeMonitorGroupId = (nextC && nextC.groups && nextC.groups[0]) ? nextC.groups[0].id : null;
             state.monitorPanorama = null;
             state._lastMonitorHash = '';
@@ -8981,7 +8982,7 @@
       const inputEl = container.querySelector('#input-survey-url') || container.querySelector('#survey-url-input');
       if (!inputEl) return;
       const cId = selSurveyClass ? selSurveyClass.value : activeClass.id;
-      const tId = selSurveyTask ? selSurveyTask.value : (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
+      const tId = selSurveyTask ? selSurveyTask.value : (currentClassTasks[0] ? currentClassTasks[0].id : '');
       inputEl.value = authManager.getSurveyUrl(cId, tId);
     };
 
@@ -9004,7 +9005,7 @@
       btnSaveSurveyUrl.addEventListener('click', () => {
         const urlInput = container.querySelector('#input-survey-url') || container.querySelector('#survey-url-input');
         const targetClassId = selSurveyClass ? selSurveyClass.value : activeClass.id;
-        const targetTaskId = selSurveyTask ? selSurveyTask.value : (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
+        const targetTaskId = selSurveyTask ? selSurveyTask.value : (currentClassTasks[0] ? currentClassTasks[0].id : '');
         const url = urlInput ? urlInput.value.trim() : '';
         if (!url) { alert('⚠️ 请先填入有效的问卷链接！'); return; }
 
@@ -10089,7 +10090,7 @@
           const selClassName = selClassId === 'all' ? '全校班级' : (selClassObj ? selClassObj.name : '指定班级');
 
           const taskId = modal.querySelector('#modal-ann-task').value;
-          if (!taskId || taskId === 'task_all' || taskId === 'task_default') {
+          if (!taskId || taskId === 'task_all') {
             alert('❌ 发布失败：请先为当前班级创建具体写作任务，通知必须锁定关联至具体任务！');
             submitBtn.disabled = false;
             submitBtn.innerText = '📢 确认发布通知';
@@ -10324,7 +10325,7 @@
             const selClassName = selClassId === 'all' ? '全校班级' : (selClassObj ? selClassObj.name : '指定班级');
 
             const targetTaskId = modal.querySelector('#modal-paper-task') ? modal.querySelector('#modal-paper-task').value : '';
-            if (!targetTaskId || targetTaskId === 'task_all' || targetTaskId === 'task_default') {
+            if (!targetTaskId || targetTaskId === 'task_all') {
               alert('❌ 上传失败：请先为当前班级创建具体写作任务，参考文献必须锁定关联至具体任务！');
               submitBtn.disabled = false;
               submitBtn.innerText = '📚 确认上传并存入范文库';
@@ -11493,11 +11494,15 @@
               ${isVotingComplete ? `🎉 投票已完成 (共投出 ${totalVotesCast} 票)` : `📊 投票进度: <b>${totalVotesCast}/${totalMembersCount} 人已投票</b> ${userHasVoted ? '<span style="color:#059669; font-weight:700; margin-left:4px;">(您已投票，等待其他组员)</span>' : ''}`}
             </span>
           </div>
-          ${!isContractLocked ? `
+          ${(!isContractLocked && !userHasVoted && !isVotingComplete && totalVotesCast === 0) ? `
             <button id="btn-open-submit-proposal" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:7px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.3);">
               ${hasSubmittedMyProposal ? '✏️ 修改我的选题' : '+ 提交我的选题'}
             </button>
-          ` : ''}
+          ` : `
+            <span style="font-size:12px; color:#64748b; background:#f1f5f9; border:1px solid #e2e8f0; padding:4px 10px; border-radius:8px; font-weight:700;">
+              🔒 ${isVotingComplete ? '投票已完成 · 选题已锁定' : (userHasVoted ? '您已投票 · 选题已锁定' : (totalVotesCast > 0 ? '投票已开始 · 选题已锁定' : '公约已锁定'))}
+            </span>
+          `}
         </div>
 
         <div id="proposals-wrapper-container">
@@ -11754,6 +11759,10 @@
     const btnOpenProp = canvas.querySelector('#btn-open-submit-proposal');
     if (btnOpenProp) {
       btnOpenProp.addEventListener('click', () => {
+        if (isContractLocked || isVotingComplete || userHasVoted || totalVotesCast > 0) {
+          alert('🔒 投票已开始或已完成，选题提案已锁定，不可再提交或修改！');
+          return;
+        }
         document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
         const existingProp = s1.proposals.find(p => checkIsMyProposal(p));
         const modal = document.createElement('div');
@@ -11801,6 +11810,11 @@
         });
 
         modal.querySelector('#btn-submit-prop-action').addEventListener('click', async () => {
+          if (isContractLocked || isVotingComplete || userHasVoted || totalVotesCast > 0) {
+            alert('🔒 投票已开始或已完成，选题提案已锁定，不可修改！');
+            closeModal();
+            return;
+          }
           const title = modal.querySelector('#prop-title-input').value.trim();
           if (!title) { alert('⚠️ 请输入选题名称！'); return; }
 
@@ -18367,7 +18381,7 @@
         this._isExtractingTopic ||
         this._isExtractingTime ||
         this._isExtractingTasks ||
-        (this.state && this.state.activeAgentAnalyzing)
+        (this.state && this.state.activeAgentAnalyzing && this.state.activeAgentAnalyzing.isExtracting)
       );
     }
 
@@ -18468,6 +18482,7 @@
       const effectiveClassId = this.state.activeStudentClassId || (currUserObj?.classId || null);
       const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(currUserObj, effectiveClassId) : null;
       const currentGroupId = activeGroupObj?.id || currUserObj?.groupId || this.state.activeGroupId || null;
+      const targetScopeKey = (typeof this.getGroupScopeKey === 'function') ? this.getGroupScopeKey() : (this.cloudSyncEngine?.scopeKey || '');
 
       try {
         const res = await fetch('sync.php?action=confirm_step', {
@@ -18476,6 +18491,7 @@
           body: JSON.stringify({
             taskId: activeTaskId,
             groupId: currentGroupId,
+            scopeKey: targetScopeKey,
             stepKey: stepKey,
             userKey: primaryKey,
             userName: currUserObj?.name || primaryKey
@@ -18483,7 +18499,11 @@
         });
         const resData = await res.json();
         if (resData && resData.success && resData.stepConfirmations) {
-          this.state.stepConfirmations = resData.stepConfirmations;
+          if (!this.state.stepConfirmations) this.state.stepConfirmations = {};
+          for (const [sk, uMap] of Object.entries(resData.stepConfirmations)) {
+            if (!this.state.stepConfirmations[sk]) this.state.stepConfirmations[sk] = {};
+            Object.assign(this.state.stepConfirmations[sk], uMap);
+          }
         }
       } catch (e) {
         console.warn('confirm_step API network error:', e);
@@ -18523,12 +18543,13 @@
       const effectiveClassId = this.state.activeStudentClassId || (currUserObj?.classId || null);
       const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(currUserObj, effectiveClassId) : null;
       const currentGroupId = activeGroupObj?.id || currUserObj?.groupId || this.state.activeGroupId || null;
+      const targetScopeKey = (typeof this.getGroupScopeKey === 'function') ? this.getGroupScopeKey() : (this.cloudSyncEngine?.scopeKey || '');
 
       try {
         fetch('sync.php?action=clear_step_confirmation', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ taskId: activeTaskId, groupId: currentGroupId, stepKey: stepKey })
+          body: JSON.stringify({ taskId: activeTaskId, groupId: currentGroupId, scopeKey: targetScopeKey, stepKey: stepKey })
         }).catch(() => {});
       } catch (e) {}
     }
@@ -18581,6 +18602,7 @@
       this.setActiveAgentAnalyzing({
         icon: isInst ? '📐' : '🎪',
         title: agentRole,
+        isExtracting: true,
         detail: `${agentRole}正在根据讨论区研讨记录提炼【${isInst ? '教学课题与方案概述' : '论文主题与研究方案'}】...`
       });
 
@@ -18820,6 +18842,7 @@
       this.setActiveAgentAnalyzing({
         icon: '⏱️',
         title: agentRole,
+        isExtracting: true,
         detail: `${agentRole}正在根据讨论区研讨记录提炼【6 大${isInst ? '模块' : '章节'}时间预算分配】...`
       });
 
@@ -19032,6 +19055,7 @@
       this.setActiveAgentAnalyzing({
         icon: isInst ? '📐' : '🎪',
         title: agentRole,
+        isExtracting: true,
         detail: `${agentRole}正在根据讨论区研讨记录提炼【小组成员任务分工】...`
       });
 
@@ -19279,6 +19303,7 @@
       this.setActiveAgentAnalyzing({
         icon: isInst ? '📐' : '🎪',
         title: agentRole,
+        isExtracting: true,
         detail: `${agentRole}正在分析讨论区全量研讨记录，一键智能生成《${contractTitle}草案》...`
       });
 
@@ -19386,6 +19411,7 @@
       this.setActiveAgentAnalyzing({
         icon: isInst ? '📐' : '🎪',
         title: agentRole,
+        isExtracting: true,
         detail: `${agentRole}正在通读全组研讨并一键智能提炼全套《${contractTitle}》...`
       });
 
@@ -20881,10 +20907,11 @@
 
     getGroupScopeKey() {
       const user = this.authManager ? this.authManager.getCurrentUser() : null;
-      const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
-      const classId = this.authManager ? this.authManager.getEffectiveStudentClassId(user, activeTaskId) : (this.state.activeStudentClassId || user?.classId || 'class_default');
+      const allTasks = this.authManager ? this.authManager.getTasks() : [];
+      const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : (allTasks[0]?.id || '');
+      const classId = this.authManager ? this.authManager.getEffectiveStudentClassId(user, activeTaskId) : (this.state.activeStudentClassId || user?.classId || '');
       const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(user, classId) : null;
-      const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj?.id || user?.groupId || 'group_default';
+      const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj?.id || user?.groupId || '';
       return `${classId}_${activeTaskId}_${groupId}`;
     }
 
@@ -21065,17 +21092,22 @@
         const allUsers = this.authManager ? this.authManager.getUsers() : [];
         const hasSubmittedMyProposal = (s1.proposals || []).some(p => isMyProposal(p));
 
+        const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && s1.hasVoted && (s1.hasVoted[m.id] || (m.name && s1.hasVoted[m.name]))))).length;
+        const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 1;
+        const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
+
         const btnOpenProp = document.getElementById('btn-open-submit-proposal');
         if (btnOpenProp) {
-          btnOpenProp.innerText = hasSubmittedMyProposal ? '✏️ 修改我的选题' : '+ 提交我的选题';
+          const canEditProposal = !isContractLocked && !userHasVoted && !isVotingComplete && totalVotesCast === 0;
+          btnOpenProp.style.display = canEditProposal ? 'inline-block' : 'none';
+          if (canEditProposal) {
+            btnOpenProp.innerText = hasSubmittedMyProposal ? '✏️ 修改我的选题' : '+ 提交我的选题';
+          }
         }
 
         // 🛡️ 实时动态更新顶部投票进度条 Badge (解决多端投票进度滞后未同步问题)
         const progressBadge = document.getElementById('proposal-vote-progress-badge');
         if (progressBadge) {
-          const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && (s1.hasVoted[m.id] || s1.hasVoted[m.id]  || (m.name && s1.hasVoted[m.name]))))).length;
-          const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 1;
-          const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
           progressBadge.innerHTML = isVotingComplete
             ? `🎉 投票已完成 (共投出 ${totalVotesCast} 票)`
             : `📊 投票进度: <b>${totalVotesCast}/${totalMembersCount} 人已投票</b> ${userHasVoted ? '<span style="color:#059669; font-weight:700; margin-left:4px;">(您已投票，等待其他组员)</span>' : ''}`;
