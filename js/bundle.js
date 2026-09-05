@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2688
+ * Version: 20260906_v2689
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2688';
+  const APP_VERSION = '20260906_v2689';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -16682,6 +16682,12 @@
     }
 
     renderMain() {
+      const loader = document.getElementById('app-loading-screen');
+      if (loader && loader.style.display !== 'none') {
+        loader.style.opacity = '0';
+        setTimeout(() => { loader.style.display = 'none'; }, 150);
+      }
+
       const currentUser = this.authManager.getCurrentUser();
       const appEl = document.getElementById('app');
 
@@ -16726,6 +16732,8 @@
             (taskId) => {
               this._isHandlingTaskRevoked = false;
               const actualTaskId = taskId || null;
+              const allTasks = this.authManager ? this.authManager.getTasks() : [];
+              const targetTaskObj = allTasks.find(t => isSameId(t.id, actualTaskId) || t.title === actualTaskId);
               const isUniversalClass = (cid) => !cid || cid === 'all' || cid === 'class_all' || cid === 'task_class_all';
               const rawTaskClassId = (targetTaskObj && !isUniversalClass(targetTaskObj.classId)) ? targetTaskObj.classId : null;
               const taskClassId = rawTaskClassId || (this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, actualTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null));
