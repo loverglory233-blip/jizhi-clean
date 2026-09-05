@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2676
+ * Version: 20260906_v2677
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2676';
+  const APP_VERSION = '20260906_v2677';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -8127,7 +8127,7 @@
                               <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:6px 12px; flex-shrink:0;">
                                 <div style="font-size:12px; font-weight:800; color:#059669; display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-teacher-action-plan">
                                   <div style="display:flex; align-items:center; gap:6px;">
-                                    <span>📋 【半程修正清单】(审稿专家 3 项修改要求)</span>
+                                    <span>📋 【半程修正清单】(${((s2ActionPlan.items || []).length)} 项修改要求)</span>
                                     <span style="font-size:10.5px; background:#d1fae5; color:#065f46; padding:1px 6px; border-radius:8px; font-weight:700;">已生成</span>
                                   </div>
                                   <span id="icon-toggle-teacher-plan" style="font-size:11px; color:#059669; font-weight:700;">▲ 收起</span>
@@ -13653,9 +13653,9 @@
             <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:6px; padding:6px 12px; margin-bottom:6px; flex-shrink:0; box-shadow:0 1px 3px rgba(5,150,105,0.06);">
               <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
                 <div style="font-size:12px; font-weight:800; color:#059669; display:flex; align-items:center; gap:8px;">
-                  <span>📋 【半程修正清单】(${taskGenreKey === 'instructional' ? '教研专家' : '审稿专家'} 3 项修改要求)</span>
+                  <span>📋 【半程修正清单】(${totalItems} 项修改要求)</span>
                   <span style="font-size:11px; background:${isAllDone ? '#d1fae5' : '#fef3c7'}; color:${isAllDone ? '#065f46' : '#b45309'}; border:1px solid ${isAllDone ? '#a7f3d0' : '#fde68a'}; padding:1px 8px; border-radius:10px; font-weight:800;">
-                    ${isAllDone ? '🎉 3 项要求已全部落实' : `⏳ 已落实 ${completedCount}/${totalItems} 项`}
+                    ${isAllDone ? `🎉 ${totalItems} 项要求已全部落实` : `⏳ 已落实 ${completedCount}/${totalItems} 项`}
                   </span>
                 </div>
                 <span id="icon-toggle-action-plan" style="font-size:11px; color:#059669; font-weight:700; background:#ffffff; border:1px solid #a7f3d0; padding:1.5px 8px; border-radius:4px;">▲ 收起清单</span>
@@ -13893,9 +13893,9 @@
             <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:6px; padding:6px 12px; margin-bottom:6px; flex-shrink:0; box-shadow:0 1px 3px rgba(5,150,105,0.06);">
               <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
                 <div style="font-size:12px; font-weight:800; color:#059669; display:flex; align-items:center; gap:8px;">
-                  <span>📋 【半程修正清单】(审稿专家 3 项修改要求)</span>
+                  <span>📋 【半程修正清单】(${totalItems} 项修改要求)</span>
                   <span style="font-size:11px; background:${isAllDone ? '#d1fae5' : '#fef3c7'}; color:${isAllDone ? '#065f46' : '#b45309'}; border:1px solid ${isAllDone ? '#a7f3d0' : '#fde68a'}; padding:1px 8px; border-radius:10px; font-weight:800;">
-                    ${isAllDone ? '🎉 3 项要求已全部落实' : `⏳ 已落实 ${completedCount}/${totalItems} 项`}
+                    ${isAllDone ? `🎉 ${totalItems} 项要求已全部落实` : `⏳ 已落实 ${completedCount}/${totalItems} 项`}
                   </span>
                 </div>
                 <span id="icon-toggle-action-plan" style="font-size:11px; color:#059669; font-weight:700; background:#ffffff; border:1px solid #a7f3d0; padding:1.5px 8px; border-radius:4px;">▲ 收起清单</span>
@@ -20816,31 +20816,15 @@
         this.setActiveAgentAnalyzing({ icon: '📝', title: `【${reviewingName}】正在下发《${isInst ? '磨课修正清单' : '二审修正清单'}》...`, detail: '正在深度审阅正文草稿并结合自查瓶颈，生成包含【诊断问题+改进建议】的双结构清单...' });
         await new Promise(r => setTimeout(r, 1500));
 
-        const hasConsistencyProblem = hasTransDev || hasIdeationDev || !!transIssues || !!ideationIssues;
-        const consistencyDesc = hasTransDev
-          ? `组员自查与责任编辑研讨明确指出了前后逻辑脱节环节：【${transIssues}】`
-          : (hasIdeationDev
-            ? `组员自查与责任编辑研讨明确指出了构思偏离环节：【${ideationIssues}】`
-            : (hasConsistencyProblem ? `组员自查指出了前后衔接与概念统领痛点：【${focusIssues}】` : '经组员自查与讨论，全篇前后逻辑基本连贯，无显著脱节'));
-
         const reviewingPrompt = `${genreDesc}
 
-  针对课题《${topic}》，结合小组成员自查打卡与责任编辑梳理的痛点瓶颈：
-  - 核心卡壳瓶颈：【${bottlenecks}】
-  - 聚焦关注点：【${focusIssues}】
-  - 【前后脱节与一致性问题】：${consistencyDesc}
-  - 语体/规范问题环节：${hasStyleDev && styleIssues ? `【${styleIssues}】` : '无明显语体混乱'}
+  针对课题《${topic}》，结合小组成员自查瓶颈【${bottlenecks}】、聚焦关注点【${focusIssues}】及下方正文草稿，作为资深审稿专家给出言简意赅、直击要害的《${isInst ? '磨课修正清单' : '二审修正清单'}》（140~190字）：
 
   【组内关于修改思路的讨论记录】:
   ${chatSnippet}
 
   【正文草稿】：
   ${rawDoc || '（小组成员正在协作起草正文草稿）'}
-
-  【⚠️ 修正清单 3 项生成铁律（必须严格执行）】：
-  1. 【前后一致性脱节问题必须入清单】：${hasConsistencyProblem ? `由于自查与责任编辑指出了前后脱节/偏离问题（${transIssues || ideationIssues || focusIssues}），《二审修正清单》的 3 项要点中【必须专门包含 1 项针对该“前后逻辑脱节/一致性问题”的精准诊断与具体修改建议】！` : '若自查确实无任何前后脱节与偏离，则无需刻意单列一致性条目。'}
-  2. 其余条目重点针对主体研究方法/教学活动的操作化细化（如测量工具/实验干预/教学活动与假设/目标的闭环呼应）及学术/语体规范。
-  3. 严格保持 1. 🎯 [诊断问题]：...；[改进建议]：... 格式，纯自然语言输出，140~190字，【绝对严禁出现“分工”字眼】。
 
   请按以下格式输出（严禁输出任何 Markdown 代码块，必须直接输出纯文本）：
   📝 【${reviewingName}·二审意见】：（50字左右的审稿把关寄语）
@@ -23814,9 +23798,6 @@
       const priorFirstReview = this.state.stage2FirstReviewText || (this.state.chatLogs.stage2 || []).find(m => m.sender === 'reviewingEditor')?.text || '前期初审已肯定研究背景立意与文献归纳';
 
       const genreDesc = getGenrePromptDescriptor(taskType);
-      const hasTransFocus = !!(ctx.transFocus && ctx.transFocus !== '无' && !ctx.transFocus.includes('无显著脱节'));
-      const hasStyleFocus = !!(ctx.styleFocus && ctx.styleFocus !== '无');
-
       const reviewingPrompt = `${genreDesc}
 
   【全篇正文草稿】：
@@ -23824,14 +23805,9 @@
 
   【半程会议研讨与暴露的瓶颈】：
   - 核心卡壳瓶颈：『${ctx.bAcademic}』
-  - 前后脱节与一致性焦点：${hasTransFocus ? `『${ctx.transFocus}』` : '经组员自查前后逻辑基本连贯，无显著脱节'}
-  - 口语化/文风章节：${hasStyleFocus ? `『${ctx.styleFocus}』` : '无明显语体混乱'}
-  - 组员聚焦关注点：『${ctx.userText || '核心概念统领与主体活动设计'}』
+  - 组员聚焦关注点：『${ctx.userText || '核心概念统领与主体设计'}』
 
-  【⚠️ 修正清单 3 项生成铁律（必须严格执行）】：
-  1. 【前后一致性脱节问题必须入清单】：${hasTransFocus ? `由于自查与责任编辑指出了前后脱节/偏离问题（${ctx.transFocus}），《二审修正清单》的 3 项要点中【必须专门包含 1 项针对该“前后逻辑脱节/一致性问题”的精准诊断与具体修改建议】！` : '若自查确实无任何前后脱节与偏离，则无需刻意单列一致性条目。'}
-  2. 其余条目重点针对主体研究方法/教学活动的操作化细化（如测量工具/实验干预/教学活动与假设/目标的闭环呼应）及学术/语体规范。
-  3. 严格保持 1. 🎯 [诊断问题]：...；[改进建议]：... 格式，纯自然语言输出，140~190字，【绝对严禁出现“分工”字眼】。
+  请依据${isInst ? '教研专家' : '审稿编辑'}角色与审查红线（顺应已有框架、绝不推翻大改、方案形态绝不索要数据图表），发表 120~150 字【${isInst ? '磨课修正清单' : '二审修正清单'}】（包含 3 项具体可执行要点，纯自然语言，末尾提示商定后点击下方【📝 讨论差不多了？让${reviewingName}总结】）。
 
   请按以下格式输出（严禁输出任何 Markdown 代码块，必须直接输出纯文本）：
   📝 【${reviewingName}·二审意见】：（50字左右的审稿把关寄语）
@@ -23890,9 +23866,9 @@
     /**
      * 🧩 智能装配【半程修正清单】：
      * 1. 若全组自查打卡与责任编辑梳理中存在前后脱节/构思偏离等一致性问题：
-     *    第 1 条硬性锁定为【责任编辑指出的一致性脱节与对齐修改要点】；后 2 条继承审稿编辑的质检建议。
+     *    第 1 条直接提取责任编辑研判的一致性问题，后面直接拼接审稿编辑的 3 条（共 4 项清单）。
      * 2. 若全组自查无任何脱节/偏离（一致性良好）：
-     *    直接 100% 采用审稿编辑的 3 条二审清单。
+     *    直接 100% 采用审稿编辑的 3 条二审清单（共 3 项清单）。
      */
     assembleActionPlanItems(reviewingParsedItems, s2 = null) {
       const stage2Data = s2 || this.state.stage2 || {};
@@ -23913,6 +23889,8 @@
 
       const hasInconsistency = hasTransDev || hasIdeationDev || hasStyleDev || !!divDetails.hasMeetingDivergence;
 
+      const revItems = (reviewingParsedItems || []).map(item => String(item).trim()).filter(Boolean);
+
       if (hasInconsistency) {
         let transSecText = divDetails.transFocusText || (allTransSecs.length > 0 ? allTransSecs.map(s => `【${s}】`).join('、') : (allIdeationSecs.length > 0 ? allIdeationSecs.map(s => `【${s}】`).join('、') : '【章节前后衔接与概念统领】'));
         if (!transSecText.includes('【') && !transSecText.includes('《')) {
@@ -23923,16 +23901,12 @@
           ? `🎯 诊断问题：责任编辑研判指出${transSecText}存在教学目标与活动设计前后脱节；改进建议：对齐各环节教学目标，打通探究活动与评价设计的衔接逻辑，统一全篇教学主线。`
           : `🎯 诊断问题：责任编辑研判指出${transSecText}存在前后逻辑脱节与概念口径不一致；改进建议：统一全篇核心概念表述，补全章节过渡逻辑与衔接段落，确保前后论证严密连贯。`;
 
-        // 过滤掉 reviewingParsedItems 中已经重复的一致性条目
-        const revItems = (reviewingParsedItems || []).filter(item => {
-          const txt = String(item || '');
-          return !txt.includes('逻辑脱节与概念口径不一致') && !txt.includes('教学目标与活动设计前后脱节');
-        });
-
-        const combined = [consistencyItem, ...revItems];
-        return combined.slice(0, 3);
+        const filteredRev = revItems.filter(item => !item.includes('逻辑脱节与概念口径不一致') && !item.includes('教学目标与活动设计前后脱节'));
+        // 🌟 有不一致：第 1 条提取责任编辑的一致性诊断，后接审稿编辑生成的全部 3 条（共 4 项清单）
+        return [consistencyItem, ...filteredRev];
       } else {
-        return (reviewingParsedItems || []).slice(0, 3);
+        // 🌟 无不一致：直接 100% 采用审稿编辑的全部条目（共 3 项清单）
+        return revItems;
       }
     }
 

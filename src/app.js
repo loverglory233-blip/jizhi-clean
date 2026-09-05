@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2676";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2676";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2676";
-import { AuthManager } from "./auth.js?v=20260906_v2676";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2676";
-import { renderLoginView } from "./login.js?v=20260906_v2676";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2676";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2676";
+} from "./constants.js?v=20260906_v2677";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2677";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2677";
+import { AuthManager } from "./auth.js?v=20260906_v2677";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2677";
+import { renderLoginView } from "./login.js?v=20260906_v2677";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2677";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2677";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2676";
+} from "./editor.js?v=20260906_v2677";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5445,31 +5445,15 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
       this.setActiveAgentAnalyzing({ icon: '📝', title: `【${reviewingName}】正在下发《${isInst ? '磨课修正清单' : '二审修正清单'}》...`, detail: '正在深度审阅正文草稿并结合自查瓶颈，生成包含【诊断问题+改进建议】的双结构清单...' });
       await new Promise(r => setTimeout(r, 1500));
 
-      const hasConsistencyProblem = hasTransDev || hasIdeationDev || !!transIssues || !!ideationIssues;
-      const consistencyDesc = hasTransDev
-        ? `组员自查与责任编辑研讨明确指出了前后逻辑脱节环节：【${transIssues}】`
-        : (hasIdeationDev
-          ? `组员自查与责任编辑研讨明确指出了构思偏离环节：【${ideationIssues}】`
-          : (hasConsistencyProblem ? `组员自查指出了前后衔接与概念统领痛点：【${focusIssues}】` : '经组员自查与讨论，全篇前后逻辑基本连贯，无显著脱节'));
-
       const reviewingPrompt = `${genreDesc}
 
-针对课题《${topic}》，结合小组成员自查打卡与责任编辑梳理的痛点瓶颈：
-- 核心卡壳瓶颈：【${bottlenecks}】
-- 聚焦关注点：【${focusIssues}】
-- 【前后脱节与一致性问题】：${consistencyDesc}
-- 语体/规范问题环节：${hasStyleDev && styleIssues ? `【${styleIssues}】` : '无明显语体混乱'}
+针对课题《${topic}》，结合小组成员自查瓶颈【${bottlenecks}】、聚焦关注点【${focusIssues}】及下方正文草稿，作为资深审稿专家给出言简意赅、直击要害的《${isInst ? '磨课修正清单' : '二审修正清单'}》（140~190字）：
 
 【组内关于修改思路的讨论记录】:
 ${chatSnippet}
 
 【正文草稿】：
 ${rawDoc || '（小组成员正在协作起草正文草稿）'}
-
-【⚠️ 修正清单 3 项生成铁律（必须严格执行）】：
-1. 【前后一致性脱节问题必须入清单】：${hasConsistencyProblem ? `由于自查与责任编辑指出了前后脱节/偏离问题（${transIssues || ideationIssues || focusIssues}），《二审修正清单》的 3 项要点中【必须专门包含 1 项针对该“前后逻辑脱节/一致性问题”的精准诊断与具体修改建议】！` : '若自查确实无任何前后脱节与偏离，则无需刻意单列一致性条目。'}
-2. 其余条目重点针对主体研究方法/教学活动的操作化细化（如测量工具/实验干预/教学活动与假设/目标的闭环呼应）及学术/语体规范。
-3. 严格保持 1. 🎯 [诊断问题]：...；[改进建议]：... 格式，纯自然语言输出，140~190字，【绝对严禁出现“分工”字眼】。
 
 请按以下格式输出（严禁输出任何 Markdown 代码块，必须直接输出纯文本）：
 📝 【${reviewingName}·二审意见】：（50字左右的审稿把关寄语）
@@ -8443,9 +8427,6 @@ ${contentSnippet}
     const priorFirstReview = this.state.stage2FirstReviewText || (this.state.chatLogs.stage2 || []).find(m => m.sender === 'reviewingEditor')?.text || '前期初审已肯定研究背景立意与文献归纳';
 
     const genreDesc = getGenrePromptDescriptor(taskType);
-    const hasTransFocus = !!(ctx.transFocus && ctx.transFocus !== '无' && !ctx.transFocus.includes('无显著脱节'));
-    const hasStyleFocus = !!(ctx.styleFocus && ctx.styleFocus !== '无');
-
     const reviewingPrompt = `${genreDesc}
 
 【全篇正文草稿】：
@@ -8453,14 +8434,9 @@ ${fullDoc}
 
 【半程会议研讨与暴露的瓶颈】：
 - 核心卡壳瓶颈：『${ctx.bAcademic}』
-- 前后脱节与一致性焦点：${hasTransFocus ? `『${ctx.transFocus}』` : '经组员自查前后逻辑基本连贯，无显著脱节'}
-- 口语化/文风章节：${hasStyleFocus ? `『${ctx.styleFocus}』` : '无明显语体混乱'}
-- 组员聚焦关注点：『${ctx.userText || '核心概念统领与主体活动设计'}』
+- 组员聚焦关注点：『${ctx.userText || '核心概念统领与主体设计'}』
 
-【⚠️ 修正清单 3 项生成铁律（必须严格执行）】：
-1. 【前后一致性脱节问题必须入清单】：${hasTransFocus ? `由于自查与责任编辑指出了前后脱节/偏离问题（${ctx.transFocus}），《二审修正清单》的 3 项要点中【必须专门包含 1 项针对该“前后逻辑脱节/一致性问题”的精准诊断与具体修改建议】！` : '若自查确实无任何前后脱节与偏离，则无需刻意单列一致性条目。'}
-2. 其余条目重点针对主体研究方法/教学活动的操作化细化（如测量工具/实验干预/教学活动与假设/目标的闭环呼应）及学术/语体规范。
-3. 严格保持 1. 🎯 [诊断问题]：...；[改进建议]：... 格式，纯自然语言输出，140~190字，【绝对严禁出现“分工”字眼】。
+请依据${isInst ? '教研专家' : '审稿编辑'}角色与审查红线（顺应已有框架、绝不推翻大改、方案形态绝不索要数据图表），发表 120~150 字【${isInst ? '磨课修正清单' : '二审修正清单'}】（包含 3 项具体可执行要点，纯自然语言，末尾提示商定后点击下方【📝 讨论差不多了？让${reviewingName}总结】）。
 
 请按以下格式输出（严禁输出任何 Markdown 代码块，必须直接输出纯文本）：
 📝 【${reviewingName}·二审意见】：（50字左右的审稿把关寄语）
@@ -8519,9 +8495,9 @@ ${fullDoc}
   /**
    * 🧩 智能装配【半程修正清单】：
    * 1. 若全组自查打卡与责任编辑梳理中存在前后脱节/构思偏离等一致性问题：
-   *    第 1 条硬性锁定为【责任编辑指出的一致性脱节与对齐修改要点】；后 2 条继承审稿编辑的质检建议。
+   *    第 1 条直接提取责任编辑研判的一致性问题，后面直接拼接审稿编辑的 3 条（共 4 项清单）。
    * 2. 若全组自查无任何脱节/偏离（一致性良好）：
-   *    直接 100% 采用审稿编辑的 3 条二审清单。
+   *    直接 100% 采用审稿编辑的 3 条二审清单（共 3 项清单）。
    */
   assembleActionPlanItems(reviewingParsedItems, s2 = null) {
     const stage2Data = s2 || this.state.stage2 || {};
@@ -8542,6 +8518,8 @@ ${fullDoc}
 
     const hasInconsistency = hasTransDev || hasIdeationDev || hasStyleDev || !!divDetails.hasMeetingDivergence;
 
+    const revItems = (reviewingParsedItems || []).map(item => String(item).trim()).filter(Boolean);
+
     if (hasInconsistency) {
       let transSecText = divDetails.transFocusText || (allTransSecs.length > 0 ? allTransSecs.map(s => `【${s}】`).join('、') : (allIdeationSecs.length > 0 ? allIdeationSecs.map(s => `【${s}】`).join('、') : '【章节前后衔接与概念统领】'));
       if (!transSecText.includes('【') && !transSecText.includes('《')) {
@@ -8552,16 +8530,12 @@ ${fullDoc}
         ? `🎯 诊断问题：责任编辑研判指出${transSecText}存在教学目标与活动设计前后脱节；改进建议：对齐各环节教学目标，打通探究活动与评价设计的衔接逻辑，统一全篇教学主线。`
         : `🎯 诊断问题：责任编辑研判指出${transSecText}存在前后逻辑脱节与概念口径不一致；改进建议：统一全篇核心概念表述，补全章节过渡逻辑与衔接段落，确保前后论证严密连贯。`;
 
-      // 过滤掉 reviewingParsedItems 中已经重复的一致性条目
-      const revItems = (reviewingParsedItems || []).filter(item => {
-        const txt = String(item || '');
-        return !txt.includes('逻辑脱节与概念口径不一致') && !txt.includes('教学目标与活动设计前后脱节');
-      });
-
-      const combined = [consistencyItem, ...revItems];
-      return combined.slice(0, 3);
+      const filteredRev = revItems.filter(item => !item.includes('逻辑脱节与概念口径不一致') && !item.includes('教学目标与活动设计前后脱节'));
+      // 🌟 有不一致：第 1 条提取责任编辑的一致性诊断，后接审稿编辑生成的全部 3 条（共 4 项清单）
+      return [consistencyItem, ...filteredRev];
     } else {
-      return (reviewingParsedItems || []).slice(0, 3);
+      // 🌟 无不一致：直接 100% 采用审稿编辑的全部条目（共 3 项清单）
+      return revItems;
     }
   }
 
