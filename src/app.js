@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2686";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2686";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2686";
-import { AuthManager } from "./auth.js?v=20260906_v2686";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2686";
-import { renderLoginView } from "./login.js?v=20260906_v2686";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2686";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2686";
+} from "./constants.js?v=20260906_v2687";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2687";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2687";
+import { AuthManager } from "./auth.js?v=20260906_v2687";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2687";
+import { renderLoginView } from "./login.js?v=20260906_v2687";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2687";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2687";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2686";
+} from "./editor.js?v=20260906_v2687";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6198,7 +6198,9 @@ ${chatSnippet}
       this.state.groupMaxStage === 'stage2' || 
       this.state.groupMaxStage === 'stage3'
     );
-    const isDraftDone = !!(s2.isDraftConfirmed || this.state.groupMaxStage === 'stage3' || this.state.isFinalSubmitted);
+    const s2ConfMap = s2.confirmedMembers || {};
+    const s2ConfCount = (s2ConfMap && typeof s2ConfMap === 'object') ? Object.keys(s2ConfMap).length : 0;
+    const isDraftDone = !!(s2.isDraftConfirmed || this.state.groupMaxStage === 'stage3' || this.state.isFinalSubmitted || (s2ConfCount >= 2));
     const isStage3Active = !!(this.state.groupMaxStage === 'stage3' || this.state.isFinalSubmitted || isDraftDone);
 
     let currentGroupMax = this.state.groupMaxStage || 'stage1';
@@ -6225,7 +6227,6 @@ ${chatSnippet}
     const contractDocName = isInstStage ? '备课公约' : '学术公约';
 
     if (newStage === this.state.currentStage && !isMilestoneAdvance) {
-      this.renderStudentWorkspace(true);
       return;
     }
 
@@ -6239,8 +6240,8 @@ ${chatSnippet}
     if (!isTaskDeadlineExpired && !this.state.isFinalSubmitted && targetOrder > currentGroupOrder && !isMilestoneAdvance) {
       const stageTitles = { stage2: s2Name, stage3: s3Name };
       if (newStage === 'stage3') {
-        const confirmedMembers = s2.confirmedMembers || [];
-        const confirmedCount = confirmedMembers.length;
+        const confirmedMembers = s2.confirmedMembers || {};
+        const confirmedCount = (confirmedMembers && typeof confirmedMembers === 'object') ? Object.keys(confirmedMembers).length : 0;
         let memberCount = 2;
         try {
           const activeGroup = this.authManager ? this.authManager.getStudentActiveGroup(this.authManager.getCurrentUser(), this.state.activeStudentClassId) : null;

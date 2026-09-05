@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2686';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2686';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2687';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2687';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1544,11 +1544,10 @@ export class CloudSyncEngine {
           const isMemDone = (map, m) => !!(map && (map[m.id] || (m.name && map[m.name])));
           const cCount = memberArr.filter(m => isMemDone(mergedConf, m)).length;
           const isFullyDone = (cCount >= memberArr.length && memberArr.length > 0);
-          if (this.app.state.stage2.isDraftConfirmed !== isFullyDone) {
-            this.app.state.stage2.isDraftConfirmed = isFullyDone;
-            if (isFullyDone) {
-              this.app.state.groupMaxStage = 'stage3';
-            }
+          const shouldBeConfirmed = !!(remoteData.stage2.isDraftConfirmed || this.app.state.stage2.isDraftConfirmed || isFullyDone);
+          if (shouldBeConfirmed && !this.app.state.stage2.isDraftConfirmed) {
+            this.app.state.stage2.isDraftConfirmed = true;
+            this.app.state.groupMaxStage = 'stage3';
             needWorkspaceRender = true;
           }
         }
