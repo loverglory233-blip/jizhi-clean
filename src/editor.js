@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2575";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2575";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2575";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2576";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2576";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2576";
 
 /**
  * 🛡️ 全局提炼互斥状态判定工具函数
@@ -23,8 +23,8 @@ export function isAnyExtracting(state = null) {
   }
   return !!(
     (app && (app._isGeneratingContract || app._isExtractingTopic || app._isExtractingTime || app._isExtractingTasks)) ||
-    (state && state.activeAgentAnalyzing) ||
-    (app && app.state && app.state.activeAgentAnalyzing)
+    (state && state.activeAgentAnalyzing && state.activeAgentAnalyzing.isExtracting) ||
+    (app && app.state && app.state.activeAgentAnalyzing && app.state.activeAgentAnalyzing.isExtracting)
   );
 }
 
@@ -3546,7 +3546,10 @@ export function renderChatActionBar(state) {
           }
           return;
         }
-        if (window.app && typeof window.app.handleOneClickGenerateContract === 'function') {
+        if (isFailed && window.app && typeof window.app._doOneClickGenerateContract === 'function') {
+          window.app._contractGenerateFailed = false;
+          window.app._doOneClickGenerateContract();
+        } else if (window.app && typeof window.app.handleOneClickGenerateContract === 'function') {
           window.app.handleOneClickGenerateContract();
         }
       });
