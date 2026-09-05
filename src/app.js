@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2807";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260905_v2807";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2807";
-import { AuthManager } from "./auth.js?v=20260905_v2807";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2807";
-import { renderLoginView } from "./login.js?v=20260905_v2807";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2807";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2807";
+} from "./constants.js?v=20260905_v2808";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260905_v2808";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2808";
+import { AuthManager } from "./auth.js?v=20260905_v2808";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2808";
+import { renderLoginView } from "./login.js?v=20260905_v2808";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2808";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2808";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2807";
+} from "./editor.js?v=20260905_v2808";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4414,7 +4414,7 @@ ${instructionSection}
       })
     }).catch(() => {});
 
-    const confirmedCount = memberArr.filter(m => m && (s1.contract.confirmedMembers[m.id] || (m.name && s1.contract.confirmedMembers[m.name]))).length;
+    const confirmedCount = memberArr.filter(m => isMemberDone(s1.contract.confirmedMembers, m)).length;
 
     if (confirmedCount >= totalMembersCount) {
       s1.contract.isConfirmed = true;
@@ -6148,7 +6148,7 @@ ${chatSnippet}
 
         // 🛡️ 守卫拦截：必须先走完二审半程自查与会议全流程（全员打卡完成），或者总时间临近截止（<= 5分钟），才允许点击确认初稿！
         const subs = s2.meetingSubmissions || {};
-        const subCount = Object.keys(subs).length;
+        const subCount = memberArr.filter(m => isMemberDone(subs, m)).length;
         const isMeetingDone = s2.isMeetingLocked || (subCount >= totalMembersCount && totalMembersCount > 0);
 
         const curTask = this.authManager ? this.authManager.getTasks().find(t => t.id === this.state.activeTaskId) : null;
@@ -6288,7 +6288,7 @@ ${chatSnippet}
         if (!s3._firstSignTimeMs) s3._firstSignTimeMs = Date.now();
         s3._lastSignTimeMs = Date.now();
 
-        const confirmedCount = memberArr.filter(m => m && (s3.confirmedMembers[m.id] || (m.name && s3.confirmedMembers[m.name]))).length;
+        const confirmedCount = memberArr.filter(m => isMemberDone(s3.confirmedMembers, m)).length;
         const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
         const memberName = currMemObj?.name || currUserObj?.name || '组员';
 
