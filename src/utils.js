@@ -1188,13 +1188,13 @@ export function liftEtherpadReadonly(iframe) {
     iframe.addEventListener('load', () => {
       if (!iframe._isReadonlyEnforced) {
         tryUnlock();
-        [50, 150, 300, 600, 1000, 1500, 2500].forEach(delay => setTimeout(tryUnlock, delay));
+        setTimeout(tryUnlock, 300);
       }
     });
   }
 
   tryUnlock();
-  [50, 100, 200, 350, 600, 1000, 1500, 2500, 4000].forEach(delay => setTimeout(tryUnlock, delay));
+  setTimeout(tryUnlock, 300);
 }
 if (typeof window !== 'undefined') {
   window.liftEtherpadReadonly = liftEtherpadReadonly;

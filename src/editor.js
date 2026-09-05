@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2629";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2629";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260905_v2629";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2630";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2630";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260905_v2630";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -2101,7 +2101,7 @@ function renderStage2Canvas(canvas, state, handlers) {
         }
       }
 
-      // 🛡️ 工具栏与输入守卫：只要阶段二处于进行中且可编辑，确保阶段二遮罩立刻移除，工具栏持续常驻
+      // 🛡️ 状态守卫：只要阶段二处于进行中且可编辑，确保阶段二外层遮罩彻底移除
       if (!isEditorReadonly) {
         const s2f = document.getElementById('stage2-etherpad-frame');
         if (s2f) {
@@ -2112,7 +2112,6 @@ function renderStage2Canvas(canvas, state, handlers) {
           if (s2f._isReadonlyEnforced) {
             liftEtherpadReadonly(s2f);
           }
-          ensureEtherpadUserSync(s2f, currUserName, currUserColor);
         }
       }
     } catch (e) {}
