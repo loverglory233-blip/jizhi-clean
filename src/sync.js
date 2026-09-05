@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2566';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2566';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2567';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2567';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1560,14 +1560,10 @@ export class CloudSyncEngine {
     }
 
     if (remoteData.stepConfirmations !== undefined) {
-      if (!this.app.state.stepConfirmations) this.app.state.stepConfirmations = {};
-      const localStr = JSON.stringify(this.app.state.stepConfirmations);
+      const localStr = JSON.stringify(this.app.state.stepConfirmations || {});
       const remoteConfs = remoteData.stepConfirmations || {};
-      for (const [stepKey, userMap] of Object.entries(remoteConfs)) {
-        if (!this.app.state.stepConfirmations[stepKey]) this.app.state.stepConfirmations[stepKey] = {};
-        Object.assign(this.app.state.stepConfirmations[stepKey], userMap || {});
-      }
-      if (JSON.stringify(this.app.state.stepConfirmations) !== localStr) {
+      this.app.state.stepConfirmations = remoteConfs;
+      if (JSON.stringify(remoteConfs) !== localStr) {
         needWorkspaceRender = true;
       }
     }

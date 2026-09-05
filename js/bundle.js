@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2566
+ * Version: 20260905_v2567
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2566';
+  const APP_VERSION = '20260905_v2567';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5802,14 +5802,10 @@
       }
 
       if (remoteData.stepConfirmations !== undefined) {
-        if (!this.app.state.stepConfirmations) this.app.state.stepConfirmations = {};
-        const localStr = JSON.stringify(this.app.state.stepConfirmations);
+        const localStr = JSON.stringify(this.app.state.stepConfirmations || {});
         const remoteConfs = remoteData.stepConfirmations || {};
-        for (const [stepKey, userMap] of Object.entries(remoteConfs)) {
-          if (!this.app.state.stepConfirmations[stepKey]) this.app.state.stepConfirmations[stepKey] = {};
-          Object.assign(this.app.state.stepConfirmations[stepKey], userMap || {});
-        }
-        if (JSON.stringify(this.app.state.stepConfirmations) !== localStr) {
+        this.app.state.stepConfirmations = remoteConfs;
+        if (JSON.stringify(remoteConfs) !== localStr) {
           needWorkspaceRender = true;
         }
       }
@@ -11105,6 +11101,17 @@
    */
 
 
+  /**
+   * 🛡️ 全局提炼互斥状态判定工具函数
+   */
+  function isAnyExtracting(state = null) {
+    return !!(
+      (window.app && (window.app._isGeneratingContract || window.app._isExtractingTopic || window.app._isExtractingTime || window.app._isExtractingTasks)) ||
+      (state && state.activeAgentAnalyzing) ||
+      (window.app && window.app.state && window.app.state.activeAgentAnalyzing)
+    );
+  }
+
   /* ==========================================================================
      8. UI RENDERER (STUDENT CANVAS & HEADER)
      ========================================================================== */
@@ -11366,7 +11373,7 @@
     const currUserObj = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
     const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
     const membersList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
-    const totalMembersCount = membersList.length;
+    const totalMembersCount = Math.max(membersList.length, 2);
 
     if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
     if (!s1.contract.timeAllocations) s1.contract.timeAllocations = {};
@@ -11557,13 +11564,27 @@
             <div id="stage1-contract-action-bar-mount" style="margin-top:12px; display:flex; justify-content:center;">
               ${(() => {
                 const confs = state.stepConfirmations || {};
+                const isExtractingAny = isAnyExtracting(state);
+                const genericNames = ['学生', '组员', '我', '未分配', '匿名', 'a', 'b', 'c', 'user', 'undefined', 'null'];
+
                 const isDoneHelper = (map) => {
                   if (!map) return 0;
-                  return membersList.filter(m => map[m.id]  || (m.name && map[m.name])).length;
+                  return membersList.filter(m => {
+                    if (!m) return false;
+                    const mId = String(m.id || m.userId || (typeof m === 'string' ? m : '')).trim().toLowerCase();
+                    const mName = String(m.name || '').trim().toLowerCase();
+                    if (mId && (map[mId] || map[mId.toUpperCase()])) return true;
+                    if (mName && !genericNames.includes(mName) && map[mName]) return true;
+                    return false;
+                  }).length;
                 };
                 const isMyDoneHelper = (map) => {
                   if (!map) return false;
-                  return isMemberDone(map, currUserObj || { id: currentUser, name: currentUserName });
+                  const myUid = String(currUserObj?.id || currentUser || '').trim().toLowerCase();
+                  const myName = String(currentUserName || currUserObj?.name || '').trim().toLowerCase();
+                  if (myUid && (map[myUid] || map[myUid.toUpperCase()])) return true;
+                  if (myName && !genericNames.includes(myName) && map[myName]) return true;
+                  return false;
                 };
 
                 if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
@@ -11576,27 +11597,30 @@
                   const count = isDoneHelper(confs.s1_tasks);
                   const isMe = isMyDoneHelper(confs.s1_tasks);
                   const isFull = count >= totalMembersCount && totalMembersCount > 0;
-                  const isExtracting = !!(window.app && window.app._isExtractingTasks);
+                  const isTasksRunning = !!(window.app && window.app._isExtractingTasks);
+                  const isTasksDisabled = isExtractingAny;
                   return `
-                    <button id="btn-extract-tasks" style="background:${isExtracting ? 'linear-gradient(135deg, #d97706, #b45309)' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)'))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isExtracting ? 'not-allowed' : 'pointer'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;" ${isExtracting ? 'disabled' : ''}>
-                      ${isExtracting ? `⏳ 正在提炼【任务分工】...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【任务分工】` : (isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`))}
+                    <button id="btn-extract-tasks" style="background:${isTasksRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTasksDisabled ? 'not-allowed' : 'pointer'}; opacity:${isTasksDisabled ? '0.6' : '1'}; pointer-events:${isTasksDisabled ? 'none' : 'auto'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;" ${isTasksDisabled ? 'disabled' : ''}>
+                      ${isTasksRunning ? `⏳ 正在提炼【任务分工】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【任务分工】` : (isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`)))}
                     </button>
                   `;
                 } else if (s1.contractStep === 'time') {
                   const count = isDoneHelper(confs.s1_time);
                   const isMe = isMyDoneHelper(confs.s1_time);
                   const isFull = count >= totalMembersCount && totalMembersCount > 0;
-                  const isExtracting = !!(window.app && window.app._isExtractingTime);
+                  const isTimeRunning = !!(window.app && window.app._isExtractingTime);
+                  const isTimeDisabled = isExtractingAny;
                   return `
-                    <button id="btn-extract-time" style="background:${isExtracting ? 'linear-gradient(135deg, #d97706, #b45309)' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)'))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isExtracting ? 'not-allowed' : 'pointer'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;" ${isExtracting ? 'disabled' : ''}>
-                      ${isExtracting ? `⏳ 正在提炼【时间分配】...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【时间分配】` : (isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`))}
+                    <button id="btn-extract-time" style="background:${isTimeRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTimeDisabled ? 'not-allowed' : 'pointer'}; opacity:${isTimeDisabled ? '0.6' : '1'}; pointer-events:${isTimeDisabled ? 'none' : 'auto'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;" ${isTimeDisabled ? 'disabled' : ''}>
+                      ${isTimeRunning ? `⏳ 正在提炼【时间分配】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【时间分配】` : (isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`)))}
                     </button>
                   `;
                 } else {
                   const count = isDoneHelper(confs.s1_topic);
                   const isMe = isMyDoneHelper(confs.s1_topic);
                   const isFull = count >= totalMembersCount && totalMembersCount > 0;
-                  const isExtracting = !!(window.app && window.app._isExtractingTopic);
+                  const isTopicRunning = !!(window.app && window.app._isExtractingTopic);
+                  const isTopicDisabled = isExtractingAny;
                   if (!isVotingComplete) {
                     return `
                       <button id="btn-extract-topic" class="locked-pending-btn" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
@@ -11606,8 +11630,8 @@
                   }
                   const extractName = (taskGenreKey === 'instructional') ? '课题与教学构想' : '主题与研究方案';
                   return `
-                    <button id="btn-extract-topic" style="background:${isExtracting ? 'linear-gradient(135deg, #d97706, #b45309)' : (isFull ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isExtracting ? 'not-allowed' : 'pointer'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;" ${isExtracting ? 'disabled' : ''}>
-                      ${isExtracting ? `⏳ 正在提炼【${extractName}】...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【${extractName}】` : (isMe ? `✅ 您已确认提炼${extractName} (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【${extractName}】 (${count}/${totalMembersCount})`))}
+                    <button id="btn-extract-topic" style="background:${isTopicRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTopicDisabled ? 'not-allowed' : 'pointer'}; opacity:${isTopicDisabled ? '0.6' : '1'}; pointer-events:${isTopicDisabled ? 'none' : 'auto'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;" ${isTopicDisabled ? 'disabled' : ''}>
+                      ${isTopicRunning ? `⏳ 正在提炼【${extractName}】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【${extractName}】` : (isMe ? `✅ 您已确认提炼${extractName} (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【${extractName}】 (${count}/${totalMembersCount})`)))}
                     </button>
                   `;
                 }
@@ -14448,10 +14472,11 @@
     const s2 = state.stage2 || {};
     const curStage = state.currentStage || 'stage1';
     const membersList = Object.values(state.members || []);
-    const totalCount = membersList.length || 3;
+    const totalCount = Math.max(membersList.length, 2);
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
     const myCode = currUser?.id || state.currentUser || '';
     const confs = Object.assign({}, state.stepConfirmations || {}, s2.confirmations || {});
+    const genericNames = ['学生', '组员', '我', '未分配', '匿名', 'a', 'b', 'c', 'user', 'undefined', 'null'];
 
     const isDoneHelper = (map) => {
       if (!map) return 0;
@@ -14460,12 +14485,11 @@
         if (!fullUser && window.app && window.app.authManager && window.app.authManager.findUserByKey) {
           fullUser = window.app.authManager.findUserByKey(m);
         }
-        const keys = [
-          typeof m === 'string' ? m : null,
-          m?.id, m?.name,
-          fullUser?.id, fullUser?.name
-        ].filter(Boolean).map(k => String(k).trim().toLowerCase());
-        return keys.some(k => map[k] || map[String(k)]);
+        const mId = String(m?.id || fullUser?.id || (typeof m === 'string' ? m : '')).trim().toLowerCase();
+        const mName = String(m?.name || fullUser?.name || '').trim().toLowerCase();
+        if (mId && (map[mId] || map[mId.toUpperCase()])) return true;
+        if (mName && !genericNames.includes(mName) && (map[mName] || map[mName.toUpperCase()])) return true;
+        return false;
       }).length;
     };
 
@@ -14475,11 +14499,11 @@
       if (!fullUser && window.app && window.app.authManager && window.app.authManager.findUserByKey) {
         fullUser = window.app.authManager.findUserByKey(myCode);
       }
-      const keys = [
-        myCode, currUser?.id, currUser?.name,
-        fullUser?.id, fullUser?.name
-      ].filter(Boolean).map(k => String(k).trim().toLowerCase());
-      return keys.some(k => map[k] || map[String(k)]);
+      const myId = String(currUser?.id || fullUser?.id || myCode || '').trim().toLowerCase();
+      const myName = String(currUser?.name || fullUser?.name || '').trim().toLowerCase();
+      if (myId && (map[myId] || map[myId.toUpperCase()])) return true;
+      if (myName && !genericNames.includes(myName) && (map[myName] || map[myName.toUpperCase()])) return true;
+      return false;
     };
 
     const s2Subs = s2.meetingSubmissions || {};
@@ -14528,13 +14552,20 @@
         `;
       } else if (elapsedSec >= 13 * 60) {
         actionBar.style.display = 'block';
-        const isGenerating = !!(window.app && window.app._isGeneratingContract);
+        const isGeneratingContract = !!(window.app && window.app._isGeneratingContract);
+        const isExtractingAny = isAnyExtracting(state);
         const isFailed = !!(window.app && window.app._contractGenerateFailed);
 
-        if (isGenerating) {
+        if (isGeneratingContract) {
           actionBar.innerHTML = `
-            <button id="btn-s1-auto-generate-contract" disabled style="background:#94a3b8; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px;">
+            <button id="btn-s1-auto-generate-contract" disabled style="background:#94a3b8; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:not-allowed; opacity:0.6; pointer-events:none; display:inline-flex; align-items:center; gap:6px;">
               ⏳ 拍卖师正在通读研讨并提炼公约草案...
+            </button>
+          `;
+        } else if (isExtractingAny) {
+          actionBar.innerHTML = `
+            <button id="btn-s1-auto-generate-contract" disabled style="background:#94a3b8; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:not-allowed; opacity:0.6; pointer-events:none; display:inline-flex; align-items:center; gap:6px;">
+              ⏳ 智能体正在提炼中，请稍候...
             </button>
           `;
         } else if (isFailed) {
@@ -14556,7 +14587,7 @@
         }
 
         actionBar.querySelector('#btn-s1-auto-generate-contract')?.addEventListener('click', () => {
-          if (!isGenerating && window.app && typeof window.app.handleOneClickGenerateContract === 'function') {
+          if (!isExtractingAny && !isGeneratingContract && window.app && typeof window.app.handleOneClickGenerateContract === 'function') {
             window.app.handleOneClickGenerateContract();
           }
         });
@@ -18250,16 +18281,74 @@
     }
 
     /**
-     * 🌟 通用全员协同确认包装器：需组内全员点击确认后才真正触发大模型生成并推进（原子后端 API 驱动，零覆盖）
+     * 🛡️ 全局提炼互斥判定：当任意一处（左侧主题/时间/分工，或右侧一键提炼）正在进行 AI 提炼时，全部按键互斥置灰
+     */
+    isAnyExtracting() {
+      return !!(
+        this._isGeneratingContract ||
+        this._isExtractingTopic ||
+        this._isExtractingTime ||
+        this._isExtractingTasks ||
+        (this.state && this.state.activeAgentAnalyzing)
+      );
+    }
+
+    /**
+     * 🛡️ 稳健精确统计指定步骤已确认成员人数（严格按用户唯一 ID 匹配，剔除泛化通用名，绝不单人冒充全组）
+     */
+    getStepConfirmedCount(stepKey, memberList = null) {
+      let members = memberList;
+      if (!members || members.length === 0) {
+        if (this.authManager) {
+          const u = this.authManager.getCurrentUser();
+          const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
+          const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
+          const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null, effClassId);
+          const authMembers = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+          if (authMembers.length > 0) members = authMembers;
+        }
+        if (!members || members.length === 0) {
+          members = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
+        }
+      }
+      if (!Array.isArray(members)) members = Object.values(members || {});
+      const confMap = (this.state.stepConfirmations && this.state.stepConfirmations[stepKey]) || {};
+      const genericNames = ['学生', '组员', '我', '未分配', '匿名', 'a', 'b', 'c', 'user', 'undefined', 'null'];
+
+      return members.filter(m => {
+        if (!m) return false;
+        const mId = String(m.id || m.userId || (typeof m === 'string' ? m : '')).trim().toLowerCase();
+        const mName = String(m.name || '').trim().toLowerCase();
+        if (mId && (confMap[mId] || confMap[mId.toUpperCase()])) return true;
+        if (mName && !genericNames.includes(mName) && confMap[mName]) return true;
+        return false;
+      }).length;
+    }
+
+    /**
+     * 🌟 通用全员协同确认包装器：需组内全员点击确认后才真正触发大模型生成并推进（原子后端 API 驱动，零覆盖，严格全员校验）
      */
     async handleStepConfirmation(stepKey, onCompleteCallback, stepLabel) {
+      if (this.isAnyExtracting()) {
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+        }
+        return;
+      }
+
       if (!this.state.stepConfirmations) this.state.stepConfirmations = {};
       if (!this.state.stepConfirmations[stepKey]) this.state.stepConfirmations[stepKey] = {};
 
       const user = this.state.currentUser;
       const currUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
-      const primaryKey = String(currUserObj?.id || user || 'A').trim();
-      const userKeys = [primaryKey, user, currUserObj?.id, currUserObj?.name].filter(Boolean);
+      const primaryKey = String(currUserObj?.id || user || '').trim();
+      if (!primaryKey) return;
+
+      const genericNames = ['学生', '组员', '我', '未分配', '匿名', 'a', 'b', 'c', 'user', 'undefined', 'null'];
+      const userKeys = [primaryKey];
+      if (currUserObj?.name && !genericNames.includes(String(currUserObj.name).trim().toLowerCase())) {
+        userKeys.push(String(currUserObj.name).trim());
+      }
 
       let members = [];
       if (this.authManager) {
@@ -18279,9 +18368,13 @@
 
       const isAlreadyDone = userKeys.some(k => this.state.stepConfirmations[stepKey][k]);
       if (isAlreadyDone) {
-        const currentCount = members.filter(m => isMemberDone(this.state.stepConfirmations[stepKey], m)).length;
+        const currentCount = this.getStepConfirmedCount(stepKey, members);
         if (currentCount < totalCount) {
-          alert(`💡 您已经确认过【${stepLabel}】啦！\n当前全组确认进度：${currentCount}/${totalCount} 人。\n请提醒组内其他同学点击确认，全员确认后将自动提炼并推进！`);
+          if (typeof showGlobalBannerNotice === 'function') {
+            showGlobalBannerNotice('💡 您已确认过', `您已经确认过【${stepLabel}】啦！当前全组确认进度：${currentCount}/${totalCount} 人。请提醒组内其他同学点击确认，全员确认后将自动提炼并推进！`, 'info', 4000);
+          } else {
+            alert(`💡 您已经确认过【${stepLabel}】啦！\n当前全组确认进度：${currentCount}/${totalCount} 人。\n请提醒组内其他同学点击确认，全员确认后将自动提炼并推进！`);
+          }
           return;
         }
       }
@@ -18290,6 +18383,7 @@
       userKeys.forEach(k => { this.state.stepConfirmations[stepKey][k] = true; });
       this.renderStudentWorkspace();
       if (typeof window.renderChat === 'function') window.renderChat(this.state);
+      if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
 
       // 2. ⚡ 原子提交至服务端 confirm_step 接口，合并全组成员点击
       const activeTaskId = this.state.activeTaskId || null;
@@ -18318,11 +18412,20 @@
       }
 
       // 3. 重新聚合计算全组确认达成人数
-      const finalCount = members.filter(m => isMemberDone(this.state.stepConfirmations[stepKey], m)).length;
+      const finalCount = this.getStepConfirmedCount(stepKey, members);
       this.renderStudentWorkspace();
       if (typeof window.renderChat === 'function') window.renderChat(this.state);
+      if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
 
-      // 4. 达成全员确认：保持确认态供各端展示“正在提炼”，并在大模型成功落库后再清理
+      // 4. 未达成全员确认：友善提示等待其他组员，绝不单人抢跑
+      if (finalCount < totalCount) {
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('💡 已确认', `您已完成【${stepLabel}】确认！当前全组确认进度：${finalCount}/${totalCount} 人。请提醒组内其他同学点击确认，全员确认后将自动提炼！`, 'info', 4000);
+        }
+        return;
+      }
+
+      // 5. 达成全员确认：保持确认态供各端展示“正在提炼”，并在大模型成功落库后再清理
       if (finalCount >= totalCount) {
         if (typeof onCompleteCallback === 'function') {
           onCompleteCallback();
@@ -18356,15 +18459,16 @@
      * 💡 阶段一公约第一步：一键提炼【主题与研究方案】
      */
     async handleExtractTopic() {
+      if (this.isAnyExtracting()) {
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+        }
+        return;
+      }
       const s1 = this.state.stage1 || {};
-      const confs = this.state.stepConfirmations || {};
       const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
-      const totalCount = membersList.length || 2;
-      const isDoneHelper = (map) => {
-        if (!map) return 0;
-        return membersList.filter(m => map[m.id] || (m.name && map[m.name])).length;
-      };
-      const count = isDoneHelper(confs.s1_topic);
+      const totalCount = Math.max(membersList.length, 2);
+      const count = this.getStepConfirmedCount('s1_topic', membersList);
       if (count >= totalCount && totalCount > 0) {
         return this._doExtractTopic();
       }
@@ -18584,6 +18688,7 @@
         this._isExtractingTopic = false;
         this.setActiveAgentAnalyzing(null);
         this.renderStudentWorkspace();
+        if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
       }
     }
 
@@ -18591,15 +18696,16 @@
      * ⏱️ 阶段一公约第二步：一键提炼【时间分配】
      */
     async handleExtractTime() {
+      if (this.isAnyExtracting()) {
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+        }
+        return;
+      }
       const s1 = this.state.stage1 || {};
-      const confs = this.state.stepConfirmations || {};
       const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
-      const totalCount = membersList.length || 2;
-      const isDoneHelper = (map) => {
-        if (!map) return 0;
-        return membersList.filter(m => map[m.id] || (m.name && map[m.name])).length;
-      };
-      const count = isDoneHelper(confs.s1_time);
+      const totalCount = Math.max(membersList.length, 2);
+      const count = this.getStepConfirmedCount('s1_time', membersList);
       if (count >= totalCount && totalCount > 0) {
         return this._doExtractTime();
       }
@@ -18783,6 +18889,7 @@
         this._isExtractingTime = false;
         this.setActiveAgentAnalyzing(null);
         this.renderStudentWorkspace();
+        if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
       }
     }
 
@@ -18790,15 +18897,16 @@
      * 👥 阶段一公约第三步：一键提炼【任务分工】并生成完整草案
      */
     async handleExtractTasks() {
+      if (this.isAnyExtracting()) {
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+        }
+        return;
+      }
       const s1 = this.state.stage1 || {};
-      const confs = this.state.stepConfirmations || {};
       const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
-      const totalCount = membersList.length || 2;
-      const isDoneHelper = (map) => {
-        if (!map) return 0;
-        return membersList.filter(m => map[m.id] || (m.name && map[m.name])).length;
-      };
-      const count = isDoneHelper(confs.s1_tasks);
+      const totalCount = Math.max(membersList.length, 2);
+      const count = this.getStepConfirmedCount('s1_tasks', membersList);
       if (count >= totalCount && totalCount > 0) {
         return this._doExtractTasks();
       }
@@ -18982,6 +19090,7 @@
         this._isExtractingTasks = false;
         this.setActiveAgentAnalyzing(null);
         this.renderStudentWorkspace();
+        if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
       }
     }
 
@@ -18989,15 +19098,22 @@
      * 📜 阶段一公约终极一键补齐/生成：需全员确认同意后触发通读研讨并提炼
      */
     async handleOneClickGenerateContract() {
+      if (this.isAnyExtracting()) {
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+        }
+        return;
+      }
       const s1 = this.state.stage1 || {};
-      const confs = this.state.stepConfirmations || {};
+      if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('📜 公约草案已生成', '公约草案已全部就绪，请直接在左侧公约下方核对并签署！');
+        }
+        return;
+      }
       const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
-      const totalCount = membersList.length || 2;
-      const isDoneHelper = (map) => {
-        if (!map) return 0;
-        return membersList.filter(m => map[m.id] || (m.name && map[m.name])).length;
-      };
-      const count = isDoneHelper(confs.s1_full_contract);
+      const totalCount = Math.max(membersList.length, 2);
+      const count = this.getStepConfirmedCount('s1_full_contract', membersList);
       if (count >= totalCount && totalCount > 0) {
         return this._doOneClickGenerateContract();
       }
@@ -19007,23 +19123,23 @@
     async _doOneClickGenerateContract(btnElement = null) {
       if (this._isGeneratingContract) return;
       this._isGeneratingContract = true;
-      this.renderStudentWorkspace();
-      if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
+      try {
+        this.renderStudentWorkspace();
+        if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
 
-      if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
-        btnElement.disabled = true;
-        btnElement.style.opacity = '0.6';
-        btnElement.style.cursor = 'not-allowed';
-        btnElement.innerHTML = `⏳ 正在重新生成【全套公约草案】...`;
-      }
-      const s1 = this.state.stage1 || {};
-      if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
-        if (typeof showGlobalBannerNotice === 'function') {
-          showGlobalBannerNotice('📜 公约草案已生成', '公约草案已全部就绪，请直接在左侧公约下方核对并签署！');
+        if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
+          btnElement.disabled = true;
+          btnElement.style.opacity = '0.6';
+          btnElement.style.cursor = 'not-allowed';
+          btnElement.innerHTML = `⏳ 正在重新生成【全套公约草案】...`;
         }
-        this._isGeneratingContract = false;
-        return;
-      }
+        const s1 = this.state.stage1 || {};
+        if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
+          if (typeof showGlobalBannerNotice === 'function') {
+            showGlobalBannerNotice('📜 公约草案已生成', '公约草案已全部就绪，请直接在左侧公约下方核对并签署！');
+          }
+          return;
+        }
 
       if (typeof showGlobalBannerNotice === 'function') {
         showGlobalBannerNotice('⏳ 正在一键智能生成全套公约草案...', '拍卖师正在分析全组投票后的全部讨论，一一对应提炼课题方案、时间规划与成员分工...', 'info', 4000);
@@ -19248,11 +19364,6 @@
         }
       } catch (err) {
         console.warn('One-click generate contract AI call error:', err);
-      } finally {
-        this._isGeneratingContract = false;
-        this.setActiveAgentAnalyzing(null);
-        this.renderStudentWorkspace();
-        if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
       }
 
       // 🛡️ 严格遵循真实研讨：若确实没有提取出方案，直接显示“暂无”，绝对不添加任何预设套话兜底！
@@ -19354,7 +19465,13 @@
       if (typeof showGlobalBannerNotice === 'function') {
         showGlobalBannerNotice('🎉 公约草案已全部生成就绪！', '请各位组员在左侧公约看板核对分工与时间规划，并在下方签署确认！', 'success', 6000);
       }
+    } finally {
+      this._isGeneratingContract = false;
+      this.setActiveAgentAnalyzing(null);
+      this.renderStudentWorkspace();
+      if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
     }
+  }
 
     /**
      * ✍️ 阶段一：小组成员点击签署确认学术合作公约
@@ -20927,22 +21044,23 @@
           }
         }
 
-        // 🛡️ 实时动态更新公约顶部操作提炼按钮及协同确认计数
+        // 🛡️ 实时动态更新公约顶部操作提炼按钮及协同确认计数 (全链路互斥置灰与精准法定人数)
         const contractActionBarMount = document.getElementById('stage1-contract-action-bar-mount');
         if (contractActionBarMount && !isContractLocked) {
-          const confs = this.state.stepConfirmations || {};
-          const totalMembersCount = membersList.length || 2;
-          const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && (s1.hasVoted[m.id] || s1.hasVoted[m.id]  || (m.name && s1.hasVoted[m.name]))))).length;
+          const totalMembersCount = Math.max(membersList.length, 2);
+          const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && (s1.hasVoted[m.id] || (m.name && s1.hasVoted[m.name]))))).length;
           const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
           const currUserCode = this.state.currentUser;
+          const isExtractingAny = this.isAnyExtracting();
 
-          const isDoneHelper = (map) => {
-            if (!map) return 0;
-            return membersList.filter(m => map[m.id]  || (m.name && map[m.name])).length;
-          };
-          const isMyDoneHelper = (map) => {
-            if (!map) return false;
-            return !!(map[currUserCode] || (currentUserObj && (map[currentUserObj.id] || map[currentUserObj.id] || map[currentUserObj.name])));
+          const isMyDoneHelper = (stepKey) => {
+            const map = (this.state.stepConfirmations && this.state.stepConfirmations[stepKey]) || {};
+            const myUid = String(currUserCode || '').trim().toLowerCase();
+            const myName = String(currentUserObj?.name || '').trim().toLowerCase();
+            const genericNames = ['学生', '组员', '我', '未分配', '匿名', 'a', 'b', 'c', 'user', 'undefined', 'null'];
+            if (myUid && (map[myUid] || map[myUid.toUpperCase()])) return true;
+            if (myName && !genericNames.includes(myName) && map[myName]) return true;
+            return false;
           };
 
           if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
@@ -20952,32 +21070,35 @@
               </div>
             `;
           } else if (s1.contractStep === 'tasks') {
-            const count = isDoneHelper(confs.s1_tasks);
-            const isMe = isMyDoneHelper(confs.s1_tasks);
+            const count = this.getStepConfirmedCount('s1_tasks', membersList);
+            const isMe = isMyDoneHelper('s1_tasks');
             const isFull = count >= totalMembersCount && totalMembersCount > 0;
-            const isExtracting = !!(this._isExtractingTasks);
+            const isTasksRunning = !!(this._isExtractingTasks);
+            const isTasksDisabled = isExtractingAny;
             contractActionBarMount.innerHTML = `
-              <button id="btn-extract-tasks" style="background:${isExtracting ? 'linear-gradient(135deg, #d97706, #b45309)' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)'))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;" ${isExtracting ? 'disabled' : ''}>
-                ${isExtracting ? `⏳ 正在提炼【任务分工】...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【任务分工】` : (isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`))}
+              <button id="btn-extract-tasks" style="background:${isTasksRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)'))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTasksDisabled ? 'not-allowed' : 'pointer'}; opacity:${isTasksDisabled ? '0.6' : '1'}; pointer-events:${isTasksDisabled ? 'none' : 'auto'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;" ${isTasksDisabled ? 'disabled' : ''}>
+                ${isTasksRunning ? `⏳ 正在提炼【任务分工】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【任务分工】` : (isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`)))}
               </button>
             `;
             contractActionBarMount.querySelector('#btn-extract-tasks')?.addEventListener('click', () => this.handleExtractTasks());
           } else if (s1.contractStep === 'time') {
-            const count = isDoneHelper(confs.s1_time);
-            const isMe = isMyDoneHelper(confs.s1_time);
+            const count = this.getStepConfirmedCount('s1_time', membersList);
+            const isMe = isMyDoneHelper('s1_time');
             const isFull = count >= totalMembersCount && totalMembersCount > 0;
-            const isExtracting = !!(this._isExtractingTime);
+            const isTimeRunning = !!(this._isExtractingTime);
+            const isTimeDisabled = isExtractingAny;
             contractActionBarMount.innerHTML = `
-              <button id="btn-extract-time" style="background:${isExtracting ? 'linear-gradient(135deg, #d97706, #b45309)' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)'))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;" ${isExtracting ? 'disabled' : ''}>
-                ${isExtracting ? `⏳ 正在提炼【时间分配】...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【时间分配】` : (isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`))}
+              <button id="btn-extract-time" style="background:${isTimeRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)'))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTimeDisabled ? 'not-allowed' : 'pointer'}; opacity:${isTimeDisabled ? '0.6' : '1'}; pointer-events:${isTimeDisabled ? 'none' : 'auto'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;" ${isTimeDisabled ? 'disabled' : ''}>
+                ${isTimeRunning ? `⏳ 正在提炼【时间分配】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【时间分配】` : (isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`)))}
               </button>
             `;
             contractActionBarMount.querySelector('#btn-extract-time')?.addEventListener('click', () => this.handleExtractTime());
           } else {
-            const count = isDoneHelper(confs.s1_topic);
-            const isMe = isMyDoneHelper(confs.s1_topic);
+            const count = this.getStepConfirmedCount('s1_topic', membersList);
+            const isMe = isMyDoneHelper('s1_topic');
             const isFull = count >= totalMembersCount && totalMembersCount > 0;
-            const isExtracting = !!(this._isExtractingTopic);
+            const isTopicRunning = !!(this._isExtractingTopic);
+            const isTopicDisabled = isExtractingAny;
             if (!isVotingComplete) {
               contractActionBarMount.innerHTML = `
                 <button id="btn-extract-topic" class="locked-pending-btn" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
@@ -20991,8 +21112,8 @@
               const isInst = (this.getCurrentTaskType() === 'instructional');
               const extractName = isInst ? '课题与教学构想' : '主题与研究方案';
               contractActionBarMount.innerHTML = `
-                <button id="btn-extract-topic" style="background:${isExtracting ? 'linear-gradient(135deg, #d97706, #b45309)' : (isFull ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;" ${isExtracting ? 'disabled' : ''}>
-                  ${isExtracting ? `⏳ 正在提炼【${extractName}】...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【${extractName}】` : (isMe ? `✅ 您已确认提炼${extractName} (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【${extractName}】 (${count}/${totalMembersCount})`))}
+                <button id="btn-extract-topic" style="background:${isTopicRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTopicDisabled ? 'not-allowed' : 'pointer'}; opacity:${isTopicDisabled ? '0.6' : '1'}; pointer-events:${isTopicDisabled ? 'none' : 'auto'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;" ${isTopicDisabled ? 'disabled' : ''}>
+                  ${isTopicRunning ? `⏳ 正在提炼【${extractName}】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【${extractName}】` : (isMe ? `✅ 您已确认提炼${extractName} (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【${extractName}】 (${count}/${totalMembersCount})`)))}
                 </button>
               `;
               contractActionBarMount.querySelector('#btn-extract-topic')?.addEventListener('click', () => this.handleExtractTopic());
