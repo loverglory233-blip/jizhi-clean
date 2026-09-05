@@ -43,7 +43,12 @@ function normalize_id_php($id) {
 
 function is_same_id_php($id1, $id2) {
     if ($id1 === null || $id1 === '' || $id2 === null || $id2 === '') return false;
-    return strtolower(trim((string)$id1)) === strtolower(trim((string)$id2));
+    $s1 = strtolower(trim((string)$id1));
+    $s2 = strtolower(trim((string)$id2));
+    if ($s1 === $s2) return true;
+    $norm1 = preg_replace('/^(group_|task_|class_|user_|mem_)/', '', $s1);
+    $norm2 = preg_replace('/^(group_|task_|class_|user_|mem_)/', '', $s2);
+    return ($norm1 !== '' && $norm1 === $norm2);
 }
 
 // 🛠️ 智能 Base64 图片文件化清洗迁移器（无损提取为物理文件并回写极短 URL，彻底杜绝内存撑爆与数据截断）
@@ -968,6 +973,10 @@ if ($action === 'get_teacher_monitor_all_groups') {
         $groupPresencePool = [];
         foreach ($rows as $r) {
             $stateMap[$r['group_id']] = $r;
+            $stateMap[$r['scope_key']] = $r;
+            $normRId = preg_replace('/^group_/', '', $r['group_id']);
+            $stateMap[$normRId] = $r;
+            $stateMap['group_' . $normRId] = $r;
             if (!empty($r['presence_data'])) {
                 $pDec = json_decode($r['presence_data'], true);
                 if (is_array($pDec)) {
@@ -994,7 +1003,16 @@ if ($action === 'get_teacher_monitor_all_groups') {
         $allScopeKeys = [];
         $groupScopeMap = [];
         foreach ($allGroupIds as $gid) {
-            $r = $stateMap[$gid] ?? null;
+            $normGid = preg_replace('/^group_/', '', $gid);
+            $r = $stateMap[$gid] ?? ($stateMap['group_' . $normGid] ?? ($stateMap[$normGid] ?? null));
+            if (!$r) {
+                foreach ($rows as $candidateRow) {
+                    if (is_same_id_php($candidateRow['group_id'], $gid) || is_same_id_php($candidateRow['scope_key'], $taskId . '_' . $gid)) {
+                        $r = $candidateRow;
+                        break;
+                    }
+                }
+            }
             $sk = $r ? $r['scope_key'] : ($taskId . '_' . $gid);
             $allScopeKeys[] = $sk;
             $groupScopeMap[$gid] = $sk;
@@ -1035,13 +1053,22 @@ if ($action === 'get_teacher_monitor_all_groups') {
         }
 
         foreach ($allGroupIds as $gid) {
-            $r = $stateMap[$gid] ?? null;
-            $sk = $groupScopeMap[$gid];
-            $offGroup = $officialGroups[$gid] ?? null;
+            $normGid = preg_replace('/^group_/', '', $gid);
+            $r = $stateMap[$gid] ?? ($stateMap['group_' . $normGid] ?? ($stateMap[$normGid] ?? null));
+            if (!$r) {
+                foreach ($rows as $candidateRow) {
+                    if (is_same_id_php($candidateRow['group_id'], $gid) || is_same_id_php($candidateRow['scope_key'], $taskId . '_' . $gid)) {
+                        $r = $candidateRow;
+                        break;
+                    }
+                }
+            }
+            $sk = $groupScopeMap[$gid] ?? ($r ? $r['scope_key'] : ($taskId . '_' . $gid));
+            $offGroup = $officialGroups[$gid] ?? ($officialGroups['group_' . $normGid] ?? ($officialGroups[$normGid] ?? null));
 
             // 🛡️ 直接从批量内存字典中秒级提取本组聊天与活跃人，严禁跨任务混合
-            $chats = $batchChatsMap[$sk] ?? ['stage1' => [], 'stage2' => [], 'stage3' => []];
-            $recentActiveSenders = $batchActiveSendersMap[$sk] ?? [];
+            $chats = $batchChatsMap[$sk] ?? ($batchChatsMap[$taskId . '_' . $normGid] ?? ($batchChatsMap[$taskId . '_group_' . $normGid] ?? ['stage1' => [], 'stage2' => [], 'stage3' => []]));
+            $recentActiveSenders = $batchActiveSendersMap[$sk] ?? ($batchActiveSendersMap[$taskId . '_' . $normGid] ?? ($batchActiveSendersMap[$taskId . '_group_' . $normGid] ?? []));
 
             // 提前解码三大阶段工作区数据，供在线判定与监控渲染统一使用
             $s1Data = ($r && !empty($r['stage1_data'])) ? json_decode($r['stage1_data'], true) : [];
@@ -1200,7 +1227,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
                     'groupId'            => $gid,
                     'scopeKey'           => $sk,
                     'currentStage'       => $r ? ($r['current_stage'] ?: 'stage1') : 'stage1',
-                    'stage1'             => ['mergedTitle' => $s1Data['mergedTitle'] ?? ''],
+                    'stage1'             => $s1Data,
                     'stage2'             => [],
                     'stage3'             => [],
                     'chatLogs'           => ['stage1' => [], 'stage2' => [], 'stage3' => []],

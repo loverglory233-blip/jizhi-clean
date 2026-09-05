@@ -17,7 +17,8 @@ import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskE
 export const getPanoGroupData = (pano, gid) => {
   if (!pano || typeof pano !== 'object' || !gid) return null;
   if (pano[gid]) return pano[gid];
-  const found = Object.entries(pano).find(([k]) => isSameId(k, gid));
+  const normGid = String(gid).replace(/^group_/, '');
+  const found = Object.entries(pano).find(([k]) => isSameId(k, gid) || isSameId(k, normGid) || isSameId(k, `group_${normGid}`) || (typeof normalizeId === 'function' && normalizeId(k) === normalizeId(gid)));
   return found ? found[1] : null;
 };
 
