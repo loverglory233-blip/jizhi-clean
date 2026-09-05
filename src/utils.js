@@ -1046,7 +1046,7 @@ export function liftEtherpadReadonly(iframe) {
   if (!iframe) return;
   iframe._isReadonlyEnforced = false;
 
-  // 1. 精准清除当前特定 iframe 容器中的只读拦截遮罩（绝不误删已归档历史阶段的遮罩）
+  // 1. 精准清除当前特定 iframe 容器及整个画布中的只读拦截遮罩
   const removeShields = () => {
     try {
       const container = iframe.parentElement;
@@ -1056,6 +1056,12 @@ export function liftEtherpadReadonly(iframe) {
         const shields = container.querySelectorAll('.etherpad-readonly-shield');
         shields.forEach(s => s.remove());
       }
+      document.querySelectorAll('.etherpad-readonly-shield').forEach(s => {
+        // 如果当前是阶段二可写状态，清理属于阶段二的残留遮罩
+        if (s.closest('#stage-canvas-s2') || s.parentElement?.querySelector('#stage2-etherpad-frame')) {
+          s.remove();
+        }
+      });
     } catch(e) {}
   };
   removeShields();
@@ -1180,13 +1186,13 @@ export function liftEtherpadReadonly(iframe) {
     iframe.addEventListener('load', () => {
       if (!iframe._isReadonlyEnforced) {
         tryUnlock();
-        setTimeout(tryUnlock, 300);
+        [50, 150, 400, 800, 1500, 3000].forEach(delay => setTimeout(tryUnlock, delay));
       }
     });
   }
 
   tryUnlock();
-  setTimeout(tryUnlock, 300);
+  [50, 150, 400, 800, 1500, 3000].forEach(delay => setTimeout(tryUnlock, delay));
 }
 if (typeof window !== 'undefined') {
   window.liftEtherpadReadonly = liftEtherpadReadonly;

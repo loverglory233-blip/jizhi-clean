@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2639";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2639";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2639";
-import { AuthManager } from "./auth.js?v=20260906_v2639";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2639";
-import { renderLoginView } from "./login.js?v=20260906_v2639";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2639";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2639";
+} from "./constants.js?v=20260906_v2640";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2640";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2640";
+import { AuthManager } from "./auth.js?v=20260906_v2640";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2640";
+import { renderLoginView } from "./login.js?v=20260906_v2640";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2640";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2640";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2639";
+} from "./editor.js?v=20260906_v2640";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -401,6 +401,12 @@ export class App {
       }
       if (this.state.stage3?.startTime) {
         this.stage3StartTime = this.state.stage3.startTime;
+      }
+
+      // 🛡️ 阶段防越权自愈自净：若小组在阶段一或阶段二，强制解除任何终稿提交锁定，保证写作畅通
+      if (this.state.currentStage === 'stage1' || this.state.currentStage === 'stage2') {
+        this.state.isFinalSubmitted = false;
+        this.isViewingPastStage = false;
       }
 
       // 🛡️ 阶段防越权自愈自净：若小组尚未正式确认签署阶段二初稿，严禁保留提前触发的阶段三答辩数据

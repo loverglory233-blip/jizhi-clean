@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2639
+ * Version: 20260906_v2640
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2639';
+  const APP_VERSION = '20260906_v2640';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1252,7 +1252,7 @@
     if (!iframe) return;
     iframe._isReadonlyEnforced = false;
 
-    // 1. 精准清除当前特定 iframe 容器中的只读拦截遮罩（绝不误删已归档历史阶段的遮罩）
+    // 1. 精准清除当前特定 iframe 容器及整个画布中的只读拦截遮罩
     const removeShields = () => {
       try {
         const container = iframe.parentElement;
@@ -1262,6 +1262,12 @@
           const shields = container.querySelectorAll('.etherpad-readonly-shield');
           shields.forEach(s => s.remove());
         }
+        document.querySelectorAll('.etherpad-readonly-shield').forEach(s => {
+          // 如果当前是阶段二可写状态，清理属于阶段二的残留遮罩
+          if (s.closest('#stage-canvas-s2') || s.parentElement?.querySelector('#stage2-etherpad-frame')) {
+            s.remove();
+          }
+        });
       } catch(e) {}
     };
     removeShields();
@@ -1386,13 +1392,13 @@
       iframe.addEventListener('load', () => {
         if (!iframe._isReadonlyEnforced) {
           tryUnlock();
-          setTimeout(tryUnlock, 300);
+          [50, 150, 400, 800, 1500, 3000].forEach(delay => setTimeout(tryUnlock, delay));
         }
       });
     }
 
     tryUnlock();
-    setTimeout(tryUnlock, 300);
+    [50, 150, 400, 800, 1500, 3000].forEach(delay => setTimeout(tryUnlock, delay));
   }
   if (typeof window !== 'undefined') {
     window.liftEtherpadReadonly = liftEtherpadReadonly;
@@ -11685,7 +11691,7 @@
     };
     const unreadAnnCount = relevantAnnouncements.filter(a => !isAnnRead(a)).length;
     const isTaskDeadlineExpired = isTaskExpired(currentTask);
-    const isFinalSubmitted = state.isFinalSubmitted || isTaskDeadlineExpired;
+    const isFinalSubmitted = !!state.isFinalSubmitted;
 
     const s1 = state.stage1 || {};
     const s2 = state.stage2 || {};
@@ -13043,11 +13049,11 @@
     const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, currUser || { id: currUserCode, name: currUserName });
     const isDraftFullyConfirmed = !!s2.isDraftConfirmed && (confirmedDraftCount >= actualTotalCount && actualTotalCount > 0);
 
-    // 🛡️ 阶段时序递进锁定铁律：
-    // 1) 处于阶段二进行中（当前在阶段二或初稿未全员确认）：只要任务未截止，阶段二绝对保持协同可写；
-    // 2) 仅当全员已真正全员完成初稿签署且推进至阶段三时，阶段二初稿才锁定为【只读归档】！
-    const isStage2Archived = isDraftFullyConfirmed && (state.currentStage === 'stage3' || state.isFinalSubmitted);
-    const isEditorReadonly = isStage2Archived || !!state.isFinalSubmitted;
+    // 🛡️ 阶段二只读状态权威判定：
+    // 1) 只要学生在阶段二正常撰写（currentStage === 'stage2'），编辑器 100% 保持解锁可编辑状态，绝不因历史快照或截止时间误锁！
+    // 2) 仅当全员已真正全员完成初稿签署且已进入阶段三（currentStage === 'stage3'），或者在回看历史阶段时，阶段二初稿才作为只读归档展示！
+    const isStage2Archived = isDraftFullyConfirmed && (state.currentStage === 'stage3');
+    const isEditorReadonly = isStage2Archived || (state.currentStage !== 'stage2' && !!state.isFinalSubmitted) || !!(window.app && window.app.isViewingPastStage);
 
     if (!userGroupId || userGroupId === 'null' || String(userGroupId || '').startsWith('group_unassigned')) {
       canvas.innerHTML = showResolutionBlock('未检测到您被分配的具体协作小组，请联系教师在教务空间分配小组后再进入');
@@ -13405,16 +13411,14 @@
             }
           }
 
-          // 🛡️ 智能兜底：若作者类名仍未匹配到同伴，且当前是本地粘贴/输入产生的 authorClass，100% 绑定为当前用户
-          if (!matched) {
-            if (isRecentlyTypingLocally || selfMem) {
-              matched = selfMem;
-              if (rawId) {
-                authorMap.set(rawId, selfMem);
-                authorMap.set('a.' + rawId, selfMem);
-                authorMap.set('a-' + rawId, selfMem);
-                authorMap.set(aKey, selfMem);
-              }
+          // 🛡️ 智能兜底：若作者类名仍未匹配到同伴，且当前是本地作者，100% 绑定为当前登录用户
+          if (!matched && selfMem) {
+            matched = selfMem;
+            if (rawId) {
+              authorMap.set(rawId, selfMem);
+              authorMap.set('a.' + rawId, selfMem);
+              authorMap.set('a-' + rawId, selfMem);
+              authorMap.set(aKey, selfMem);
             }
           }
 
@@ -13440,25 +13444,20 @@
           }
         });
 
-        // 5. 处理 unassigned 裸文本（例如刚粘贴进来的大段文字）
+        // 5. 处理 unassigned 裸文本（例如刚粘贴进来的大段文字，杜绝 20 秒倒计时跳变与平分波动）
         const unassignedChars = rawCounts['unassigned'] || 0;
         if (unassignedChars > 0) {
-          if (isRecentlyTypingLocally && selfMem) {
-            // 本地刚发生键盘输入或大段文本粘贴：直接计入当前作者
+          if (selfMem) {
+            // 本地写作与大段文本粘贴，权威计入当前活跃作者
             memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + unassignedChars;
             if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + unassignedChars;
             totalAssignedChars += unassignedChars;
-          } else if (totalAssignedChars === 0 && membersList.length > 0) {
-            // 初始模板全篇无作者：平分
+          } else if (membersList.length > 0) {
             const splitCount = Math.floor(unassignedChars / membersList.length);
             membersList.forEach(m => {
               memberCounts[m.id] = (memberCounts[m.id] || 0) + splitCount;
               if (m.name) memberCounts[m.name] = (memberCounts[m.name] || 0) + splitCount;
             });
-          } else if (selfMem) {
-            memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + unassignedChars;
-            if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + unassignedChars;
-            totalAssignedChars += unassignedChars;
           }
         }
 
@@ -14362,9 +14361,8 @@
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
     const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || (state.activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
     const taskGenreKey = currentTask?.taskType || state.taskType || 'experiment';
-    const isTaskDeadlineExpired = currentTask ? isTaskExpired(currentTask) : false;
-    // 🛡️ 阶段三终稿区：仅当全员已完成终稿提交确认，或任务真正截止时，才锁定为只读归档
-    const isFinalSubmitted = isAllFinalSubmitted || isTaskDeadlineExpired;
+    // 🛡️ 阶段三终稿区：仅当全员已完成终稿提交确认，或整个小组已被标记提交归档时，才锁定为只读归档
+    const isFinalSubmitted = isAllFinalSubmitted || !!state.isFinalSubmitted;
     const isDefenseLocked = isRevisionFullyConfirmed || isFinalSubmitted;
 
     // 🛡️ Safari 滚动记忆防回弹：预先记录用户此前的滚动高度与聚焦输入状态
@@ -14469,7 +14467,7 @@
       }
 
       if (existingFrame) {
-        if (isFinalSubmitted || isTaskDeadlineExpired) {
+        if (isFinalSubmitted) {
           existingFrame._wasPreviouslyReadonly = true;
           enforceEtherpadReadonly(existingFrame);
         } else {
@@ -14669,7 +14667,7 @@
       }
     }
 
-    if (isFinalSubmitted || isTaskDeadlineExpired) {
+    if (isFinalSubmitted) {
       const s3Frame = canvas.querySelector('#stage3-etherpad-frame');
       if (s3Frame) enforceEtherpadReadonly(s3Frame);
     } else {
@@ -15810,6 +15808,12 @@
         }
         if (this.state.stage3?.startTime) {
           this.stage3StartTime = this.state.stage3.startTime;
+        }
+
+        // 🛡️ 阶段防越权自愈自净：若小组在阶段一或阶段二，强制解除任何终稿提交锁定，保证写作畅通
+        if (this.state.currentStage === 'stage1' || this.state.currentStage === 'stage2') {
+          this.state.isFinalSubmitted = false;
+          this.isViewingPastStage = false;
         }
 
         // 🛡️ 阶段防越权自愈自净：若小组尚未正式确认签署阶段二初稿，严禁保留提前触发的阶段三答辩数据

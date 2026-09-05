@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2639";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2639";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2639";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2640";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2640";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2640";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -215,7 +215,7 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
   };
   const unreadAnnCount = relevantAnnouncements.filter(a => !isAnnRead(a)).length;
   const isTaskDeadlineExpired = isTaskExpired(currentTask);
-  const isFinalSubmitted = state.isFinalSubmitted || isTaskDeadlineExpired;
+  const isFinalSubmitted = !!state.isFinalSubmitted;
 
   const s1 = state.stage1 || {};
   const s2 = state.stage2 || {};
@@ -1573,11 +1573,11 @@ function renderStage2Canvas(canvas, state, handlers) {
   const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, currUser || { id: currUserCode, name: currUserName });
   const isDraftFullyConfirmed = !!s2.isDraftConfirmed && (confirmedDraftCount >= actualTotalCount && actualTotalCount > 0);
 
-  // 🛡️ 阶段时序递进锁定铁律：
-  // 1) 处于阶段二进行中（当前在阶段二或初稿未全员确认）：只要任务未截止，阶段二绝对保持协同可写；
-  // 2) 仅当全员已真正全员完成初稿签署且推进至阶段三时，阶段二初稿才锁定为【只读归档】！
-  const isStage2Archived = isDraftFullyConfirmed && (state.currentStage === 'stage3' || state.isFinalSubmitted);
-  const isEditorReadonly = isStage2Archived || !!state.isFinalSubmitted;
+  // 🛡️ 阶段二只读状态权威判定：
+  // 1) 只要学生在阶段二正常撰写（currentStage === 'stage2'），编辑器 100% 保持解锁可编辑状态，绝不因历史快照或截止时间误锁！
+  // 2) 仅当全员已真正全员完成初稿签署且已进入阶段三（currentStage === 'stage3'），或者在回看历史阶段时，阶段二初稿才作为只读归档展示！
+  const isStage2Archived = isDraftFullyConfirmed && (state.currentStage === 'stage3');
+  const isEditorReadonly = isStage2Archived || (state.currentStage !== 'stage2' && !!state.isFinalSubmitted) || !!(window.app && window.app.isViewingPastStage);
 
   if (!userGroupId || userGroupId === 'null' || String(userGroupId || '').startsWith('group_unassigned')) {
     canvas.innerHTML = showResolutionBlock('未检测到您被分配的具体协作小组，请联系教师在教务空间分配小组后再进入');
@@ -1935,16 +1935,14 @@ function renderStage2Canvas(canvas, state, handlers) {
           }
         }
 
-        // 🛡️ 智能兜底：若作者类名仍未匹配到同伴，且当前是本地粘贴/输入产生的 authorClass，100% 绑定为当前用户
-        if (!matched) {
-          if (isRecentlyTypingLocally || selfMem) {
-            matched = selfMem;
-            if (rawId) {
-              authorMap.set(rawId, selfMem);
-              authorMap.set('a.' + rawId, selfMem);
-              authorMap.set('a-' + rawId, selfMem);
-              authorMap.set(aKey, selfMem);
-            }
+        // 🛡️ 智能兜底：若作者类名仍未匹配到同伴，且当前是本地作者，100% 绑定为当前登录用户
+        if (!matched && selfMem) {
+          matched = selfMem;
+          if (rawId) {
+            authorMap.set(rawId, selfMem);
+            authorMap.set('a.' + rawId, selfMem);
+            authorMap.set('a-' + rawId, selfMem);
+            authorMap.set(aKey, selfMem);
           }
         }
 
@@ -1970,25 +1968,20 @@ function renderStage2Canvas(canvas, state, handlers) {
         }
       });
 
-      // 5. 处理 unassigned 裸文本（例如刚粘贴进来的大段文字）
+      // 5. 处理 unassigned 裸文本（例如刚粘贴进来的大段文字，杜绝 20 秒倒计时跳变与平分波动）
       const unassignedChars = rawCounts['unassigned'] || 0;
       if (unassignedChars > 0) {
-        if (isRecentlyTypingLocally && selfMem) {
-          // 本地刚发生键盘输入或大段文本粘贴：直接计入当前作者
+        if (selfMem) {
+          // 本地写作与大段文本粘贴，权威计入当前活跃作者
           memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + unassignedChars;
           if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + unassignedChars;
           totalAssignedChars += unassignedChars;
-        } else if (totalAssignedChars === 0 && membersList.length > 0) {
-          // 初始模板全篇无作者：平分
+        } else if (membersList.length > 0) {
           const splitCount = Math.floor(unassignedChars / membersList.length);
           membersList.forEach(m => {
             memberCounts[m.id] = (memberCounts[m.id] || 0) + splitCount;
             if (m.name) memberCounts[m.name] = (memberCounts[m.name] || 0) + splitCount;
           });
-        } else if (selfMem) {
-          memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + unassignedChars;
-          if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + unassignedChars;
-          totalAssignedChars += unassignedChars;
         }
       }
 
@@ -2892,9 +2885,8 @@ function renderStage3Canvas(canvas, state, handlers) {
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
   const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || (state.activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
   const taskGenreKey = currentTask?.taskType || state.taskType || 'experiment';
-  const isTaskDeadlineExpired = currentTask ? isTaskExpired(currentTask) : false;
-  // 🛡️ 阶段三终稿区：仅当全员已完成终稿提交确认，或任务真正截止时，才锁定为只读归档
-  const isFinalSubmitted = isAllFinalSubmitted || isTaskDeadlineExpired;
+  // 🛡️ 阶段三终稿区：仅当全员已完成终稿提交确认，或整个小组已被标记提交归档时，才锁定为只读归档
+  const isFinalSubmitted = isAllFinalSubmitted || !!state.isFinalSubmitted;
   const isDefenseLocked = isRevisionFullyConfirmed || isFinalSubmitted;
 
   // 🛡️ Safari 滚动记忆防回弹：预先记录用户此前的滚动高度与聚焦输入状态
@@ -2999,7 +2991,7 @@ function renderStage3Canvas(canvas, state, handlers) {
     }
 
     if (existingFrame) {
-      if (isFinalSubmitted || isTaskDeadlineExpired) {
+      if (isFinalSubmitted) {
         existingFrame._wasPreviouslyReadonly = true;
         enforceEtherpadReadonly(existingFrame);
       } else {
@@ -3199,7 +3191,7 @@ function renderStage3Canvas(canvas, state, handlers) {
     }
   }
 
-  if (isFinalSubmitted || isTaskDeadlineExpired) {
+  if (isFinalSubmitted) {
     const s3Frame = canvas.querySelector('#stage3-etherpad-frame');
     if (s3Frame) enforceEtherpadReadonly(s3Frame);
   } else {
