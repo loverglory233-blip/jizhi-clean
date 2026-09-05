@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2550
+ * Version: 20260905_v2551
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2550';
+  const APP_VERSION = '20260905_v2551';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -17541,6 +17541,13 @@
       if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
       this.state.chatLogs[stage].push(thinkingMsg);
       renderChat(this.state);
+
+      this.setActiveAgentAnalyzing({
+        icon: agentProfile.avatar || '🤖',
+        title: agentProfile.name,
+        detail: `${agentProfile.name}正在通读上下文并为您起草学术意见...`
+      });
+
       await new Promise(r => setTimeout(r, 1500));
 
       try {
@@ -17581,6 +17588,7 @@
       } catch (err) {
         console.warn('triggerAgentReplyIfNeeded error:', err);
       } finally {
+        this.setActiveAgentAnalyzing(null);
         this._isAgentReplyInProgress = false;
       }
     }
@@ -17958,61 +17966,135 @@
           if (!s1.contract.timeAllocations) {
             s1.contract.timeAllocations = { background: 0, literature: 0, questions: 0, method: 0, reflection: 0, references: 0 };
           }
-          const genreDesc = getGenrePromptDescriptor(taskType);
           const agentTitle = isInst ? '备课引导师' : '学术拍卖师';
           const senderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
-          const prefixTag = isInst ? '备课引导师·方案研讨' : '学术拍卖师·落槌与方案研讨';
-          const docThemeNoun = isInst ? '教学主题与备课方案' : '主题与研究方案';
 
-          const tallyText = `📊 【投票结果】：${proposalSummaryList}`;
+          const tallyText = `📊 【${agentTitle}·投票结果】：${proposalSummaryList}`;
 
-          const tallySysMsg = {
+          const tallyMsg = {
             id: 'vote_tally_' + Date.now(),
-            sender: 'system',
-            senderName: '系统通知',
+            sender: 'auctioneer',
+            senderName: senderName,
             text: tallyText,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now()
           };
-          this.state.chatLogs.stage1.push(tallySysMsg);
+          this.state.chatLogs.stage1.push(tallyMsg);
           if (typeof this.sendSingleChatMessage === 'function') {
-            this.sendSingleChatMessage(tallySysMsg, 'stage1');
+            this.sendSingleChatMessage(tallyMsg, 'stage1');
           }
 
           // ── 🌟 2. 引导智能体发言（定性分析一致性/分歧互补，提示具体可细化的维度，严禁报数字/票数） ──
           s1.contractStep = 'topic'; // 初始锁定第一步：主题与方案提炼
-
-          // 💡 增加思考中过渡气泡，避免大模型生成期间界面出现 2~3 秒空白无响应感
-          const tempThinkingId = 'thinking_vote_' + Date.now();
-          const thinkingMsg = {
-            id: tempThinkingId,
-            sender: 'auctioneer',
-            senderName: senderName,
-            text: `⏳ 【${agentTitle}】：正在分析全组投票意向与方案细化维度...`,
-            isThinking: true,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now() + 50
-          };
-          this.state.chatLogs.stage1.push(thinkingMsg);
+          this.syncStage1();
+          this.syncChatLogs();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           if (typeof window.renderChat === 'function') {
             window.renderChat(this.state);
           } else {
             renderChat(this.state);
           }
+          this.renderStudentWorkspace();
 
-          let guideMsgId = '';
-          let guideText = '';
+          await this.triggerVoteGuidance();
+        }, 800);
+      }
+    }
 
-          if (isUnanimous && winningProposal) {
-            // 情境 A：投票全票一致
-            s1.mergedTitle = winningProposal.title;
-            if (!s1.contract) s1.contract = {};
-            s1.contract.topic = winningProposal.title;
-            s1.contract.overview = '';
-            s1.researchOverview = '';
-            guideMsgId = 'vote_unanimous_' + Date.now();
+    /**
+     * 💡 阶段一：重试生成方案研讨指引
+     */
+    async retryVoteGuidance(btnElement) {
+      if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
+        btnElement.disabled = true;
+        btnElement.style.opacity = '0.6';
+        btnElement.style.cursor = 'not-allowed';
+        btnElement.innerHTML = `⏳ 正在重新生成方案研讨指引...`;
+      }
+      await this.triggerVoteGuidance(true);
+    }
 
-            const unanimousPrompt = `${genreDesc}
+    /**
+     * 🏛️ 阶段一：触发大模型生成投票后的方案细化/分歧融合研讨引导（全端广播分析状态框 + 错误重试）
+     */
+    async triggerVoteGuidance(isRetry = false, failedMsgId = null) {
+      const s1 = this.state.stage1 || {};
+      const taskType = this.getCurrentTaskType();
+      const isInst = (taskType === 'instructional');
+      const genreDesc = getGenrePromptDescriptor(taskType);
+      const agentTitle = isInst ? '备课引导师' : '学术拍卖师';
+      const senderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
+      const prefixTag = isInst ? '备课引导师·方案研讨' : '学术拍卖师·落槌与方案研讨';
+      const docThemeNoun = isInst ? '教学主题与备课方案' : '主题与研究方案';
+
+      const tally = s1.votes || {};
+      const proposals = s1.proposals || [];
+      let maxVotes = -1;
+      let winningProposal = null;
+      proposals.forEach(p => {
+        const count = tally[p.id] || 0;
+        if (count > maxVotes) {
+          maxVotes = count;
+          winningProposal = p;
+        }
+      });
+
+      const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
+      const effClassId = this.state.activeStudentClassId || currUser?.classId || null;
+      const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUser, effClassId) : null;
+      const membersList = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0) 
+        ? effGroup.members 
+        : (this.state.members || [{ name: 'A' }, { name: 'B' }, { name: 'C' }]);
+      const totalMembersCount = membersList.length;
+
+      const isUnanimous = (winningProposal && maxVotes === totalMembersCount && totalMembersCount > 0);
+
+      // 🛡️ 清理已有的同类失败气泡与思考中占位气泡
+      this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => {
+        if (!m) return false;
+        if (String(m.id).startsWith('thinking_vote') || m.isThinking) return false;
+        if (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('研讨指引')) return false;
+        if (failedMsgId && m.id === failedMsgId) return false;
+        return true;
+      });
+
+      this.setActiveAgentAnalyzing({
+        icon: isInst ? '📐' : '🎪',
+        title: agentTitle,
+        detail: `${agentTitle}正在分析全组投票意向与方案细化维度...`
+      });
+
+      const tempThinkingId = 'thinking_vote_' + Date.now();
+      const thinkingMsg = {
+        id: tempThinkingId,
+        sender: 'auctioneer',
+        senderName: senderName,
+        text: `⏳ 【${agentTitle}】：正在分析全组投票意向与方案细化维度...`,
+        isThinking: true,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now() + 50
+      };
+      this.state.chatLogs.stage1.push(thinkingMsg);
+      if (typeof window.renderChat === 'function') {
+        window.renderChat(this.state);
+      } else {
+        renderChat(this.state);
+      }
+
+      let guideMsgId = '';
+      let guideText = '';
+
+      try {
+        if (isUnanimous && winningProposal) {
+          // 情境 A：投票全票一致
+          s1.mergedTitle = winningProposal.title;
+          if (!s1.contract) s1.contract = {};
+          s1.contract.topic = winningProposal.title;
+          s1.contract.overview = '';
+          s1.researchOverview = '';
+          guideMsgId = 'vote_unanimous_' + Date.now();
+
+          const unanimousPrompt = `${genreDesc}
 
   全组成员已全票一致选定${isInst ? '备课方案' : '研究课题'}《${winningProposal.title}》。
   【获胜提案内容/设想】: ${winningProposal.description || '暂无详细描述'}
@@ -18024,32 +18106,26 @@
   ③ 末尾提示：“商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！”
   （纯自然语言输出，100~140字，严禁拆分成多条，严禁提及任何票数数字）`;
 
-            guideText = isInst
-              ? `恭喜全员就教学选题《${winningProposal.title}》达成一致！该方向切口精准。建议大家在讨论区重点围绕教学情境（具体学情与导入情景）、核心评价指标（教学目标达成与观测维度）以及探究活动链与实施环节等维度展开细化商讨。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！`
-              : `恭喜全员就选题《${winningProposal.title}》达成一致！该方向切口精准。建议大家在讨论区重点围绕应用情境（具体学情与场景）、核心评估指标（成效观测维度）以及实施方法与活动环节等维度展开细化商讨。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！`;
-
-            try {
-              const aiResp = await callCozeAgentAPI('auctioneer', unanimousPrompt, { stage: 'stage1', topic: winningProposal.title, taskType });
-              if (aiResp && aiResp.trim().length > 0) {
-                guideText = aiResp.trim();
-              }
-            } catch (e) {
-              console.warn('Auctioneer unanimous prompt fallback', e);
-            }
+          const aiResp = await callCozeAgentAPI('auctioneer', unanimousPrompt, { stage: 'stage1', topic: winningProposal.title, taskType });
+          if (aiResp && aiResp.trim().length > 0) {
+            guideText = aiResp.trim();
           } else {
-            // 情境 B：投票存在分歧
-            s1.mergedTitle = '';
-            if (!s1.contract) s1.contract = {};
-            s1.contract.topic = '';
-            s1.contract.overview = '';
-            s1.researchOverview = '';
-            guideMsgId = 'vote_divergence_' + Date.now();
+            throw new Error('Empty response from AI for unanimous guidance');
+          }
+        } else {
+          // 情境 B：投票存在分歧
+          s1.mergedTitle = '';
+          if (!s1.contract) s1.contract = {};
+          s1.contract.topic = '';
+          s1.contract.overview = '';
+          s1.researchOverview = '';
+          guideMsgId = 'vote_divergence_' + Date.now();
 
-            const votedProposals = (s1.proposals || []).filter(p => (tally[p.id] || 0) > 0);
-            const votedTitles = (votedProposals.length > 0 ? votedProposals : (s1.proposals || [])).map(p => `《${p.title}》`).join(' 与 ');
-            const votedDetails = (votedProposals.length > 0 ? votedProposals : (s1.proposals || [])).map((p, idx) => `【方向${idx + 1}：《${p.title}》】: ${p.description || '暂无详细描述'}`).join('\n');
+          const votedProposals = (s1.proposals || []).filter(p => (tally[p.id] || 0) > 0);
+          const votedTitles = (votedProposals.length > 0 ? votedProposals : (s1.proposals || [])).map(p => `《${p.title}》`).join(' 与 ');
+          const votedDetails = (votedProposals.length > 0 ? votedProposals : (s1.proposals || [])).map((p, idx) => `【方向${idx + 1}：《${p.title}》】: ${p.description || '暂无详细描述'}`).join('\n');
 
-            const divergencePrompt = `${genreDesc}
+          const divergencePrompt = `${genreDesc}
 
   小组成员完成了选题投票，目前大家分别聚焦在不同方向：${votedTitles}（存在分歧）。
   【各提案设想内容】:
@@ -18062,44 +18138,74 @@
   ③ 末尾提示：“商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！”
   （纯自然语言输出，110~150字，严禁拆分成多条，严禁提及任何票数数字）`;
 
-            guideText = isInst
-              ? `小组成员目前分别聚焦在 ${votedTitles} 等不同方向。各备课设想各有侧重且具备很强互补性，建议大家在讨论区围绕具体教学情境、核心评价指标及探究活动环节等维度取长补短进行融合细化。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！`
-              : `小组成员目前分别聚焦在 ${votedTitles} 等不同方向。各方案各有侧重且具备很强的互补性，建议大家在讨论区围绕具体应用情境、核心评价指标及实施方法等维度取长补短进行融合细化。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！`;
-
-            try {
-              const aiResp = await callCozeAgentAPI('auctioneer', divergencePrompt, { stage: 'stage1', topic: '方案分歧融合', taskType });
-              if (aiResp && aiResp.trim().length > 0) {
-                guideText = aiResp.trim();
-              }
-            } catch (e) {
-              console.warn('Auctioneer divergence prompt fallback', e);
-            }
-          }
-
-          // 🛡️ 智能清洗并统一前缀为标准的单层格式，移除思考中标记并落库广播
-          guideText = guideText.replace(/^(?:🤖|🎪|🏛️)?\s*【(?:学术拍卖师|备课引导师|拍卖师|引导师)[·\s]*(?:全票通过|落槌与方案研讨|方案研讨|分歧指引|定名指引)?】[：:]\s*/g, '');
-          guideText = `🏛️ 【${prefixTag}】：${guideText.trim()}`;
-
-          thinkingMsg.id = guideMsgId;
-          thinkingMsg.text = guideText;
-          delete thinkingMsg.isThinking;
-          thinkingMsg._timeMs = Date.now() + 100;
-          thinkingMsg.timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-          if (typeof this.sendSingleChatMessage === 'function') {
-            this.sendSingleChatMessage(thinkingMsg, 'stage1');
-          }
-
-          this.syncStage1();
-          this.syncChatLogs();
-          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-          if (typeof window.renderChat === 'function') {
-            window.renderChat(this.state);
+          const aiResp = await callCozeAgentAPI('auctioneer', divergencePrompt, { stage: 'stage1', topic: '方案分歧融合', taskType });
+          if (aiResp && aiResp.trim().length > 0) {
+            guideText = aiResp.trim();
           } else {
-            renderChat(this.state);
+            throw new Error('Empty response from AI for divergence guidance');
           }
-          this.renderStudentWorkspace();
-        }, 800);
+        }
+
+        // 🛡️ 智能清洗并统一前缀为标准的单层格式，移除思考中标记并落库广播
+        guideText = guideText.replace(/^(?:🤖|🎪|🏛️)?\s*【(?:学术拍卖师|备课引导师|拍卖师|引导师)[·\s]*(?:全票通过|落槌与方案研讨|方案研讨|分歧指引|定名指引)?】[：:]\s*/g, '');
+        guideText = `🏛️ 【${prefixTag}】：${guideText.trim()}`;
+
+        // 🛡️ 清除占位与失败气泡
+        this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => {
+          if (!m) return false;
+          if (m.id === tempThinkingId || m.isThinking) return false;
+          if (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('研讨指引')) return false;
+          return true;
+        });
+
+        const finalGuideMsg = {
+          id: guideMsgId,
+          sender: 'auctioneer',
+          senderName: senderName,
+          text: guideText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now() + 100
+        };
+        this.state.chatLogs.stage1.push(finalGuideMsg);
+
+        if (typeof this.sendSingleChatMessage === 'function') {
+          this.sendSingleChatMessage(finalGuideMsg, 'stage1');
+        }
+
+        this.syncStage1();
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        if (typeof window.renderChat === 'function') {
+          window.renderChat(this.state);
+        } else {
+          renderChat(this.state);
+        }
+        this.renderStudentWorkspace();
+      } catch (e) {
+        console.warn('triggerVoteGuidance error:', e);
+        this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (m.id !== tempThinkingId && !m.isThinking));
+        const errVoteMsg = {
+          id: 'err_vote_' + Date.now(),
+          sender: 'auctioneer',
+          senderName: senderName,
+          text: `🏛️ 【${agentTitle}·网络提醒】：📡 智能体网络连接稍有延迟，未能获取到即时方案研讨指引。<br><button class="btn-retry-ai" onclick="window.app.retryVoteGuidance(this)" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成方案研讨指引</button>`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        this.state.chatLogs.stage1.push(errVoteMsg);
+        if (typeof this.sendSingleChatMessage === 'function') {
+          this.sendSingleChatMessage(errVoteMsg, 'stage1');
+        }
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        if (typeof window.renderChat === 'function') {
+          window.renderChat(this.state);
+        } else {
+          renderChat(this.state);
+        }
+        this.renderStudentWorkspace();
+      } finally {
+        this.setActiveAgentAnalyzing(null);
       }
     }
 
