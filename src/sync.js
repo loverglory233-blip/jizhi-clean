@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2577';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2577';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2578';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2578';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1640,6 +1640,11 @@ export class CloudSyncEngine {
 
     if (remoteData.currentStage) {
       this.app.state.groupMaxStage = remoteData.currentStage;
+    }
+
+    // 🌟 全员里程碑协同弹窗：远端阶段流转达成时，确保所有正在等待的组员均能收到弹窗并点击推进
+    if (typeof this.app.checkAndShowStageTransitionModals === 'function') {
+      this.app.checkAndShowStageTransitionModals();
     }
 
     // 🤖 智能体正在分析动态状态跨端实时同步
