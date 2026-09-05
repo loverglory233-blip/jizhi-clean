@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2606";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2606";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2606";
-import { AuthManager } from "./auth.js?v=20260905_v2606";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2606";
-import { renderLoginView } from "./login.js?v=20260905_v2606";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2606";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2606";
+} from "./constants.js?v=20260905_v2607";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2607";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2607";
+import { AuthManager } from "./auth.js?v=20260905_v2607";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2607";
+import { renderLoginView } from "./login.js?v=20260905_v2607";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2607";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2607";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2606";
+} from "./editor.js?v=20260905_v2607";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -822,7 +822,7 @@ export class App {
         const activeTaskId = this.state.activeTaskId || null;
         const currentGroupId = (currentUser && currentUser.groupId) ? currentUser.groupId : (this.state.activeMonitorGroupId || this.state.activeGroupId || null);
         const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-        const curTask = allTasks.find(t => t.id === activeTaskId);
+        const curTask = allTasks.find(t => isSameId(t.id, activeTaskId) || (t.title && t.title === activeTaskId));
         const totalDurationMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
         const totalDurationSec = totalDurationMin * 60;
         const elapsedSec = (this.state.timer && this.state.timer.elapsedSeconds) ? this.state.timer.elapsedSeconds : 0;
@@ -1656,7 +1656,7 @@ export class App {
 
         // 动态读取任务时长判定任务规模（全系统统一：静默 3 分钟破冰，6 分钟催促，10 分钟强兜底）
         const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-        const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
+        const curTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
         const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
         const isLargeTask = taskDurMin > 150;
         const s2SilenceThresholdMs = 180000; // 统一 3 分钟破冰
@@ -1986,7 +1986,7 @@ export class App {
 
         // ── ⏳ 阶段三：总时间仅剩 5 分钟终稿冲刺提醒（全场严格仅发 1 次）──
         const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-        const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
+        const curTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
         let remainingMs = Infinity;
         if (curTask && curTask.deadline) {
           const raw = String(curTask.deadline).trim();
@@ -2113,7 +2113,7 @@ export class App {
       const myAnns = allAnns.filter(a => {
         if (!a || a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长')) return false;
         if (a.taskId && a.taskId !== 'task_all' && a.taskId !== 'all' && activeTaskId) {
-          const tObj = allTasks.find(t => t.id === a.taskId);
+          const tObj = allTasks.find(t => isSameId(t.id, a.taskId));
           if (tObj && isTaskExpired(tObj)) return false;
         }
         return isScopeMatch(a, {
@@ -2222,7 +2222,7 @@ export class App {
     const isSelectedExtension = selectedAnn ? isExtensionNotice(selectedAnn) : false;
 
     const allTasks = this.authManager.getTasks();
-    const annTaskObj = selectedAnn ? allTasks.find(t => t.id === selectedAnn.taskId) : null;
+    const annTaskObj = selectedAnn ? allTasks.find(t => isSameId(t.id, selectedAnn.taskId)) : null;
     const isAnnTaskExpired = isTaskExpired(annTaskObj);
 
     const modal = document.createElement('div');
@@ -2297,7 +2297,7 @@ export class App {
     const renderDetailHtml = (ann) => {
       const isRead = isAnnRead(ann);
       const isExt = isExtensionNotice(ann);
-      const annTask = allTasks.find(t => t.id === ann.taskId);
+      const annTask = allTasks.find(t => isSameId(t.id, ann.taskId));
       const isExpired = isTaskExpired(annTask);
       const unreadIdx = unreadList.findIndex(a => a.id === ann.id);
 
@@ -4342,7 +4342,7 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
 
     const genreCfg = TASK_GENRE_CONFIGS[taskType] || TASK_GENRE_CONFIGS.experiment;
     const allTasks = this.authManager ? this.authManager.getTasks() : [];
-    const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
+    const curTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
     const totalDurationMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
 
     const timePrompt = `小组成员已就${isInst ? '教学设计方案 6 大模块' : '学术论文 6 大章节'}的时间预算规划在讨论区展开了非制式自由研讨。
@@ -4816,7 +4816,7 @@ ${chatSnippet}
 
     // 2. 确定候选题目与任务信息
     const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-    const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
+    const curTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
     const defaultTopic = s1.mergedTitle || s1.contract?.topic || (s1.proposals && s1.proposals[0] ? s1.proposals[0].title : (curTask?.title || '基于深度协作的学术探究与实践'));
     const membersInfo = membersList.map(m => `- 姓名: ${m.name || '组员'} (学号: ${m.id || '无'})`).join('\n');
 
@@ -6331,7 +6331,7 @@ ${chatSnippet}
     const targetOrder = stageOrder[newStage] || 1;
 
     const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-    const currentTaskObj = allTasks.find(t => t.id === this.state.activeTaskId);
+    const currentTaskObj = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
     const isTaskDeadlineExpired = isTaskExpired(currentTaskObj);
 
     // 🛡️ 阶段防越权门禁：未达成里程碑解锁时，禁止学生随意点击跳级（截止只读查阅模式下或已归档时全阶段自由放行浏览）
@@ -6459,14 +6459,14 @@ ${chatSnippet}
     const isTeacher = user && (user.isTeacher || user.role === 'teacher');
     if (isTeacher || this.state.isTeacherMonitorView || this.state.isTeacherView) return true;
     const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-    const curTask = allTasks.find(t => t.id === this.state.activeTaskId || (t.title && t.title === this.state.activeTaskId));
+    const curTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
     if (curTask && isTaskExpired(curTask)) return true;
     return false;
   }
 
   getCurrentTaskType() {
     const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-    const currentTask = allTasks.find(t => t.id === this.state.activeTaskId);
+    const currentTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
     return currentTask?.taskType || 'experiment';
   }
 
@@ -6528,7 +6528,7 @@ ${chatSnippet}
     // 🔔 检查并通知当前任务的延期
     if (this.authManager) {
       const allTasks = this.authManager.getTasks();
-      const currentTask = allTasks.find(t => t.id === this.state.activeTaskId);
+      const currentTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
       if (currentTask && currentTask.deadline) {
         const dlKey = `jizhi_known_deadline_${currentTask.id}`;
         const unreadKey = `jizhi_unread_deadline_ext_${currentTask.id}`;
@@ -7547,7 +7547,7 @@ ${chatSnippet}
 
     // ⏱️ 计算阶段二物理时间与字数水位线（中任务 0~150 分钟 / 4300 字，大任务 >150 分钟 / 9000 字）
     const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-    const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
+    const curTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
     const times = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) ? this.state.stage1.contract.timeAllocations : {};
     const totalPlannedMin = (times.background || 25) + (times.literature || 30) + (times.questions || 25) + (times.method || 40) + (times.reflection || 20) + (times.references || 10);
     const totalTaskMinutes = (curTask && (curTask.durationMinutes || curTask.duration)) ? Number(curTask.durationMinutes || curTask.duration) : (totalPlannedMin > 0 ? (totalPlannedMin / 0.70) : 150);

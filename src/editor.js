@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2606";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2606";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2606";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2607";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2607";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260905_v2607";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -158,7 +158,7 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
   if (!header) return;
   const activeTaskId = (state && state.activeTaskId) ? state.activeTaskId : null;
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-  const currentTask = allTasks.find(t => t.id === activeTaskId || (t.title && t.title === activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
+  const currentTask = allTasks.find(t => isSameId(t.id, activeTaskId) || (t.title && t.title === activeTaskId)) || (activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
   const taskGenreKey = currentTask?.taskType || 'experiment';
   
   let remainingMin = 150;
@@ -417,9 +417,9 @@ function renderStage1Canvas(canvas, state, handlers) {
   if (!s1.contract.timeAllocations) s1.contract.timeAllocations = {};
 
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-  const currentTask = allTasks.find(t => t.id === state.activeTaskId || (t.title && t.title === state.activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
+  const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || (state.activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
   const taskGenreKey = currentTask?.taskType || 'experiment';
-  const isTaskDeadlineExpired = isTaskExpired(currentTask);
+  const isTaskDeadlineExpired = currentTask ? isTaskExpired(currentTask) : false;
   const genreCfg = TASK_GENRE_CONFIGS[taskGenreKey] || TASK_GENRE_CONFIGS.experiment;
   const taskDurMin = Number(currentTask?.durationMinutes) || 150;
 
@@ -1561,10 +1561,11 @@ function renderStage2Canvas(canvas, state, handlers) {
   if (!currUserName) currUserName = currUserCode || '组员';
   const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-  const currentTask = allTasks.find(t => t.id === state.activeTaskId || (t.title && t.title === state.activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
-  const taskGenreKey = currentTask?.taskType || 'experiment';
-  const isTaskDeadlineExpired = isTaskExpired(currentTask);
-  const isFinalSubmitted = !!state.isFinalSubmitted;
+  const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || (state.activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
+  const taskGenreKey = currentTask?.taskType || state.taskType || 'experiment';
+  const isTaskDeadlineExpired = currentTask ? isTaskExpired(currentTask) : false;
+  // 🛡️ 阶段二编辑区：仅当任务已真正截止，或者全员在阶段三确认终稿归档时才只读；在阶段二正常撰写阶段绝不误锁！
+  const isFinalSubmitted = (state.currentStage === 'stage3' || state.groupMaxStage === 'stage3') && !!state.isFinalSubmitted;
   const isEditorReadonly = isTaskDeadlineExpired || isFinalSubmitted;
 
   if (!userGroupId || userGroupId === 'null' || String(userGroupId || '').startsWith('group_unassigned')) {
@@ -2832,9 +2833,9 @@ function renderStage3Canvas(canvas, state, handlers) {
   const isAllFinalSubmitted = state.isFinalSubmitted || (finalSubmittedCount >= totalCount && totalCount > 0);
 
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-  const currentTask = allTasks.find(t => t.id === state.activeTaskId || (t.title && t.title === state.activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
-  const taskGenreKey = currentTask?.taskType || 'experiment';
-  const isTaskDeadlineExpired = isTaskExpired(currentTask);
+  const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || (state.activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
+  const taskGenreKey = currentTask?.taskType || state.taskType || 'experiment';
+  const isTaskDeadlineExpired = currentTask ? isTaskExpired(currentTask) : false;
   const isFinalSubmitted = state.isFinalSubmitted || isAllFinalSubmitted || isTaskDeadlineExpired;
   const isDefenseLocked = isRevisionFullyConfirmed || isFinalSubmitted;
 
@@ -3443,7 +3444,7 @@ export function renderChat(state) {
 
     if (isAgent) {
       const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-      const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+      const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId));
       const taskGenreKey = currentTask?.taskType || 'experiment';
       name = getAgentDisplayName(msg.sender, taskGenreKey);
       const profile = AgentProfiles[msg.sender];
@@ -3755,7 +3756,7 @@ export function renderChatActionBar(state) {
     } else {
       actionBar.style.display = 'block';
       const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-      const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+      const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId));
       const taskGenreKey = currentTask?.taskType || 'experiment';
       const isInst = (taskGenreKey === 'instructional');
       const managingTitle = isInst ? '备课组长' : '责任编辑';
