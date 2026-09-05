@@ -3,18 +3,28 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2569";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2569";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2569";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2570";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2570";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2570";
 
 /**
  * 🛡️ 全局提炼互斥状态判定工具函数
  */
 export function isAnyExtracting(state = null) {
+  const app = window.app;
+  const analyzing = (state && state.activeAgentAnalyzing) || (app && app.state && app.state.activeAgentAnalyzing);
+  if (analyzing) {
+    const ts = analyzing._ts || analyzing.timestamp || 0;
+    const isLocal = !!(app && (app._isGeneratingContract || app._isExtractingTopic || app._isExtractingTime || app._isExtractingTasks));
+    if (!isLocal && (!ts || (Date.now() - ts > 25000))) {
+      if (state) state.activeAgentAnalyzing = null;
+      if (app && app.state) app.state.activeAgentAnalyzing = null;
+    }
+  }
   return !!(
-    (window.app && (window.app._isGeneratingContract || window.app._isExtractingTopic || window.app._isExtractingTime || window.app._isExtractingTasks)) ||
+    (app && (app._isGeneratingContract || app._isExtractingTopic || app._isExtractingTime || app._isExtractingTasks)) ||
     (state && state.activeAgentAnalyzing) ||
-    (window.app && window.app.state && window.app.state.activeAgentAnalyzing)
+    (app && app.state && app.state.activeAgentAnalyzing)
   );
 }
 
@@ -279,7 +289,7 @@ function renderStage1Canvas(canvas, state, handlers) {
   const currUserObj = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
   const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
   const membersList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
-  const totalMembersCount = Math.max(membersList.length, 2);
+  const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 2;
 
   if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
   if (!s1.contract.timeAllocations) s1.contract.timeAllocations = {};
@@ -312,7 +322,7 @@ function renderStage1Canvas(canvas, state, handlers) {
   const isAllConfirmed = (totalMembersCount > 0 && confirmedCount >= totalMembersCount);
   const isContractLocked = !!(s1.contract && s1.contract.isConfirmed) || isAllConfirmed || (state.groupMaxStage === 'stage2' || state.groupMaxStage === 'stage3') || state.isFinalSubmitted || isTaskDeadlineExpired;
   const isDraftDone = !!(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated);
-  const isInputDisabled = isContractLocked || isDraftDone;
+  const isInputDisabled = isContractLocked; // 只有在公约最终签署生效/全组进入下一阶段后才真正锁定输入，草案生成后全员可自由微调
   if (s1.contract && isAllConfirmed) s1.contract.isConfirmed = true;
 
   const userHasVoted = isMemberDone(s1.hasVoted, currUserObj || { id: currentUser, name: currentUserName });
@@ -504,9 +514,8 @@ function renderStage1Canvas(canvas, state, handlers) {
                 const isMe = isMyDoneHelper(confs.s1_tasks);
                 const isFull = count >= totalMembersCount && totalMembersCount > 0;
                 const isTasksRunning = !!(window.app && window.app._isExtractingTasks);
-                const isTasksDisabled = isExtractingAny;
                 return `
-                  <button id="btn-extract-tasks" style="background:${isTasksRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTasksDisabled ? 'not-allowed' : 'pointer'}; opacity:${isTasksDisabled ? '0.6' : '1'}; pointer-events:${isTasksDisabled ? 'none' : 'auto'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;" ${isTasksDisabled ? 'disabled' : ''}>
+                  <button id="btn-extract-tasks" style="background:${isTasksRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
                     ${isTasksRunning ? `⏳ 正在提炼【任务分工】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【任务分工】` : (isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`)))}
                   </button>
                 `;
@@ -515,9 +524,8 @@ function renderStage1Canvas(canvas, state, handlers) {
                 const isMe = isMyDoneHelper(confs.s1_time);
                 const isFull = count >= totalMembersCount && totalMembersCount > 0;
                 const isTimeRunning = !!(window.app && window.app._isExtractingTime);
-                const isTimeDisabled = isExtractingAny;
                 return `
-                  <button id="btn-extract-time" style="background:${isTimeRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTimeDisabled ? 'not-allowed' : 'pointer'}; opacity:${isTimeDisabled ? '0.6' : '1'}; pointer-events:${isTimeDisabled ? 'none' : 'auto'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;" ${isTimeDisabled ? 'disabled' : ''}>
+                  <button id="btn-extract-time" style="background:${isTimeRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
                     ${isTimeRunning ? `⏳ 正在提炼【时间分配】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【时间分配】` : (isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`)))}
                   </button>
                 `;
@@ -526,17 +534,16 @@ function renderStage1Canvas(canvas, state, handlers) {
                 const isMe = isMyDoneHelper(confs.s1_topic);
                 const isFull = count >= totalMembersCount && totalMembersCount > 0;
                 const isTopicRunning = !!(window.app && window.app._isExtractingTopic);
-                const isTopicDisabled = isExtractingAny;
                 if (!isVotingComplete) {
                   return `
-                    <button id="btn-extract-topic" class="locked-pending-btn" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
+                    <button id="btn-extract-topic" class="locked-pending-btn" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
                       🔒 请先完成投票推选 (${totalVotesCast}/${totalMembersCount} 人已投)
                     </button>
                   `;
                 }
                 const extractName = (taskGenreKey === 'instructional') ? '课题与教学构想' : '主题与研究方案';
                 return `
-                  <button id="btn-extract-topic" style="background:${isTopicRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTopicDisabled ? 'not-allowed' : 'pointer'}; opacity:${isTopicDisabled ? '0.6' : '1'}; pointer-events:${isTopicDisabled ? 'none' : 'auto'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;" ${isTopicDisabled ? 'disabled' : ''}>
+                  <button id="btn-extract-topic" style="background:${isTopicRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
                     ${isTopicRunning ? `⏳ 正在提炼【${extractName}】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点击提炼【${extractName}】` : (isMe ? `✅ 您已确认提炼${extractName} (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【${extractName}】 (${count}/${totalMembersCount})`)))}
                   </button>
                 `;
@@ -1259,6 +1266,14 @@ function renderStage1Canvas(canvas, state, handlers) {
           alert(`🔒 请先完成全员提案提交与投票推选！\n\n当前全组投票进度：${totalVotesCast}/${totalMembersCount} 人已投票。\n投票结束后拍卖师将落槌揭晓结果，随后方可开启主题与方案提炼。`);
           return;
         }
+        if (isAnyExtracting(state)) {
+          if (typeof showGlobalBannerNotice === 'function') {
+            showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+          } else {
+            alert('⏳ 智能体当前正在分析提炼中，请稍候完成后再操作！');
+          }
+          return;
+        }
         if (handlers.onExtractTopic) handlers.onExtractTopic();
       });
     }
@@ -1266,6 +1281,14 @@ function renderStage1Canvas(canvas, state, handlers) {
     const btnExtractTime = canvas.querySelector('#btn-extract-time');
     if (btnExtractTime) {
       btnExtractTime.addEventListener('click', () => {
+        if (isAnyExtracting(state)) {
+          if (typeof showGlobalBannerNotice === 'function') {
+            showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+          } else {
+            alert('⏳ 智能体当前正在分析提炼中，请稍候完成后再操作！');
+          }
+          return;
+        }
         if (handlers.onExtractTime) handlers.onExtractTime();
       });
     }
@@ -1273,6 +1296,14 @@ function renderStage1Canvas(canvas, state, handlers) {
     const btnExtractTasks = canvas.querySelector('#btn-extract-tasks');
     if (btnExtractTasks) {
       btnExtractTasks.addEventListener('click', () => {
+        if (isAnyExtracting(state)) {
+          if (typeof showGlobalBannerNotice === 'function') {
+            showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+          } else {
+            alert('⏳ 智能体当前正在分析提炼中，请稍候完成后再操作！');
+          }
+          return;
+        }
         if (handlers.onExtractTasks) handlers.onExtractTasks();
       });
     }
@@ -1309,15 +1340,16 @@ function renderStage1Canvas(canvas, state, handlers) {
         handlers.onConfirmContract();
       });
     }
+  }
 
-    const btnGotoS2 = canvas.querySelector('#btn-goto-stage2');
-    if (btnGotoS2) {
-      btnGotoS2.addEventListener('click', () => {
-        if (window.app && typeof window.app.switchStage === 'function') {
-          window.app.switchStage('stage2', true);
-        }
-      });
-    }
+  // 🚀 前往阶段二按钮在合约签署锁定后展示，必须在锁定时也能正常绑定事件响应
+  const btnGotoS2 = canvas.querySelector('#btn-goto-stage2');
+  if (btnGotoS2) {
+    btnGotoS2.addEventListener('click', () => {
+      if (window.app && typeof window.app.switchStage === 'function') {
+        window.app.switchStage('stage2', true);
+      }
+    });
   }
 
   if (activeKey) {
@@ -3378,7 +3410,7 @@ export function renderChatActionBar(state) {
   const s2 = state.stage2 || {};
   const curStage = state.currentStage || 'stage1';
   const membersList = Object.values(state.members || []);
-  const totalCount = Math.max(membersList.length, 2);
+  const totalCount = (membersList && membersList.length > 0) ? membersList.length : 2;
   const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
   const myCode = currUser?.id || state.currentUser || '';
   const confs = Object.assign({}, state.stepConfirmations || {}, s2.confirmations || {});
@@ -3464,13 +3496,13 @@ export function renderChatActionBar(state) {
 
       if (isGeneratingContract) {
         actionBar.innerHTML = `
-          <button id="btn-s1-auto-generate-contract" disabled style="background:#94a3b8; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:not-allowed; opacity:0.6; pointer-events:none; display:inline-flex; align-items:center; gap:6px;">
+          <button id="btn-s1-auto-generate-contract" style="background:#94a3b8; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; opacity:0.9; display:inline-flex; align-items:center; gap:6px;">
             ⏳ 拍卖师正在通读研讨并提炼公约草案...
           </button>
         `;
       } else if (isExtractingAny) {
         actionBar.innerHTML = `
-          <button id="btn-s1-auto-generate-contract" disabled style="background:#94a3b8; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:not-allowed; opacity:0.6; pointer-events:none; display:inline-flex; align-items:center; gap:6px;">
+          <button id="btn-s1-auto-generate-contract" style="background:#94a3b8; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; opacity:0.9; display:inline-flex; align-items:center; gap:6px;">
             ⏳ 智能体正在提炼中，请稍候...
           </button>
         `;
@@ -3493,7 +3525,15 @@ export function renderChatActionBar(state) {
       }
 
       actionBar.querySelector('#btn-s1-auto-generate-contract')?.addEventListener('click', () => {
-        if (!isExtractingAny && !isGeneratingContract && window.app && typeof window.app.handleOneClickGenerateContract === 'function') {
+        if (isExtractingAny || isGeneratingContract) {
+          if (typeof showGlobalBannerNotice === 'function') {
+            showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+          } else {
+            alert('⏳ 智能体当前正在分析提炼中，请稍候完成后再操作！');
+          }
+          return;
+        }
+        if (window.app && typeof window.app.handleOneClickGenerateContract === 'function') {
           window.app.handleOneClickGenerateContract();
         }
       });
