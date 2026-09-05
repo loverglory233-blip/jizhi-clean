@@ -9097,47 +9097,48 @@
 
               <!-- 🕒 核心功能区：一键设定任务总时长 -->
               <div style="background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:10px; padding:12px 14px;">
-                <div style="font-size:12px; font-weight:700; color:#1e293b; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
+                <div style="font-size:12px; font-weight:700; color:#1e293b; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                  <span>🕒 一键设定任务总时长</span>
+                </div>
+
+                <!-- 快捷总时长预设胶囊 (6列完美对称网格) -->
+                <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px; margin-bottom:10px;">
+                  <button type="button" class="btn-edit-set-duration" data-mins="15" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">15分钟</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="30" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">30分钟</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="45" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">45分钟</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="60" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">1小时</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="90" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">1.5小时</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="120" style="background:#eff6ff; border:1.5px solid #2563eb; color:#1d4ed8; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:800; cursor:pointer; text-align:center;">2小时</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="180" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">3小时</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="360" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">6小时</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="720" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">12小时</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="1440" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">1天</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="4320" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">3天</button>
+                  <button type="button" class="btn-edit-set-duration" data-mins="10080" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">1周</button>
+                </div>
+
+                <!-- 自定义时长数值 + 单位输入 (左右对称分布) -->
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; padding-top:8px; border-top:1px dashed #cbd5e1;">
                   <div style="display:flex; align-items:center; gap:6px;">
-                    <span>🕒 一键设定任务总时长</span>
+                    <span style="font-size:12px; color:#475569; font-weight:700;">自定义:</span>
+                    <input type="number" id="modal-edit-custom-dur-num" value="2" min="0.1" step="any" style="width:55px; padding:4px 6px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12.5px; font-weight:700; text-align:center; outline:none;">
+                    <select id="modal-edit-custom-dur-unit" style="padding:4px 6px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12px; font-weight:700; background:#ffffff; cursor:pointer; outline:none;">
+                      <option value="minute">分钟</option>
+                      <option value="hour" selected>小时</option>
+                      <option value="day">天</option>
+                      <option value="week">周</option>
+                    </select>
+                    <button type="button" id="btn-edit-apply-custom-dur" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:5px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
+                      ⚡ 设定
+                    </button>
                   </div>
-                </div>
 
-                <!-- 快捷总时长预设胶囊 -->
-                <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:10px;">
-                  <button type="button" class="btn-edit-set-duration" data-mins="15" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">15分钟</button>
-                  <button type="button" class="btn-edit-set-duration" data-mins="30" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">30分钟</button>
-                  <button type="button" class="btn-edit-set-duration" data-mins="45" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">45分钟</button>
-                  <button type="button" class="btn-edit-set-duration" data-mins="60" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1小时</button>
-                  <button type="button" class="btn-edit-set-duration" data-mins="90" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1.5小时</button>
-                  <button type="button" class="btn-edit-set-duration" data-mins="120" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">2小时</button>
-                  <button type="button" class="btn-edit-set-duration" data-mins="180" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">3小时</button>
-                  <button type="button" class="btn-edit-set-duration" data-mins="720" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">12小时</button>
-                  <button type="button" class="btn-edit-set-duration" data-mins="1440" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1天</button>
-                  <button type="button" class="btn-edit-set-duration" data-mins="4320" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">3天</button>
-                  <button type="button" class="btn-edit-set-duration" data-mins="10080" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1周</button>
-                </div>
-
-                <!-- 自定义时长数值 + 单位输入 -->
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-top:8px; border-top:1px dashed #cbd5e1;">
-                  <span style="font-size:12px; color:#475569; font-weight:700;">自定义总时长:</span>
-                  <input type="number" id="modal-edit-custom-dur-num" value="2" min="0.1" step="any" style="width:65px; padding:4px 6px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12.5px; font-weight:700; text-align:center; outline:none;">
-                  <select id="modal-edit-custom-dur-unit" style="padding:4px 6px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12px; font-weight:700; background:#ffffff; cursor:pointer; outline:none;">
-                    <option value="minute">分钟</option>
-                    <option value="hour" selected>小时</option>
-                    <option value="day">天</option>
-                    <option value="week">周</option>
-                  </select>
-                  <button type="button" id="btn-edit-apply-custom-dur" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:5px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
-                    ⚡ 设定截止时间
-                  </button>
-
-                  <div style="margin-left:auto; display:flex; align-items:center; gap:4px;">
-                    <span style="font-size:11px; color:#64748b;">微调:</span>
-                    <button type="button" class="btn-edit-nudge" data-diff="15" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">+15分</button>
-                    <button type="button" class="btn-edit-nudge" data-diff="30" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">+30分</button>
-                    <button type="button" class="btn-edit-nudge" data-diff="-15" style="background:#fff1f2; border:1px solid #fecdd3; color:#be123c; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">-15分</button>
-                    <button type="button" class="btn-edit-nudge" data-diff="-30" style="background:#fff1f2; border:1px solid #fecdd3; color:#be123c; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">-30分</button>
+                  <div style="display:flex; align-items:center; gap:4px;">
+                    <span style="font-size:11.5px; color:#64748b; font-weight:700;">微调:</span>
+                    <button type="button" class="btn-edit-nudge" data-diff="15" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 7px; border-radius:5px; font-size:11px; font-weight:700; cursor:pointer;">+15分</button>
+                    <button type="button" class="btn-edit-nudge" data-diff="30" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 7px; border-radius:5px; font-size:11px; font-weight:700; cursor:pointer;">+30分</button>
+                    <button type="button" class="btn-edit-nudge" data-diff="-15" style="background:#fff1f2; border:1px solid #fecdd3; color:#be123c; padding:3px 7px; border-radius:5px; font-size:11px; font-weight:700; cursor:pointer;">-15分</button>
+                    <button type="button" class="btn-edit-nudge" data-diff="-30" style="background:#fff1f2; border:1px solid #fecdd3; color:#be123c; padding:3px 7px; border-radius:5px; font-size:11px; font-weight:700; cursor:pointer;">-30分</button>
                   </div>
                 </div>
               </div>
@@ -9614,60 +9615,58 @@
 
               <!-- 🕒 核心功能区：一键设定任务总时长 -->
               <div style="background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:10px; padding:12px 14px; margin-top:8px;">
-                <div style="font-size:12px; font-weight:700; color:#1e293b; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
+                <div style="font-size:12px; font-weight:700; color:#1e293b; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                  <span>🕒 一键设定任务总时长</span>
+                </div>
+
+                <!-- 快捷总时长预设胶囊 (6列完美对称网格) -->
+                <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px; margin-bottom:10px;" id="modal-create-duration-capsules">
+                  <button type="button" class="btn-create-set-duration" data-mins="15" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">15分钟</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="30" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">30分钟</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="45" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">45分钟</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="60" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">1小时</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="90" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">1.5小时</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="120" style="background:#eff6ff; border:1.5px solid #2563eb; color:#1d4ed8; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:800; cursor:pointer; text-align:center;">2小时</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="180" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">3小时</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="360" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">6小时</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="720" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">12小时</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="1440" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">1天</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="4320" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">3天</button>
+                  <button type="button" class="btn-create-set-duration" data-mins="10080" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:5px 0; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer; text-align:center;">1周</button>
+                </div>
+
+                <!-- 自定义时长数值 + 单位输入 (左右对称分布) -->
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; padding-top:8px; border-top:1px dashed #cbd5e1;">
                   <div style="display:flex; align-items:center; gap:6px;">
-                    <span>🕒 一键设定任务总时长</span>
+                    <span style="font-size:12px; color:#475569; font-weight:700;">自定义:</span>
+                    <input type="number" id="modal-create-custom-dur-num" value="2" min="0.1" step="any" style="width:55px; padding:4px 6px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12.5px; font-weight:700; text-align:center; outline:none;">
+                    <select id="modal-create-custom-dur-unit" style="padding:4px 6px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12px; font-weight:700; background:#ffffff; cursor:pointer; outline:none;">
+                      <option value="minute">分钟</option>
+                      <option value="hour" selected>小时</option>
+                      <option value="day">天</option>
+                      <option value="week">周</option>
+                    </select>
+                    <button type="button" id="btn-create-apply-custom-dur" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:5px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
+                      ⚡ 设定
+                    </button>
                   </div>
-                </div>
 
-                <!-- 快捷总时长预设胶囊 -->
-                <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:10px;" id="modal-create-duration-capsules">
-                  <button type="button" class="btn-create-set-duration" data-mins="15" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">15分钟</button>
-                  <button type="button" class="btn-create-set-duration" data-mins="30" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">30分钟</button>
-                  <button type="button" class="btn-create-set-duration" data-mins="45" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">45分钟</button>
-                  <button type="button" class="btn-create-set-duration" data-mins="60" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1小时</button>
-                  <button type="button" class="btn-create-set-duration" data-mins="90" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1.5小时</button>
-                  <button type="button" class="btn-create-set-duration" data-mins="120" style="background:#eff6ff; border:1.5px solid #2563eb; color:#1d4ed8; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:800; cursor:pointer; box-shadow:0 1px 4px rgba(37,99,235,0.2);">2小时</button>
-                  <button type="button" class="btn-create-set-duration" data-mins="180" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">3小时</button>
-                  <button type="button" class="btn-create-set-duration" data-mins="720" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">12小时</button>
-                  <button type="button" class="btn-create-set-duration" data-mins="1440" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1天</button>
-                  <button type="button" class="btn-create-set-duration" data-mins="4320" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">3天</button>
-                  <button type="button" class="btn-create-set-duration" data-mins="10080" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1周</button>
-                </div>
-
-                <!-- 自定义时长数值 + 单位输入 -->
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-top:8px; border-top:1px dashed #cbd5e1;">
-                  <span style="font-size:12px; color:#475569; font-weight:700;">自定义总时长:</span>
-                  <input type="number" id="modal-create-custom-dur-num" value="2" min="0.1" step="any" style="width:65px; padding:4px 6px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12.5px; font-weight:700; text-align:center; outline:none;">
-                  <select id="modal-create-custom-dur-unit" style="padding:4px 6px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12px; font-weight:700; background:#ffffff; cursor:pointer; outline:none;">
-                    <option value="minute">分钟</option>
-                    <option value="hour" selected>小时</option>
-                    <option value="day">天</option>
-                    <option value="week">周</option>
-                  </select>
-                  <button type="button" id="btn-create-apply-custom-dur" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:5px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
-                    ⚡ 设定截止时间
-                  </button>
-
-                  <div style="margin-left:auto; display:flex; align-items:center; gap:4px;">
-                    <span style="font-size:11px; color:#64748b;">微调:</span>
-                    <button type="button" class="btn-create-nudge" data-diff="15" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">+15分</button>
-                    <button type="button" class="btn-create-nudge" data-diff="30" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">+30分</button>
-                    <button type="button" class="btn-create-nudge" data-diff="-15" style="background:#fff1f2; border:1px solid #fecdd3; color:#be123c; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">-15分</button>
-                    <button type="button" class="btn-create-nudge" data-diff="-30" style="background:#fff1f2; border:1px solid #fecdd3; color:#be123c; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">-30分</button>
+                  <div style="display:flex; align-items:center; gap:4px;">
+                    <span style="font-size:11.5px; color:#64748b; font-weight:700;">微调:</span>
+                    <button type="button" class="btn-create-nudge" data-diff="15" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 7px; border-radius:5px; font-size:11px; font-weight:700; cursor:pointer;">+15分</button>
+                    <button type="button" class="btn-create-nudge" data-diff="30" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 7px; border-radius:5px; font-size:11px; font-weight:700; cursor:pointer;">+30分</button>
+                    <button type="button" class="btn-create-nudge" data-diff="-15" style="background:#fff1f2; border:1px solid #fecdd3; color:#be123c; padding:3px 7px; border-radius:5px; font-size:11px; font-weight:700; cursor:pointer;">-15分</button>
+                    <button type="button" class="btn-create-nudge" data-diff="-30" style="background:#fff1f2; border:1px solid #fecdd3; color:#be123c; padding:3px 7px; border-radius:5px; font-size:11px; font-weight:700; cursor:pointer;">-30分</button>
                   </div>
                 </div>
               </div>
 
               <div class="teacher-form-group" style="margin-top:8px;">
                 <label><span class="req">*</span> 📝 任务写作类型</label>
-                <select id="modal-task-type" class="teacher-input fancy" style="font-weight:700; background:#ffffff; cursor:pointer;">
-                  <option value="experiment" selected>🧪 实证研究方案 (论文写作)</option>
-                  <option value="instructional">📐 教学设计方案 (优质课备课)</option>
+                <select id="modal-task-type" class="teacher-input fancy" style="font-weight:700; background:#ffffff; cursor:pointer; width:100%;">
+                  <option value="experiment" selected>🧪 实证研究方案</option>
+                  <option value="instructional">📐 教学设计方案</option>
                 </select>
-                <div id="modal-task-type-tip" style="font-size:11.5px; color:#2563eb; margin-top:4px; line-height:1.4; background:#eff6ff; padding:6px 10px; border-radius:6px; border:1px solid #bfdbfe;">
-                  💡 智能体将采用【实证研究方法与实验设计】学术口径，由责任编辑与审稿编辑展开破题、半程质检与答辩质询。
-                </div>
               </div>
 
               <div class="teacher-form-group" style="margin-top:8px;">
@@ -9676,14 +9675,16 @@
               </div>
               <div class="teacher-form-group">
                 <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;">🎯 目标字数要求</label>
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <input type="number" id="modal-task-words" class="teacher-input fancy" value="3000" min="500" step="100" style="width:120px; font-size:13.5px; font-weight:700; padding:8px 12px; border:1.5px solid #cbd5e1; border-radius:8px; text-align:center;">
-                  <span style="font-size:13px; font-weight:700; color:#475569;">字</span>
-                  <div style="display:flex; gap:6px; margin-left:10px;">
-                    <button type="button" class="btn-create-quick-words" data-words="2000" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">2000字</button>
-                    <button type="button" class="btn-create-quick-words" data-words="3000" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">3000字</button>
-                    <button type="button" class="btn-create-quick-words" data-words="5000" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">5000字</button>
-                    <button type="button" class="btn-create-quick-words" data-words="8000" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">8000字</button>
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <input type="number" id="modal-task-words" class="teacher-input fancy" value="3000" min="500" step="100" style="width:110px; font-size:13.5px; font-weight:700; padding:8px 12px; border:1.5px solid #cbd5e1; border-radius:8px; text-align:center;">
+                    <span style="font-size:13px; font-weight:700; color:#475569;">字</span>
+                  </div>
+                  <div style="display:flex; gap:6px;">
+                    <button type="button" class="btn-create-quick-words" data-words="2000" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:5px 12px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">2000字</button>
+                    <button type="button" class="btn-create-quick-words" data-words="3000" style="background:#eff6ff; border:1.5px solid #2563eb; color:#1d4ed8; padding:5px 12px; border-radius:6px; font-size:11.5px; font-weight:800; cursor:pointer;">3000字</button>
+                    <button type="button" class="btn-create-quick-words" data-words="5000" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:5px 12px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">5000字</button>
+                    <button type="button" class="btn-create-quick-words" data-words="8000" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:5px 12px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">8000字</button>
                   </div>
                 </div>
               </div>
@@ -9715,18 +9716,7 @@
         };
         document.addEventListener('keydown', onEscKey);
 
-        const typeSelect = modal.querySelector('#modal-task-type');
-        const typeTip = modal.querySelector('#modal-task-type-tip');
-        if (typeSelect && typeTip) {
-          typeSelect.addEventListener('change', () => {
-            const v = typeSelect.value;
-            if (v === 'instructional') {
-              typeTip.innerHTML = '💡 智能体将采用【特级教师与教研专家】教学设计口径，由备课组长与教研专家展开备课磨课、半程质检与答辩评审。';
-            } else {
-              typeTip.innerHTML = '💡 智能体将采用【实证研究方法与实验设计】学术口径，由责任编辑与审稿编辑展开破题、半程质检与答辩质询。';
-            }
-          });
-        }
+
 
         const deadlineInput = modal.querySelector('#modal-task-deadline');
         const startInput = modal.querySelector('#modal-task-start');
