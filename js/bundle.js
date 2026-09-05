@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2665
+ * Version: 20260906_v2666
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2665';
+  const APP_VERSION = '20260906_v2666';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -16777,15 +16777,7 @@
 
         let finalText = (text && text.trim().length > 0) ? text.trim() : '';
         if (!finalText) {
-          if (fallbackText && fallbackText.trim().length > 0) {
-            finalText = fallbackText.trim();
-          } else {
-            const taskType = this.getCurrentTaskType();
-            const isInst = (taskType === 'instructional');
-            const roleMap = { auctioneer: isInst ? '备课引导师' : '拍卖师', managingEditor: isInst ? '备课组长' : '责任编辑', reviewingEditor: isInst ? '教研专家' : '审稿编辑', proponent: isInst ? '正方专家' : '正方委员', opponent: isInst ? '反方专家' : '反方委员', neutral: isInst ? '答辩主席' : '中间委员' };
-            const roleName = roleMap[botKey] || (isInst ? '备课组长' : '责任编辑');
-            finalText = `💡 【${roleName}】：网络响应稍微慢了一步～如果大家需要我的针对性指导，可以在讨论区输入 @${roleName} 重新召唤我！`;
-          }
+          return; // 🛡️ 严格禁止静态兜底话术冒充 AI，生成失败时保持静默
         }
 
         const msg = {
@@ -18359,15 +18351,7 @@
         }
 
         if (!replyText || replyText.trim().length === 0) {
-          if (replyAgent === 'managingEditor') {
-            replyText = `🤝 【责任编辑】：收到同学的研讨反馈！大家在推进《${currentTopic}》时，建议先对齐本段的核心概念与前后逻辑衔接，有针对性问题可随时提出！`;
-          } else if (replyAgent === 'reviewingEditor') {
-            replyText = `📝 【审稿编辑】：通读了大家的研讨内容，建议大家紧扣研究问题界定与方法操作化，避免口语化表达，保持严谨学术语体！`;
-          } else if (replyAgent === 'auctioneer') {
-            replyText = `🏛️ 【学术拍卖师】：收到选题研讨疑问！建议在方案中进一步聚焦具体的教学情境与变量操作化，使方案更有落地推广价值！`;
-          } else {
-            replyText = `💡 【${agentProfile.name}】：针对同学的研讨要点，建议全组紧密围绕本题焦点展开针对性商讨，形成明确修改共识！`;
-          }
+          replyText = `💡 【${agentProfile.roleTitle || agentProfile.name}·网络提醒】：📡 收到 @ 提问，但大模型网络连接稍有延迟未能即时生成回答。<br><span style="color:#64748b; font-size:12px;">建议在讨论区重新 @${agentProfile.roleTitle || agentProfile.name} 发送问题。</span>`;
         }
 
         const replyMsg = {
@@ -20702,9 +20686,12 @@
         const managingName = isInst ? '备课组长' : '责任编辑';
         const reviewingName = isInst ? '教研专家' : '审稿编辑';
 
-        const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues, taskType });
-        let managingText = (respManaging && respManaging.trim().length > 0) ? respManaging.trim() : `🤝 【${managingName}·研讨共识小结】：结合大家在自查打卡与讨论区指出的核心诉求，全组已在${isInst ? '教学目标聚焦与新知探究活动设计' : '研究问题聚焦与方法设计'}细化上形成了明确共识。👉 接下来正式有请 @${reviewingName} 结合全篇草稿为大家下发具体的《${isInst ? '磨课修正清单' : '二审修正清单'}》，指导全组深入修改与对齐落实！`;
-        if (!managingText.startsWith('🤝')) managingText = `🤝 【${managingName}·研讨共识小结】：${managingText}`;
+        let managingText = (respManaging && respManaging.trim().length > 0) ? respManaging.trim() : '';
+        if (!managingText) {
+          managingText = `🤝 【${managingName}·网络提醒】：📡 正在提炼研讨共识，网络连接稍有延迟未能即时生成。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成研讨共识小结</button>`;
+        } else {
+          if (!managingText.startsWith('🤝')) managingText = `🤝 【${managingName}·研讨共识小结】：${managingText}`;
+        }
 
         const msgManaging = { sender: 'managingEditor', senderName: isInst ? '协同调度 · 备课组长' : '协同调度 · 责任编辑', text: managingText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
         s2ChatLogs.push(msgManaging);
@@ -20749,17 +20736,11 @@
             parsedItems.push(cleanLine);
           }
         });
-        if (parsedItems.length === 0) {
-          parsedItems.push(
-            `🎯 [诊断问题]：${transIssues} 之间存在逻辑过渡生硬、前后内容未能完全呼应；[改进建议]：在衔接处增加过渡段落，阐明从前一章节推导至下一章节的研究逻辑。`,
-            `🎯 [诊断问题]：组内核心卡壳瓶颈聚焦于『${bottlenecks}』；[改进建议]：结合文献补充实证测量维度与具体研究方法细节，增强操作化可行性。`,
-            `🎯 [诊断问题]：${styleIssues} 存在部分口语化表述与学术术语不统一；[改进建议]：统一全篇学术术语口径，将第一人称主观口吻润色为规范客观的学术表达。`
-          );
+        if (parsedItems.length > 0) {
+          s2.actionPlan = { isGenerated: true, generatedAt: Date.now(), items: parsedItems, completedMap: {} };
+          s2.meetingStep = 'discussing_checklist';
+          s2.reviewMilestone = 'second_review_received';
         }
-
-        s2.actionPlan = { isGenerated: true, generatedAt: Date.now(), items: parsedItems, completedMap: {} };
-        s2.meetingStep = 'discussing_checklist';
-        s2.reviewMilestone = 'second_review_received';
 
         const msgReviewing = { sender: 'reviewingEditor', senderName: isInst ? '教学质量 · 教研专家' : '学术质量 · 审稿编辑', text: reviewingText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() + 10 };
         s2ChatLogs.push(msgReviewing);
@@ -20821,8 +20802,15 @@
         await new Promise(r => setTimeout(r, 1500));
 
         const respSummary = await callCozeAgentAPI('reviewingEditor', summaryPrompt, { stage: 'stage2', topic, taskType });
-        let summaryText = (respSummary && respSummary.trim().length > 0) ? respSummary.trim() : `📝 【${reviewingName}·修改确认与${isInst ? '备课' : '写作'}冲刺】：全组已达成了高质量的修改共识，方案落地务实且逻辑清晰。请大家立即回到左侧正文冲刺最终定稿！`;
-        if (!summaryText.startsWith('📝')) summaryText = `📝 【${reviewingName}·修改确认与${isInst ? '备课' : '写作'}冲刺】：${summaryText}`;
+        let summaryText = (respSummary && respSummary.trim().length > 0) ? respSummary.trim() : '';
+        if (!summaryText) {
+          summaryText = `📝 【${reviewingName}·网络提醒】：📡 正在评估全组修改对策与落实方案，网络连接稍有延迟未能获取到即时总结。<br><button class="btn-retry-ai" onclick="window.app.handleS2ReviewingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成修改确认与冲刺寄语</button>`;
+        } else {
+          if (!summaryText.startsWith('📝')) summaryText = `📝 【${reviewingName}·修改确认与${isInst ? '备课' : '写作'}冲刺】：${summaryText}`;
+          s2.meetingStep = 'completed'; // 完成半程会议，收起按钮
+          s2.meetingCompletedTime = Date.now();
+          s2.reviewMilestone = 'second_review_done';
+        }
 
         const msgSummary = {
           sender: 'reviewingEditor',
@@ -20834,9 +20822,6 @@
         if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
         s2ChatLogs.push(msgSummary);
         this.sendSingleChatMessage(msgSummary, 'stage2');
-        s2.meetingStep = 'completed'; // 完成半程会议，收起按钮
-        s2.meetingCompletedTime = Date.now();
-        s2.reviewMilestone = 'second_review_done';
 
         this.syncStage2();
         this.syncChatLogs();
@@ -20953,9 +20938,15 @@
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       } catch (e) {
         console.warn('handleS3InquirySummary error:', e);
-        currentInquiry.response = msgsForInquiry.map(m => m.text).join('；').slice(0, 150) || '全组已达成辩护共识并落实修改。';
-        currentInquiry.isFinalized = true;
-        this.syncStage3();
+        const errChairMsg = {
+          sender: 'neutral',
+          senderName: '答辩委员会主席 · 中间委员',
+          text: `🟡 【${chairShort}·网络提醒】：📡 答辩审阅网络连接稍有延迟，未能获取到针对【${inqLabel}】的定案。<br><button class="btn-retry-ai" onclick="window.app.handleS3InquirySummary(this)" style="margin-top:6px; background:#d97706; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成【${inqLabel}】答辩定案</button>`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        s3ChatLogs.push(errChairMsg);
+        this.syncChatLogs();
       } finally {
         this._isAnalyzingS3Inquiry = false;
         this.setActiveAgentAnalyzing(null);
@@ -22564,13 +22555,7 @@
 
               let neutralReply = await callCozeAgentAPI('neutral', queryPrompt, { stage: 'stage3', topic });
               if (!neutralReply || neutralReply.trim().length === 0) {
-                if (unadoptedOppCount > 0) {
-                  const nextItem = items.find(f => f.role === 'opponent' && (!f.response || f.response.trim().length === 0));
-                  const nextIndex = items.indexOf(nextItem);
-                  neutralReply = `🟡 【中间委员·针对质询 ${nextIndex} 答辩思路顺推】：前序答辩词已成功录入！👉 接下来请全组将焦点转向【质询 ${nextIndex}】：建议在答辩中明确阐述针对该质询的具体补强措施与设计说明！请全组继续在讨论区商定思路，由代表录入矩阵，并同步将修改落实到论文终稿中！`;
-                } else {
-                  neutralReply = `🟡 【中间委员·答辩终审总结与裁决】：各位研究者，答辩委员会已审阅了全组提交的全部答辩陈述与终稿！团队在面对质询时展现出了扎实的学术反思与严谨的论证逻辑。答辩全票顺利通过，祝贺大家圆满完成研究任务！请全组成员点击左侧【提交终稿】锁定入库！`;
-                }
+                neutralReply = `🟡 【中间委员·网络提醒】：📡 答辩委员会评审网络连接稍有延迟，未能即时生成答辩指引。<br><span style="color:#64748b; font-size:12px;">建议在讨论区 @中间委员 重新获取答辩思路指引。</span>`;
               }
 
               const neutralMsgObj = {
@@ -22871,11 +22856,21 @@
               console.warn('[FirstReview] Coze API error, switching to prompt fallback:', apiErr);
             }
             if (!firstReviewText || firstReviewText.trim().length === 0) {
-              if (rawDoc.length < 50) {
-                firstReviewText = `📝 【${reviewerRoleName}·一审破题把脉】：通读了全组目前的撰写进度，提出以下初审质检意见：\n①【起草进度与内容实质性】\n· 诊断问题：当前正文仅有零星字句，实质性${genreDocName}开篇框架尚未建立，起草进度明显滞后；\n· 改进建议：请全组成员抓紧时间，紧扣课题《${topic}》尽快起草第一部分${isInstTask ? '学情分析与教学目标' : '引言与核心研究问题'}，充实正文内容！`;
-              } else {
-                firstReviewText = `📝 【${reviewerRoleName}·一审破题把脉】：通读了全组目前起草的正文草稿，提出以下初审质检意见：\n①【立意与问题聚焦】\n· 诊断问题：文献综述梳理充分，但末尾未精准聚焦核心缺口（Research Gap）；\n· 改进建议：收拢综述结论，直接引出核心研究问题与假设。\n②【语体与术语口径】\n· 诊断问题：部分段落出现口语化表述，术语叫法略有出入；\n· 改进建议：统一全篇术语口径，采用规范学术语体。请全组参考后继续稳步撰写！`;
-              }
+              const errReviewMsg = {
+                id: 'err_first_review_' + Date.now(),
+                sender: 'reviewingEditor',
+                senderName: `学术质量 · ${reviewerRoleName}`,
+                text: `📝 【${reviewerRoleName}·网络提醒】：📡 正在通读正文草稿进行初审把脉，网络连接稍有延迟未能即时生成意见。<br><button class="btn-retry-ai" onclick="window.app.triggerStage2FirstReview()" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成《一审破题把脉》</button>`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now()
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(errReviewMsg);
+              this.sendSingleChatMessage(errReviewMsg, 'stage2');
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
             }
             s2.firstReviewText = firstReviewText;
             s2.reviewMilestone = 'first_review_done';
@@ -23043,7 +23038,7 @@
   ③ 【核心红线要求】：同时提醒其主动通读同伴已起草的段落，从中汲取灵感并打通前后逻辑衔接；
   ④ 纯自然语言，80~110字，严禁指责，【绝对严禁出现“分工”字眼】，强调共同思考与协同衔接，严禁输出代码块，严禁添加按钮。`;
 
-        let careText = `🤝 【${managingName}·协同关怀】：大家都在按节奏推进！主要聚焦【${targetChapter}】的 ${targetName} 同学也可以逐步动笔啦。建议可以先通读同伴已起草的段落，从中汲取灵感并打通前后逻辑衔接，遇到难点随时在研讨区抛出来，全组共同思考推进！`;
+        let careText = '';
 
         try {
           const resp = await callCozeAgentAPI('managingEditor', contribPrompt, { stage: 'stage2', topic });
@@ -23058,6 +23053,8 @@
         } finally {
           this._isTriggeringContribCare = false;
         }
+
+        if (!careText) return; // 🛡️ 严格禁止静态兜底话术冒充 AI
 
         const msg = {
           sender: 'managingEditor',
@@ -23627,11 +23624,7 @@
           this.setActiveAgentAnalyzing(null);
         }
         if (!managingText || managingText.trim().length === 0) {
-          managingText = `🤝 【${managingName}·自查研判与对齐引导】：全员自查打卡已完成！汇总全组反馈，提炼出核心焦点：
-    1. 🎯 构思与脱节焦点：${hasIdeationDev ? `部分成员反馈 ${ideationFocusText} 偏离了最初设想；` : ''}${hasTransDev ? `多数成员明确指出了前后脱节（重点涉及 ${transFocusText}）；` : '全篇前后衔接顺畅；'}
-    2. 🎨 语言规范与术语口径：${hasStyleDev ? `组内指出 ${styleFocusText} 存在口语化表述与术语混用；` : '全篇语言严谨规范，'}整体质量自评给出了 ${avgOverallRating} 星的高分！
-    3. 💡 核心瓶颈：全组聚焦在『${primaryAcademicB}』。
-  💡 请小组成员先在讨论区围绕上述脱节章节商量对齐修改思路。商量差不多后，请点击【💡 讨论差不多了？让${managingName}总结】按钮！`;
+          managingText = `🤝 【${managingName}·网络提醒】：📡 正在深度分析全组自查打卡与分歧，网络连接稍有延迟未能获取到即时研判。<br><button class="btn-retry-ai" onclick="window.app.showMeetingModal()" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成自查研判与对齐引导</button>`;
         }
 
         const managingMsg = {
@@ -23706,35 +23699,31 @@
 
       let reviewingText = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic: ctx.topic, bottleneck: ctx.bAcademic, actualDoc: fullDoc, priorReview: priorFirstReview });
       if (!reviewingText || reviewingText.trim().length === 0) {
-        reviewingText = `📝 【审稿编辑·二审修正清单】：通读了大家的方案草稿，结合大家在半程会议中汇报的核心瓶颈与攻克点：
-  ①【前后闭环】：第三章提出的核心假设，在第四章测量工具中缺少对应题目，请补齐对应的测量题目或实施指标，别让假设悬空；
-  ②【润色文风】：通读 ${ctx.styleFocus}，消除“我们觉得”等口语，统一润色为规范客观的第三人称学术语体；
-  ③【预判不足】：在第五章实事求是地反思方案在样本抽样与实施工具上的潜在局限。
-  👉 3 项【修正清单】已在正文上方就位！请全组商定落实策略，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！`;
+        reviewingText = `📝 【${reviewingName}·网络提醒】：📡 正在深度审阅正文草稿，网络连接稍有延迟未能即时生成修正清单。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新下发《${isInst ? '磨课修正清单' : '二审修正清单'}》</button>`;
+      } else {
+        this.state.stage2SecondReviewText = reviewingText;
+        this.state.stage2.reviewMilestone = 'checklist_issued';
+        this.state.stage2PendingReviewing = null;
+        if (this.state.stage2) this.state.stage2.pendingReviewing = null;
+
+        const lines = reviewingText.split('\n').map(l => l.trim()).filter(Boolean);
+        const parsedItems = [];
+        lines.forEach(l => {
+          const cleanLine = l.replace(/^\d+[\.、\s]*/, '').trim();
+          if (cleanLine.includes('诊断问题') || cleanLine.includes('改进建议') || cleanLine.startsWith('🎯') || cleanLine.includes('【诊断问题】') || cleanLine.includes('[诊断问题]')) {
+            parsedItems.push(cleanLine);
+          }
+        });
+        if (parsedItems.length > 0) {
+          this.state.stage2.actionPlan = {
+            isGenerated: true,
+            completedMap: {},
+            items: parsedItems
+          };
+        }
+        this.state.stage2PendingRevisionDiscussion = true;
+        this.state.stage2ReviewingFinishedTime = Date.now();
       }
-      this.state.stage2SecondReviewText = reviewingText;
-      this.state.stage2.reviewMilestone = 'checklist_issued';
-      this.state.stage2PendingReviewing = null;
-      if (this.state.stage2) this.state.stage2.pendingReviewing = null;
-
-      // 🌟 动态生成包含三大高含金量支柱的【半程修正清单】(支持交互勾选)
-      this.state.stage2.actionPlan = {
-        isGenerated: true,
-        completedMap: {},
-        items: isInst ? [
-          `🎯【消除前后脱节与教学分歧】(重点关注: ${ctx.transFocus}): 完善第四章新知探究与建构，确保能有效达成前文制定的教学目标与突破重难点，消除“两张皮”脱节硬伤，使教学主线一贯到底！`,
-          `✍️【统一语言文风与教学术语】(重点关注: ${ctx.styleFocus}): 通读全篇，消除口语化随意表达，润色为规范严谨的教学设计规范语体，统一全篇核心概念与活动设计命名。`,
-          `💡【攻克瓶颈与反思评价冲刺】: 按照自查瓶颈（${ctx.bAcademic}），细化教学活动实施，并在第五、六章深入完善巩固练习评价与板书反思，把控节奏，准备初稿定稿！`
-        ] : [
-          `🎯【消除前后脱节与构思分歧】(重点关注: ${ctx.transFocus}): 完善第四章方法与测量工具，确保能有效检验前文提出的全部核心假设，消除“两张皮”脱节硬伤，使主线一贯到底！`,
-          `✍️【统一语言文风与专业术语】(重点关注: ${ctx.styleFocus}): 通读全篇，消除口语化表达与第一人称叙述，润色为规范严谨的客观学术语体，统一全篇核心概念命名。`,
-          `💡【攻克瓶颈与局限反思冲刺】: 按照自查瓶颈（${ctx.bAcademic}），细化实施设计，并在即将起草的第五章深入剖析方案潜在局限，把控节奏，准备初稿定稿！`
-        ]
-      };
-
-      // 开启第 2 轮研讨监听（讨论具体怎么修）
-      this.state.stage2PendingRevisionDiscussion = true;
-      this.state.stage2ReviewingFinishedTime = Date.now();
 
       const reviewingMsg = {
         sender: 'reviewingEditor',
