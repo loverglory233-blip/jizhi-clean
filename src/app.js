@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2811";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260905_v2811";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2811";
-import { AuthManager } from "./auth.js?v=20260905_v2811";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2811";
-import { renderLoginView } from "./login.js?v=20260905_v2811";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2811";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2811";
+} from "./constants.js?v=20260905_v2812";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260905_v2812";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2812";
+import { AuthManager } from "./auth.js?v=20260905_v2812";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2812";
+import { renderLoginView } from "./login.js?v=20260905_v2812";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2812";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2812";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2811";
+} from "./editor.js?v=20260905_v2812";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1838,17 +1838,13 @@ export class App {
     }, 10000);
   }
 
-  async checkUnreadAnnouncements() {
-    if (this.state.studentViewMode !== 'workspace') return;
-
+  checkUnreadAnnouncements() {
     const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
     if (!currentUser || currentUser.isTeacher || currentUser.role === 'teacher') return;
-    const activeTaskId = this.state.activeTaskId;
-    if (!activeTaskId) return;
 
     const doCheck = () => {
-      if (this.state.studentViewMode !== 'workspace') return;
-      const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null);
+      const activeTaskId = this.state.activeTaskId || null;
+      const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null);
       const classes = this.authManager.getClasses();
       const currentClassObj = classes.find(c => c.id === effectiveClassId);
       const effectiveClassName = currentClassObj ? currentClassObj.name : '';
@@ -1874,30 +1870,25 @@ export class App {
 
       const allAnns = this.authManager.getAnnouncements();
 
-      // 过滤出严格属于【当前任务 + 当前班级 + 当前小组】且未读的通知
-      const unreadList = allAnns
-        .filter(a => {
-          if (!a) return false;
-          // 延期通知仅通过工作台顶部红点提示，不主动弹窗打扰
-          if (a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长')) return false;
+      // 过滤出严格属于【当前班级 + 当前任务 + 当前小组】的全部通知
+      const myAnns = allAnns.filter(a => {
+        if (!a || a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长')) return false;
+        if (a.taskId && a.taskId !== 'task_all' && a.taskId !== 'all' && activeTaskId) {
+          const tObj = allTasks.find(t => t.id === a.taskId);
+          if (tObj && isTaskExpired(tObj)) return false;
+        }
+        return isScopeMatch(a, {
+          userClassId: effectiveClassId || currentUser?.classId,
+          userGroupId: groupId,
+          currentTaskId: activeTaskId,
+          userClassName: effectiveClassName
+        });
+      });
 
-          if (a.taskId && a.taskId !== 'task_all' && a.taskId !== 'all') {
-            const tObj = allTasks.find(t => t.id === a.taskId);
-            if (tObj && isTaskExpired(tObj)) return false;
-          }
+      // 过滤出未读通知
+      const unreadList = myAnns.filter(a => !isAnnRead(a)).sort((a, b) => (b.id > a.id ? 1 : -1));
 
-          const isMatched = isScopeMatch(a, {
-            userClassId: effectiveClassId || currentUser?.classId,
-            userGroupId: groupId,
-            currentTaskId: activeTaskId,
-            userClassName: effectiveClassName
-          });
-
-          return isMatched && !isAnnRead(a);
-        })
-        .sort((a, b) => (b.id > a.id ? 1 : -1));
-
-      // 📢 教师发布的教学指示/课堂通知在工作台自动弹窗提示学生阅读并确认
+      // 📢 实时响应关闭已删除通知的弹窗
       const openModal = document.querySelector('.modal-announcement-popup');
       if (openModal) {
         const openAnnId = openModal.dataset.annId;
@@ -1907,12 +1898,17 @@ export class App {
             openModal.remove();
           }
         } else if (openAnnId === 'list') {
-          this.showAnnouncementModal();
+          if (myAnns.length === 0) {
+            openModal.remove();
+          } else {
+            this.showAnnouncementModal(null, true);
+          }
         }
       }
 
-      const currentOpenModal = document.querySelector('.modal-announcement-popup');
-      if (unreadList.length > 0) {
+      // 仅在工作台模式下对未读通知执行主动首发自动弹窗
+      if (this.state.studentViewMode === 'workspace' && activeTaskId && unreadList.length > 0) {
+        const currentOpenModal = document.querySelector('.modal-announcement-popup');
         if (!currentOpenModal) {
           this.showAnnouncementModal(unreadList[0], true);
         }
