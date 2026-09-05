@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2560";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2560";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2560";
-import { AuthManager } from "./auth.js?v=20260905_v2560";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2560";
-import { renderLoginView } from "./login.js?v=20260905_v2560";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2560";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2560";
+} from "./constants.js?v=20260905_v2561";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2561";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2561";
+import { AuthManager } from "./auth.js?v=20260905_v2561";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2561";
+import { renderLoginView } from "./login.js?v=20260905_v2561";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2561";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2561";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2560";
+} from "./editor.js?v=20260905_v2561";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3949,19 +3949,51 @@ ${chatSnippet}
 
       if (resp && resp.trim().length > 0) {
         try {
-          const jsonMatch = resp.match(/\{[\s\S]*\}/);
+          let cleanedResp = resp.replace(/```(?:json)?\s*/gi, '').replace(/```\s*$/gi, '').trim();
+          const jsonMatch = cleanedResp.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             const parsed = safeJsonParse(jsonMatch[0]);
-            if (parsed && parsed.background !== undefined && !isNaN(Number(parsed.background))) timeAlloc.background = Math.max(5, Math.round(Number(parsed.background)));
-            if (parsed && parsed.literature !== undefined && !isNaN(Number(parsed.literature))) timeAlloc.literature = Math.max(5, Math.round(Number(parsed.literature)));
-            if (parsed && parsed.questions !== undefined && !isNaN(Number(parsed.questions))) timeAlloc.questions = Math.max(5, Math.round(Number(parsed.questions)));
-            if (parsed && parsed.method !== undefined && !isNaN(Number(parsed.method))) timeAlloc.method = Math.max(5, Math.round(Number(parsed.method)));
-            if (parsed && parsed.reflection !== undefined && !isNaN(Number(parsed.reflection))) timeAlloc.reflection = Math.max(5, Math.round(Number(parsed.reflection)));
-            if (parsed && parsed.references !== undefined && !isNaN(Number(parsed.references))) timeAlloc.references = Math.max(5, Math.round(Number(parsed.references)));
-            if (parsed && parsed.guideText && parsed.guideText.trim().length > 0) guideSpeech = parsed.guideText.trim();
+            if (parsed) {
+              if (parsed.background !== undefined && !isNaN(Number(parsed.background))) timeAlloc.background = Math.max(5, Math.round(Number(parsed.background)));
+              if (parsed.literature !== undefined && !isNaN(Number(parsed.literature))) timeAlloc.literature = Math.max(5, Math.round(Number(parsed.literature)));
+              if (parsed.questions !== undefined && !isNaN(Number(parsed.questions))) timeAlloc.questions = Math.max(5, Math.round(Number(parsed.questions)));
+              if (parsed.method !== undefined && !isNaN(Number(parsed.method))) timeAlloc.method = Math.max(5, Math.round(Number(parsed.method)));
+              if (parsed.reflection !== undefined && !isNaN(Number(parsed.reflection))) timeAlloc.reflection = Math.max(5, Math.round(Number(parsed.reflection)));
+              if (parsed.references !== undefined && !isNaN(Number(parsed.references))) timeAlloc.references = Math.max(5, Math.round(Number(parsed.references)));
+              if (parsed.guideText && parsed.guideText.trim().length > 0) guideSpeech = parsed.guideText.trim();
+            }
           }
+
+          // 2. 自然语言与 Markdown 列表提取容错
+          const extractNum = (patterns) => {
+            for (const p of patterns) {
+              const m = resp.match(p);
+              if (m && m[1] && !isNaN(Number(m[1]))) {
+                return Math.max(5, Math.round(Number(m[1])));
+              }
+            }
+            return null;
+          };
+
+          const bgNum = extractNum([/(?:背景|教材|学情)[^\d\n]*?(\d+)\s*(?:分钟|分|%|min)?/i]);
+          if (bgNum) timeAlloc.background = bgNum;
+
+          const litNum = extractNum([/(?:文献|目标|重难点)[^\d\n]*?(\d+)\s*(?:分钟|分|%|min)?/i]);
+          if (litNum) timeAlloc.literature = litNum;
+
+          const qNum = extractNum([/(?:问题|假设|导入|情境)[^\d\n]*?(\d+)\s*(?:分钟|分|%|min)?/i]);
+          if (qNum) timeAlloc.questions = qNum;
+
+          const metNum = extractNum([/(?:方法|探究|建构|活动)[^\d\n]*?(\d+)\s*(?:分钟|分|%|min)?/i]);
+          if (metNum) timeAlloc.method = metNum;
+
+          const refNum = extractNum([/(?:反思|不足|评价|练习)[^\d\n]*?(\d+)\s*(?:分钟|分|%|min)?/i]);
+          if (refNum) timeAlloc.reflection = refNum;
+
+          const refsNum = extractNum([/(?:参考|引文|板书|道具)[^\d\n]*?(\d+)\s*(?:分钟|分|%|min)?/i]);
+          if (refsNum) timeAlloc.references = refsNum;
         } catch (e) {
-          console.warn('Parse time allocation JSON fail, keep default', e);
+          console.warn('Parse time allocation fail, keep default', e);
         }
       }
 
@@ -4111,19 +4143,36 @@ ${chatSnippet}
 
       if (resp && resp.trim().length > 0) {
         try {
-          const jsonMatch = resp.match(/\{[\s\S]*\}/);
+          let cleanedResp = resp.replace(/```(?:json)?\s*/gi, '').replace(/```\s*$/gi, '').trim();
+          const jsonMatch = cleanedResp.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             const parsed = safeJsonParse(jsonMatch[0]);
             if (parsed && parsed.assignments && typeof parsed.assignments === 'object') {
               members.forEach((m, idx) => {
                 const mKey = m.id || m.name;
                 const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id];
-                if (matchedVal) taskAssignments[mKey] = matchedVal;
+                if (matchedVal) taskAssignments[mKey] = String(matchedVal).trim();
               });
             }
             if (parsed && parsed.guideText) guideSpeech = parsed.guideText;
           }
-        } catch (e) {}
+
+          // 2. 自然语言与列表按成员名字提取容错
+          members.forEach(m => {
+            const mKey = m.id || m.name;
+            const names = [m.name, m.id].filter(Boolean);
+            for (const name of names) {
+              const reg = new RegExp(`(?:[-*•\\d.]\\s*)?(?:${name})[：:\\s\\-]+([^\n\r]+)`, 'i');
+              const match = resp.match(reg);
+              if (match && match[1] && match[1].trim().length > 3) {
+                taskAssignments[mKey] = match[1].trim().replace(/^[：:\s"“]+|[”"\s]+$/g, '');
+                break;
+              }
+            }
+          });
+        } catch (e) {
+          console.warn('Parse tasks fail, keep default', e);
+        }
       }
 
       // 🛡️ 移除正在提炼中的思考消息与残留网络提醒
