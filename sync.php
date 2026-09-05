@@ -2145,9 +2145,9 @@ if ($action === 'extend_task_deadline' && $_SERVER['REQUEST_METHOD'] === 'POST')
         $reqTitle = trim($req['taskTitle'] ?? '');
 
         foreach ($gm['tasks'] as &$tsk) {
-            $isIdMatch = isset($tsk['id']) && ($tsk['id'] === $taskId || 
+            $isIdMatch = isset($tsk['id']) && (is_same_id_php($tsk['id'], $taskId) || 
                 (strpos($taskId, 'default') !== false && strpos($tsk['id'], 'default') !== false));
-            $isTitleMatch = (!empty($reqTitle) && isset($tsk['title']) && $tsk['title'] === $reqTitle);
+            $isTitleMatch = (!empty($reqTitle) && isset($tsk['title']) && is_same_id_php($tsk['title'], $reqTitle));
 
             if ($isIdMatch || $isTitleMatch) {
                 $tsk['deadline'] = $newDeadline;
