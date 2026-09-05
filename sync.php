@@ -155,11 +155,18 @@ $taskId = isset($_GET['taskId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['t
 if (empty($taskId) && isset($REQ_DATA['message']['taskId'])) {
     $taskId = preg_replace('/[^a-zA-Z0-9_-]/', '', $REQ_DATA['message']['taskId']);
 }
-if (empty($taskId) || $taskId === 'task_default') {
-    $taskId = 'task_' . $classId . '_default';
+$passedScopeKey = isset($_GET['scopeKey']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['scopeKey']) : (isset($REQ_DATA['scopeKey']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $REQ_DATA['scopeKey']) : '');
+if (!empty($passedScopeKey)) {
+    $scopeKey = $passedScopeKey;
+    if (empty($taskId) || $taskId === 'task_' . $classId . '_default') {
+        if (preg_match('/^(task_[a-zA-Z0-9_-]+)_(group_[a-zA-Z0-9_-]+)$/', $scopeKey, $sm)) {
+            $taskId = $sm[1];
+            $groupId = $sm[2];
+        }
+    }
+} else {
+    $scopeKey = $taskId . '_' . $groupId;
 }
-
-$scopeKey = $taskId . '_' . $groupId;
 $action = isset($_GET['action']) ? $_GET['action'] : (isset($REQ_DATA['action']) ? $REQ_DATA['action'] : '');
 
 /**
