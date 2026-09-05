@@ -3458,7 +3458,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmtSaveTimer->execute([':k' => 'timer_' . $scopeKey, ':v' => json_encode($mergedTimer), ':ts' => $nowStr, ':v2' => json_encode($mergedTimer), ':ts2' => $nowStr]);
             }
 
-            // 4b. 聊天记录增量并集去重合并（Union & Dedup），确保服务端消息单调递增绝不丢任何发言
+            // 4b. 智能体深度分析动态状态跨端实时广播持久化
+            if (array_key_exists('activeAgentAnalyzing', $data)) {
+                $nowStr = date('Y-m-d H:i:s');
+                $agVal = !empty($data['activeAgentAnalyzing']) ? json_encode($data['activeAgentAnalyzing'], JSON_UNESCAPED_UNICODE) : '';
+                $stmtSaveAg = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value, updated_at) VALUES (:k, :v, :ts) ON DUPLICATE KEY UPDATE meta_value = :v2, updated_at = :ts2");
+                $stmtSaveAg->execute([':k' => 'ag_analyzing_' . $scopeKey, ':v' => $agVal, ':ts' => $nowStr, ':v2' => $agVal, ':ts2' => $nowStr]);
+            }
+
+            // 4c. 聊天记录增量并集去重合并（Union & Dedup），确保服务端消息单调递增绝不丢任何发言
             $existingChats = ['stage1' => [], 'stage2' => [], 'stage3' => []];
             if (!$isResetVal) {
                 $stmtGetChats = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
@@ -3771,16 +3779,27 @@ if ($pdo) {
         $clientMetaVer = isset($_GET['metaVer']) ? intval($_GET['metaVer']) : 0;
         $needGlobalSync = ($clientMetaVer < $metaVer) || (isset($_GET['incGlobal']) && intval($_GET['incGlobal']) === 1);
 
+        $stmtGetTimer = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmtGetTimer->execute([':k' => 'timer_' . $scopeKey]);
+        $tRow = $stmtGetTimer->fetch();
+        $timerData = ($tRow && !empty($tRow['meta_value'])) ? (json_decode($tRow['meta_value'], true) ?: null) : null;
+
+        $stmtGetAg = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmtGetAg->execute([':k' => 'ag_analyzing_' . $scopeKey]);
+        $agRow = $stmtGetAg->fetch();
+        $agAnalyzingData = ($agRow && !empty($agRow['meta_value'])) ? (json_decode($agRow['meta_value'], true) ?: null) : null;
+
         if ($clientLastRev > 0 && $clientLastRev === $lastRev && $clientLastChatMs >= $maxChatMs && $resetSeq === 0 && !$needGlobalSync) {
             echo json_encode([
-                'unchanged'       => true,
-                'serverTimestamp' => $nowMs,
-                'revisionId'      => $lastRev,
-                'metaVer'         => $metaVer,
-                'presence'        => json_decode($prRaw) ?: new stdClass(),
-                'locks'           => $activeLocks,
-                'resetSeq'        => 0,
-                'chatLogs'        => $chats
+                'unchanged'            => true,
+                'serverTimestamp'      => $nowMs,
+                'revisionId'           => $lastRev,
+                'metaVer'              => $metaVer,
+                'presence'             => json_decode($prRaw) ?: new stdClass(),
+                'locks'                => $activeLocks,
+                'resetSeq'             => 0,
+                'chatLogs'             => $chats,
+                'activeAgentAnalyzing' => $agAnalyzingData
             ]);
             exit;
         }
@@ -3810,37 +3829,33 @@ if ($pdo) {
         $cRow = $stmtGetConfs->fetch();
         $stepConfs = ($cRow && !empty($cRow['meta_value'])) ? (json_decode($cRow['meta_value'], true) ?: []) : [];
 
-        $stmtGetTimer = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
-        $stmtGetTimer->execute([':k' => 'timer_' . $scopeKey]);
-        $tRow = $stmtGetTimer->fetch();
-        $timerData = ($tRow && !empty($tRow['meta_value'])) ? (json_decode($tRow['meta_value'], true) ?: null) : null;
-
         $respData = [
-            'timestamp'        => $lastTs,
-            'serverTimestamp'  => $nowMs,
-            'revisionId'       => $lastRev,
-            'metaVer'          => $metaVer,
-            'groupId'          => $row['group_id'],
-            'taskId'           => $row['task_id'],
-            'currentStage'     => $row['current_stage'] ?: 'stage1',
-            'stage1'           => !empty($stg1Raw) ? (json_decode($stg1Raw, true) ?: []) : [],
-            'stage2'           => !empty($stg2Raw) ? (json_decode($stg2Raw, true) ?: []) : [],
-            'stage3'           => !empty($stg3Raw) ? (json_decode($stg3Raw, true) ?: []) : [],
-            'stepConfirmations'=> $stepConfs,
-            'timer'            => $timerData,
-            'presence'         => json_decode($prRaw) ?: new stdClass(),
-            'members'          => json_decode($memRaw, true) ?: [],
-            'isFinalSubmitted' => (bool)$row['is_final_submitted'],
-            'chatLogs'         => $chats,
-            'locks'            => $activeLocks,
-            'resetSeq'         => $resetSeq,
-            'users'            => $needGlobalSync ? $sanitizedUsers : null,
-            'classes'          => ($needGlobalSync && isset($globalMeta['classes']))          ? $globalMeta['classes']          : null,
-            'tasks'            => ($needGlobalSync && isset($globalMeta['tasks']))            ? $globalMeta['tasks']            : null,
-            'announcements'    => ($needGlobalSync && isset($globalMeta['announcements']))    ? $globalMeta['announcements']    : null,
-            'referencePapers'  => ($needGlobalSync && isset($globalMeta['referencePapers'])) ? $globalMeta['referencePapers'] : null,
-            'surveys'          => ($needGlobalSync && isset($globalMeta['surveys']))          ? $globalMeta['surveys']          : null,
-            'metaVer'          => $metaVer
+            'timestamp'            => $lastTs,
+            'serverTimestamp'      => $nowMs,
+            'revisionId'           => $lastRev,
+            'metaVer'              => $metaVer,
+            'groupId'              => $row['group_id'],
+            'taskId'               => $row['task_id'],
+            'currentStage'         => $row['current_stage'] ?: 'stage1',
+            'stage1'               => !empty($stg1Raw) ? (json_decode($stg1Raw, true) ?: []) : [],
+            'stage2'               => !empty($stg2Raw) ? (json_decode($stg2Raw, true) ?: []) : [],
+            'stage3'               => !empty($stg3Raw) ? (json_decode($stg3Raw, true) ?: []) : [],
+            'stepConfirmations'    => $stepConfs,
+            'timer'                => $timerData,
+            'activeAgentAnalyzing' => $agAnalyzingData,
+            'presence'             => json_decode($prRaw) ?: new stdClass(),
+            'members'              => json_decode($memRaw, true) ?: [],
+            'isFinalSubmitted'     => (bool)$row['is_final_submitted'],
+            'chatLogs'             => $chats,
+            'locks'                => $activeLocks,
+            'resetSeq'             => $resetSeq,
+            'users'                => $needGlobalSync ? $sanitizedUsers : null,
+            'classes'              => ($needGlobalSync && isset($globalMeta['classes']))          ? $globalMeta['classes']          : null,
+            'tasks'                => ($needGlobalSync && isset($globalMeta['tasks']))            ? $globalMeta['tasks']            : null,
+            'announcements'        => ($needGlobalSync && isset($globalMeta['announcements']))    ? $globalMeta['announcements']    : null,
+            'referencePapers'      => ($needGlobalSync && isset($globalMeta['referencePapers'])) ? $globalMeta['referencePapers'] : null,
+            'surveys'              => ($needGlobalSync && isset($globalMeta['surveys']))          ? $globalMeta['surveys']          : null,
+            'metaVer'              => $metaVer
         ];
         echo json_encode($respData);
         exit;
