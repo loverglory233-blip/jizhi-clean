@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2606
+ * Version: 20260905_v2607
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2606';
+  const APP_VERSION = '20260905_v2607';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11474,7 +11474,7 @@
     if (!header) return;
     const activeTaskId = (state && state.activeTaskId) ? state.activeTaskId : null;
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-    const currentTask = allTasks.find(t => t.id === activeTaskId || (t.title && t.title === activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
+    const currentTask = allTasks.find(t => isSameId(t.id, activeTaskId) || (t.title && t.title === activeTaskId)) || (activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
     const taskGenreKey = currentTask?.taskType || 'experiment';
 
     let remainingMin = 150;
@@ -11733,9 +11733,9 @@
     if (!s1.contract.timeAllocations) s1.contract.timeAllocations = {};
 
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-    const currentTask = allTasks.find(t => t.id === state.activeTaskId || (t.title && t.title === state.activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
+    const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || (state.activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
     const taskGenreKey = currentTask?.taskType || 'experiment';
-    const isTaskDeadlineExpired = isTaskExpired(currentTask);
+    const isTaskDeadlineExpired = currentTask ? isTaskExpired(currentTask) : false;
     const genreCfg = TASK_GENRE_CONFIGS[taskGenreKey] || TASK_GENRE_CONFIGS.experiment;
     const taskDurMin = Number(currentTask?.durationMinutes) || 150;
 
@@ -12877,10 +12877,11 @@
     if (!currUserName) currUserName = currUserCode || '组员';
     const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-    const currentTask = allTasks.find(t => t.id === state.activeTaskId || (t.title && t.title === state.activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
-    const taskGenreKey = currentTask?.taskType || 'experiment';
-    const isTaskDeadlineExpired = isTaskExpired(currentTask);
-    const isFinalSubmitted = !!state.isFinalSubmitted;
+    const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || (state.activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
+    const taskGenreKey = currentTask?.taskType || state.taskType || 'experiment';
+    const isTaskDeadlineExpired = currentTask ? isTaskExpired(currentTask) : false;
+    // 🛡️ 阶段二编辑区：仅当任务已真正截止，或者全员在阶段三确认终稿归档时才只读；在阶段二正常撰写阶段绝不误锁！
+    const isFinalSubmitted = (state.currentStage === 'stage3' || state.groupMaxStage === 'stage3') && !!state.isFinalSubmitted;
     const isEditorReadonly = isTaskDeadlineExpired || isFinalSubmitted;
 
     if (!userGroupId || userGroupId === 'null' || String(userGroupId || '').startsWith('group_unassigned')) {
@@ -14148,9 +14149,9 @@
     const isAllFinalSubmitted = state.isFinalSubmitted || (finalSubmittedCount >= totalCount && totalCount > 0);
 
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-    const currentTask = allTasks.find(t => t.id === state.activeTaskId || (t.title && t.title === state.activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
-    const taskGenreKey = currentTask?.taskType || 'experiment';
-    const isTaskDeadlineExpired = isTaskExpired(currentTask);
+    const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || (state.activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
+    const taskGenreKey = currentTask?.taskType || state.taskType || 'experiment';
+    const isTaskDeadlineExpired = currentTask ? isTaskExpired(currentTask) : false;
     const isFinalSubmitted = state.isFinalSubmitted || isAllFinalSubmitted || isTaskDeadlineExpired;
     const isDefenseLocked = isRevisionFullyConfirmed || isFinalSubmitted;
 
@@ -14759,7 +14760,7 @@
 
       if (isAgent) {
         const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-        const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+        const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId));
         const taskGenreKey = currentTask?.taskType || 'experiment';
         name = getAgentDisplayName(msg.sender, taskGenreKey);
         const profile = AgentProfiles[msg.sender];
@@ -15071,7 +15072,7 @@
       } else {
         actionBar.style.display = 'block';
         const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-        const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+        const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId));
         const taskGenreKey = currentTask?.taskType || 'experiment';
         const isInst = (taskGenreKey === 'instructional');
         const managingTitle = isInst ? '备课组长' : '责任编辑';
@@ -16017,7 +16018,7 @@
           const activeTaskId = this.state.activeTaskId || null;
           const currentGroupId = (currentUser && currentUser.groupId) ? currentUser.groupId : (this.state.activeMonitorGroupId || this.state.activeGroupId || null);
           const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-          const curTask = allTasks.find(t => t.id === activeTaskId);
+          const curTask = allTasks.find(t => isSameId(t.id, activeTaskId) || (t.title && t.title === activeTaskId));
           const totalDurationMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
           const totalDurationSec = totalDurationMin * 60;
           const elapsedSec = (this.state.timer && this.state.timer.elapsedSeconds) ? this.state.timer.elapsedSeconds : 0;
@@ -16851,7 +16852,7 @@
 
           // 动态读取任务时长判定任务规模（全系统统一：静默 3 分钟破冰，6 分钟催促，10 分钟强兜底）
           const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-          const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
+          const curTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
           const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
           const isLargeTask = taskDurMin > 150;
           const s2SilenceThresholdMs = 180000; // 统一 3 分钟破冰
@@ -17181,7 +17182,7 @@
 
           // ── ⏳ 阶段三：总时间仅剩 5 分钟终稿冲刺提醒（全场严格仅发 1 次）──
           const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-          const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
+          const curTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
           let remainingMs = Infinity;
           if (curTask && curTask.deadline) {
             const raw = String(curTask.deadline).trim();
@@ -17308,7 +17309,7 @@
         const myAnns = allAnns.filter(a => {
           if (!a || a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长')) return false;
           if (a.taskId && a.taskId !== 'task_all' && a.taskId !== 'all' && activeTaskId) {
-            const tObj = allTasks.find(t => t.id === a.taskId);
+            const tObj = allTasks.find(t => isSameId(t.id, a.taskId));
             if (tObj && isTaskExpired(tObj)) return false;
           }
           return isScopeMatch(a, {
@@ -17417,7 +17418,7 @@
       const isSelectedExtension = selectedAnn ? isExtensionNotice(selectedAnn) : false;
 
       const allTasks = this.authManager.getTasks();
-      const annTaskObj = selectedAnn ? allTasks.find(t => t.id === selectedAnn.taskId) : null;
+      const annTaskObj = selectedAnn ? allTasks.find(t => isSameId(t.id, selectedAnn.taskId)) : null;
       const isAnnTaskExpired = isTaskExpired(annTaskObj);
 
       const modal = document.createElement('div');
@@ -17492,7 +17493,7 @@
       const renderDetailHtml = (ann) => {
         const isRead = isAnnRead(ann);
         const isExt = isExtensionNotice(ann);
-        const annTask = allTasks.find(t => t.id === ann.taskId);
+        const annTask = allTasks.find(t => isSameId(t.id, ann.taskId));
         const isExpired = isTaskExpired(annTask);
         const unreadIdx = unreadList.findIndex(a => a.id === ann.id);
 
@@ -19537,7 +19538,7 @@
 
       const genreCfg = TASK_GENRE_CONFIGS[taskType] || TASK_GENRE_CONFIGS.experiment;
       const allTasks = this.authManager ? this.authManager.getTasks() : [];
-      const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
+      const curTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
       const totalDurationMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
 
       const timePrompt = `小组成员已就${isInst ? '教学设计方案 6 大模块' : '学术论文 6 大章节'}的时间预算规划在讨论区展开了非制式自由研讨。
@@ -20011,7 +20012,7 @@
 
       // 2. 确定候选题目与任务信息
       const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-      const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
+      const curTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
       const defaultTopic = s1.mergedTitle || s1.contract?.topic || (s1.proposals && s1.proposals[0] ? s1.proposals[0].title : (curTask?.title || '基于深度协作的学术探究与实践'));
       const membersInfo = membersList.map(m => `- 姓名: ${m.name || '组员'} (学号: ${m.id || '无'})`).join('\n');
 
@@ -21526,7 +21527,7 @@
       const targetOrder = stageOrder[newStage] || 1;
 
       const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-      const currentTaskObj = allTasks.find(t => t.id === this.state.activeTaskId);
+      const currentTaskObj = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
       const isTaskDeadlineExpired = isTaskExpired(currentTaskObj);
 
       // 🛡️ 阶段防越权门禁：未达成里程碑解锁时，禁止学生随意点击跳级（截止只读查阅模式下或已归档时全阶段自由放行浏览）
@@ -21654,14 +21655,14 @@
       const isTeacher = user && (user.isTeacher || user.role === 'teacher');
       if (isTeacher || this.state.isTeacherMonitorView || this.state.isTeacherView) return true;
       const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-      const curTask = allTasks.find(t => t.id === this.state.activeTaskId || (t.title && t.title === this.state.activeTaskId));
+      const curTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
       if (curTask && isTaskExpired(curTask)) return true;
       return false;
     }
 
     getCurrentTaskType() {
       const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-      const currentTask = allTasks.find(t => t.id === this.state.activeTaskId);
+      const currentTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
       return currentTask?.taskType || 'experiment';
     }
 
@@ -21723,7 +21724,7 @@
       // 🔔 检查并通知当前任务的延期
       if (this.authManager) {
         const allTasks = this.authManager.getTasks();
-        const currentTask = allTasks.find(t => t.id === this.state.activeTaskId);
+        const currentTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
         if (currentTask && currentTask.deadline) {
           const dlKey = `jizhi_known_deadline_${currentTask.id}`;
           const unreadKey = `jizhi_unread_deadline_ext_${currentTask.id}`;
@@ -22742,7 +22743,7 @@
 
       // ⏱️ 计算阶段二物理时间与字数水位线（中任务 0~150 分钟 / 4300 字，大任务 >150 分钟 / 9000 字）
       const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-      const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
+      const curTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
       const times = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) ? this.state.stage1.contract.timeAllocations : {};
       const totalPlannedMin = (times.background || 25) + (times.literature || 30) + (times.questions || 25) + (times.method || 40) + (times.reflection || 20) + (times.references || 10);
       const totalTaskMinutes = (curTask && (curTask.durationMinutes || curTask.duration)) ? Number(curTask.durationMinutes || curTask.duration) : (totalPlannedMin > 0 ? (totalPlannedMin / 0.70) : 150);
