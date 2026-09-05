@@ -1165,20 +1165,12 @@ export function liftEtherpadReadonly(iframe) {
 
       const padWin = iframe.contentWindow;
       if (padWin) {
-        if (padWin.pad) {
-          if (typeof padWin.pad.handleChannelState === 'function') {
-            try { padWin.pad.handleChannelState('CONNECTED'); } catch(e){}
-          }
-          if (padWin.pad.editor && typeof padWin.pad.editor.enable === 'function') {
-            try { padWin.pad.editor.enable(); } catch(e){}
-          }
+        if (padWin.pad && padWin.pad.editor && typeof padWin.pad.editor.enable === 'function') {
+          try { padWin.pad.editor.enable(); } catch(e){}
         }
         if (padWin.clientVars) {
           padWin.clientVars.readonly = false;
         }
-        try {
-          padWin.dispatchEvent(new Event('resize'));
-        } catch(e) {}
       }
     } catch(e) {}
   };
