@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2652
+ * Version: 20260906_v2653
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2652';
+  const APP_VERSION = '20260906_v2653';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13386,15 +13386,9 @@
             }
           }
 
-          // 🛡️ 智能兜底：若作者类名仍未匹配到同伴，且当前是本地作者，100% 绑定为当前登录用户
-          if (!matched && selfMem) {
+          // 若未能匹配到具体组员，仅当确认是本地当前打字产生的类名时才绑定为当前用户，绝不冒领他人文字
+          if (!matched && selfMem && (window._localDetectedAuthorClass === aKey || (window._jizhiLocalAuthorClasses && window._jizhiLocalAuthorClasses.has(aKey)))) {
             matched = selfMem;
-            if (rawId) {
-              authorMap.set(rawId, selfMem);
-              authorMap.set('a.' + rawId, selfMem);
-              authorMap.set('a-' + rawId, selfMem);
-              authorMap.set(aKey, selfMem);
-            }
           }
 
           if (matched) {
@@ -13411,10 +13405,6 @@
           if (targetMember) {
             memberCounts[targetMember.id] = (memberCounts[targetMember.id] || 0) + count;
             if (targetMember.name) memberCounts[targetMember.name] = (memberCounts[targetMember.name] || 0) + count;
-            totalAssignedChars += count;
-          } else if (aKey !== 'unassigned' && selfMem) {
-            memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + count;
-            if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + count;
             totalAssignedChars += count;
           }
         });

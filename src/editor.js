@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2652";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2652";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2652";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2653";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2653";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2653";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -1902,15 +1902,9 @@ function renderStage2Canvas(canvas, state, handlers) {
           }
         }
 
-        // 🛡️ 智能兜底：若作者类名仍未匹配到同伴，且当前是本地作者，100% 绑定为当前登录用户
-        if (!matched && selfMem) {
+        // 若未能匹配到具体组员，仅当确认是本地当前打字产生的类名时才绑定为当前用户，绝不冒领他人文字
+        if (!matched && selfMem && (window._localDetectedAuthorClass === aKey || (window._jizhiLocalAuthorClasses && window._jizhiLocalAuthorClasses.has(aKey)))) {
           matched = selfMem;
-          if (rawId) {
-            authorMap.set(rawId, selfMem);
-            authorMap.set('a.' + rawId, selfMem);
-            authorMap.set('a-' + rawId, selfMem);
-            authorMap.set(aKey, selfMem);
-          }
         }
 
         if (matched) {
@@ -1927,10 +1921,6 @@ function renderStage2Canvas(canvas, state, handlers) {
         if (targetMember) {
           memberCounts[targetMember.id] = (memberCounts[targetMember.id] || 0) + count;
           if (targetMember.name) memberCounts[targetMember.name] = (memberCounts[targetMember.name] || 0) + count;
-          totalAssignedChars += count;
-        } else if (aKey !== 'unassigned' && selfMem) {
-          memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + count;
-          if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + count;
           totalAssignedChars += count;
         }
       });
