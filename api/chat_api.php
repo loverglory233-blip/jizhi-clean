@@ -439,11 +439,28 @@ if (!empty($answerText)) {
         @flock($lockFp, LOCK_UN);
         @fclose($lockFp);
     }
-    // 如果返回了非 SSE 错误 JSON
+    // 🛡️ 失败时立即清除排他锁与缓存标记，避免第二次点击陷入死锁快速失效
+    if ($isMilestone && !empty($lockFile) && file_exists($lockFile)) {
+        @unlink($lockFile);
+    }
+
+    $errCode = 0;
+    $errMsg = 'No answer from Coze API';
+    if (strpos($resp, '4028') !== false || strpos($resp, 'quota') !== false) {
+        $errCode = 4028;
+        $errMsg = 'Your free quota has been used up. Please upgrade to a paid plan.';
+    }
+
     $errJson = @json_decode($resp, true);
+    if ($errJson && isset($errJson['msg'])) {
+        $errMsg = $errJson['msg'];
+        if (isset($errJson['code'])) $errCode = $errJson['code'];
+    }
+
     echo json_encode([
         'success' => false,
-        'message' => isset($errJson['msg']) ? $errJson['msg'] : 'No answer from Coze API',
-        'raw_response' => $resp
+        'error_code' => $errCode,
+        'message' => $errMsg,
+        'raw_response' => (strlen($resp) > 500 ? substr($resp, 0, 500) : $resp)
     ]);
 }

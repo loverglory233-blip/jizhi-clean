@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2568
+ * Version: 20260905_v2569
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2568';
+  const APP_VERSION = '20260905_v2569';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1659,70 +1659,77 @@
       }
     } catch (e) {}
 
-    // 🛡️ 高可用调度核心：最多自动重试 3 次，化解偶发网络丢包与服务端瞬态抖动
-    const maxAttempts = 3;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        const resp = await fetch('sync.php?action=coze_chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            bot_key: botKey,
-            bot_id: botId,
-            user_id: sessionUserId || 'student_user',
-            userId: sessionUserId,
-            token: sessionToken,
-            query: enrichedQuery,
-            stage: currentContext.stage || '',
-            topic: currentContext.topic || '',
-            actual_doc: currentContext.actualDoc || currentContext.actual_doc || '',
-            prior_review: currentContext.priorReview || currentContext.prior_review || '',
-            task_type: currentContext.taskType || currentContext.task_type || '',
-            milestone_key: currentContext.milestoneKey || currentContext.milestone_key || '',
-            scope_key: currentContext.scopeKey || currentContext.scope_key || (typeof window !== 'undefined' && window.app && typeof window.app.getGroupScopeKey === 'function' ? window.app.getGroupScopeKey() : '')
-          })
-        });
+    // 🛡️ 高可用单次调用核心：严格执行 1 次请求，绝不静默循环重试放大扣费与 Token 消耗
+    try {
+      const resp = await fetch('sync.php?action=coze_chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bot_key: botKey,
+          bot_id: botId,
+          user_id: sessionUserId || 'student_user',
+          userId: sessionUserId,
+          token: sessionToken,
+          query: enrichedQuery,
+          stage: currentContext.stage || '',
+          topic: currentContext.topic || '',
+          actual_doc: currentContext.actualDoc || currentContext.actual_doc || '',
+          prior_review: currentContext.priorReview || currentContext.prior_review || '',
+          task_type: currentContext.taskType || currentContext.task_type || '',
+          milestone_key: currentContext.milestoneKey || currentContext.milestone_key || '',
+          scope_key: currentContext.scopeKey || currentContext.scope_key || (typeof window !== 'undefined' && window.app && typeof window.app.getGroupScopeKey === 'function' ? window.app.getGroupScopeKey() : '')
+        })
+      });
 
-        if (resp.ok) {
-          const data = await resp.json();
-          if (data && data.success && data.reply && data.reply.trim().length > 0) {
-            return data.reply.trim();
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data && data.success && data.reply && data.reply.trim().length > 0) {
+          return data.reply.trim();
+        }
+
+        // 🛡️ 明确捕获大模型配额耗尽与错误状态，弹窗提示，绝不静默无声转圈
+        if (data && (!data.success || data.error_code === 4028 || (data.message && data.message.includes('quota')))) {
+          const errorMsg = (data.error_code === 4028 || (data.message && data.message.includes('quota')))
+            ? '⚠️ 扣子大模型调用额度已用尽（错误码 4028）。请开通或续费个人进阶版配额！'
+            : (data.message || '智能体生成服务暂时无响应');
+          console.error('[Coze API Error]', data);
+          if (typeof window !== 'undefined' && window.showGlobalBannerNotice) {
+            window.showGlobalBannerNotice('大模型配额提示', errorMsg, 'error', 8000);
+          } else if (typeof window !== 'undefined' && window.app && typeof window.app.showGlobalBannerNotice === 'function') {
+            window.app.showGlobalBannerNotice('大模型配额提示', errorMsg, 'error', 8000);
           }
-          // 如果后端处于生成中，采用阶梯式敏捷轮询：前 10 次 100ms 极速响应，后续 300ms/500ms 稳健等待 (最长支持 45 秒超长生成)
-          if (data && data.in_progress && data.chat_id && data.conversation_id) {
-            const chatId = data.chat_id;
-            const convId = data.conversation_id;
-            const targetBotId = data.bot_id || botId;
-            const isLongDoc = (currentContext.stage === 'stage2' || currentContext.stage === 'stage3' || (currentContext.actualDoc && currentContext.actualDoc.length > 500) || (currentContext.actual_doc && currentContext.actual_doc.length > 500) || (userQuery && userQuery.length > 1000));
-            const maxRetries = isLongDoc ? 150 : 85; // 5000字全文质检支持长达 65 秒；阶段一公约提炼支持 30 秒，绝不提前掐断
-            for (let p = 0; p < maxRetries; p++) {
-              const pollInterval = p < 10 ? 100 : (p < 50 ? 300 : 500);
-              await new Promise(r => setTimeout(r, pollInterval));
-              try {
-                const pollRes = await fetch(`sync.php?action=coze_poll&chat_id=${encodeURIComponent(chatId)}&conversation_id=${encodeURIComponent(convId)}&bot_id=${encodeURIComponent(targetBotId)}&userId=${encodeURIComponent(sessionUserId)}&token=${encodeURIComponent(sessionToken)}&nocache=${Date.now()}`);
-                if (pollRes.ok) {
-                  const pollData = await pollRes.json();
-                  if (pollData && pollData.completed) {
-                    if (pollData.reply && pollData.reply.trim().length > 0) {
-                      return pollData.reply.trim();
-                    }
-                    break;
+          return '';
+        }
+
+        // 如果后端处于生成中，采用阶梯式敏捷轮询：前 10 次 100ms 极速响应，后续 300ms/500ms 稳健等待 (最长支持 45 秒超长生成)
+        if (data && data.in_progress && data.chat_id && data.conversation_id) {
+          const chatId = data.chat_id;
+          const convId = data.conversation_id;
+          const targetBotId = data.bot_id || botId;
+          const isLongDoc = (currentContext.stage === 'stage2' || currentContext.stage === 'stage3' || (currentContext.actualDoc && currentContext.actualDoc.length > 500) || (currentContext.actual_doc && currentContext.actual_doc.length > 500) || (userQuery && userQuery.length > 1000));
+          const maxRetries = isLongDoc ? 150 : 85;
+          for (let p = 0; p < maxRetries; p++) {
+            const pollInterval = p < 10 ? 100 : (p < 50 ? 300 : 500);
+            await new Promise(r => setTimeout(r, pollInterval));
+            try {
+              const pollRes = await fetch(`sync.php?action=coze_poll&chat_id=${encodeURIComponent(chatId)}&conversation_id=${encodeURIComponent(convId)}&bot_id=${encodeURIComponent(targetBotId)}&userId=${encodeURIComponent(sessionUserId)}&token=${encodeURIComponent(sessionToken)}&nocache=${Date.now()}`);
+              if (pollRes.ok) {
+                const pollData = await pollRes.json();
+                if (pollData && pollData.completed) {
+                  if (pollData.reply && pollData.reply.trim().length > 0) {
+                    return pollData.reply.trim();
                   }
+                  break;
                 }
-              } catch (err) {
-                console.warn('[Coze Poll] 轮询偶发抖动 (可自愈):', err.message);
               }
+            } catch (err) {
+              console.warn('[Coze Poll] 轮询偶发抖动 (可自愈):', err.message);
             }
           }
         }
-      } catch (e) {
-        console.warn(`[Coze API] 第 ${attempt}/${maxAttempts} 次请求偶发异常:`, e.message);
       }
-
-      // 若当前重试未成功且还有剩余次数，做指数退避等待后自动进行下一次重试 (600ms, 1200ms)
-      if (attempt < maxAttempts) {
-        await new Promise(r => setTimeout(r, attempt * 600));
-      }
+    } catch (e) {
+      console.warn(`[Coze API] 请求偶发异常:`, e.message);
     }
 
     return null;
