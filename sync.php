@@ -35,6 +35,22 @@ register_shutdown_function(function() {
     }
 });
 
+// 🆔 全局 ID 统一归一化工具（消除 class_、group_、task_ 前缀差异，保障精准严格匹配）
+function normalize_id_php($id) {
+    if ($id === null || $id === '') return '';
+    $s = trim(strtolower((string)$id));
+    if ($s === 'all' || $s === '*' || $s === 'task_all' || $s === 'class_all' || $s === 'group_all') return '*';
+    return preg_replace('/^(class_|group_|task_)/i', '', $s);
+}
+
+function is_same_id_php($id1, $id2) {
+    $n1 = normalize_id_php($id1);
+    $n2 = normalize_id_php($id2);
+    if ($n1 === '' || $n2 === '') return false;
+    if ($n1 === '*' || $n2 === '*') return true;
+    return $n1 === $n2;
+}
+
 // 🛠️ 智能 Base64 图片文件化清洗迁移器（无损提取为物理文件并回写极短 URL，彻底杜绝内存撑爆与数据截断）
 function migrateBase64StringToUrl($rawContent, $pdo = null, $scopeKey = '', $colName = '') {
     if (empty($rawContent) || !is_string($rawContent) || strpos($rawContent, 'data:image/') === false) {
@@ -818,7 +834,7 @@ if ($action === 'get_class_all_chats') {
         $meta = json_decode($mRow['meta_value'], true);
         if (isset($meta['classes']) && is_array($meta['classes'])) {
             foreach ($meta['classes'] as $cls) {
-                if ($cls['id'] === $classId) {
+                if (isset($cls['id']) && is_same_id_php($cls['id'], $classId)) {
                     $className = $cls['name'] ?? $classId;
                     if (isset($cls['groups']) && is_array($cls['groups'])) {
                         foreach ($cls['groups'] as $g) {
@@ -921,7 +937,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
             }
             if (isset($parsedMeta['classes']) && is_array($parsedMeta['classes'])) {
                 foreach ($parsedMeta['classes'] as $cls) {
-                    if (empty($classId) || (isset($cls['id']) && $cls['id'] === $classId)) {
+                    if (empty($classId) || (isset($cls['id']) && is_same_id_php($cls['id'], $classId))) {
                         if (isset($cls['groups']) && is_array($cls['groups'])) {
                             // 🛡️ 班级小组排他去重：若某学生被分配至多个小组，保留最新分配的小组
                             $seenStudentGroupMap = [];
@@ -1159,7 +1175,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
 
             // 🚀 按需加载架构：仅对当前选中的活跃小组返回全量工作区与聊天记录，其余小组返回轻量概览，数据包体积暴降 98%！
             $reqActiveGId = isset($_GET['activeGroupId']) ? trim($_GET['activeGroupId']) : (isset($REQ_DATA['activeGroupId']) ? trim($REQ_DATA['activeGroupId']) : '');
-            $isCurrentActiveGroup = empty($reqActiveGId) || ($reqActiveGId === $gid) || (count($allGroupIds) === 1);
+            $isCurrentActiveGroup = empty($reqActiveGId) || is_same_id_php($reqActiveGId, $gid) || (count($allGroupIds) === 1);
 
             if ($isCurrentActiveGroup) {
                 $result['groups'][$gid] = [
