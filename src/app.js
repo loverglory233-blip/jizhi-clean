@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2662";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2662";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2662";
-import { AuthManager } from "./auth.js?v=20260906_v2662";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2662";
-import { renderLoginView } from "./login.js?v=20260906_v2662";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2662";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2662";
+} from "./constants.js?v=20260906_v2663";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2663";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2663";
+import { AuthManager } from "./auth.js?v=20260906_v2663";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2663";
+import { renderLoginView } from "./login.js?v=20260906_v2663";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2663";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2663";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2662";
+} from "./editor.js?v=20260906_v2663";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -37,10 +37,14 @@ if (typeof window !== "undefined") {
   // 🛡️ Safari 兜底：合成被 blur/Esc 打断时 compositionend 可能不触发，导致标志永久卡 true（进而跳过重渲染）
   window.addEventListener('blur', () => { window._isGlobalComposing = false; }, true);
 
-  // ⏱️ 智能体动态耗时秒数定时器（每秒自动更新界面中的全部 .agent-elapsed-timer）
+  // ⏱️ 智能体动态耗时秒数定时器（每秒自动更新界面中的全部 .agent-elapsed-timer，并在分析完成时秒级自动消除横幅）
   if (!window._agentTimerIntervalStarted) {
     window._agentTimerIntervalStarted = true;
     setInterval(() => {
+      const effAnalyzing = (typeof window.getEffectiveAgentAnalyzing === 'function') ? window.getEffectiveAgentAnalyzing(window.app ? window.app.state : null) : null;
+      if (!effAnalyzing) {
+        document.querySelectorAll('#agent-analyzing-live-banner').forEach(b => b.remove());
+      }
       document.querySelectorAll('.agent-elapsed-timer').forEach(el => {
         const startTs = Number(el.dataset.start);
         if (startTs && !isNaN(startTs)) {

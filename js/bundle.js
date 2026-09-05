@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2662
+ * Version: 20260906_v2663
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2662';
+  const APP_VERSION = '20260906_v2663';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11385,12 +11385,52 @@
     const currState = state || (app ? app.state : null);
     if (!currState) return null;
 
-    // 1. 如果已有显式的 activeAgentAnalyzing 且未超时（90秒兜底）
+    // 1. 如果已有显式的 activeAgentAnalyzing 且未超时（35秒兜底）
     const explicitAnalyzing = currState.activeAgentAnalyzing || (app && app.state && app.state.activeAgentAnalyzing);
     if (explicitAnalyzing && typeof explicitAnalyzing === 'object') {
       const ts = explicitAnalyzing._ts || explicitAnalyzing.timestamp || 0;
+
+      // 🛡️ 智能状态防呆：检查对应的智能体结果是否已经产出或下发，若已下发立即自动清除并返回 null
+      const s2Logs = (currState.chatLogs && currState.chatLogs.stage2) || (app && app.state && app.state.chatLogs && app.state.chatLogs.stage2) || [];
+      const s1Logs = (currState.chatLogs && currState.chatLogs.stage1) || (app && app.state && app.state.chatLogs && app.state.chatLogs.stage1) || [];
+      const titleStr = String(explicitAnalyzing.title || '');
+
+      // 阶段二：责任编辑自查研判与对齐引导
+      if (titleStr.includes('责任编辑') || titleStr.includes('自查') || titleStr.includes('备课组长')) {
+        const hasFinished = s2Logs.some(m => m && (m.sender === 'managingEditor' || (m.text && (m.text.includes('自查研判') || m.text.includes('对齐引导') || m.text.includes('一致性研讨')))));
+        if (hasFinished) {
+          if (currState.activeAgentAnalyzing) currState.activeAgentAnalyzing = null;
+          if (app && app.state) app.state.activeAgentAnalyzing = null;
+          return null;
+        }
+      }
+
+      // 阶段二：审稿编辑二审修正清单
+      if (titleStr.includes('审稿') || titleStr.includes('修正清单') || titleStr.includes('教研专家')) {
+        const isPlanDone = !!(currState.stage2?.actionPlan?.isGenerated);
+        const hasReviewMsg = s2Logs.some(m => m && (m.sender === 'reviewingEditor' || (m.text && (m.text.includes('修正清单') || m.text.includes('二审意见')))));
+        if (isPlanDone || hasReviewMsg) {
+          if (currState.activeAgentAnalyzing) currState.activeAgentAnalyzing = null;
+          if (app && app.state) app.state.activeAgentAnalyzing = null;
+          return null;
+        }
+      }
+
+      // 阶段一：公约各环节提炼
+      if (titleStr.includes('拍卖师') || titleStr.includes('公约') || titleStr.includes('规划师') || titleStr.includes('调度员')) {
+        if (currState.stage1?.contract?.isConfirmed || currState.stage1?.contractStep === 'completed') {
+          if (currState.activeAgentAnalyzing) currState.activeAgentAnalyzing = null;
+          if (app && app.state) app.state.activeAgentAnalyzing = null;
+          return null;
+        }
+      }
+
       if (!ts || (Date.now() - ts < 35000)) {
         return explicitAnalyzing;
+      } else {
+        if (currState.activeAgentAnalyzing) currState.activeAgentAnalyzing = null;
+        if (app && app.state) app.state.activeAgentAnalyzing = null;
+        return null;
       }
     }
 
@@ -15286,10 +15326,14 @@
     // 🛡️ Safari 兜底：合成被 blur/Esc 打断时 compositionend 可能不触发，导致标志永久卡 true（进而跳过重渲染）
     window.addEventListener('blur', () => { window._isGlobalComposing = false; }, true);
 
-    // ⏱️ 智能体动态耗时秒数定时器（每秒自动更新界面中的全部 .agent-elapsed-timer）
+    // ⏱️ 智能体动态耗时秒数定时器（每秒自动更新界面中的全部 .agent-elapsed-timer，并在分析完成时秒级自动消除横幅）
     if (!window._agentTimerIntervalStarted) {
       window._agentTimerIntervalStarted = true;
       setInterval(() => {
+        const effAnalyzing = (typeof window.getEffectiveAgentAnalyzing === 'function') ? window.getEffectiveAgentAnalyzing(window.app ? window.app.state : null) : null;
+        if (!effAnalyzing) {
+          document.querySelectorAll('#agent-analyzing-live-banner').forEach(b => b.remove());
+        }
         document.querySelectorAll('.agent-elapsed-timer').forEach(el => {
           const startTs = Number(el.dataset.start);
           if (startTs && !isNaN(startTs)) {
