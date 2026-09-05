@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2679
+ * Version: 20260906_v2680
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2679';
+  const APP_VERSION = '20260906_v2680';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5918,25 +5918,25 @@
             this.app.state.stage2.confirmedMembers = mergedConf;
             needWorkspaceRender = true;
           }
-          let memberArr = [];
-          if (Array.isArray(this.app.state.members)) memberArr = this.app.state.members;
-          else if (this.app.state.members && typeof this.app.state.members === 'object') memberArr = Object.values(this.app.state.members);
+          const u = (this.app.authManager) ? this.app.authManager.getCurrentUser() : null;
+          const effClassId = (this.app.authManager ? this.app.authManager.getEffectiveStudentClassId(u, this.app.state.activeTaskId) : (this.app.state.activeStudentClassId || u?.classId || null));
+          const activeGroupObj = (this.app.authManager) ? this.app.authManager.getStudentActiveGroup(u, effClassId) : null;
+          const membersList = Object.values(this.app.state.members || {});
+          const allGroupMembers = (activeGroupObj && Array.isArray(activeGroupObj.members) && activeGroupObj.members.length > 0) 
+            ? activeGroupObj.members 
+            : membersList;
+          let memberArr = allGroupMembers.length > 0 ? allGroupMembers : membersList;
+
           if (memberArr.length > 0) {
             const isMemDone = (map, m) => !!(map && (map[m.id] || (m.name && map[m.name])));
             const cCount = memberArr.filter(m => isMemDone(mergedConf, m)).length;
-            if (cCount >= memberArr.length && memberArr.length > 0) {
-              this.app.state.stage2.isDraftConfirmed = true;
+            const isFullyDone = (cCount >= memberArr.length && memberArr.length > 0);
+            this.app.state.stage2.isDraftConfirmed = isFullyDone;
+            if (isFullyDone) {
               this.app.state.groupMaxStage = 'stage3';
-              needWorkspaceRender = true;
             }
+            needWorkspaceRender = true;
           }
-        }
-        if (remoteData.stage2.isDraftConfirmed !== undefined && remoteData.stage2.isDraftConfirmed !== this.app.state.stage2.isDraftConfirmed) {
-          this.app.state.stage2.isDraftConfirmed = remoteData.stage2.isDraftConfirmed;
-          if (remoteData.stage2.isDraftConfirmed) {
-            this.app.state.groupMaxStage = 'stage3';
-          }
-          needWorkspaceRender = true;
         }
         if (remoteData.stage2.actionPlan) {
           if (remoteData.stage2.actionPlan.isGenerated && !this.app.state.stage2.actionPlan?.isGenerated) {
@@ -22314,27 +22314,23 @@
           const taskType = this.getCurrentTaskType();
           const isInst = (taskType === 'instructional');
 
-          let memberArr = [];
-          if (this.authManager) {
-            const u = this.authManager.getCurrentUser();
-            const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
-            const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-            const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null, effClassId);
-            const authMembers = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
-            if (authMembers.length > 0) memberArr = authMembers;
+          const u = (this.authManager) ? this.authManager.getCurrentUser() : null;
+          const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
+          const activeGroupObj = (this.authManager) ? this.authManager.getStudentActiveGroup(u, effClassId) : null;
+          const membersList = Object.values(this.state.members || {});
+          const allGroupMembers = (activeGroupObj && Array.isArray(activeGroupObj.members) && activeGroupObj.members.length > 0) 
+            ? activeGroupObj.members 
+            : membersList;
+          let memberArr = allGroupMembers.length > 0 ? allGroupMembers : membersList;
+          if (memberArr.length === 0 && this.authManager) {
+            const rawG = this.authManager.getGroupMembersForWorkspace(activeGroupObj?.id || this.state.activeGroupId || null, effClassId);
+            memberArr = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
           }
-          if (memberArr.length === 0) {
-            if (Array.isArray(this.state.members)) memberArr = this.state.members;
-            else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
-          }
-          if (!Array.isArray(memberArr)) {
-            memberArr = Object.values(memberArr || {});
-          }
-          const totalMembersCount = (memberArr && memberArr.length > 0) ? memberArr.length : 1;
+          const totalMembersCount = (memberArr && memberArr.length > 0) ? memberArr.length : (membersList.length > 0 ? membersList.length : 2);
 
           // 🛡️ 守卫拦截：必须先走完二审半程自查与会议全流程（全员打卡完成），或者总时间临近截止（<= 5分钟），才允许点击确认初稿！
           const subs = s2.meetingSubmissions || {};
-          const subCount = memberArr.filter(m => isMemberDone(subs, m)).length;
+          const subCount = Object.keys(subs).length;
           const isMeetingDone = s2.isMeetingLocked || (subCount >= totalMembersCount && totalMembersCount > 0);
 
           const curTask = this.authManager ? this.authManager.getTasks().find(t => t.id === this.state.activeTaskId) : null;
@@ -22345,11 +22341,6 @@
             if (typeof showGlobalBannerNotice === 'function') {
               showGlobalBannerNotice('⚠️ 请先完成半程自查', `当前半程${isInst ? '磨课' : '编辑'}会议打卡进度为 ${subCount}/${totalMembersCount} 人，请先走完自查研讨流程或等待临近结课再确认初稿。`, 'warning', 6000);
             }
-            return;
-          }
-
-          if (s2.isDraftConfirmed) {
-            this.switchStage('stage3', true);
             return;
           }
 
@@ -22376,15 +22367,15 @@
           const confirmedCount = memberArr.filter(m => isMemberDone(s2.confirmedMembers, m)).length;
           const memberName = currMemObj?.name || currUserObj?.name || '组员';
 
-          this.syncStage2();
-          this.syncChatLogs();
-          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-          renderChat(this.state);
-          this.renderStudentWorkspace();
-
           // 🛡️ 严格要求：必须全组成员每一个人都点击确认初稿后，才解锁推进至阶段三
           const stage3Title = isInst ? '阶段三：答辩评审会' : '阶段三：答辩擂台';
           if (confirmedCount < totalMembersCount) {
+            s2.isDraftConfirmed = false;
+            this.syncStage2();
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+            this.renderStudentWorkspace();
             showGlobalBannerNotice('✍️ 初稿确认成功', `您 (${memberName}) 已确认初稿！当前组内进度：${confirmedCount}/${totalMembersCount} 人已确认。全员完成后将解锁【${stage3Title}】。`, 'info', 6000);
           } else {
             s2.isDraftConfirmed = true;
@@ -23260,8 +23251,12 @@
         if (isDone) return;
         isDone = true;
         if (timerId) clearInterval(timerId);
-        modal.remove();
-        if (typeof onProceed === 'function') onProceed();
+        try { modal.remove(); } catch(e){}
+        try {
+          if (typeof onProceed === 'function') onProceed();
+        } catch (err) {
+          console.warn('showStageMilestoneModal onProceed error:', err);
+        }
       };
 
       timerId = setInterval(() => {
@@ -23274,6 +23269,9 @@
       }, 1000);
 
       modal.querySelector('#btn-milestone-proceed')?.addEventListener('click', proceed);
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) proceed();
+      });
     }
 
 
