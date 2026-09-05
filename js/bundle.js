@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2576
+ * Version: 20260905_v2577
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2576';
+  const APP_VERSION = '20260905_v2577';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11147,7 +11147,7 @@
     if (!header) return;
     const activeTaskId = (state && state.activeTaskId) ? state.activeTaskId : null;
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-    const currentTask = allTasks.find(t => t.id === activeTaskId);
+    const currentTask = allTasks.find(t => t.id === activeTaskId || (t.title && t.title === activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
     const taskGenreKey = currentTask?.taskType || 'experiment';
 
     let remainingMin = 150;
@@ -11406,7 +11406,7 @@
     if (!s1.contract.timeAllocations) s1.contract.timeAllocations = {};
 
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-    const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+    const currentTask = allTasks.find(t => t.id === state.activeTaskId || (t.title && t.title === state.activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
     const taskGenreKey = currentTask?.taskType || 'experiment';
     const isTaskDeadlineExpired = isTaskExpired(currentTask);
     const genreCfg = TASK_GENRE_CONFIGS[taskGenreKey] || TASK_GENRE_CONFIGS.experiment;
