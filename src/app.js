@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2650";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2650";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2650";
-import { AuthManager } from "./auth.js?v=20260906_v2650";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2650";
-import { renderLoginView } from "./login.js?v=20260906_v2650";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2650";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2650";
+} from "./constants.js?v=20260906_v2651";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2651";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2651";
+import { AuthManager } from "./auth.js?v=20260906_v2651";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2651";
+import { renderLoginView } from "./login.js?v=20260906_v2651";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2651";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2651";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2650";
+} from "./editor.js?v=20260906_v2651";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -7575,7 +7575,10 @@ ${chatSnippet}
     const s2 = this.state.stage2;
     if (!s2.reviewMilestone) s2.reviewMilestone = 'none';
 
-    const membersList = Object.values(this.state.members || {});
+    const actualGroupMembers = (this.authManager && this.authManager.getGroupMembersForWorkspace)
+      ? this.authManager.getGroupMembersForWorkspace(this.state.activeGroupId || this.state.groupId, this.state.activeStudentClassId || this.state.classId)
+      : [];
+    const membersList = actualGroupMembers.length > 0 ? actualGroupMembers : (Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {}));
     const logs = this.state.chatLogs[currentStage] || [];
     const now = Date.now();
     const lastReviewingMsg = logs.slice().reverse().find(m => m.sender === 'reviewingEditor');
@@ -7848,7 +7851,7 @@ ${contentSnippet}
     if (this.lastS2ContribNudgeTime && (now - this.lastS2ContribNudgeTime < ssrlCooldownMs)) return;
     if (this.state.stage2?.lastSSRLWarnTimeMs && (now - Number(this.state.stage2.lastSSRLWarnTimeMs) < ssrlCooldownMs)) return;
 
-    const contribs = this.state.stage2?.memberContributions || {};
+    const contribs = this.state.stage2?.memberContributions || (window._lastPadScannedStats && window._lastPadScannedStats.memberCounts) || {};
     const getVal = (m) => {
       if (!m) return 0;
       const keys = getUserAllKeys(m);
