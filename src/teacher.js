@@ -531,8 +531,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
       } catch (e) {}
     }
 
-    // ⚡ 教师同屏实时监控模式下，保持 1.0 秒极速实时刷新，后台窗口保持 2.5 秒
-    const tInterval = document.hidden ? 2500 : 1000;
+    // ⚡ 教师同屏实时监控模式下，保持 1.8 秒极速刷新，后台窗口保持 6.0 秒
+    const tInterval = document.hidden ? 6000 : 1800;
     window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInterval);
   };
   if (window._teacherPortalSyncTimer) clearTimeout(window._teacherPortalSyncTimer);
@@ -579,7 +579,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
     }, { passive: true });
   }
 
-  const tInitInterval = (document.hidden ? 2500 : 1000);
+  const tInitInterval = (document.hidden ? 6000 : 1800);
   window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInitInterval);
 
   const allStudents = allUsers.filter(u => u.role !== 'teacher');
