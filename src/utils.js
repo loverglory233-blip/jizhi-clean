@@ -1005,6 +1005,7 @@ export function enforceEtherpadReadonly(iframe) {
                 }
               }
             };
+            innerDoc._jizhiBlockEditHandler = blockEdit;
             innerDoc.addEventListener('keydown', blockEdit, true);
             innerDoc.addEventListener('paste', blockEdit, true);
             innerDoc.addEventListener('cut', blockEdit, true);
@@ -1141,6 +1142,14 @@ export function liftEtherpadReadonly(iframe) {
         const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
         if (aceInner && aceInner.contentDocument) {
           const innerDoc = aceInner.contentDocument;
+          // 彻底解绑并清除只读按键拦截器
+          if (innerDoc._jizhiBlockEditHandler) {
+            const h = innerDoc._jizhiBlockEditHandler;
+            ['keydown', 'paste', 'cut', 'beforeinput', 'input', 'compositionstart', 'compositionupdate', 'compositionend'].forEach(evt => {
+              innerDoc.removeEventListener(evt, h, true);
+            });
+            innerDoc._jizhiBlockEditHandler = null;
+          }
           innerDoc._jizhiReadonlyBound = false;
           if (innerDoc.body) innerDoc.body.classList.remove('readonly');
           const innerBody = innerDoc.querySelector('#innerdocbody') || innerDoc.querySelector('.innerdocbody') || innerDoc.body;

@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2622
+ * Version: 20260905_v2623
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2622';
+  const APP_VERSION = '20260905_v2623';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1211,6 +1211,7 @@
                   }
                 }
               };
+              innerDoc._jizhiBlockEditHandler = blockEdit;
               innerDoc.addEventListener('keydown', blockEdit, true);
               innerDoc.addEventListener('paste', blockEdit, true);
               innerDoc.addEventListener('cut', blockEdit, true);
@@ -1347,6 +1348,14 @@
           const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
           if (aceInner && aceInner.contentDocument) {
             const innerDoc = aceInner.contentDocument;
+            // 彻底解绑并清除只读按键拦截器
+            if (innerDoc._jizhiBlockEditHandler) {
+              const h = innerDoc._jizhiBlockEditHandler;
+              ['keydown', 'paste', 'cut', 'beforeinput', 'input', 'compositionstart', 'compositionupdate', 'compositionend'].forEach(evt => {
+                innerDoc.removeEventListener(evt, h, true);
+              });
+              innerDoc._jizhiBlockEditHandler = null;
+            }
             innerDoc._jizhiReadonlyBound = false;
             if (innerDoc.body) innerDoc.body.classList.remove('readonly');
             const innerBody = innerDoc.querySelector('#innerdocbody') || innerDoc.querySelector('.innerdocbody') || innerDoc.body;
