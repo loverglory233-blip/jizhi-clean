@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2809';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs } from './utils.js?v=20260905_v2809';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2810';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs } from './utils.js?v=20260905_v2810';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -461,9 +461,21 @@ export class CloudSyncEngine {
       if (this.app.authManager && typeof this.app.authManager.pullGlobalMeta === 'function') {
         this.isPulling = true;
         try {
-          await this.app.authManager.pullGlobalMeta();
-          if (this.app.state.studentViewMode === 'task_list' && typeof this.app.renderMain === 'function') {
-            this.app.renderMain();
+          const res = await this.app.authManager.pullGlobalMeta();
+          if (res && res.changed) {
+            if (this.app.state.studentViewMode === 'task_list' && typeof this.app.renderMain === 'function') {
+              const activeEl = document.activeElement;
+              const isInteracting = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA');
+              if (!isInteracting) {
+                this.app.renderMain();
+              }
+            }
+            if (typeof this.app.renderHeader === 'function') {
+              this.app.renderHeader();
+            }
+            if (typeof this.app.checkUnreadAnnouncements === 'function') {
+              this.app.checkUnreadAnnouncements();
+            }
           }
         } catch (e) {
         } finally {

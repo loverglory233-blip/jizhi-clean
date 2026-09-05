@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2809";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260905_v2809";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2809";
-import { AuthManager } from "./auth.js?v=20260905_v2809";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2809";
-import { renderLoginView } from "./login.js?v=20260905_v2809";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2809";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2809";
+} from "./constants.js?v=20260905_v2810";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260905_v2810";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2810";
+import { AuthManager } from "./auth.js?v=20260905_v2810";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2810";
+import { renderLoginView } from "./login.js?v=20260905_v2810";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2810";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2810";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2809";
+} from "./editor.js?v=20260905_v2810";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1924,16 +1924,8 @@ export class App {
       }
     };
 
-    // 1. 本地缓存秒级校验并弹窗
+    // 本地缓存/内存秒级校验并弹窗
     doCheck();
-
-    // 2. 异步拉取云端最新数据后再次校验
-    if (this.authManager && this.authManager.pullGlobalMeta) {
-      try {
-        await this.authManager.pullGlobalMeta();
-        doCheck();
-      } catch (e) {}
-    }
   }
 
   showAnnouncementModal(targetAnn = null, isSequentialFlow = false) {

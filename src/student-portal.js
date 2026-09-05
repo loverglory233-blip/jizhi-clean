@@ -8,8 +8,8 @@ import {
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES,
   TASK_GENRE_CONFIGS
-} from "./constants.js?v=20260905_v2809";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch } from "./utils.js?v=20260905_v2809";
+} from "./constants.js?v=20260905_v2810";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch } from "./utils.js?v=20260905_v2810";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -107,52 +107,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
     } catch (e) {}
   }
 
-  // ⚡ 单一自调度轮询循环：杜绝“一次性 pull + interval”并行导致的并发拉取与递归重渲染
-  const pullAndRefresh = async () => {
-    if (state.studentViewMode !== 'task_list') return; // 离开大厅即停止轮询
-    if (authManager && authManager.pullGlobalMeta) {
-      try {
-        const oldVer = authManager.globalMetaVersion || 0;
-        const oldTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
-        const oldAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
-        const oldClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
-        const oldPapersJson = localStorage.getItem('jizhi_reference_papers_db') || '[]';
-        const oldSurveysJson = localStorage.getItem('jizhi_surveys_list_db') || '[]';
-        await authManager.pullGlobalMeta();
-        const newVer = authManager.globalMetaVersion || 0;
-        const newTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
-        const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
-        const newClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
-        const newPapersJson = localStorage.getItem('jizhi_reference_papers_db') || '[]';
-        const newSurveysJson = localStorage.getItem('jizhi_surveys_list_db') || '[]';
-        if (oldVer !== newVer || oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson || oldClassesJson !== newClassesJson || oldPapersJson !== newPapersJson || oldSurveysJson !== newSurveysJson) {
-          if (document.activeElement?.id !== 'sel-student-class-switch') {
-            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
-            return; // 重渲染会重建整套循环，此处无需再自行调度
-          }
-        }
-      } catch (e) {}
-    }
-    const isStudentIdle = () => document.hidden || (Date.now() - (window._lastStudentPortalActivity || Date.now()) > 60000);
-    const sInterval = isStudentIdle() ? 5000 : 1500;
-    window._studentPortalSyncTimer = setTimeout(pullAndRefresh, sInterval);
-  };
-  if (window._studentPortalSyncTimer) clearTimeout(window._studentPortalSyncTimer);
 
-  window._lastStudentPortalActivity = Date.now();
-  const markStudentPortalActive = () => {
-    const wasIdle = (Date.now() - window._lastStudentPortalActivity > 60000);
-    window._lastStudentPortalActivity = Date.now();
-    if (wasIdle && state.studentViewMode === 'task_list') {
-      pullAndRefresh();
-    }
-  };
-  ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
-    window.addEventListener(evt, markStudentPortalActive, { passive: true });
-  });
-
-  const sInitInterval = (document.hidden ? 8000 : 1500);
-  window._studentPortalSyncTimer = setTimeout(pullAndRefresh, sInitInterval);
 
   const currentUser = authManager.getCurrentUser();
   const classes = authManager.getClasses();
