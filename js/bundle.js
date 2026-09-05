@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2629
+ * Version: 20260905_v2630
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2629';
+  const APP_VERSION = '20260905_v2630';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1394,13 +1394,13 @@
       iframe.addEventListener('load', () => {
         if (!iframe._isReadonlyEnforced) {
           tryUnlock();
-          [50, 150, 300, 600, 1000, 1500, 2500].forEach(delay => setTimeout(tryUnlock, delay));
+          setTimeout(tryUnlock, 300);
         }
       });
     }
 
     tryUnlock();
-    [50, 100, 200, 350, 600, 1000, 1500, 2500, 4000].forEach(delay => setTimeout(tryUnlock, delay));
+    setTimeout(tryUnlock, 300);
   }
   if (typeof window !== 'undefined') {
     window.liftEtherpadReadonly = liftEtherpadReadonly;
@@ -13539,7 +13539,7 @@
           }
         }
 
-        // 🛡️ 工具栏与输入守卫：只要阶段二处于进行中且可编辑，确保阶段二遮罩立刻移除，工具栏持续常驻
+        // 🛡️ 状态守卫：只要阶段二处于进行中且可编辑，确保阶段二外层遮罩彻底移除
         if (!isEditorReadonly) {
           const s2f = document.getElementById('stage2-etherpad-frame');
           if (s2f) {
@@ -13550,7 +13550,6 @@
             if (s2f._isReadonlyEnforced) {
               liftEtherpadReadonly(s2f);
             }
-            ensureEtherpadUserSync(s2f, currUserName, currUserColor);
           }
         }
       } catch (e) {}
