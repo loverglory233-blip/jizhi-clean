@@ -3475,6 +3475,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
+            // 🛡️ 终稿提交锁定判定：仅当处于阶段三且全员已提交终稿时才锁定为 1
+            $finalLock = 0;
+            if ($finalStage === 'stage3' && !$isResetVal) {
+                $finalSubmittedMap3 = isset($mergedS3['finalSubmittedMembers']) && is_array($mergedS3['finalSubmittedMembers']) ? $mergedS3['finalSubmittedMembers'] : [];
+                $actualMembersCount3 = count($membersDataList);
+                $finalConfCount3 = 0;
+                if ($actualMembersCount3 > 0) {
+                    foreach ($membersDataList as $m) {
+                        $mId = isset($m['id']) ? $m['id'] : '';
+                        $mCode = isset($m['studentCode']) ? $m['studentCode'] : '';
+                        $mName = isset($m['name']) ? $m['name'] : '';
+                        $mUser = isset($m['username']) ? $m['username'] : '';
+                        if (($mId && !empty($finalSubmittedMap3[$mId])) || ($mCode && !empty($finalSubmittedMap3[$mCode])) || ($mName && !empty($finalSubmittedMap3[$mName])) || ($mUser && !empty($finalSubmittedMap3[$mUser]))) {
+                            $finalConfCount3++;
+                        }
+                    }
+                    if ($finalConfCount3 >= $actualMembersCount3) {
+                        $finalLock = 1;
+                    }
+                }
+            }
+
             // 保存小组协作快照 (自增 revision_id，彻底防止同毫秒并发漏包)
             $stmt = $pdo->prepare("INSERT INTO group_states 
                 (scope_key, task_id, group_id, current_stage, stage1_data, stage2_data, stage3_data, presence_data, members_data, is_final_submitted, last_timestamp, revision_id)

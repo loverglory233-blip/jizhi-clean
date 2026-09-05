@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2608";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2608";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260905_v2608";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2609";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2609";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260905_v2609";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -1564,9 +1564,8 @@ function renderStage2Canvas(canvas, state, handlers) {
   const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || (state.activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
   const taskGenreKey = currentTask?.taskType || state.taskType || 'experiment';
   const isTaskDeadlineExpired = currentTask ? isTaskExpired(currentTask) : false;
-  // 🛡️ 阶段二编辑区：仅当任务已真正截止，或者全员在阶段三确认终稿归档时才只读；在阶段二正常撰写阶段绝不误锁！
-  const isFinalSubmitted = (state.currentStage === 'stage3' || state.groupMaxStage === 'stage3') && !!state.isFinalSubmitted;
-  const isEditorReadonly = isTaskDeadlineExpired || isFinalSubmitted;
+  // 🛡️ 阶段二编辑区：只要当前任务未真正截止，阶段二绝对保持协同可写！
+  const isEditorReadonly = isTaskDeadlineExpired;
 
   if (!userGroupId || userGroupId === 'null' || String(userGroupId || '').startsWith('group_unassigned')) {
     canvas.innerHTML = showResolutionBlock('未检测到您被分配的具体协作小组，请联系教师在教务空间分配小组后再进入');
@@ -2830,13 +2829,14 @@ function renderStage3Canvas(canvas, state, handlers) {
   const finalSubmittedMap = s3.finalSubmittedMembers || {};
   const finalSubmittedCount = membersList.filter(m => isMemberDone(finalSubmittedMap, m)).length;
   const isUserFinalSubmitted = isMemberDone(finalSubmittedMap, currUser || currUserCode);
-  const isAllFinalSubmitted = state.isFinalSubmitted || (finalSubmittedCount >= totalCount && totalCount > 0);
+  const isAllFinalSubmitted = (finalSubmittedCount >= totalCount && totalCount > 0);
 
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
   const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || (state.activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
   const taskGenreKey = currentTask?.taskType || state.taskType || 'experiment';
   const isTaskDeadlineExpired = currentTask ? isTaskExpired(currentTask) : false;
-  const isFinalSubmitted = state.isFinalSubmitted || isAllFinalSubmitted || isTaskDeadlineExpired;
+  // 🛡️ 阶段三终稿区：仅当全员已完成终稿提交确认，或任务真正截止时，才锁定为只读归档
+  const isFinalSubmitted = isAllFinalSubmitted || isTaskDeadlineExpired;
   const isDefenseLocked = isRevisionFullyConfirmed || isFinalSubmitted;
 
   // 🛡️ Safari 滚动记忆防回弹：预先记录用户此前的滚动高度与聚焦输入状态
