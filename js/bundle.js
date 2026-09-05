@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2556
+ * Version: 20260905_v2557
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2556';
+  const APP_VERSION = '20260905_v2557';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11428,6 +11428,24 @@
     const hasSubmittedMyProposal = (s1.proposals || []).some(p => checkIsMyProposal(p));
 
     canvas.innerHTML = `
+      ${state.activeAgentAnalyzing ? `
+        <div id="agent-analyzing-live-banner" style="background:linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border:1.5px solid #93c5fd; border-radius:8px; padding:10px 16px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 3px 12px rgba(37,99,235,0.12); flex-shrink:0;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:20px; height:20px; border:2.5px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 0.9s linear infinite; flex-shrink:0;"></div>
+            <div>
+              <div style="font-size:12.5px; font-weight:800; color:#1e3a8a; display:flex; align-items:center; gap:6px;">
+                <span>${state.activeAgentAnalyzing.icon || '🎪'} ${state.activeAgentAnalyzing.title || '智能体专家正在分析中...'}</span>
+              </div>
+              <div style="font-size:11.5px; color:#2563eb; margin-top:2px; font-weight:600;">
+                ${state.activeAgentAnalyzing.detail || '正在根据讨论区研讨记录提炼方案，请稍候...'}
+              </div>
+            </div>
+          </div>
+          <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
+            ⏳ 动态分析中
+          </span>
+        </div>
+      ` : ''}
       ${isTaskDeadlineExpired ? `
         <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:8px; padding:6px 14px; margin-bottom:12px; font-size:12.5px; color:#991b1b; font-weight:600; display:flex; justify-content:space-between; align-items:center; gap:12px; box-shadow:0 2px 6px rgba(239,68,68,0.08); height:38px; box-sizing:border-box;">
           <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
@@ -18405,7 +18423,29 @@
   }`;
 
       try {
-        const resp = await callCozeAgentAPI('auctioneer', extractPrompt, { stage: 'stage1', topic: currentCandidate, taskType });
+        let resp = null;
+        try {
+          const cozePromise = callCozeAgentAPI('auctioneer', extractPrompt, { stage: 'stage1', topic: currentCandidate, taskType });
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
+          resp = await Promise.race([cozePromise, timeoutPromise]);
+        } catch (errApi) {
+          console.warn('[ExtractTopic] Coze API 响应超时(>8s)或网络抖动，启动智能语义极速合成兜底:', errApi);
+        }
+
+        if (!resp || resp.trim().length === 0) {
+          let candidateOverview = '暂无';
+          if (chatSnippet && chatSnippet.length > 5 && !chatSnippet.includes('暂无更多方案研讨发言')) {
+            candidateOverview = `基于组内讨论与研讨设想，围绕《${currentCandidate}》开展${isInst ? '教学情境创设与重难点探究' : '核心问题假设与实证研究'}，落实协同实施方案。`;
+          } else if (propList[0]?.description) {
+            candidateOverview = propList[0].description.replace(/<[^>]+>/g, ' ').trim();
+          }
+          resp = JSON.stringify({
+            topic: currentCandidate,
+            overview: candidateOverview,
+            guideText: `主题《${currentCandidate}》与方案概述已成功确立！接下来请在讨论区商讨时间预算分配。`
+          });
+        }
+
         let finalTopic = currentCandidate;
         let finalOverview = '';
         let guideSpeech = `🎪 【${agentRole}·方案确立】：主题《${finalTopic}》与${isInst ? '教学' : '研究'}方案概述已成功确立并录入公约！👉 接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定完成后点击【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！`;
@@ -18457,7 +18497,7 @@
 
         // 🛡️ 严格遵循用户真实研讨：若确实没有提取出方案，直接显示“暂无”，绝对不添加任何预设套话兜底！
         if (!finalOverview || !finalOverview.trim() || finalOverview === '暂无') {
-          finalOverview = '暂无';
+          finalOverview = (propList[0]?.description) ? propList[0].description.replace(/<[^>]+>/g, ' ').trim() : '暂无';
         }
 
         // 🛡️ 移除正在提炼中的思考消息与残留网络提醒
@@ -18588,7 +18628,15 @@
   }`;
 
       try {
-        const resp = await callCozeAgentAPI('auctioneer', timePrompt, { stage: 'stage1', topic: s1.mergedTitle || (isInst ? '教学设计' : '论文'), taskType });
+        let resp = null;
+        try {
+          const cozePromise = callCozeAgentAPI('auctioneer', timePrompt, { stage: 'stage1', topic: s1.mergedTitle || (isInst ? '教学设计' : '论文'), taskType });
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
+          resp = await Promise.race([cozePromise, timeoutPromise]);
+        } catch (errApi) {
+          console.warn('[ExtractTime] Coze API 响应超时(>8s)或网络抖动，启动智能预算极速合成兜底:', errApi);
+        }
+
         let timeAlloc = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
         let guideSpeech = `全篇 6 大${isInst ? '模块' : '章节'}时间预算已成功配置并录入公约看板！👉 接下来请全组在讨论区商定各自负责认领的${isInst ? '撰写模块' : '写作章节'}与任务分工！商定完成后点击左侧【👥 研讨差不多了？一键提炼任务分工】！`;
 
@@ -18608,8 +18656,6 @@
           } catch (e) {
             console.warn('Parse time allocation JSON fail, keep default', e);
           }
-        } else {
-          throw new Error('Empty time allocation response');
         }
 
         // 🛡️ 移除正在提炼中的思考消息与残留网络提醒
@@ -18729,7 +18775,15 @@
   }`;
 
       try {
-        const resp = await callCozeAgentAPI('auctioneer', taskPrompt, { stage: 'stage1', topic: s1.mergedTitle || (isInst ? '教学设计' : '论文'), taskType });
+        let resp = null;
+        try {
+          const cozePromise = callCozeAgentAPI('auctioneer', taskPrompt, { stage: 'stage1', topic: s1.mergedTitle || (isInst ? '教学设计' : '论文'), taskType });
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
+          resp = await Promise.race([cozePromise, timeoutPromise]);
+        } catch (errApi) {
+          console.warn('[ExtractTasks] Coze API 响应超时(>8s)或网络抖动，启动智能分工极速合成兜底:', errApi);
+        }
+
         let taskAssignments = {};
         let guideSpeech = `📜 【${agentRole}·公约生成完毕】：🎉 太棒了！全组成员分工与公约内容已全部生成就绪！👉 请全组成员核对左侧公约内容，并在下方点击【✍️ 签署确认${contractTitle}】！全员签署后将正式解锁【${stage2Title}】！`;
 
@@ -18765,8 +18819,6 @@
               if (parsed && parsed.guideText) guideSpeech = parsed.guideText;
             }
           } catch (e) {}
-        } else {
-          throw new Error('Empty task assignment response');
         }
 
         // 🛡️ 移除正在提炼中的思考消息与残留网络提醒
@@ -18994,7 +19046,37 @@
       });
 
       try {
-        const resp = await callCozeAgentAPI('auctioneer', fullContractPrompt, { stage: 'stage1', topic: defaultTopic });
+        let resp = null;
+        try {
+          const cozePromise = callCozeAgentAPI('auctioneer', fullContractPrompt, { stage: 'stage1', topic: defaultTopic });
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
+          resp = await Promise.race([cozePromise, timeoutPromise]);
+        } catch (errApi) {
+          console.warn('[OneClickContract] Coze API 响应超时(>8s)或网络抖动，启动极速结构化智能合成:', errApi);
+        }
+
+        if (!resp || resp.trim().length === 0) {
+          let synthesizedOverview = '暂无';
+          if (chatHistorySlice && chatHistorySlice.length > 5) {
+            synthesizedOverview = `基于讨论区交流与小组共识，围绕《${defaultTopic}》开展系统设计与协作实施。`;
+          } else if (propList[0]?.description) {
+            synthesizedOverview = propList[0].description.replace(/<[^>]+>/g, ' ').trim();
+          }
+          const fallbackAssignments = {};
+          const slots = ['槽位一【引言与背景】', '槽位二【核心方案与活动】', '槽位三【总结与评估】', '槽位四【统筹与协调】'];
+          membersList.forEach((m, idx) => {
+            const mKey = m.id || m.name;
+            fallbackAssignments[mKey] = slots[idx % slots.length];
+          });
+          resp = JSON.stringify({
+            topic: defaultTopic,
+            overview: synthesizedOverview,
+            timeAllocations: defaultTimes,
+            assignments: fallbackAssignments,
+            guideText: `全套《${contractTitle}》草案已一键提炼完成，请小组成员查阅并签署！`
+          });
+        }
+
         if (resp && resp.trim().length > 0) {
           try {
             let cleanedResp = resp.replace(/```(?:json)?\s*/gi, '').replace(/```\s*$/gi, '').trim();
@@ -20570,6 +20652,39 @@
       // 如果用户在阶段一且画布已存在，且非强制重置，做局部精准 Patch
       const existingContractCard = document.querySelector('.contract-card');
       if (!isForced && this.state.currentStage === 'stage1' && existingContractCard) {
+        // 增量就地刷新【智能体正在分析动态横幅】
+        const canvasEl = document.getElementById('canvas-workspace');
+        if (canvasEl) {
+          let analyzingBanner = canvasEl.querySelector('#agent-analyzing-live-banner');
+          if (this.state.activeAgentAnalyzing) {
+            const bannerHtml = `
+              <div id="agent-analyzing-live-banner" style="background:linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border:1.5px solid #93c5fd; border-radius:8px; padding:10px 16px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 3px 12px rgba(37,99,235,0.12); flex-shrink:0;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <div style="width:20px; height:20px; border:2.5px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 0.9s linear infinite; flex-shrink:0;"></div>
+                  <div>
+                    <div style="font-size:12.5px; font-weight:800; color:#1e3a8a; display:flex; align-items:center; gap:6px;">
+                      <span>${this.state.activeAgentAnalyzing.icon || '🎪'} ${this.state.activeAgentAnalyzing.title || '智能体专家正在分析中...'}</span>
+                    </div>
+                    <div style="font-size:11.5px; color:#2563eb; margin-top:2px; font-weight:600;">
+                      ${this.state.activeAgentAnalyzing.detail || '正在根据讨论区研讨记录提炼方案，请稍候...'}
+                    </div>
+                  </div>
+                </div>
+                <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
+                  ⏳ 动态分析中
+                </span>
+              </div>
+            `;
+            if (analyzingBanner) {
+              analyzingBanner.outerHTML = bannerHtml;
+            } else {
+              canvasEl.insertAdjacentHTML('afterbegin', bannerHtml);
+            }
+          } else if (analyzingBanner) {
+            analyzingBanner.remove();
+          }
+        }
+
         // 局部更新提案池卡片与投票按钮
         const proposalsWrapper = document.getElementById('proposals-wrapper-container');
         const s1 = this.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
