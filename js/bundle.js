@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2615
+ * Version: 20260905_v2616
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2615';
+  const APP_VERSION = '20260905_v2616';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13703,17 +13703,18 @@
             existingFrame._wasPreviouslyReadonly = true;
             enforceEtherpadReadonly(existingFrame);
           } else {
-            // 🔑 关键修复：如果 iframe 之前是只读状态，必须强制用新的可写 URL 重载 iframe
-            // Etherpad 服务端会把会话记为 readOnly，仅靠 DOM 操作无法恢复，必须重新建连接
-            const wasReadonly = existingFrame._wasPreviouslyReadonly || existingFrame._isReadonlyEnforced;
-            if (wasReadonly) {
+            // 🔑 关键修复：直接检查 iframe 当前 src 是否含 readOnly=true
+            // 不依赖标志位——sync.js 里 liftEtherpadReadonly 会提前清除标志，导致判断失效
+            // Etherpad 服务端持久化了 readOnly 会话，必须重载 src 才能真正解锁
+            const currentSrc = existingFrame.src || existingFrame.getAttribute('src') || '';
+            if (currentSrc.includes('readOnly=true')) {
               existingFrame._wasPreviouslyReadonly = false;
               existingFrame._isReadonlyEnforced = false;
               // 清除只读遮罩
               const container = existingFrame.parentElement;
               if (container) container.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
               document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
-              // 用可写 URL 重建 Etherpad 连接（不含 readOnly=true 和 showControls=false）
+              // 用可写 URL 重建 Etherpad 连接（padUrl 此时 isEditorReadonly=false，不含 readOnly=true）
               existingFrame.src = padUrl;
             } else {
               liftEtherpadReadonly(existingFrame);
@@ -14307,21 +14308,19 @@
           existingFrame._wasPreviouslyReadonly = true;
           enforceEtherpadReadonly(existingFrame);
         } else {
-          // 🔑 关键修复：Etherpad 服务端持久化了 readOnly 会话状态，仅靠 DOM 操作无法解锁
-          // 如果 iframe 之前是只读 URL，必须强制移除 readOnly 参数并重新加载 iframe
-          const wasReadonly = existingFrame._wasPreviouslyReadonly || existingFrame._isReadonlyEnforced;
-          if (wasReadonly) {
+          // 🔑 关键修复：直接检查 iframe 当前 src 是否含 readOnly=true
+          // 不依赖标志位（liftEtherpadReadonly 会提前清除标志），必须用 src 做真实判断
+          const currentSrc = existingFrame.src || existingFrame.getAttribute('src') || '';
+          if (currentSrc.includes('readOnly=true')) {
             existingFrame._wasPreviouslyReadonly = false;
             existingFrame._isReadonlyEnforced = false;
             // 清除只读遮罩
             const container = existingFrame.parentElement;
             if (container) container.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
             document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
-            // 从当前 src 中移除 &readOnly=true 和 &showControls=false，强制重新建立可写连接
-            let newSrc = (existingFrame.src || '').replace(/[&?]readOnly=true/g, '').replace(/[&?]showControls=false/g, '&showControls=true');
-            if (newSrc !== existingFrame.src) {
-              existingFrame.src = newSrc;
-            }
+            // 从当前 src 中移除 readOnly=true 和 showControls=false，强制重建可写连接
+            let newSrc = currentSrc.replace(/[&?]readOnly=true/g, '').replace(/[&?]showControls=false/g, '&showControls=true');
+            existingFrame.src = newSrc;
           } else {
             liftEtherpadReadonly(existingFrame);
           }
