@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260906_v2661"
+TARGET_VERSION="20260906_v2662"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -392,7 +392,9 @@ EPSETEOF
   sleep 1
 
   cd "$EP_DIR"
+  mkdir -p var
   rm -f var/minified* var/session* var/plugin-definitions.json var/plugins.json var/*.lock 2>/dev/null || true
+  chmod -R 777 var 2>/dev/null || true
   > /var/log/etherpad.log
   export NODE_ENV=production
 
@@ -434,7 +436,14 @@ for dir in "${TARGET_DIRS[@]}"; do
   echo '{}' > "$dir/sessions.json" 2>/dev/null || true
   chmod 664 "$dir/sessions.json" 2>/dev/null || true
   chown -R www:www "$dir" 2>/dev/null || true
+  if [ -d "$dir/etherpad-lite/var" ]; then
+    chmod -R 777 "$dir/etherpad-lite/var" 2>/dev/null || true
+  fi
 done
+
+if [ -n "$EP_DIR" ] && [ -d "$EP_DIR/var" ]; then
+  chmod -R 777 "$EP_DIR/var" 2>/dev/null || true
+fi
 
 echo "🚀 [4/4] 启动高可用同步服务端..."
 kill -9 $(lsof -t -i:8088 2>/dev/null) >/dev/null 2>&1 || true
