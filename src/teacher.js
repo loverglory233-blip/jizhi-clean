@@ -3007,7 +3007,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
             </div>
 
             <div class="teacher-form-group">
-              <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;">🎯 目标字数要求 (供智能体 30%/60%/90% 质检计算进度)</label>
+              <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;">🎯 目标字数要求</label>
               <div style="display:flex; align-items:center; gap:8px;">
                 <input type="number" id="modal-edit-task-words" class="teacher-input fancy" value="${task.targetWordCount || 3000}" min="500" step="100" style="width:120px; font-size:13.5px; font-weight:700; padding:8px 12px; border:1.5px solid #cbd5e1; border-radius:8px; text-align:center;">
                 <span style="font-size:13px; font-weight:700; color:#475569;">字</span>
@@ -3016,24 +3016,23 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
 
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
               <div class="teacher-form-group">
-                <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;"><span class="req" style="color:#dc2626;">*</span> 📅 开始时间</label>
+                <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;"><span class="req" style="color:#dc2626;">*</span> 📅 任务开始时间</label>
                 <input type="datetime-local" id="modal-edit-task-start" class="teacher-input fancy" value="${currentStart}" style="width:100%; font-size:12.5px; padding:8px 10px; border:1.5px solid #cbd5e1; border-radius:8px;">
               </div>
               <div class="teacher-form-group">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                  <label style="font-size:12.5px; font-weight:700; color:#334155; margin:0;"><span class="req" style="color:#dc2626;">*</span> ⌛ 截止时间</label>
+                  <label style="font-size:12.5px; font-weight:700; color:#334155; margin:0;"><span class="req" style="color:#dc2626;">*</span> ⌛ 任务截止时间</label>
                   <span id="modal-edit-task-duration-badge" style="font-size:11px; font-weight:800; color:#1d4ed8; background:#eff6ff; border:1px solid #bfdbfe; padding:2px 8px; border-radius:6px;">⏱️ 总时长: ${formatDurationHuman(task.durationMinutes || 120)}</span>
                 </div>
                 <input type="datetime-local" id="modal-edit-task-deadline" class="teacher-input fancy" value="${currentDeadline}" style="width:100%; font-size:12.5px; padding:8px 10px; border:1.5px solid #cbd5e1; border-radius:8px;">
               </div>
             </div>
 
-            <!-- 🕒 核心功能区：一键设定任务总时长（从开始时间起算，支持任意短时长与长周期） -->
+            <!-- 🕒 核心功能区：一键设定任务总时长 -->
             <div style="background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:10px; padding:12px 14px;">
               <div style="font-size:12px; font-weight:700; color:#1e293b; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
                 <div style="display:flex; align-items:center; gap:6px;">
                   <span>🕒 一键设定任务总时长</span>
-                  <span style="font-size:11px; color:#64748b; font-weight:normal;">(从开始时间直接起算，支持小于2小时快速设定):</span>
                 </div>
               </div>
               
@@ -3046,7 +3045,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                 <button type="button" class="btn-edit-set-duration" data-mins="90" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1.5小时</button>
                 <button type="button" class="btn-edit-set-duration" data-mins="120" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">2小时</button>
                 <button type="button" class="btn-edit-set-duration" data-mins="180" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">3小时</button>
-                <button type="button" class="btn-edit-set-duration" data-mins="720" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">半天(12h)</button>
+                <button type="button" class="btn-edit-set-duration" data-mins="720" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">12小时</button>
                 <button type="button" class="btn-edit-set-duration" data-mins="1440" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1天</button>
                 <button type="button" class="btn-edit-set-duration" data-mins="4320" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">3天</button>
                 <button type="button" class="btn-edit-set-duration" data-mins="10080" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1周</button>
@@ -3057,10 +3056,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                 <span style="font-size:12px; color:#475569; font-weight:700;">自定义总时长:</span>
                 <input type="number" id="modal-edit-custom-dur-num" value="2" min="0.1" step="any" style="width:65px; padding:4px 6px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12.5px; font-weight:700; text-align:center; outline:none;">
                 <select id="modal-edit-custom-dur-unit" style="padding:4px 6px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12px; font-weight:700; background:#ffffff; cursor:pointer; outline:none;">
-                  <option value="minute">分钟 (如15/30分)</option>
-                  <option value="hour" selected>小时 (如0.5/1/2小时)</option>
-                  <option value="day">天 (24小时)</option>
-                  <option value="week">周 (7天)</option>
+                  <option value="minute">分钟</option>
+                  <option value="hour" selected>小时</option>
+                  <option value="day">天</option>
+                  <option value="week">周</option>
                 </select>
                 <button type="button" id="btn-edit-apply-custom-dur" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:5px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
                   ⚡ 设定截止时间
@@ -3077,7 +3076,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
             </div>
 
             <div class="teacher-form-group">
-              <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;">📝 任务详细说明与要求 (选填)</label>
+              <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;">📝 任务说明与要求 (选填)</label>
               <textarea id="modal-edit-task-desc" class="teacher-textarea fancy" style="min-height:85px; width:100%; font-size:13px; padding:10px 12px; border:1.5px solid #cbd5e1; border-radius:8px; line-height:1.5;" placeholder="请输入任务详细说明与指导要求...">${task.instructions || ''}</textarea>
             </div>
           </div>
@@ -3546,25 +3545,24 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
               </div>
             </div>
 
-            <!-- 🕒 核心功能区：一键设定任务总时长（从开始时间起算，支持任意短时长与长周期） -->
+            <!-- 🕒 核心功能区：一键设定任务总时长 -->
             <div style="background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:10px; padding:12px 14px; margin-top:8px;">
               <div style="font-size:12px; font-weight:700; color:#1e293b; margin-bottom:8px; display:flex; align-items:center; justify-content:space-between;">
                 <div style="display:flex; align-items:center; gap:6px;">
                   <span>🕒 一键设定任务总时长</span>
-                  <span style="font-size:11px; color:#64748b; font-weight:normal;">(从开始时间直接起算，支持小于2小时快速设定):</span>
                 </div>
               </div>
               
-              <!-- 快捷总时长预设胶囊（包含 <2小时 以及常规长时长） -->
+              <!-- 快捷总时长预设胶囊 -->
               <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:10px;" id="modal-create-duration-capsules">
                 <button type="button" class="btn-create-set-duration" data-mins="15" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">15分钟</button>
                 <button type="button" class="btn-create-set-duration" data-mins="30" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">30分钟</button>
                 <button type="button" class="btn-create-set-duration" data-mins="45" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">45分钟</button>
                 <button type="button" class="btn-create-set-duration" data-mins="60" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1小时</button>
                 <button type="button" class="btn-create-set-duration" data-mins="90" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1.5小时</button>
-                <button type="button" class="btn-create-set-duration" data-mins="120" style="background:#eff6ff; border:1.5px solid #2563eb; color:#1d4ed8; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:800; cursor:pointer; box-shadow:0 1px 4px rgba(37,99,235,0.2);">2小时 (默认)</button>
+                <button type="button" class="btn-create-set-duration" data-mins="120" style="background:#eff6ff; border:1.5px solid #2563eb; color:#1d4ed8; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:800; cursor:pointer; box-shadow:0 1px 4px rgba(37,99,235,0.2);">2小时</button>
                 <button type="button" class="btn-create-set-duration" data-mins="180" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">3小时</button>
-                <button type="button" class="btn-create-set-duration" data-mins="720" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">半天(12h)</button>
+                <button type="button" class="btn-create-set-duration" data-mins="720" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">12小时</button>
                 <button type="button" class="btn-create-set-duration" data-mins="1440" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1天</button>
                 <button type="button" class="btn-create-set-duration" data-mins="4320" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">3天</button>
                 <button type="button" class="btn-create-set-duration" data-mins="10080" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:4px 9px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">1周</button>
@@ -3575,10 +3573,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                 <span style="font-size:12px; color:#475569; font-weight:700;">自定义总时长:</span>
                 <input type="number" id="modal-create-custom-dur-num" value="2" min="0.1" step="any" style="width:65px; padding:4px 6px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12.5px; font-weight:700; text-align:center; outline:none;">
                 <select id="modal-create-custom-dur-unit" style="padding:4px 6px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12px; font-weight:700; background:#ffffff; cursor:pointer; outline:none;">
-                  <option value="minute">分钟 (如15/30分)</option>
-                  <option value="hour" selected>小时 (如0.5/1/2小时)</option>
-                  <option value="day">天 (24小时)</option>
-                  <option value="week">周 (7天)</option>
+                  <option value="minute">分钟</option>
+                  <option value="hour" selected>小时</option>
+                  <option value="day">天</option>
+                  <option value="week">周</option>
                 </select>
                 <button type="button" id="btn-create-apply-custom-dur" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:5px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
                   ⚡ 设定截止时间
@@ -3595,10 +3593,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
             </div>
 
             <div class="teacher-form-group" style="margin-top:8px;">
-              <label><span class="req">*</span> 📝 任务写作文体类型 (决定智能体质检标准与公约章节)</label>
+              <label><span class="req">*</span> 📝 任务写作类型</label>
               <select id="modal-task-type" class="teacher-input fancy" style="font-weight:700; background:#ffffff; cursor:pointer;">
-                <option value="experiment" selected>🧪 实证研究方案 (研究假设、变量控制、实验设计、数据测量)</option>
-                <option value="instructional">📐 教学设计方案 (教材学情、教学目标重难点、探究过程、评价反思)</option>
+                <option value="experiment" selected>🧪 实证研究方案 (论文写作)</option>
+                <option value="instructional">📐 教学设计方案 (优质课备课)</option>
               </select>
               <div id="modal-task-type-tip" style="font-size:11.5px; color:#2563eb; margin-top:4px; line-height:1.4; background:#eff6ff; padding:6px 10px; border-radius:6px; border:1px solid #bfdbfe;">
                 💡 智能体将采用【实证研究方法与实验设计】学术口径，由责任编辑与审稿编辑展开破题、半程质检与答辩质询。
@@ -3610,7 +3608,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
               <input type="text" id="modal-task-title" class="teacher-input fancy" value="" placeholder="输入写作任务名称">
             </div>
             <div class="teacher-form-group">
-              <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;">🎯 目标字数要求 (供智能体 30%/60%/90% 质检计算进度)</label>
+              <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;">🎯 目标字数要求</label>
               <div style="display:flex; align-items:center; gap:8px;">
                 <input type="number" id="modal-task-words" class="teacher-input fancy" value="3000" min="500" step="100" style="width:120px; font-size:13.5px; font-weight:700; padding:8px 12px; border:1.5px solid #cbd5e1; border-radius:8px; text-align:center;">
                 <span style="font-size:13px; font-weight:700; color:#475569;">字</span>
@@ -3623,7 +3621,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
               </div>
             </div>
             <div class="teacher-form-group">
-              <label>任务详细说明与要求 (选填)</label>
+              <label>任务说明与要求 (选填)</label>
               <textarea id="modal-task-desc" class="teacher-textarea fancy" style="min-height:90px;" placeholder="请输入任务详细说明与指导要求 (可选)..."></textarea>
             </div>
           </div>
