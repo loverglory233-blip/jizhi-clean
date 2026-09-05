@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2653";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2653";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2653";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2654";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2654";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2654";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -2231,53 +2231,7 @@ function renderStage2Canvas(canvas, state, handlers) {
     // 增量就地刷新【半程修正清单】
     const planCardContainer = canvas.querySelector('#stage2-action-plan-card');
     if (planCardContainer) {
-      let effActionPlan = actionPlan;
-      const allChatLogs = [
-        ...(state.chatLogs?.stage1 || []),
-        ...(state.chatLogs?.stage2 || []),
-        ...(state.chatLogs?.stage3 || [])
-      ];
-      // 严格仅匹配审稿编辑下发的【二审修正清单】，坚决排除修改决议与讨论总结
-      const revMsg = allChatLogs.find(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('半程编辑修正清单') || m.text.includes('半程修正清单')) && !m.text.includes('修改落实决议') && !m.text.includes('修改落实要点'));
-      
-      if ((!effActionPlan || !effActionPlan.isGenerated || !effActionPlan.items || effActionPlan.items.length < 3) && (s2.meetingStep === 'discussing_checklist' || s2.meetingStep === 'completed' || !!revMsg)) {
-        let parsedItems = [];
-        if (revMsg && revMsg.text) {
-          let body = revMsg.text;
-          const headerMatch = body.match(/(?:二审修正清单|半程编辑修正清单|半程修正清单)[】:：\s]*/);
-          if (headerMatch) {
-            body = body.slice(headerMatch.index + headerMatch[0].length);
-          }
-          body = body.replace(/[👉\s]*请大家围绕.*$/s, '')
-                     .replace(/[👉\s]*请全组围绕.*$/s, '')
-                     .replace(/[👉\s]*讨论差不多.*$/s, '')
-                     .replace(/[👉\s]*点击下方.*$/s, '')
-                     .replace(/^本次修改需对齐三项要求[：:]*/s, '')
-                     .trim();
-
-          let chunks = body.split(/(?=[①②③]|\b[123]\.|(?=[一二三]是))/g).map(c => c.trim()).filter(Boolean);
-          if (chunks.length < 3) {
-            chunks = body.split(/[\n；;]+/g).map(c => c.trim()).filter(Boolean);
-          }
-          chunks.forEach(c => {
-            let clean = c.replace(/^[①②③\d\.\s\(\)一二三是：:]+/, '').replace(/[；;。]\s*$/, '').trim();
-            if (clean.length > 5 && !clean.includes('请全组协同') && !clean.includes('冲刺终审定稿')) {
-              parsedItems.push(clean);
-            }
-          });
-        }
-        if (parsedItems.length > 0) {
-          effActionPlan = {
-            isGenerated: true,
-            completedMap: (effActionPlan && effActionPlan.completedMap) || {},
-            items: parsedItems.slice(0, 3)
-          };
-          if (!state.stage2.actionPlan) state.stage2.actionPlan = effActionPlan;
-          state.stage2.actionPlan.isGenerated = true;
-          state.stage2.actionPlan.items = effActionPlan.items;
-        }
-      }
-
+      const effActionPlan = actionPlan;
       if (effActionPlan && effActionPlan.isGenerated && Array.isArray(effActionPlan.items) && effActionPlan.items.length > 0) {
         const completedCount = Object.values(effActionPlan.completedMap || {}).filter(Boolean).length;
         const totalItems = (effActionPlan.items || []).length;
@@ -2500,112 +2454,7 @@ function renderStage2Canvas(canvas, state, handlers) {
 
       <!-- 🌟 2. 半程修正清单 (未下发时展示待解锁提示，下发后展示展开卡片) -->
       ${(() => {
-        let effActionPlan = actionPlan;
-        const allChatLogs = [
-          ...(state.chatLogs?.stage1 || []),
-          ...(state.chatLogs?.stage2 || []),
-          ...(state.chatLogs?.stage3 || [])
-        ];
-        // 严格仅匹配审稿编辑下发的【二审修正清单】，坚决排除修改决议与讨论总结
-        const revMsg = allChatLogs.find(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('半程编辑修正清单') || m.text.includes('半程修正清单')) && !m.text.includes('修改落实决议') && !m.text.includes('修改落实要点'));
-        
-        if ((!effActionPlan || !effActionPlan.isGenerated || !effActionPlan.items || effActionPlan.items.length < 3) && (s2.meetingStep === 'discussing_checklist' || s2.meetingStep === 'completed' || !!revMsg)) {
-          let reviewChunks = [];
-          if (revMsg && revMsg.text) {
-            let body = revMsg.text;
-            const headerMatch = body.match(/(?:二审修正清单|半程编辑修正清单|半程修正清单)[】:：\s]*/);
-            if (headerMatch) {
-              body = body.slice(headerMatch.index + headerMatch[0].length);
-            }
-            body = body.replace(/[👉\s]*请大家围绕.*$/s, '')
-                       .replace(/[👉\s]*请全组围绕.*$/s, '')
-                       .replace(/[👉\s]*讨论差不多.*$/s, '')
-                       .replace(/[👉\s]*点击下方.*$/s, '')
-                       .replace(/^本次修改需对齐三项要求[：:]*/s, '')
-                       .trim();
-
-            let chunks = body.split(/(?=[①②③]|\b[123]\.|(?=[一二三]是)|(?=【核心概念对齐】|【研究方法深化】|【行文衔接规范】|【学术规范】))/g).map(c => c.trim()).filter(Boolean);
-            if (chunks.length < 3) {
-              chunks = body.split(/[\n；;]+/g).map(c => c.trim()).filter(Boolean);
-            }
-            chunks.forEach(c => {
-              let clean = c.replace(/^[①②③\d\.\s\(\)一二三是：:]+/, '').replace(/[；;。]\s*$/, '').trim();
-              if (clean.length > 5 && !clean.includes('请全组协同') && !clean.includes('冲刺终审定稿')) {
-                reviewChunks.push(clean);
-              }
-            });
-          }
-
-          const subs = s2.meetingSubmissions || {};
-          const allSubs = Object.values(subs);
-          const hasIdeationDev = allSubs.some(s => (s.ideationConsistency || '').includes('偏离'));
-          const hasTransDev = allSubs.some(s => (s.transitionState || '').includes('脱节'));
-          const hasStyleDev = allSubs.some(s => (s.styleState || '').includes('割裂') || (s.styleState || '').includes('混乱') || (s.styleState || '').includes('口语'));
-          const hasDivergence = hasIdeationDev || hasTransDev || hasStyleDev || !!s2.hasMeetingDivergence;
-
-          let finalActionItems = [];
-          if (hasDivergence) {
-            const allIdeationSecs = Array.from(new Set(allSubs.flatMap(s => s.ideationSections || [])));
-            const allTransSecs = Array.from(new Set(allSubs.flatMap(s => s.transSections || [])));
-            let focusText = [...allTransSecs, ...allIdeationSecs].filter(Boolean).map(s => `【${s}】`).join('与');
-            if (!focusText) focusText = '前后核心章节';
-
-            let managingItem = '';
-            if (hasTransDev && hasIdeationDev) {
-              managingItem = `【内容与构思对齐】重点对齐${focusText}，消除前后构思偏差，理顺章节论述衔接。`;
-            } else if (hasTransDev) {
-              managingItem = `【章节逻辑衔接】重点理顺${focusText}的逻辑过渡，消除前后脱节，保持论述连贯。`;
-            } else if (hasIdeationDev) {
-              managingItem = `【核心构思对齐】重点针对${focusText}重新对齐全篇主旨构思，确保立意一致。`;
-            } else {
-              managingItem = `【语体与术语对齐】统一全篇学术术语口径与规范语体，消除口语化与风格割裂。`;
-            }
-            finalActionItems.push(managingItem);
-
-            if (reviewChunks.length >= 2) {
-              finalActionItems.push(reviewChunks[0]);
-              finalActionItems.push(reviewChunks[1]);
-            } else if (reviewChunks.length === 1) {
-              finalActionItems.push(reviewChunks[0]);
-              finalActionItems.push('【研究方法深化】细化核心方法实施步骤与测量工具，增强论证严密性。');
-            } else {
-              finalActionItems.push('【研究方法深化】细化核心方法实施步骤与测量工具，增强论证严密性。');
-              finalActionItems.push('【学术规范与衔接】统一专业术语口径，补全段落间逻辑过渡与学术规范。');
-            }
-          } else {
-            if (reviewChunks.length >= 3) {
-              finalActionItems = reviewChunks.slice(0, 3);
-            } else if (reviewChunks.length === 2) {
-              finalActionItems = [
-                reviewChunks[0],
-                reviewChunks[1],
-                '【学术规范与衔接】统一全篇学术术语口径，规范文献著录与行文基调。'
-              ];
-            } else if (reviewChunks.length === 1) {
-              finalActionItems = [
-                reviewChunks[0],
-                '【研究方法深化】细化核心方法实施步骤与测量工具，增强论证严密性。',
-                '【学术规范与衔接】统一全篇学术术语口径，规范文献著录与行文基调。'
-              ];
-            } else {
-              finalActionItems = [
-                '【核心概念对齐】补充明确的操作性定义，使文献综述直接呼应研究问题与假设。',
-                '【研究方法深化】细化核心方法与测量工具的具体操作步骤，增强方法论严密性。',
-                '【行文衔接规范】统一全篇学术专业术语命名，补全段落间逻辑过渡衔接。'
-              ];
-            }
-          }
-
-          effActionPlan = {
-            isGenerated: true,
-            completedMap: (effActionPlan && effActionPlan.completedMap) || {},
-            items: finalActionItems.slice(0, 3)
-          };
-          if (!state.stage2.actionPlan) state.stage2.actionPlan = effActionPlan;
-          state.stage2.actionPlan.isGenerated = true;
-          state.stage2.actionPlan.items = effActionPlan.items;
-        }
-
+        const effActionPlan = actionPlan;
         if (!effActionPlan || !effActionPlan.isGenerated) {
           return `
             <div id="stage2-action-plan-card" onclick="if(window.app && window.app.forceRefreshActionPlan){ window.app.forceRefreshActionPlan(); }" title="点击可重新核对并展开最新清单" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px; padding:5px 12px; margin-bottom:6px; flex-shrink:0; display:flex; justify-content:space-between; align-items:center; cursor:pointer; transition:all 0.15s ease;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
