@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2679";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2679";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2679";
-import { AuthManager } from "./auth.js?v=20260906_v2679";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2679";
-import { renderLoginView } from "./login.js?v=20260906_v2679";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2679";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2679";
+} from "./constants.js?v=20260906_v2680";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2680";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2680";
+import { AuthManager } from "./auth.js?v=20260906_v2680";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2680";
+import { renderLoginView } from "./login.js?v=20260906_v2680";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2680";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2680";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2679";
+} from "./editor.js?v=20260906_v2680";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6992,27 +6992,23 @@ ${chatSnippet}
         const taskType = this.getCurrentTaskType();
         const isInst = (taskType === 'instructional');
 
-        let memberArr = [];
-        if (this.authManager) {
-          const u = this.authManager.getCurrentUser();
-          const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
-          const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-          const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null, effClassId);
-          const authMembers = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
-          if (authMembers.length > 0) memberArr = authMembers;
+        const u = (this.authManager) ? this.authManager.getCurrentUser() : null;
+        const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
+        const activeGroupObj = (this.authManager) ? this.authManager.getStudentActiveGroup(u, effClassId) : null;
+        const membersList = Object.values(this.state.members || {});
+        const allGroupMembers = (activeGroupObj && Array.isArray(activeGroupObj.members) && activeGroupObj.members.length > 0) 
+          ? activeGroupObj.members 
+          : membersList;
+        let memberArr = allGroupMembers.length > 0 ? allGroupMembers : membersList;
+        if (memberArr.length === 0 && this.authManager) {
+          const rawG = this.authManager.getGroupMembersForWorkspace(activeGroupObj?.id || this.state.activeGroupId || null, effClassId);
+          memberArr = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
         }
-        if (memberArr.length === 0) {
-          if (Array.isArray(this.state.members)) memberArr = this.state.members;
-          else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
-        }
-        if (!Array.isArray(memberArr)) {
-          memberArr = Object.values(memberArr || {});
-        }
-        const totalMembersCount = (memberArr && memberArr.length > 0) ? memberArr.length : 1;
+        const totalMembersCount = (memberArr && memberArr.length > 0) ? memberArr.length : (membersList.length > 0 ? membersList.length : 2);
 
         // 🛡️ 守卫拦截：必须先走完二审半程自查与会议全流程（全员打卡完成），或者总时间临近截止（<= 5分钟），才允许点击确认初稿！
         const subs = s2.meetingSubmissions || {};
-        const subCount = memberArr.filter(m => isMemberDone(subs, m)).length;
+        const subCount = Object.keys(subs).length;
         const isMeetingDone = s2.isMeetingLocked || (subCount >= totalMembersCount && totalMembersCount > 0);
 
         const curTask = this.authManager ? this.authManager.getTasks().find(t => t.id === this.state.activeTaskId) : null;
@@ -7023,11 +7019,6 @@ ${chatSnippet}
           if (typeof showGlobalBannerNotice === 'function') {
             showGlobalBannerNotice('⚠️ 请先完成半程自查', `当前半程${isInst ? '磨课' : '编辑'}会议打卡进度为 ${subCount}/${totalMembersCount} 人，请先走完自查研讨流程或等待临近结课再确认初稿。`, 'warning', 6000);
           }
-          return;
-        }
-
-        if (s2.isDraftConfirmed) {
-          this.switchStage('stage3', true);
           return;
         }
 
@@ -7054,15 +7045,15 @@ ${chatSnippet}
         const confirmedCount = memberArr.filter(m => isMemberDone(s2.confirmedMembers, m)).length;
         const memberName = currMemObj?.name || currUserObj?.name || '组员';
 
-        this.syncStage2();
-        this.syncChatLogs();
-        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-        renderChat(this.state);
-        this.renderStudentWorkspace();
-
         // 🛡️ 严格要求：必须全组成员每一个人都点击确认初稿后，才解锁推进至阶段三
         const stage3Title = isInst ? '阶段三：答辩评审会' : '阶段三：答辩擂台';
         if (confirmedCount < totalMembersCount) {
+          s2.isDraftConfirmed = false;
+          this.syncStage2();
+          this.syncChatLogs();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          renderChat(this.state);
+          this.renderStudentWorkspace();
           showGlobalBannerNotice('✍️ 初稿确认成功', `您 (${memberName}) 已确认初稿！当前组内进度：${confirmedCount}/${totalMembersCount} 人已确认。全员完成后将解锁【${stage3Title}】。`, 'info', 6000);
         } else {
           s2.isDraftConfirmed = true;
@@ -7938,8 +7929,12 @@ ${contentSnippet}
       if (isDone) return;
       isDone = true;
       if (timerId) clearInterval(timerId);
-      modal.remove();
-      if (typeof onProceed === 'function') onProceed();
+      try { modal.remove(); } catch(e){}
+      try {
+        if (typeof onProceed === 'function') onProceed();
+      } catch (err) {
+        console.warn('showStageMilestoneModal onProceed error:', err);
+      }
     };
 
     timerId = setInterval(() => {
@@ -7952,6 +7947,9 @@ ${contentSnippet}
     }, 1000);
 
     modal.querySelector('#btn-milestone-proceed')?.addEventListener('click', proceed);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) proceed();
+    });
   }
 
 
