@@ -1046,16 +1046,22 @@ export function liftEtherpadReadonly(iframe) {
   iframe._isReadonlyEnforced = false;
 
   // 1. 彻底清除所有的只读拦截遮罩（包括 container 和 document 中的所有残留遮罩）
-  const container = iframe.parentElement;
-  if (container) {
-    const shields = container.querySelectorAll('.etherpad-readonly-shield');
-    shields.forEach(s => s.remove());
-  }
-  document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+  const removeShields = () => {
+    try {
+      const container = iframe.parentElement;
+      if (container) {
+        const shields = container.querySelectorAll('.etherpad-readonly-shield');
+        shields.forEach(s => s.remove());
+      }
+      document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+    } catch(e) {}
+  };
+  removeShields();
 
-  // 2. 清除 iframe 内部 DOM 上的只读限制，让 Etherpad 恢复原生渲染
+  // 2. 清除 iframe 内部 DOM 上的只读限制，让 Etherpad 恢复原生渲染与编辑落焦
   const tryUnlock = () => {
     if (iframe._isReadonlyEnforced) return;
+    removeShields();
     try {
       const doc = iframe.contentDocument;
       if (!doc) return;
@@ -1083,6 +1089,14 @@ export function liftEtherpadReadonly(iframe) {
       const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
       if (aceOuter && aceOuter.contentDocument) {
         const outerDoc = aceOuter.contentDocument;
+        const outerBody = outerDoc.querySelector('#outerdocbody') || outerDoc.body;
+        if (outerBody) {
+          outerBody.style.removeProperty('cursor');
+          outerBody.style.removeProperty('user-select');
+          outerBody.style.removeProperty('-webkit-user-select');
+          outerBody.style.removeProperty('pointer-events');
+        }
+
         const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
         if (aceInner && aceInner.contentDocument) {
           const innerDoc = aceInner.contentDocument;
@@ -1090,12 +1104,21 @@ export function liftEtherpadReadonly(iframe) {
           if (innerBody) {
             innerBody.setAttribute('contenteditable', 'true');
             innerBody.style.removeProperty('cursor');
+            innerBody.style.removeProperty('user-select');
+            innerBody.style.removeProperty('-webkit-user-select');
+            innerBody.style.removeProperty('pointer-events');
           }
         }
       }
 
       const padWin = iframe.contentWindow;
       if (padWin) {
+        if (padWin.pad && padWin.pad.editor && typeof padWin.pad.editor.enable === 'function') {
+          try { padWin.pad.editor.enable(); } catch(e){}
+        }
+        if (padWin.clientVars) {
+          padWin.clientVars.readonly = false;
+        }
         try {
           padWin.dispatchEvent(new Event('resize'));
         } catch(e) {}
@@ -1108,11 +1131,16 @@ export function liftEtherpadReadonly(iframe) {
     iframe.addEventListener('load', () => {
       if (!iframe._isReadonlyEnforced) {
         tryUnlock();
+        [50, 150, 300, 600, 1200, 2500].forEach(delay => setTimeout(tryUnlock, delay));
       }
     });
   }
 
   tryUnlock();
+  [50, 150, 300, 600, 1200, 2500].forEach(delay => setTimeout(tryUnlock, delay));
+}
+if (typeof window !== 'undefined') {
+  window.liftEtherpadReadonly = liftEtherpadReadonly;
 }
 
 /**
