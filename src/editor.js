@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2654";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2654";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2654";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2655";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2655";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2655";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -1939,7 +1939,7 @@ function renderStage2Canvas(canvas, state, handlers) {
         } else {
           // 若全部文本均未标记作者（如纯文本导入或未着色历史）：
           // 优先检查 state 中是否已有服务器/历史同步的真实贡献比
-          const existingContribs = state.stage2?.frozenContributions || state.stage2?.memberContributions || {};
+          const existingContribs = state.stage2?.memberContributions || {};
           let existingTotal = 0;
           targetMembersList.forEach(m => { existingTotal += getMemberContribVal(existingContribs, m); });
 
@@ -2002,10 +2002,6 @@ function renderStage2Canvas(canvas, state, handlers) {
   };
 
   const getEffectiveContribs = () => {
-    if (state.stage2 && state.stage2.frozenContributions && Object.keys(state.stage2.frozenContributions).length > 0) {
-      let fTotal = getContribTotal(state.stage2.frozenContributions);
-      if (fTotal > 0) return state.stage2.frozenContributions;
-    }
     return (state.stage2 && state.stage2.memberContributions) ? state.stage2.memberContributions : {};
   };
 
@@ -2018,9 +2014,8 @@ function renderStage2Canvas(canvas, state, handlers) {
     const contribs = getEffectiveContribs();
     let rawTotal = getContribTotal(contribs);
     
-    // 如果当前正文为空，或者各成员实际字数总和为 0，展示空状态
     if (docLen === 0 && rawTotal === 0) {
-      labelsEl.innerHTML = `<span style="color:#94a3b8; font-weight:600; font-size:10.5px;">⏳ 暂无撰写内容</span>`;
+      labelsEl.innerHTML = `<span style="color:#94a3b8; font-size:10.5px; font-weight:600;">⏳ 暂无撰写内容</span>`;
       barsEl.innerHTML = `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
       return;
     }
@@ -2028,7 +2023,7 @@ function renderStage2Canvas(canvas, state, handlers) {
     const newLabelsHtml = membersList.map((m) => {
       const rawVal = getMemberContribVal(contribs, m);
       const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
-      return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}% (${rawVal}字)</span>`;
+      return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'};">● ${m.name}: ${pct}% (${rawVal}字)</span>`;
     }).join('');
 
     if (labelsEl.innerHTML !== newLabelsHtml) {
@@ -2052,78 +2047,39 @@ function renderStage2Canvas(canvas, state, handlers) {
 
   const syncPadMetrics = async () => {
     try {
-      // 1. 优先尝试同源 DOM 级作者与留存字数全量精准直读 (含极速脏检查)
-      // 🛡️ 无论处于只读还是可写，均执行 DOM 扫描获取真实字数与作者贡献，杜绝只读刷新导致贡献比清零白底
       const authorStats = getEtherpadAuthorStats();
-      let cleanTxt = authorStats ? authorStats.cleanText : null;
-      
-      // 2. 若 DOM 暂未就绪，低频降级尝试服务端代理接口（每 10 秒最多 1 次，严禁高频打满 PHP-FPM）
-      if (cleanTxt === null) {
-        const now = Date.now();
-        if (!window._lastServerPadFetchTime || now - window._lastServerPadFetchTime > 10000) {
-          window._lastServerPadFetchTime = now;
-          const res = await fetch(`sync.php?action=get_pad_text&padId=${encodeURIComponent(padName)}`).then(r => r.json()).catch(() => null);
-          if (res && res.success && typeof res.text === 'string') {
-            cleanTxt = res.text.replace(/\r\n/g, '\n').trim();
-          }
-        }
-      }
+      const cleanTxt = authorStats ? authorStats.cleanText : (typeof getEtherpadTextDirect === 'function' ? getEtherpadTextDirect() : null);
 
+      // 1. 实时刷新顶栏正文字数
       if (cleanTxt !== null) {
         const wordCount = cleanTxt.length;
-        // 实时更新字数角标
         const countBadge = document.getElementById('stage2-word-count-num');
         if (countBadge && countBadge.innerText !== String(wordCount)) {
           countBadge.innerText = String(wordCount);
         }
       }
 
-      // 3. 处理贡献度与只读快照保护
+      // 2. 实时更新各成员贡献比
       if (authorStats && authorStats.memberCounts) {
-        const currentScannedTotal = getContribTotal(authorStats.memberCounts);
-
-        if (isEditorReadonly) {
-          // 🛡️ 只读模式：若快照为空或总字数为0，且当前扫描到了真实贡献，立即固化为快照！
-          const frozenTotal = getContribTotal(state.stage2.frozenContributions);
-          if (frozenTotal === 0 && currentScannedTotal > 0) {
-            state.stage2.frozenContributions = JSON.parse(JSON.stringify(authorStats.memberCounts));
-          }
-          if (currentScannedTotal > 0 || !state.stage2.memberContributions) {
-            state.stage2.memberContributions = authorStats.memberCounts;
-          }
-          updateContribDom();
-          return; // 只读模式下不向云端发送正文写入/变更事件
-        } else {
-          // 延期/可写模式：若存在历史临时冻结，重置为实时动态
-          if (state.stage2 && state.stage2.frozenContributions && !state.stage2.isDraftConfirmed && state.currentStage === 'stage2') {
-            state.stage2.frozenContributions = null;
-          }
-        }
+        state.stage2.memberContributions = authorStats.memberCounts;
+        updateContribDom();
 
         const contribStr = JSON.stringify(authorStats.memberCounts);
-        const hasContribChanged = (contribStr !== JSON.stringify(state.stage2.memberContributions));
-
-        if (hasContribChanged) {
-          state.stage2.memberContributions = authorStats.memberCounts;
-          updateContribDom();
-
-          // ⚡ 防抖节流持久化到云端 (仅在变动时触发，避免高频网络开销)
-          if (_padContribDebounceTimer) clearTimeout(_padContribDebounceTimer);
-          _padContribDebounceTimer = setTimeout(() => {
-            if (_lastReportedContribStr === contribStr) return;
-            _lastReportedContribStr = contribStr;
-            fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                taskId: activeTaskId,
-                classId: userClassId,
-                groupId: userGroupId,
-                contribs: authorStats.memberCounts
-              })
-            }).catch(() => {});
-          }, 1000);
-        }
+        if (_padContribDebounceTimer) clearTimeout(_padContribDebounceTimer);
+        _padContribDebounceTimer = setTimeout(() => {
+          if (_lastReportedContribStr === contribStr) return;
+          _lastReportedContribStr = contribStr;
+          fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              taskId: activeTaskId,
+              classId: userClassId,
+              groupId: userGroupId,
+              contribs: authorStats.memberCounts
+            })
+          }).catch(() => {});
+        }, 1000);
       } else {
         updateContribDom();
       }
@@ -2527,7 +2483,7 @@ function renderStage2Canvas(canvas, state, handlers) {
         <span style="font-size:11px; font-weight:800; color:#1e293b; white-space:nowrap;">📊 团队贡献:</span>
         <div class="contrib-bars" id="stage2-contrib-bars" style="flex:1; height:8px; border-radius:4px; display:flex; overflow:hidden; background:#e2e8f0;">
           ${(() => {
-            const contribs = s2.frozenContributions || s2.memberContributions || {};
+            const contribs = s2.memberContributions || {};
             let rawTotal = 0;
             if (plainTextLen > 0) {
               membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
@@ -2544,7 +2500,7 @@ function renderStage2Canvas(canvas, state, handlers) {
         </div>
         <div class="contrib-labels" id="stage2-contrib-labels" style="display:flex; font-size:11px; font-weight:700; color:#475569; gap:8px; white-space:nowrap;">
           ${(() => {
-            const contribs = s2.frozenContributions || s2.memberContributions || {};
+            const contribs = s2.memberContributions || {};
             let rawTotal = 0;
             if (plainTextLen > 0) {
               membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
@@ -3043,7 +2999,7 @@ function renderStage3Canvas(canvas, state, handlers) {
               <span style="font-size:11px; font-weight:800; color:#1e293b; white-space:nowrap;">📊 终稿贡献:</span>
               <div class="contrib-bars" id="stage3-contrib-bars" style="flex:1; height:8px; border-radius:4px; display:flex; overflow:hidden; background:#e2e8f0;">
                 ${(() => {
-                  const contribs = s3.frozenContributions || state.stage2?.frozenContributions || state.stage2?.memberContributions || {};
+                  const contribs = state.stage2?.memberContributions || {};
                   let rawTotal = 0;
                   membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
                   if (rawTotal === 0) {
@@ -3058,7 +3014,7 @@ function renderStage3Canvas(canvas, state, handlers) {
               </div>
               <div class="contrib-labels" id="stage3-contrib-labels" style="display:flex; font-size:11px; font-weight:700; color:#475569; gap:8px; white-space:nowrap;">
                 ${(() => {
-                  const contribs = s3.frozenContributions || state.stage2?.frozenContributions || state.stage2?.memberContributions || {};
+                  const contribs = state.stage2?.memberContributions || {};
                   let rawTotal = 0;
                   membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
                   if (rawTotal === 0) {
@@ -3083,7 +3039,7 @@ function renderStage3Canvas(canvas, state, handlers) {
     const barsEl = document.getElementById('stage3-contrib-bars');
     if (!labelsEl || !barsEl) return;
 
-    const contribs = s3.frozenContributions || state.stage2?.frozenContributions || state.stage2?.memberContributions || {};
+    const contribs = state.stage2?.memberContributions || {};
     let rawTotal = 0;
     membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
 
@@ -3116,32 +3072,8 @@ function renderStage3Canvas(canvas, state, handlers) {
 
   const syncStage3PadMetrics = async () => {
     try {
-      const isReadonlyNow = isTaskDeadlineExpired || isFinalSubmitted || !!(window.app && window.app.isViewingPastStage);
       const authorStats = getEtherpadAuthorStats('stage3-etherpad-frame', membersList, currUserName);
-
       if (authorStats && authorStats.memberCounts) {
-        let currentScannedTotal = 0;
-        membersList.forEach(m => { currentScannedTotal += getMemberContribVal(authorStats.memberCounts, m); });
-
-        if (isReadonlyNow) {
-          let frozenTotal = 0;
-          const currentFrozen = s3.frozenContributions || state.stage2?.frozenContributions;
-          if (currentFrozen) {
-            membersList.forEach(m => { frozenTotal += getMemberContribVal(currentFrozen, m); });
-          }
-          if (frozenTotal === 0 && currentScannedTotal > 0) {
-            s3.frozenContributions = JSON.parse(JSON.stringify(authorStats.memberCounts));
-            if (state.stage2) state.stage2.frozenContributions = JSON.parse(JSON.stringify(authorStats.memberCounts));
-          }
-          if (currentScannedTotal > 0 && state.stage2) {
-            state.stage2.memberContributions = authorStats.memberCounts;
-          }
-          updateStage3ContribDom();
-          return;
-        } else {
-          if (s3.frozenContributions) s3.frozenContributions = null;
-        }
-
         if (state.stage2) {
           state.stage2.memberContributions = authorStats.memberCounts;
         }

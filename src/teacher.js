@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260906_v2654";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260906_v2654";
+} from "./constants.js?v=20260906_v2655";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260906_v2655";
 
 export const getPanoGroupData = (pano, gid) => {
   if (!pano || typeof pano !== 'object' || !gid) return null;
@@ -317,7 +317,7 @@ function updateTeacherLiveMonitorInPlace(container, state, authManager, activeCl
 
     const contribLabels = container.querySelector('#teacher-stage2-contrib-labels');
     const contribBars = container.querySelector('#teacher-stage2-contrib-bars');
-    const contribs = state.stage2?.frozenContributions || state.stage2?.memberContributions || {};
+    const contribs = state.stage2?.memberContributions || {};
     let rawTotal = 0;
     monitorMembersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
 
@@ -1895,7 +1895,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                             <span style="font-size:12px; font-weight:800; color:#1e293b;">📊 团队协作贡献度占比 (SSRL 群体过程感知):</span>
                             <div class="contrib-labels" id="teacher-stage2-contrib-labels" style="display:flex; font-size:11.5px; font-weight:700; color:#475569; gap:10px; white-space:nowrap; flex-wrap:wrap;">
                               ${(() => {
-                                const contribs = state.stage2?.frozenContributions || state.stage2?.memberContributions || {};
+                                const contribs = state.stage2?.memberContributions || {};
                                 let rawTotal = 0;
                                 monitorMembersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
                                 return monitorMembersList.map((m) => {
@@ -1908,7 +1908,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                           </div>
                           <div class="contrib-bars" id="teacher-stage2-contrib-bars" style="width:100%; height:10px; border-radius:5px; display:flex; overflow:hidden; background:#e2e8f0;">
                             ${(() => {
-                              const contribs = state.stage2?.frozenContributions || state.stage2?.memberContributions || {};
+                              const contribs = state.stage2?.memberContributions || {};
                               let rawTotal = 0;
                               monitorMembersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
                               if (rawTotal === 0) {
@@ -1976,7 +1976,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                               <span style="font-size:12px; font-weight:800; color:#1e293b;">📊 终稿协作贡献度占比 (SSRL 群体过程感知):</span>
                               <div class="contrib-labels" id="teacher-stage3-contrib-labels" style="display:flex; font-size:11.5px; font-weight:700; color:#475569; gap:10px; white-space:nowrap; flex-wrap:wrap;">
                                 ${(() => {
-                                  const contribs = state.stage2?.frozenContributions || state.stage2?.memberContributions || {};
+                                  const contribs = state.stage2?.memberContributions || {};
                                   let rawTotal = 0;
                                   monitorMembersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
                                   return monitorMembersList.map((m) => {
@@ -1989,7 +1989,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                             </div>
                             <div class="contrib-bars" id="teacher-stage3-contrib-bars" style="width:100%; height:10px; border-radius:5px; display:flex; overflow:hidden; background:#e2e8f0;">
                               ${(() => {
-                                const contribs = state.stage2?.frozenContributions || state.stage2?.memberContributions || {};
+                                const contribs = state.stage2?.memberContributions || {};
                                 let rawTotal = 0;
                                 monitorMembersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
                                 if (rawTotal === 0) {
