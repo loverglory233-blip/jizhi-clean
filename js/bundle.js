@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2683
+ * Version: 20260906_v2684
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2683';
+  const APP_VERSION = '20260906_v2684';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12093,19 +12093,45 @@
       </div>
     `;
 
+    if (!header._hasDelegatedEvents) {
+      header._hasDelegatedEvents = true;
+      header.addEventListener('click', (e) => {
+        const stageBtn = e.target.closest('.stage-btn');
+        if (stageBtn && typeof header._onStageChange === 'function') {
+          header._onStageChange(stageBtn.dataset.stage);
+          return;
+        }
+        const logoutBtn = e.target.closest('#btn-user-logout');
+        if (logoutBtn && typeof header._onLogout === 'function') {
+          header._onLogout();
+          return;
+        }
+        const annBellBtn = e.target.closest('#btn-header-ann-bell, .nav-ann-bell-btn');
+        if (annBellBtn && typeof header._onOpenAnnModal === 'function') {
+          header._onOpenAnnModal();
+          return;
+        }
+        const backTasksBtn = e.target.closest('#btn-header-back-tasks');
+        if (backTasksBtn && typeof header._onBackToTaskList === 'function') {
+          header._onBackToTaskList();
+          return;
+        }
+        const surveyBtn = e.target.closest('#btn-header-survey-link');
+        if (surveyBtn && typeof header._onOpenSurveyModal === 'function') {
+          header._onOpenSurveyModal();
+          return;
+        }
+      });
+    }
+
+    header._onStageChange = onStageChange;
+    header._onLogout = onLogout;
+    header._onOpenAnnModal = onOpenAnnModal;
+    header._onBackToTaskList = onBackToTaskList;
+    header._onOpenSurveyModal = onOpenSurveyModal;
+
     if (header.innerHTML !== newHeaderHtml) {
       header.innerHTML = newHeaderHtml;
-      header.querySelectorAll('.stage-btn').forEach(btn => {
-        btn.addEventListener('click', () => onStageChange(btn.dataset.stage));
-      });
-      header.querySelector('#btn-user-logout').addEventListener('click', () => onLogout());
-      header.querySelector('#btn-header-ann-bell').addEventListener('click', () => onOpenAnnModal());
-      const btnBackTasks = header.querySelector('#btn-header-back-tasks');
-      if (btnBackTasks && onBackToTaskList) {
-        btnBackTasks.addEventListener('click', () => onBackToTaskList());
-      }
-      const surveyHeaderBtn = header.querySelector('#btn-header-survey-link');
-      if (surveyHeaderBtn) surveyHeaderBtn.addEventListener('click', () => onOpenSurveyModal());
     }
   }
 
@@ -12222,13 +12248,14 @@
     const activeVal = activeEl ? activeEl.value : null;
     const activeCursor = activeEl ? activeEl.selectionStart : null;
 
-    const s1 = state.stage1;
+    const s1 = state.stage1 || (state.stage1 = {});
     const currentUser = state.currentUser;
     const currUserObj = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
     const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
     const membersList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
     const totalMembersCount = (membersList && membersList.length > 0) ? membersList.length : 1;
 
+    if (!s1.contract) s1.contract = {};
     if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
     if (!s1.contract.timeAllocations) s1.contract.timeAllocations = {};
 
@@ -13360,7 +13387,7 @@
 
   function renderStage2Canvas(canvas, state, handlers) {
     if (!canvas) return;
-    const s2 = state.stage2;
+    const s2 = state.stage2 || (state.stage2 = {});
     const actionPlan = s2.actionPlan;
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
     let userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
@@ -14137,7 +14164,7 @@
 
   function renderStage3Canvas(canvas, state, handlers) {
     if (!canvas) return;
-    const s3 = state.stage3;
+    const s3 = state.stage3 || (state.stage3 = {});
     const activeTab = s3.activeTab || 'defense';
     const membersList = Object.values(state.members || {});
     const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
@@ -21603,6 +21630,7 @@
       const contractDocName = isInstStage ? '备课公约' : '学术公约';
 
       if (newStage === this.state.currentStage && !isMilestoneAdvance) {
+        this.renderStudentWorkspace(true);
         return;
       }
 
