@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2559
+ * Version: 20260905_v2560
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2559';
+  const APP_VERSION = '20260905_v2560';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -18449,27 +18449,39 @@
                 } catch (fixErr) {}
               }
               if (parsed) {
-                const matchedTopic = parsed.topic || parsed.title || parsed.theme || parsed.name;
-                const matchedOverview = parsed.overview || parsed.summary || parsed.description || parsed.scheme || parsed.plan || parsed.researchOverview || parsed.instructionalOverview;
+                const matchedTopic = parsed.topic || parsed.title || parsed.theme || parsed.name || parsed['课题'] || parsed['题目'];
+                const matchedOverview = parsed.overview || parsed.summary || parsed.description || parsed.scheme || parsed.plan || parsed.researchOverview || parsed.instructionalOverview || parsed['方案概述'] || parsed['方案整体构思'] || parsed['方案构思'] || parsed['整体构思'];
                 if (matchedTopic && typeof matchedTopic === 'string' && matchedTopic.trim().length > 0) {
-                  finalTopic = matchedTopic.trim().replace(/^《|》$/g, '');
+                  finalTopic = matchedTopic.trim().replace(/^[：:\s"《“]+|[”"》\s]+$/g, '');
                 }
                 if (matchedOverview && typeof matchedOverview === 'string' && matchedOverview.trim().length > 0) {
-                  finalOverview = matchedOverview.trim();
+                  finalOverview = matchedOverview.trim().replace(/^[：:\s]+|[：:\s]+$/g, '');
                 }
                 if (parsed.guideText || parsed.guide) guideSpeech = parsed.guideText || parsed.guide;
               }
             }
 
-            // 2. 若 JSON 方式未能提取出 overview，无论是否有 jsonMatch，均无缝进入多级正则容错与自然语言抽取
+            // 2. 若 JSON 方式未能提取出 overview，无论是否有 jsonMatch，均无缝进入全能多级正则容错与自然语言抽取
             if (!finalOverview || !finalOverview.trim()) {
-              const tMatch = resp.match(/(?:【(?:教学)?(?:研究)?(?:课题|题目|主题|topic)】|(?:课题|题目|主题|topic)[：:\s]*)[《“"]?([^》”"\n\r]+)[》”"]?/i);
-              if (tMatch && tMatch[1] && tMatch[1].trim().length > 3) {
-                finalTopic = tMatch[1].replace(/["'《》]/g, '').trim();
+              const tMatch = resp.match(/(?:【(?:教学)?(?:研究)?(?:课题|论文题目|题目|课题名称|选题)】|(?:课题|论文题目|课题名称|题目|选题)[：:\s]*)[《“"]?([^》”"\n\r]+)[》”"]?/i);
+              if (tMatch && tMatch[1] && tMatch[1].trim().length > 1) {
+                finalTopic = tMatch[1].replace(/^[：:\s"《“]+|[”"》\s]+$/g, '').trim();
               }
-              const oMatch = resp.match(/(?:【(?:教学)?(?:研究)?方案概述】|【方案设计】|【总体构想】|(?:方案概述|教学方案|研究方案|总体构想|方案设计|overview)[：:\s]*)([\s\S]+?)(?=\n\s*【|\n\s*[234]\.|\n\s*guideText|\n\s*"|$)/i);
-              if (oMatch && oMatch[1] && oMatch[1].trim().length > 1) {
-                finalOverview = oMatch[1].replace(/^["'：:\s]+|["'，,。;\s]+$/g, '').trim();
+
+              const oMatch = resp.match(/(?:【(?:教学)?(?:研究)?(?:方案)?(?:整体|总体)?(?:构思|构想|概述|设计|方案|总体构想|整体构想|方案概述|方案构思|方案整体构思|方案整体构想|overview|summary|plan)】|(?:方案整体构思|方案整体构想|方案构想|方案构思|方案概述|总体构思|总体构想|教学方案|研究方案|方案设计|核心方案|overview|summary|plan)[：:\s]*)([\s\S]+?)(?=\n\s*【|\n\s*[234]\.|\n\s*方案已锁定|\n\s*接下来|\n\s*请大家|\n\s*guideText|\n\s*"|$)/i);
+              if (oMatch && oMatch[1] && oMatch[1].trim().length > 5) {
+                finalOverview = oMatch[1].replace(/^[：:\s"“]+|[”"\s。]+$/g, '').trim();
+              }
+            }
+
+            // 3. 第三重兜底：若前两步仍未提取出，智能分析非标题的实质性主体段落
+            if (!finalOverview || !finalOverview.trim()) {
+              const lines = resp.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+              for (const line of lines) {
+                if (!line.startsWith('🏛️') && !line.startsWith('【') && !line.includes('方案已锁定') && !line.includes('请点击') && !line.includes('时间预算') && line.length > 20) {
+                  finalOverview = line.replace(/^[：:\s"“]+|[”"\s]+$/g, '').trim();
+                  break;
+                }
               }
             }
           } catch (je) {
@@ -19044,13 +19056,13 @@
                 } catch (fixErr) {}
               }
               if (parsed) {
-                const matchedTopic = parsed.topic || parsed.title || parsed.theme || parsed.name;
-                const matchedOverview = parsed.overview || parsed.summary || parsed.description || parsed.scheme || parsed.plan || parsed.researchOverview || parsed.instructionalOverview;
+                const matchedTopic = parsed.topic || parsed.title || parsed.theme || parsed.name || parsed['课题'] || parsed['题目'];
+                const matchedOverview = parsed.overview || parsed.summary || parsed.description || parsed.scheme || parsed.plan || parsed.researchOverview || parsed.instructionalOverview || parsed['方案概述'] || parsed['方案整体构思'] || parsed['方案构思'] || parsed['整体构思'];
                 if (matchedTopic && typeof matchedTopic === 'string' && matchedTopic.trim().length > 0) {
-                  finalTopic = matchedTopic.trim().replace(/^《|》$/g, '');
+                  finalTopic = matchedTopic.trim().replace(/^[：:\s"《“]+|[”"》\s]+$/g, '');
                 }
                 if (matchedOverview && typeof matchedOverview === 'string' && matchedOverview.trim().length > 0) {
-                  finalOverview = matchedOverview.trim();
+                  finalOverview = matchedOverview.trim().replace(/^[：:\s]+|[：:\s]+$/g, '');
                 }
                 if (!hasExistingTime && parsed.timeAllocations && typeof parsed.timeAllocations === 'object') {
                   finalTimes = Object.assign({}, defaultTimes, parsed.timeAllocations);
@@ -19066,16 +19078,28 @@
               }
             }
 
-            // 2. 若 JSON 方式未能提取出 overview，无论是否有 jsonMatch，均无缝进入多级正则容错与自然语言抽取
+            // 2. 若 JSON 方式未能提取出 overview，无论是否有 jsonMatch，均无缝进入全能多级正则容错与自然语言抽取
             if (!finalOverview || !finalOverview.trim()) {
-              const tMatch = resp.match(/(?:【(?:教学)?(?:研究)?(?:课题|题目|主题|topic)】|(?:课题|题目|主题|topic)[：:\s]*)[《“"]?([^》”"\n\r]+)[》”"]?/i);
-              if (tMatch && tMatch[1] && tMatch[1].trim().length > 3) {
-                finalTopic = tMatch[1].replace(/["'《》]/g, '').trim();
+              const tMatch = resp.match(/(?:【(?:教学)?(?:研究)?(?:课题|论文题目|题目|课题名称|选题)】|(?:课题|论文题目|课题名称|题目|选题)[：:\s]*)[《“"]?([^》”"\n\r]+)[》”"]?/i);
+              if (tMatch && tMatch[1] && tMatch[1].trim().length > 1) {
+                finalTopic = tMatch[1].replace(/^[：:\s"《“]+|[”"》\s]+$/g, '').trim();
               }
-              const oMatch = resp.match(/(?:【(?:教学)?(?:研究)?方案概述】|【方案设计】|【总体构想】|(?:方案概述|教学方案|研究方案|总体构想|方案设计|overview)[：:\s]*)([\s\S]+?)(?=\n\s*【|\n\s*[234]\.|\n\s*guideText|\n\s*"|$)/i);
-              if (oMatch && oMatch[1] && oMatch[1].trim().length > 10) {
-                finalOverview = oMatch[1].replace(/^["'：:\s]+|["'，,。;\s]+$/g, '').trim();
+              const oMatch = resp.match(/(?:【(?:教学)?(?:研究)?(?:方案)?(?:整体|总体)?(?:构思|构想|概述|设计|方案|总体构想|整体构想|方案概述|方案构思|方案整体构思|方案整体构想|overview|summary|plan)】|(?:方案整体构思|方案整体构想|方案构想|方案构思|方案概述|总体构思|总体构想|教学方案|研究方案|方案设计|核心方案|overview|summary|plan)[：:\s]*)([\s\S]+?)(?=\n\s*【|\n\s*[234]\.|\n\s*方案已锁定|\n\s*接下来|\n\s*请大家|\n\s*guideText|\n\s*"|$)/i);
+              if (oMatch && oMatch[1] && oMatch[1].trim().length > 5) {
+                finalOverview = oMatch[1].replace(/^[：:\s"“]+|[”"\s。]+$/g, '').trim();
                 isSuccess = true;
+              }
+            }
+
+            // 3. 第三重段落抽取
+            if (!finalOverview || !finalOverview.trim()) {
+              const lines = resp.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+              for (const line of lines) {
+                if (!line.startsWith('🏛️') && !line.startsWith('【') && !line.includes('方案已锁定') && !line.includes('请点击') && line.length > 20) {
+                  finalOverview = line.replace(/^[：:\s"“]+|[”"\s]+$/g, '').trim();
+                  isSuccess = true;
+                  break;
+                }
               }
             }
           } catch (je) {
