@@ -22,6 +22,156 @@ export const getPanoGroupData = (pano, gid) => {
   return found ? found[1] : null;
 };
 
+export function renderStage1LeftCardContent(state, activeMonitorGroup, monitorMembersList, isInst, genreCfg, authManager) {
+  if (!activeMonitorGroup) return '';
+  const members = monitorMembersList || [];
+  const s1 = state.stage1 || {};
+  const proposals = s1.proposals || [];
+  const votesMap = s1.votes || {};
+  const hasVotedMap = s1.hasVoted || {};
+  const contract = s1.contract || {};
+  const timeAlloc = contract.timeAllocations || {};
+  const tasks = contract.taskAssignments || {};
+  const confirmedMembers = contract.confirmedMembers || {};
+
+  const votedCount = members.filter(m => hasVotedMap[m.id] || (m.name && hasVotedMap[m.name])).length;
+  const isLocked = !!contract.isLocked;
+  const mergedTopic = s1.mergedTitle || contract.topic || '';
+  const overviewText = contract.overview || s1.researchOverview || '';
+  const confirmedCount = members.filter(m => confirmedMembers[m.id] || (m.name && confirmedMembers[m.name])).length;
+
+  return `
+    <div style="flex-shrink:0; font-size:16px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">
+      <span>🎪 阶段一实操同屏: 初始提案与${isInst ? '备课' : '学术'}公约 (${escapeHtml(activeMonitorGroup.name || activeMonitorGroup.id)})</span>
+      <span style="background:#eff6ff; color:#1d4ed8; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:700;">阶段一实况</span>
+    </div>
+
+    <!-- 1. 【第一步】💡 组员初始提案展台 -->
+    <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:12px; padding:14px; flex-shrink:0;">
+      <div style="font-size:13.5px; font-weight:800; color:#1e40af; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+        <span>💡 组员初始${isInst ? '教学' : '学术'}提案展台 (${proposals.length}/${members.length || 1} 人已提交):</span>
+        <span style="font-size:11.5px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">
+          共投 ${votedCount} 票
+        </span>
+      </div>
+      ${proposals.length > 0 ? `
+        <div class="proposals-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:10px;">
+          ${proposals.map((p, idx) => {
+            const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
+            const authorObj = members.find(m => m.id === p.author || m.name === p.authorName || m.name === p.author);
+            const authorUser = allGlobalUsers.find(u => u.id === p.author || u.name === p.authorName);
+            const authorName = authorObj ? authorObj.name : (authorUser ? authorUser.name : (p.authorName || p.author || `组员${idx+1}`));
+            const votes = members.filter(m => {
+              const v = votesMap[m.id] || (m.name && votesMap[m.name]);
+              return v === p.id;
+            }).length;
+            return `
+              <div style="background:#ffffff; border:1.5px solid #e2e8f0; border-radius:8px; padding:10px; display:flex; flex-direction:column; justify-content:space-between; gap:6px; box-shadow:0 1px 3px rgba(0,0,0,0.02);">
+                <div>
+                  <div style="font-size:13px; font-weight:800; color:#0f172a; line-height:1.4; margin-bottom:4px;">${escapeHtml(p.title || '未命名选题')}</div>
+                  <div style="font-size:11px; color:#64748b;">👤 提交人: <b>${escapeHtml(authorName)}</b></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #f1f5f9; padding-top:6px;">
+                  <span style="font-size:11px; color:#2563eb; font-weight:700;">🗳️ 得票数: ${votes}</span>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      ` : `
+        <div style="text-align:center; padding:16px; color:#94a3b8; font-size:12px;">⏳ 本组暂无成员提交选题提案</div>
+      `}
+    </div>
+
+    <!-- 2. 【第二步】📜 团队协同合作公约 -->
+    <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:12px;">
+      <div style="font-size:13.5px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
+        <span>📜 团队协同合作${isInst ? '备课' : '学术'}公约 (${escapeHtml(activeMonitorGroup.name || activeMonitorGroup.id)}):</span>
+        <span style="font-size:11.5px; background:${isLocked ? '#ecfdf5' : '#eff6ff'}; color:${isLocked ? '#059669' : '#2563eb'}; padding:2px 8px; border-radius:6px; font-weight:700;">
+          ${isLocked ? '🔒 公约已全员签署生效' : '✍️ 协作拟定中'}
+        </span>
+      </div>
+
+      <!-- 📌 【槽位 1】确认融合课题 -->
+      <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; border-left:4px solid #2563eb;">
+        <div style="font-size:11.5px; font-weight:800; color:#1e40af; margin-bottom:3px;">📌 【槽位 1】确认${isInst ? '融合教学设计课题' : '融合论文研究主题'}:</div>
+        <div style="font-size:13.5px; font-weight:800; color:#0f172a; line-height:1.4;">${escapeHtml(mergedTopic || '（小组暂未敲定最终论题）')}</div>
+      </div>
+
+      <!-- 📝 【槽位 2】方案概述 -->
+      <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; border-left:4px solid #059669;">
+        <div style="font-size:11.5px; font-weight:800; color:#065f46; margin-bottom:3px;">
+          📝 【槽位 2】${isInst ? '教学设计整体构想与主线 (核心情境、活动主线与重难点突破)' : '研究方案概述 (具体情境、案例、聚焦点与方法)'}:
+        </div>
+        <div style="font-size:13px; font-weight:600; color:${overviewText ? '#0f172a' : '#94a3b8'}; line-height:1.5; white-space:pre-wrap; word-break:break-word;">${escapeHtml(overviewText || '（小组暂未录入方案概述）')}</div>
+      </div>
+
+      <!-- 📚 核心模块与时间规划 -->
+      <div style="background:#ffffff; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
+        <div style="font-weight:800; color:#1e40af; margin-bottom:8px; font-size:12.5px;">
+          📚 ${isInst ? '教学设计' : '研究方案'}核心模块与时间规划:
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:8px;">
+          ${(genreCfg.modules || []).map(sec => {
+            const timeVal = (timeAlloc[sec.key] !== undefined) ? timeAlloc[sec.key] : sec.defaultMinutes;
+            return `
+              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-left:3.5px solid ${sec.color}; border-radius:6px; padding:6px 8px; display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-weight:700; color:#334155; font-size:11.5px;">${sec.title}</span>
+                <span style="font-size:11.5px; color:#2563eb; font-weight:800;">${timeVal} 分钟</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- 👥 小组成员具体任务分工 -->
+      <div style="background:#ffffff; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
+        <div style="font-weight:800; color:#1e40af; margin-bottom:8px; font-size:12.5px;">
+          👥 本组小组成员具体任务分工 (共 ${members.length} 人):
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          ${members.map((m, idx) => {
+            const mKey = m.id || m.name || (`mem_${idx}`);
+            const taskVal = tasks[mKey] !== undefined ? tasks[mKey] :
+              (m.id && tasks[m.id] !== undefined ? tasks[m.id] :
+              (m.name && tasks[m.name] !== undefined ? tasks[m.name] : ''));
+            return `
+              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:6px 10px; display:flex; flex-direction:column; gap:3px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span style="font-weight:800; color:${m.color || '#2563eb'}; font-size:12px;">${m.avatar || '👤'} ${escapeHtml(m.name)}:</span>
+                </div>
+                <div style="font-size:11.5px; color:${taskVal ? '#0f172a' : '#94a3b8'}; font-weight:${taskVal ? '600' : '400'};">
+                  ${taskVal ? escapeHtml(taskVal) : '（暂未在公约中录入具体分工）'}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- ✍️ 组员签署确认状态矩阵 -->
+      <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
+        <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+          <span>✍️ 组员签署确认状态:</span>
+          <span style="font-size:11.5px; color:#2563eb; font-weight:700;">
+            签署进度: ${confirmedCount}/${members.length}
+          </span>
+        </div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          ${members.map(m => {
+            const isConf = confirmedMembers && (confirmedMembers[m.id] || (m.name && confirmedMembers[m.name]));
+            return `
+              <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#f8fafc'}; padding:3px 8px; border-radius:6px; font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
+                ${m.avatar || '👤'} ${escapeHtml(m.name)}: <b>${isConf ? '✅ 已签署' : '⏳ 未签署'}</b>
+              </span>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 /* ==========================================================================
    6.8 TEACHER MONITOR IN-PLACE INCREMENTAL UPDATER (PREVENT IFRAME THRASHING)
    ========================================================================== */
@@ -137,6 +287,15 @@ function updateTeacherLiveMonitorInPlace(container, state, authManager, activeCl
           全员在线 (${online}/${total || online})
         </span>
       `;
+    }
+  }
+
+  // 4.5. 阶段一特定组件（提案展台、公约课题、方案概述、时间规划、组员分工与签署状态）
+  if (effectiveMonitorStage === 'stage1') {
+    const s1LeftCard = container.querySelector('#teacher-stage1-left-card');
+    if (s1LeftCard) {
+      const isInst = (monitorTaskObj?.taskType === 'instructional');
+      s1LeftCard.innerHTML = renderStage1LeftCardContent(state, activeMonitorGroup, monitorMembersList, isInst, genreCfg, authManager);
     }
   }
 
@@ -362,6 +521,28 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
   const activeMonitorGroup = (activeClass?.groups || []).find(g => g.id === activeMonitorGId) || (activeClass?.groups && activeClass.groups[0]) || null;
   const monitorMembersObj = (activeClass && activeMonitorGId) ? authManager.getGroupMembersForWorkspace(activeMonitorGId, activeClass.id) : {};
   const monitorMembersList = Object.values(monitorMembersObj);
+
+  // 🛡️ 优先从全景数据中同步当前选中组的完整阶段数据（公约、分工、正文、聊天），防止初次渲染为空白
+  if (state.monitorPanorama && activeMonitorGId) {
+    const curPanoG = getPanoGroupData(state.monitorPanorama, activeMonitorGId);
+    if (curPanoG) {
+      if (curPanoG.stage1 && (!state.stage1 || !state.stage1.proposals || state.stage1.proposals.length === 0 || !state.stage1.contract)) {
+        state.stage1 = curPanoG.stage1;
+      }
+      if (curPanoG.stage2 && (!state.stage2 || !state.stage2.unifiedContent)) {
+        state.stage2 = { ...(curPanoG.stage2 || {}), ...(state.stage2 || {}) };
+      }
+      if (curPanoG.stage3 && (!state.stage3 || !state.stage3.feedbackItems)) {
+        state.stage3 = curPanoG.stage3;
+      }
+      if (curPanoG.chatLogs && (!state.chatLogs || (state.chatLogs.stage1?.length === 0 && state.chatLogs.stage2?.length === 0))) {
+        state.chatLogs = curPanoG.chatLogs;
+      }
+      if (curPanoG.currentStage) {
+        state.currentStage = curPanoG.currentStage;
+      }
+    }
+  }
 
   const monitorStageMode = state.teacherMonitorStageMode || state.monitorStageTab || 'auto';
   const effectiveMonitorStage = monitorStageMode === 'auto' ? (state.currentStage || 'stage1') : monitorStageMode;
@@ -1600,139 +1781,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                   return `
                     <div style="display:grid; grid-template-columns: minmax(0, 1fr) 300px; gap:16px; width:100%; box-sizing:border-box; height:820px; max-height:820px; align-items:stretch;">
                       <!-- 左侧卡片：以阶段一左侧为主，高度统一为 820px，内部自适应滚动 -->
-                      <div class="card" style="padding:18px 20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px; min-width:0; box-sizing:border-box; height:820px; max-height:820px; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain;">
-                        <div style="flex-shrink:0; font-size:16px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">
-                          <span>🎪 阶段一实操同屏: 初始提案与${isInst ? '备课' : '学术'}公约 (${activeMonitorGroup.name})</span>
-                          <span style="background:#eff6ff; color:#1d4ed8; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:700;">阶段一实况</span>
-                        </div>
-
-                        <!-- 1. 【第一步】💡 组员初始提案展台 -->
-                        <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:12px; padding:14px; flex-shrink:0;">
-                          <div style="font-size:13.5px; font-weight:800; color:#1e40af; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
-                            <span>💡 组员初始${isInst ? '教学' : '学术'}提案展台 (${(state.stage1?.proposals || []).length}/${monitorMembersList.length || 1} 人已提交):</span>
-                            <span style="font-size:11.5px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">
-                              共投 ${monitorMembersList.filter(m => state.stage1?.hasVoted && (state.stage1.hasVoted[m.id] || (m.name && state.stage1.hasVoted[m.name]))).length} 票
-                            </span>
-                          </div>
-                          ${(state.stage1?.proposals && state.stage1.proposals.length > 0) ? `
-                            <div class="proposals-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:10px;">
-                              ${state.stage1.proposals.map((p, idx) => {
-                                const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
-                                const authorObj = monitorMembersList.find(m => m.id === p.author || m.name === p.authorName || m.name === p.author);
-                                const authorUser = allGlobalUsers.find(u => u.id === p.author || u.name === p.authorName);
-                                const authorName = authorObj ? authorObj.name : (authorUser ? authorUser.name : (p.authorName || p.author || `组员${idx+1}`));
-                                const votes = monitorMembersList.filter(m => {
-                                  if (!state.stage1?.votes) return false;
-                                  const v = state.stage1.votes[m.id] || (m.name && state.stage1.votes[m.name]);
-                                  return v === p.id;
-                                }).length;
-                                return `
-                                  <div style="background:#ffffff; border:1.5px solid #e2e8f0; border-radius:8px; padding:10px; display:flex; flex-direction:column; justify-content:space-between; gap:6px; box-shadow:0 1px 3px rgba(0,0,0,0.02);">
-                                    <div>
-                                      <div style="font-size:13px; font-weight:800; color:#0f172a; line-height:1.4; margin-bottom:4px;">${escapeHtml(p.title || '未命名选题')}</div>
-                                      <div style="font-size:11px; color:#64748b;">👤 提交人: <b>${escapeHtml(authorName)}</b></div>
-                                    </div>
-                                    <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #f1f5f9; padding-top:6px;">
-                                      <span style="font-size:11px; color:#2563eb; font-weight:700;">🗳️ 得票数: ${votes}</span>
-                                    </div>
-                                  </div>
-                                `;
-                              }).join('')}
-                            </div>
-                          ` : `
-                            <div style="text-align:center; padding:16px; color:#94a3b8; font-size:12px;">⏳ 本组暂无成员提交选题提案</div>
-                          `}
-                        </div>
-
-                        <!-- 2. 【第二步】📜 团队协同合作公约 (1:1 镜像学生端结构) -->
-                        <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:12px;">
-                          <div style="font-size:13.5px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
-                            <span>📜 团队协同合作${isInst ? '备课' : '学术'}公约 (${activeMonitorGroup.name}):</span>
-                            <span style="font-size:11.5px; background:${state.stage1?.contract?.isLocked ? '#ecfdf5' : '#eff6ff'}; color:${state.stage1?.contract?.isLocked ? '#059669' : '#2563eb'}; padding:2px 8px; border-radius:6px; font-weight:700;">
-                              ${state.stage1?.contract?.isLocked ? '🔒 公约已全员签署生效' : '✍️ 协作拟定中'}
-                            </span>
-                          </div>
-
-                          <!-- 📌 【槽位 1】确认融合研究/备课主题 -->
-                          <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; border-left:4px solid #2563eb;">
-                            <div style="font-size:11.5px; font-weight:800; color:#1e40af; margin-bottom:3px;">📌 【槽位 1】确认${isInst ? '融合教学设计课题' : '融合论文研究主题'}:</div>
-                            <div style="font-size:13.5px; font-weight:800; color:#0f172a; line-height:1.4;">${escapeHtml(state.stage1?.mergedTitle || state.stage1?.contract?.topic || '（小组暂未敲定最终论题）')}</div>
-                          </div>
-
-                          <!-- 📝 【槽位 2】方案概述 / 教学构思与主线 -->
-                          <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; border-left:4px solid #059669;">
-                            <div style="font-size:11.5px; font-weight:800; color:#065f46; margin-bottom:3px;">
-                              📝 【槽位 2】${isInst ? '教学设计整体构想与主线 (核心情境、活动主线与重难点突破)' : '研究方案概述 (具体情境、案例、聚焦点与方法)'}:
-                            </div>
-                            <div style="font-size:13px; font-weight:600; color:${(state.stage1?.contract?.overview || state.stage1?.researchOverview) ? '#0f172a' : '#94a3b8'}; line-height:1.5; white-space:pre-wrap; word-break:break-word;">${escapeHtml(state.stage1?.contract?.overview || state.stage1?.researchOverview || '（小组暂未录入方案概述）')}</div>
-                          </div>
-
-                          <!-- 📚 6大核心模块与时间规划 (独立模块) -->
-                          <div style="background:#ffffff; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
-                            <div style="font-weight:800; color:#1e40af; margin-bottom:8px; font-size:12.5px;">
-                              📚 ${isInst ? '教学设计' : '研究方案'}核心模块与时间规划:
-                            </div>
-                            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:8px;">
-                              ${(genreCfg.modules || []).map(sec => {
-                                const timeAlloc = state.stage1?.contract?.timeAllocations || {};
-                                const timeVal = (timeAlloc[sec.key] !== undefined) ? timeAlloc[sec.key] : sec.defaultMinutes;
-                                return `
-                                  <div style="background:#f8fafc; border:1px solid #e2e8f0; border-left:3.5px solid ${sec.color}; border-radius:6px; padding:6px 8px; display:flex; justify-content:space-between; align-items:center;">
-                                    <span style="font-weight:700; color:#334155; font-size:11.5px;">${sec.title}</span>
-                                    <span style="font-size:11.5px; color:#2563eb; font-weight:800;">${timeVal} 分钟</span>
-                                  </div>
-                                `;
-                              }).join('')}
-                            </div>
-                          </div>
-
-                          <!-- 👥 小组成员具体任务分工 (与时间完全分开，按组员展示) -->
-                          <div style="background:#ffffff; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
-                            <div style="font-weight:800; color:#1e40af; margin-bottom:8px; font-size:12.5px;">
-                              👥 本组小组成员具体任务分工 (共 ${monitorMembersList.length} 人):
-                            </div>
-                            <div style="display:flex; flex-direction:column; gap:6px;">
-                              ${monitorMembersList.map((m, idx) => {
-                                const mKey = m.id   || m.name || (`mem_${idx}`);
-                                const tasks = state.stage1?.contract?.taskAssignments || {};
-                                const taskVal = tasks[mKey] !== undefined ? tasks[mKey] :
-                                  (m.id && tasks[m.id] !== undefined ? tasks[m.id] :
-                                  (m.id && tasks[m.id] !== undefined ? tasks[m.id] :
-                                  (m.name && tasks[m.name] !== undefined ? tasks[m.name] : '')));
-                                return `
-                                  <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:6px 10px; display:flex; flex-direction:column; gap:3px;">
-                                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                                      <span style="font-weight:800; color:${m.color || '#2563eb'}; font-size:12px;">${m.avatar || '👤'} ${escapeHtml(m.name)}:</span>
-                                    </div>
-                                    <div style="font-size:11.5px; color:${taskVal ? '#0f172a' : '#94a3b8'}; font-weight:${taskVal ? '600' : '400'};">
-                                      ${taskVal ? escapeHtml(taskVal) : '（暂未在公约中录入具体分工）'}
-                                    </div>
-                                  </div>
-                                `;
-                              }).join('')}
-                            </div>
-                          </div>
-
-                          <!-- ✍️ 组员签署确认状态矩阵 -->
-                          <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
-                            <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
-                              <span>✍️ 组员签署确认状态:</span>
-                              <span style="font-size:11.5px; color:#2563eb; font-weight:700;">
-                                签署进度: ${monitorMembersList.filter(m => { const c = state.stage1?.contract?.confirmedMembers || {}; return c[m.id] || c[m.id] || (m.name && c[m.name]); }).length}/${monitorMembersList.length}
-                              </span>
-                            </div>
-                            <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                              ${monitorMembersList.map(m => {
-                                const isConf = state.stage1?.contract?.confirmedMembers && (state.stage1.contract.confirmedMembers[m.id] || state.stage1.contract.confirmedMembers[m.id] || (m.name && state.stage1.contract.confirmedMembers[m.name]));
-                                return `
-                                  <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#f8fafc'}; padding:3px 8px; border-radius:6px; font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
-                                    ${m.avatar || '👤'} ${escapeHtml(m.name)}: <b>${isConf ? '✅ 已签署' : '⏳ 未签署'}</b>
-                                  </span>
-                                `;
-                              }).join('')}
-                            </div>
-                          </div>
-                        </div>
+                      <div class="card" id="teacher-stage1-left-card" style="padding:18px 20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px; min-width:0; box-sizing:border-box; height:820px; max-height:820px; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain;">
+                        ${renderStage1LeftCardContent(state, activeMonitorGroup, monitorMembersList, isInst, genreCfg, authManager)}
                       </div>
 
                       ${renderUnifiedRightChatCard()}
@@ -4374,6 +4424,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
     state.activeMonitorGroupId = targetGId;
     state._lastMonitorHash = '';
     state._lastEpHash = '';
+    if (window.app && window.app.state) {
+      window.app.state.activeMonitorGroupId = targetGId;
+    }
     const gData = getPanoGroupData(state.monitorPanorama, targetGId);
     if (gData) {
       state.stage1 = gData.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
@@ -4382,10 +4435,18 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
       state.chatLogs = gData.chatLogs || { stage1: [], stage2: [], stage3: [] };
       state.currentStage = gData.currentStage || 'stage1';
       state.isFinalSubmitted = !!gData.isFinalSubmitted;
+      if (window.app && window.app.state) {
+        window.app.state.stage1 = state.stage1;
+        window.app.state.stage2 = state.stage2;
+        window.app.state.stage3 = state.stage3;
+        window.app.state.chatLogs = state.chatLogs;
+        window.app.state.currentStage = state.currentStage;
+        window.app.state.isFinalSubmitted = state.isFinalSubmitted;
+      }
     }
-    if (window.app) {
-      window.app.state.activeMonitorGroupId = targetGId;
-      window.app.loadGroupState(targetGId);
+    if (window.app && window.app.cloudSyncEngine) {
+      window.app.cloudSyncEngine.groupId = targetGId;
+      window.app.cloudSyncEngine.updateScopeKeys();
     }
     // 🛡️ 小组切换持久化：刷新后精准恢复到此次选中的小组
     try {
