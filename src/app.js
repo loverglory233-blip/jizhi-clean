@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2668";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2668";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2668";
-import { AuthManager } from "./auth.js?v=20260906_v2668";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2668";
-import { renderLoginView } from "./login.js?v=20260906_v2668";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2668";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2668";
+} from "./constants.js?v=20260906_v2669";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2669";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2669";
+import { AuthManager } from "./auth.js?v=20260906_v2669";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2669";
+import { renderLoginView } from "./login.js?v=20260906_v2669";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2669";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2669";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2668";
+} from "./editor.js?v=20260906_v2669";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5771,26 +5771,13 @@ ${chatSnippet}
         const timeMap = s1.contract?.timeAllocations || {};
         let totalPlannedMinutes = 0;
         const timeModuleList = [];
-        const defaultModules = isInst ? [
-          { key: 'intro', label: '教材与学情' },
-          { key: 'target', label: '教学目标' },
-          { key: 'keypoint', label: '重难点' },
-          { key: 'process', label: '教学过程' },
-          { key: 'activity', label: '活动探究' },
-          { key: 'eval', label: '板书与作业' }
-        ] : [
-          { key: 'intro', label: '引言与背景' },
-          { key: 'lit', label: '核心概念' },
-          { key: 'theory', label: '理论与假设' },
-          { key: 'method', label: '研究方法' },
-          { key: 'analysis', label: '数据分析' },
-          { key: 'discuss', label: '讨论与建议' }
-        ];
+        const genreCfg = TASK_GENRE_CONFIGS[taskType] || TASK_GENRE_CONFIGS.experiment;
+        const defaultModules = genreCfg.modules || [];
         defaultModules.forEach(mod => {
           const t = parseInt(timeMap[mod.key] || 0);
           if (t > 0) {
             totalPlannedMinutes += t;
-            timeModuleList.push(`${mod.label}${t}m`);
+            timeModuleList.push(`${mod.title.replace(/^[一二三四五六七八九十]、/, '')}${t}m`);
           }
         });
         const timeSummaryStr = totalPlannedMinutes > 0 
@@ -8347,6 +8334,7 @@ ${contentSnippet}
 
       const managingMsg = {
         sender: 'managingEditor',
+        senderName: isInst ? '协同调度 · 备课组长' : '协同调度 · 责任编辑',
         text: managingText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: Date.now(),
@@ -8354,7 +8342,9 @@ ${contentSnippet}
       };
       if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
       this.state.chatLogs.stage2.push(managingMsg);
+      this.sendSingleChatMessage(managingMsg, 'stage2');
       this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
 
       // 3. 平台接管调控：设置【等待组内商讨对齐】状态 (写入 stage2.pendingReviewing 全端持久化)
