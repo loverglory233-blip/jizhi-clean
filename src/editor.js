@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2628";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2628";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260905_v2628";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2629";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2629";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260905_v2629";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -2338,6 +2338,14 @@ function renderStage2Canvas(canvas, state, handlers) {
           }
         };
       }
+
+      // 🛡️ 协同状态指示灯与独立窗口链接增量同步
+      const epDot = canvas.querySelector('#ep-status-dot-s2');
+      const epText = canvas.querySelector('#ep-status-text-s2');
+      const epPopout = canvas.querySelector('#s2-pad-popout-link');
+      if (epDot) epDot.style.background = isEditorReadonly ? '#dc2626' : '#10b981';
+      if (epText) epText.innerText = isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)';
+      if (epPopout) epPopout.href = padUrl;
 
       // 🛡️ 截止锁定横幅就地动态同步（若教师延长则 0ms 瞬间消除，无需刷新）
       let expiredBanner = canvas.querySelector('#stage2-deadline-expired-banner');

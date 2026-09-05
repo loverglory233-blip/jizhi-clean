@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2628
+ * Version: 20260905_v2629
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2628';
+  const APP_VERSION = '20260905_v2629';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13776,6 +13776,14 @@
             }
           };
         }
+
+        // 🛡️ 协同状态指示灯与独立窗口链接增量同步
+        const epDot = canvas.querySelector('#ep-status-dot-s2');
+        const epText = canvas.querySelector('#ep-status-text-s2');
+        const epPopout = canvas.querySelector('#s2-pad-popout-link');
+        if (epDot) epDot.style.background = isEditorReadonly ? '#dc2626' : '#10b981';
+        if (epText) epText.innerText = isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)';
+        if (epPopout) epPopout.href = padUrl;
 
         // 🛡️ 截止锁定横幅就地动态同步（若教师延长则 0ms 瞬间消除，无需刷新）
         let expiredBanner = canvas.querySelector('#stage2-deadline-expired-banner');
