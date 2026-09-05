@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2589
+ * Version: 20260905_v2590
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2589';
+  const APP_VERSION = '20260905_v2590';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -15822,6 +15822,11 @@
             : (membersList.length > 0 ? [...membersList].sort((a, b) => (a.id || a.id || '').localeCompare(b.id || b.id || ''))[0] : null);
           const isPrimaryGuardian = primaryMember && (isSameUser(primaryMember, myCode) || primaryMember.id === myCode || primaryMember.name === myCode);
 
+          // 🌟 阶段一自愈守卫：任何在线客户端均可检测投票指引断档并加锁自愈
+          if (currentStage === 'stage1' && !this.isCurrentTaskReadOnly()) {
+            this.checkAndTriggerVoteGuidanceIfNeeded();
+          }
+
           if (isPrimaryGuardian) {
             if (this.isCurrentTaskReadOnly()) return; // 🛡️ 只读模式下绝不触发任何定时智能体催促与分析
             const allChatLogsList = Object.values(this.state.chatLogs || {}).flat();
@@ -21432,9 +21437,10 @@
       if (!this.isCurrentTaskReadOnly()) {
         this.triggerStageWelcomeSpeech(this.state.currentStage || 'stage1');
 
-        // 🎪 阶段一守护：随时检测全员提案与速评是否齐备，若是立即下发协同研讨提示
+        // 🎪 阶段一守护：随时检测全员提案与速评是否齐备 / 投票结果出炉后研讨指引是否缺失
         if (this.state.currentStage === 'stage1' || !this.state.currentStage) {
           this.checkAndTriggerAllProposalsGathered();
+          this.checkAndTriggerVoteGuidanceIfNeeded();
         }
 
         // 🎓 阶段三自愈守护：只要处于阶段三且答辩矩阵为空，立即自动拉起答辩委员会流水线
