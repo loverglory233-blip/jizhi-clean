@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2687";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2687";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2687";
-import { AuthManager } from "./auth.js?v=20260906_v2687";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2687";
-import { renderLoginView } from "./login.js?v=20260906_v2687";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2687";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2687";
+} from "./constants.js?v=20260906_v2688";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2688";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2688";
+import { AuthManager } from "./auth.js?v=20260906_v2688";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2688";
+import { renderLoginView } from "./login.js?v=20260906_v2688";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2688";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2688";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2687";
+} from "./editor.js?v=20260906_v2688";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -97,8 +97,33 @@ export class App {
     this.initTimer();
     this.renderMain();
 
-    // 🛡️ 全局事件委托：确保无论阶段一如何局部刷新，点击“一键生成公约草案”/“投票”/“签署” 100% 触发
+    // 🛡️ 全局最高优先级事件委托：确保无论顶部导航与工作区如何刷新，阶段切换、通知、大厅、问卷与退出 100% 极速响应
     document.addEventListener('click', (e) => {
+      const stageBtn = e.target.closest('.stage-btn');
+      if (stageBtn && stageBtn.dataset.stage) {
+        this.switchStage(stageBtn.dataset.stage);
+        return;
+      }
+      const backTasksBtn = e.target.closest('#btn-header-back-tasks');
+      if (backTasksBtn) {
+        this.backToTaskList();
+        return;
+      }
+      const annBellBtn = e.target.closest('#btn-header-ann-bell, .nav-ann-bell-btn');
+      if (annBellBtn) {
+        this.showAnnouncementModal();
+        return;
+      }
+      const surveyBtn = e.target.closest('#btn-header-survey-link');
+      if (surveyBtn) {
+        this.showQuestionnaireModal();
+        return;
+      }
+      const logoutBtn = e.target.closest('#btn-user-logout');
+      if (logoutBtn) {
+        this.handleLogout();
+        return;
+      }
       const genBtn = e.target.closest('#btn-generate-contract-draft');
       if (genBtn && this.handleAiGenerateContract) {
         this.handleAiGenerateContract();
@@ -7829,6 +7854,7 @@ ${contentSnippet}
     const user = this.authManager ? this.authManager.getCurrentUser() : null;
     if (!user || (user.role !== 'student' && !user.isStudent)) return;
     if (this.state.studentViewMode !== 'workspace') return;
+    if (this.isViewingPastStage || this.state.isViewingPastStage) return;
     const activeTaskId = this.state.activeTaskId || '';
     if (!activeTaskId) return;
 
@@ -7837,7 +7863,7 @@ ${contentSnippet}
 
     // 1. 阶段一 -> 阶段二全员弹窗（全员签署完成）
     const isS1Confirmed = !!(this.state.stage1?.contract?.isConfirmed);
-    if (isS1Confirmed && this.state.currentStage === 'stage1') {
+    if (isS1Confirmed && (!this.state.groupMaxStage || this.state.groupMaxStage === 'stage1') && this.state.currentStage === 'stage1') {
       const autoKey = `jizhi_autoadvanced_${activeTaskId}_stage2`;
       if (!sessionStorage.getItem(autoKey)) {
         sessionStorage.setItem(autoKey, '1');
@@ -7849,7 +7875,7 @@ ${contentSnippet}
           subtitle: `组内全员已全部完成公约签署确认！《${contractTitle}》正式生效锁定，阶段一圆满结束！`,
           targetName: stage2Title,
           onProceed: () => {
-            this.switchStage('stage2');
+            this.switchStage('stage2', true);
           }
         });
         return;
@@ -7858,7 +7884,7 @@ ${contentSnippet}
 
     // 2. 阶段二 -> 阶段三全员弹窗（全员初稿确认完成）
     const isS2DraftConfirmed = !!(this.state.stage2?.isDraftConfirmed);
-    if (isS2DraftConfirmed && this.state.currentStage === 'stage2') {
+    if (isS2DraftConfirmed && (this.state.groupMaxStage === 'stage2' || this.state.groupMaxStage === 'stage1') && this.state.currentStage === 'stage2') {
       const autoKey = `jizhi_autoadvanced_${activeTaskId}_stage3`;
       if (!sessionStorage.getItem(autoKey)) {
         sessionStorage.setItem(autoKey, '1');
