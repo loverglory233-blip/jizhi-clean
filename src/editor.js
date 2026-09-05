@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2604";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2604";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2604";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2605";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2605";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2605";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -1666,8 +1666,18 @@ function renderStage2Canvas(canvas, state, handlers) {
 
       if (!innerBody._jizhiInputBound) {
         innerBody._jizhiInputBound = true;
-        const markLocalTyping = () => {
+        const markLocalTyping = (e) => {
           window._lastLocalPadInputTime = Date.now();
+          try {
+            const sel = innerDoc.getSelection();
+            if (sel && sel.anchorNode) {
+              const el = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+              const aCls = getAuthorClass(el);
+              if (aCls) {
+                window._localDetectedAuthorClass = aCls;
+              }
+            }
+          } catch(err) {}
           if (typeof syncPadMetrics === 'function') {
             setTimeout(syncPadMetrics, 100);
           }
@@ -1776,7 +1786,33 @@ function renderStage2Canvas(canvas, state, handlers) {
       }
 
       // 匹配每个 authorClass 到真实的 membersList 成员
-      const localAuthorId = (padWin && padWin.clientVars && (padWin.clientVars.userId || (padWin.pad && padWin.pad.getUserId && padWin.pad.getUserId()))) || (padWin && padWin.pad && padWin.pad.myUserInfo && padWin.pad.myUserInfo.userId) || '';
+      const selfMem = membersList.find(m => isSameUser(m, currUser) || isSameUser(m, currUserCode) || (currUserName && m.name === currUserName)) || currUser;
+
+      const localAuthorIdCandidates = new Set();
+      if (padWin) {
+        if (padWin.clientVars) {
+          if (padWin.clientVars.userId) localAuthorIdCandidates.add(padWin.clientVars.userId);
+          if (padWin.clientVars.collab_client_vars && padWin.clientVars.collab_client_vars.userId) localAuthorIdCandidates.add(padWin.clientVars.collab_client_vars.userId);
+          if (padWin.clientVars.collab_client_vars?.myUserInfo?.userId) localAuthorIdCandidates.add(padWin.clientVars.collab_client_vars.myUserInfo.userId);
+        }
+        if (padWin.pad) {
+          if (typeof padWin.pad.getUserId === 'function') {
+            try { const uid = padWin.pad.getUserId(); if (uid) localAuthorIdCandidates.add(uid); } catch(e){}
+          }
+          if (padWin.pad.myUserInfo && padWin.pad.myUserInfo.userId) localAuthorIdCandidates.add(padWin.pad.myUserInfo.userId);
+          if (padWin.pad.collabClient) {
+            if (typeof padWin.pad.collabClient.getUserId === 'function') {
+              try { const uid = padWin.pad.collabClient.getUserId(); if (uid) localAuthorIdCandidates.add(uid); } catch(e){}
+            }
+            if (typeof padWin.pad.collabClient.getCurrentUser === 'function') {
+              try { const u = padWin.pad.collabClient.getCurrentUser(); if (u && u.userId) localAuthorIdCandidates.add(u.userId); } catch(e){}
+            }
+          }
+        }
+      }
+      if (window._localDetectedAuthorClass) {
+        localAuthorIdCandidates.add(window._localDetectedAuthorClass);
+      }
 
       const assignedAuthors = new Map();
       const unassignedKeys = [];
@@ -1784,12 +1820,15 @@ function renderStage2Canvas(canvas, state, handlers) {
       const matchMemberForAuthor = (aKey, authorName, authorColor) => {
         const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '');
         const normDot = 'a.' + rawId;
-        const localAuthorRaw = localAuthorId.replace(/^(author[-_]|a[._-])/i, '');
+        const normHyphen = 'a-' + rawId;
+        const normUnderscore = 'a_' + rawId;
 
-        // 1. 如果是当前用户的 pad userId
-        if (localAuthorId && (aKey === localAuthorId || normDot === localAuthorId || (rawId && localAuthorRaw && rawId === localAuthorRaw))) {
-          const selfMem = membersList.find(m => isSameUser(m, currUser) || isSameUser(m, currUserCode) || (currUserName && m.name === currUserName));
-          if (selfMem) return selfMem;
+        // 1. 本地当前活跃操作作者 -> 100% 绑定为当前登录用户
+        for (const cand of localAuthorIdCandidates) {
+          const candRaw = String(cand).replace(/^(author[-_]|a[._-])/i, '');
+          if (aKey === cand || normDot === cand || normHyphen === cand || normUnderscore === cand || (rawId && candRaw && rawId === candRaw)) {
+            if (selfMem) return selfMem;
+          }
         }
 
         // 2. 精确姓名 / ID 匹配
@@ -1857,9 +1896,17 @@ function renderStage2Canvas(canvas, state, handlers) {
         }
       });
 
-      // 4. 对尚未精确匹配的 authorClass，分配给尚未被分配的组内成员
+      // 4. 对尚未精确匹配的 authorClass，优先分配给当前登录用户（若当前登录用户尚未有 assignedAuthor），其余再分配给组内成员
       const alreadyAssignedMemberIds = new Set(Array.from(assignedAuthors.values()).map(m => m.id));
-      const remainingMembers = membersList.filter(m => !alreadyAssignedMemberIds.has(m.id));
+      const remainingMembers = [];
+      if (selfMem && !alreadyAssignedMemberIds.has(selfMem.id)) {
+        remainingMembers.push(selfMem);
+      }
+      membersList.forEach(m => {
+        if (!alreadyAssignedMemberIds.has(m.id) && (!selfMem || m.id !== selfMem.id)) {
+          remainingMembers.push(m);
+        }
+      });
 
       let remIdx = 0;
       unassignedKeys.forEach(aKey => {

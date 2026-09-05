@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2604
+ * Version: 20260905_v2605
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2604';
+  const APP_VERSION = '20260905_v2605';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1404,15 +1404,28 @@
           }
         }
 
-        // 4. 安全注入 pad.myUserInfo 与原生用户名输入框
-        if (userName && padWin.pad && padWin.pad.myUserInfo) {
-          padWin.pad.myUserInfo.name = userName;
-          padWin.pad.myUserInfo.colorId = color;
+        // 4. 安全注入 pad.myUserInfo 与原生用户名输入框及 collabClient
+        if (userName && padWin.pad) {
+          if (padWin.pad.myUserInfo) {
+            padWin.pad.myUserInfo.name = userName;
+            padWin.pad.myUserInfo.colorId = color;
+          }
+          if (typeof padWin.pad.notifyChangeName === 'function') {
+            try { padWin.pad.notifyChangeName(userName); } catch(e){}
+          }
+          if (typeof padWin.pad.notifyChangeColor === 'function') {
+            try { padWin.pad.notifyChangeColor(color); } catch(e){}
+          }
+          if (padWin.pad.collabClient && typeof padWin.pad.collabClient.setUserInfo === 'function') {
+            try { padWin.pad.collabClient.setUserInfo({ name: userName, colorId: color }); } catch(e){}
+          }
         }
         try {
           const nameInput = padWin.document && padWin.document.getElementById('myusernameedit');
           if (nameInput && nameInput.value !== userName) {
             nameInput.value = userName;
+            nameInput.dispatchEvent(new Event('change', { bubbles: true }));
+            nameInput.dispatchEvent(new Event('input', { bubbles: true }));
           }
         } catch(e) {}
       } catch(err) {}
@@ -12912,8 +12925,18 @@
 
         if (!innerBody._jizhiInputBound) {
           innerBody._jizhiInputBound = true;
-          const markLocalTyping = () => {
+          const markLocalTyping = (e) => {
             window._lastLocalPadInputTime = Date.now();
+            try {
+              const sel = innerDoc.getSelection();
+              if (sel && sel.anchorNode) {
+                const el = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+                const aCls = getAuthorClass(el);
+                if (aCls) {
+                  window._localDetectedAuthorClass = aCls;
+                }
+              }
+            } catch(err) {}
             if (typeof syncPadMetrics === 'function') {
               setTimeout(syncPadMetrics, 100);
             }
@@ -13022,7 +13045,33 @@
         }
 
         // 匹配每个 authorClass 到真实的 membersList 成员
-        const localAuthorId = (padWin && padWin.clientVars && (padWin.clientVars.userId || (padWin.pad && padWin.pad.getUserId && padWin.pad.getUserId()))) || (padWin && padWin.pad && padWin.pad.myUserInfo && padWin.pad.myUserInfo.userId) || '';
+        const selfMem = membersList.find(m => isSameUser(m, currUser) || isSameUser(m, currUserCode) || (currUserName && m.name === currUserName)) || currUser;
+
+        const localAuthorIdCandidates = new Set();
+        if (padWin) {
+          if (padWin.clientVars) {
+            if (padWin.clientVars.userId) localAuthorIdCandidates.add(padWin.clientVars.userId);
+            if (padWin.clientVars.collab_client_vars && padWin.clientVars.collab_client_vars.userId) localAuthorIdCandidates.add(padWin.clientVars.collab_client_vars.userId);
+            if (padWin.clientVars.collab_client_vars?.myUserInfo?.userId) localAuthorIdCandidates.add(padWin.clientVars.collab_client_vars.myUserInfo.userId);
+          }
+          if (padWin.pad) {
+            if (typeof padWin.pad.getUserId === 'function') {
+              try { const uid = padWin.pad.getUserId(); if (uid) localAuthorIdCandidates.add(uid); } catch(e){}
+            }
+            if (padWin.pad.myUserInfo && padWin.pad.myUserInfo.userId) localAuthorIdCandidates.add(padWin.pad.myUserInfo.userId);
+            if (padWin.pad.collabClient) {
+              if (typeof padWin.pad.collabClient.getUserId === 'function') {
+                try { const uid = padWin.pad.collabClient.getUserId(); if (uid) localAuthorIdCandidates.add(uid); } catch(e){}
+              }
+              if (typeof padWin.pad.collabClient.getCurrentUser === 'function') {
+                try { const u = padWin.pad.collabClient.getCurrentUser(); if (u && u.userId) localAuthorIdCandidates.add(u.userId); } catch(e){}
+              }
+            }
+          }
+        }
+        if (window._localDetectedAuthorClass) {
+          localAuthorIdCandidates.add(window._localDetectedAuthorClass);
+        }
 
         const assignedAuthors = new Map();
         const unassignedKeys = [];
@@ -13030,12 +13079,15 @@
         const matchMemberForAuthor = (aKey, authorName, authorColor) => {
           const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '');
           const normDot = 'a.' + rawId;
-          const localAuthorRaw = localAuthorId.replace(/^(author[-_]|a[._-])/i, '');
+          const normHyphen = 'a-' + rawId;
+          const normUnderscore = 'a_' + rawId;
 
-          // 1. 如果是当前用户的 pad userId
-          if (localAuthorId && (aKey === localAuthorId || normDot === localAuthorId || (rawId && localAuthorRaw && rawId === localAuthorRaw))) {
-            const selfMem = membersList.find(m => isSameUser(m, currUser) || isSameUser(m, currUserCode) || (currUserName && m.name === currUserName));
-            if (selfMem) return selfMem;
+          // 1. 本地当前活跃操作作者 -> 100% 绑定为当前登录用户
+          for (const cand of localAuthorIdCandidates) {
+            const candRaw = String(cand).replace(/^(author[-_]|a[._-])/i, '');
+            if (aKey === cand || normDot === cand || normHyphen === cand || normUnderscore === cand || (rawId && candRaw && rawId === candRaw)) {
+              if (selfMem) return selfMem;
+            }
           }
 
           // 2. 精确姓名 / ID 匹配
@@ -13103,9 +13155,17 @@
           }
         });
 
-        // 4. 对尚未精确匹配的 authorClass，分配给尚未被分配的组内成员
+        // 4. 对尚未精确匹配的 authorClass，优先分配给当前登录用户（若当前登录用户尚未有 assignedAuthor），其余再分配给组内成员
         const alreadyAssignedMemberIds = new Set(Array.from(assignedAuthors.values()).map(m => m.id));
-        const remainingMembers = membersList.filter(m => !alreadyAssignedMemberIds.has(m.id));
+        const remainingMembers = [];
+        if (selfMem && !alreadyAssignedMemberIds.has(selfMem.id)) {
+          remainingMembers.push(selfMem);
+        }
+        membersList.forEach(m => {
+          if (!alreadyAssignedMemberIds.has(m.id) && (!selfMem || m.id !== selfMem.id)) {
+            remainingMembers.push(m);
+          }
+        });
 
         let remIdx = 0;
         unassignedKeys.forEach(aKey => {
