@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2577";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2577";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2577";
-import { AuthManager } from "./auth.js?v=20260905_v2577";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2577";
-import { renderLoginView } from "./login.js?v=20260905_v2577";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2577";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2577";
+} from "./constants.js?v=20260905_v2578";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2578";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2578";
+import { AuthManager } from "./auth.js?v=20260905_v2578";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2578";
+import { renderLoginView } from "./login.js?v=20260905_v2578";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2578";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2578";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2577";
+} from "./editor.js?v=20260905_v2578";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6246,6 +6246,10 @@ ${chatSnippet}
       }
     }
 
+    if (typeof this.checkAndShowStageTransitionModals === 'function') {
+      this.checkAndShowStageTransitionModals();
+    }
+
     // ── 核心保护：全场景输入法与活动输入框智能保护 ──
     const activeEl = document.activeElement;
     const isTagInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
@@ -7469,6 +7473,96 @@ ${contentSnippet}
   }
 
 
+
+  checkAndShowStageTransitionModals() {
+    const user = this.authManager ? this.authManager.getCurrentUser() : null;
+    if (!user || (user.role !== 'student' && !user.isStudent)) return;
+    if (this.state.studentViewMode !== 'workspace') return;
+    const activeTaskId = this.state.activeTaskId || '';
+    if (!activeTaskId) return;
+
+    const taskType = this.getCurrentTaskType();
+    const isInst = (taskType === 'instructional');
+
+    // 1. 阶段一 -> 阶段二全员弹窗（全员签署完成）
+    const isS1Confirmed = !!(this.state.stage1?.contract?.isConfirmed);
+    if (isS1Confirmed && this.state.currentStage === 'stage1') {
+      const autoKey = `jizhi_autoadvanced_${activeTaskId}_stage2`;
+      if (!sessionStorage.getItem(autoKey)) {
+        sessionStorage.setItem(autoKey, '1');
+        const stage2Title = isInst ? '阶段二：集体备课室' : '阶段二：学术编辑部';
+        const contractTitle = isInst ? '备课合作公约' : '学术合作公约';
+        this.showStageMilestoneModal({
+          icon: '🎉',
+          title: `全组成员已全部签署《${contractTitle}》！`,
+          subtitle: `组内全员已全部完成公约签署确认！《${contractTitle}》正式生效锁定，阶段一圆满结束！`,
+          targetName: stage2Title,
+          onProceed: () => {
+            this.switchStage('stage2');
+          }
+        });
+        return;
+      }
+    }
+
+    // 2. 阶段二 -> 阶段三全员弹窗（全员初稿确认完成）
+    const isS2DraftConfirmed = !!(this.state.stage2?.isDraftConfirmed);
+    if (isS2DraftConfirmed && this.state.currentStage === 'stage2') {
+      const autoKey = `jizhi_autoadvanced_${activeTaskId}_stage3`;
+      if (!sessionStorage.getItem(autoKey)) {
+        sessionStorage.setItem(autoKey, '1');
+        const stage3Title = isInst ? '阶段三：答辩评审会' : '阶段三：答辩擂台';
+        this.showStageMilestoneModal({
+          icon: '🎓',
+          title: `全组成员已全部完成${isInst ? '教学设计' : ''}初稿确认！`,
+          subtitle: `组内全员已全部完成初稿确认！初稿已锁定归档，现在开启【${stage3Title}】！`,
+          targetName: stage3Title,
+          onProceed: () => {
+            this.switchStage('stage3', true);
+          }
+        });
+        return;
+      }
+    }
+
+    // 3. 阶段三答辩 -> 修改终稿全员弹窗（全员答辩确认完成）
+    const isS3RevisionConfirmed = !!(this.state.stage3?.isRevisionConfirmed);
+    if (isS3RevisionConfirmed && this.state.currentStage === 'stage3' && this.state.stage3?.activeTab !== 'editor') {
+      const autoKey = `jizhi_autoadvanced_${activeTaskId}_stage3_editor`;
+      if (!sessionStorage.getItem(autoKey)) {
+        sessionStorage.setItem(autoKey, '1');
+        const docName = isInst ? '教学方案' : '论文';
+        this.showStageMilestoneModal({
+          icon: '📝',
+          title: '全组成员已全部确认答辩与修改清单！',
+          subtitle: `组内全员已全部完成答辩辩护与裁决矩阵确认！答辩清单已定案归档，【修改${docName}终稿】面板已正式解锁！`,
+          targetName: `修改${docName}终稿`,
+          onProceed: () => {
+            if (this.handlers && typeof this.handlers.onSwitchStage3Tab === 'function') {
+              this.handlers.onSwitchStage3Tab('editor');
+            } else {
+              if (this.state.stage3) this.state.stage3.activeTab = 'editor';
+              this.renderStudentWorkspace();
+            }
+          }
+        });
+        return;
+      }
+    }
+
+    // 4. 阶段三终稿全员提交 -> 归档完成与问卷
+    if (this.state.isFinalSubmitted) {
+      const finalModalKey = `jizhi_autoadvanced_${activeTaskId}_final_modal`;
+      if (!sessionStorage.getItem(finalModalKey)) {
+        sessionStorage.setItem(finalModalKey, '1');
+        const docName = isInst ? '教学方案' : '论文';
+        showGlobalBannerNotice(`🏆 ${docName}终稿已全员提交归档`, `热烈祝贺组内全员已全部完成${docName}终稿提交！请全组成员填写课程体验与 SSRL 评估问卷。`, 'success', 10000);
+        setTimeout(() => {
+          this.showQuestionnaireModal();
+        }, 400);
+      }
+    }
+  }
 
   showStageMilestoneModal({ icon = '🎉', title, subtitle, targetName, onProceed }) {
     const existingModal = document.querySelector('.modal-stage-milestone');
