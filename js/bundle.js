@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2583
+ * Version: 20260905_v2584
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2583';
+  const APP_VERSION = '20260905_v2584';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3419,24 +3419,7 @@
       const teacherUserId = currUser?.id || '1001';
       const teacherToken = currUser?.token || currUser?.activeSessionId || '';
 
-      // ⚡ 极速原子直连落库：毫秒级同步入库 MySQL 与 main_meta 并递增全局版本号
-      fetch('sync.php?action=create_task', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          task: newTask,
-          userId: teacherUserId,
-          token: teacherToken
-        })
-      }).then(async (res) => {
-        if (res.ok) {
-          const data = await res.json().catch(() => ({}));
-          if (data && data.version) {
-            this.globalMetaVersion = parseInt(data.version, 10);
-          }
-        }
-      }).catch(() => {});
-
+      // ⚡ 统一由 pushGlobalMeta 权威原子落库 MySQL 并递增全局版本号（彻底消除双请求竞态与数据冲刷）
       this.pushGlobalMeta();
       return newTask;
     }
@@ -3591,24 +3574,7 @@
       const teacherUserId = currUser?.id || '1001';
       const teacherToken = currUser?.token || currUser?.activeSessionId || '';
 
-      // ⚡ 极速原子直连删除：毫秒级清理 MySQL tasks 与 main_meta 并递增版本号
-      fetch('sync.php?action=delete_task', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          taskId: taskId,
-          userId: teacherUserId,
-          token: teacherToken
-        })
-      }).then(async (res) => {
-        if (res.ok) {
-          const data = await res.json().catch(() => ({}));
-          if (data && data.version) {
-            this.globalMetaVersion = parseInt(data.version, 10);
-          }
-        }
-      }).catch(() => {});
-
+      // ⚡ 统一由 pushGlobalMeta 权威落库并物理清除关联数据、递增版本号
       this.pushGlobalMeta();
     }
 
@@ -16153,6 +16119,23 @@
               () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
               () => this.backToTaskList()
             );
+          } else if (this.state.studentViewMode === 'task_list') {
+            // ⚡ 学生端在任务大厅时：每 2 秒静默检测服务端全局版本（新任务发布/任务撤销/通知/问卷/范文秒级即时到达）
+            if (!this._studentTaskListPollTick) this._studentTaskListPollTick = 0;
+            this._studentTaskListPollTick++;
+            if (this._studentTaskListPollTick % 2 === 0) {
+              if (this.authManager && this.authManager.pullGlobalMeta) {
+                this.authManager.pullGlobalMeta().then((res) => {
+                  if (res && res.changed && this.state.studentViewMode === 'task_list') {
+                    const activeEl = document.activeElement;
+                    const isInteracting = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA');
+                    if (!isInteracting) {
+                      this.renderMain();
+                    }
+                  }
+                }).catch(() => {});
+              }
+            }
           }
         }
       }, 1000);

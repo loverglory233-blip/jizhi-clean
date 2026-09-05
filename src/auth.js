@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2583';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260905_v2583';
+} from './constants.js?v=20260905_v2584';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260905_v2584';
 
 export class AuthManager {
   constructor() {
@@ -1683,24 +1683,7 @@ export class AuthManager {
     const teacherUserId = currUser?.id || '1001';
     const teacherToken = currUser?.token || currUser?.activeSessionId || '';
 
-    // ⚡ 极速原子直连落库：毫秒级同步入库 MySQL 与 main_meta 并递增全局版本号
-    fetch('sync.php?action=create_task', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        task: newTask,
-        userId: teacherUserId,
-        token: teacherToken
-      })
-    }).then(async (res) => {
-      if (res.ok) {
-        const data = await res.json().catch(() => ({}));
-        if (data && data.version) {
-          this.globalMetaVersion = parseInt(data.version, 10);
-        }
-      }
-    }).catch(() => {});
-
+    // ⚡ 统一由 pushGlobalMeta 权威原子落库 MySQL 并递增全局版本号（彻底消除双请求竞态与数据冲刷）
     this.pushGlobalMeta();
     return newTask;
   }
@@ -1855,24 +1838,7 @@ export class AuthManager {
     const teacherUserId = currUser?.id || '1001';
     const teacherToken = currUser?.token || currUser?.activeSessionId || '';
 
-    // ⚡ 极速原子直连删除：毫秒级清理 MySQL tasks 与 main_meta 并递增版本号
-    fetch('sync.php?action=delete_task', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        taskId: taskId,
-        userId: teacherUserId,
-        token: teacherToken
-      })
-    }).then(async (res) => {
-      if (res.ok) {
-        const data = await res.json().catch(() => ({}));
-        if (data && data.version) {
-          this.globalMetaVersion = parseInt(data.version, 10);
-        }
-      }
-    }).catch(() => {});
-
+    // ⚡ 统一由 pushGlobalMeta 权威落库并物理清除关联数据、递增版本号
     this.pushGlobalMeta();
   }
 
