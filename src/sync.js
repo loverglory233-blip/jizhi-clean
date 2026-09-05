@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2624';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2624';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2625';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2625';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -234,13 +234,49 @@ export class CloudSyncEngine {
 
           const f2 = document.getElementById('stage2-etherpad-frame');
           if (f2) {
-            liftEtherpadReadonly(f2);
+            const currentSrc = f2.src || f2.getAttribute('src') || '';
+            if (currentSrc.includes('readOnly=true') || f2._wasPreviouslyReadonly) {
+              f2._wasPreviouslyReadonly = false;
+              f2._isReadonlyEnforced = false;
+              const container = f2.parentElement;
+              if (container) {
+                container.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+                let cleanSrc = currentSrc.replace(/[&?]readOnly=true/g, '').replace(/[&?]showControls=false/g, '&showControls=true');
+                if (!cleanSrc.includes('_t=')) cleanSrc += `&_t=${Date.now()}`;
+                const newIframe = document.createElement('iframe');
+                newIframe.id = 'stage2-etherpad-frame';
+                newIframe.src = cleanSrc;
+                newIframe.style.cssText = 'width:100%; height:100%; min-height:440px; border:none; display:block; background:#ffffff;';
+                newIframe.setAttribute('allow', 'clipboard-read; clipboard-write; fullscreen');
+                f2.replaceWith(newIframe);
+              }
+            } else {
+              liftEtherpadReadonly(f2);
+            }
           }
         }
         if (!isS3FinalDone) {
           const f3 = document.getElementById('stage3-etherpad-frame');
           if (f3) {
-            liftEtherpadReadonly(f3);
+            const currentSrc = f3.src || f3.getAttribute('src') || '';
+            if (currentSrc.includes('readOnly=true') || f3._wasPreviouslyReadonly) {
+              f3._wasPreviouslyReadonly = false;
+              f3._isReadonlyEnforced = false;
+              const container = f3.parentElement;
+              if (container) {
+                container.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+                let cleanSrc = currentSrc.replace(/[&?]readOnly=true/g, '').replace(/[&?]showControls=false/g, '&showControls=true');
+                if (!cleanSrc.includes('_t=')) cleanSrc += `&_t=${Date.now()}`;
+                const newIframe = document.createElement('iframe');
+                newIframe.id = 'stage3-etherpad-frame';
+                newIframe.src = cleanSrc;
+                newIframe.style.cssText = 'width:100%; height:100%; min-height:540px; border:none; display:block;';
+                newIframe.setAttribute('allow', 'clipboard-read; clipboard-write');
+                f3.replaceWith(newIframe);
+              }
+            } else {
+              liftEtherpadReadonly(f3);
+            }
           }
         }
       }
