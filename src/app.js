@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2593";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2593";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2593";
-import { AuthManager } from "./auth.js?v=20260905_v2593";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2593";
-import { renderLoginView } from "./login.js?v=20260905_v2593";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2593";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2593";
+} from "./constants.js?v=20260905_v2594";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2594";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2594";
+import { AuthManager } from "./auth.js?v=20260905_v2594";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2594";
+import { renderLoginView } from "./login.js?v=20260905_v2594";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2594";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2594";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2593";
+} from "./editor.js?v=20260905_v2594";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3442,6 +3442,15 @@ export class App {
       btnElement.style.cursor = 'not-allowed';
       btnElement.innerHTML = `⏳ 正在重新生成方案研讨指引...`;
     }
+    const taskType = this.getCurrentTaskType();
+    const isInst = (taskType === 'instructional');
+    const agentTitle = isInst ? '备课引导师' : '学术拍卖师';
+    this.setActiveAgentAnalyzing({
+      icon: isInst ? '📐' : '🎪',
+      title: agentTitle,
+      isExtracting: true,
+      detail: `${agentTitle}正在重新分析全组投票意向与方案细化维度...`
+    });
     await this.triggerVoteGuidance(true);
   }
 
@@ -3462,10 +3471,19 @@ export class App {
     const hasNetworkRetryMsg = s1Logs.some(m => m && (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('研讨指引')));
 
     if (hasTallyMsg && !hasGuideMsg && !hasNetworkRetryMsg && !this.isAnyExtracting()) {
+      const taskType = this.getCurrentTaskType();
+      const isInst = (taskType === 'instructional');
+      const agentTitle = isInst ? '备课引导师' : '学术拍卖师';
       // 🛡️ 2. 上锁并广播，确保全组仅由单一客户端执行一次大模型调用
       s1._guidanceCallingTimestamp = Date.now();
       this.syncStage1();
       console.log('🛡️ 检测到投票结果已出但研讨指引缺失，由本端执行单次自愈补发');
+      this.setActiveAgentAnalyzing({
+        icon: isInst ? '📐' : '🎪',
+        title: agentTitle,
+        isExtracting: true,
+        detail: `${agentTitle}正在分析全组投票意向与方案细化维度...`
+      });
       this.triggerVoteGuidance();
     }
   }
@@ -5465,6 +5483,9 @@ ${chatSnippet}
     }
 
     // 2. 全员已确认：开始让审稿编辑提炼终版要点并指导回到正文冲刺
+    if (this._isGeneratingReviewSummary) return;
+    this._isGeneratingReviewSummary = true;
+
     const s2ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
     const checklistIdx = s2ChatLogs.findIndex(m => m && m.text && m.text.includes('二审修正清单'));
     const relevantLogs = (checklistIdx >= 0) ? s2ChatLogs.slice(checklistIdx) : s2ChatLogs;
@@ -5525,6 +5546,7 @@ ${chatSnippet}
     } catch (e) {
       console.warn('handleS2ReviewingSummary error:', e);
     } finally {
+      this._isGeneratingReviewSummary = false;
       this.setActiveAgentAnalyzing(null); // 🌟 研判完毕，清除动态分析框
       this.renderStudentWorkspace();
     }
