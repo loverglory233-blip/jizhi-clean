@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2549';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2549';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2550';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2550';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -570,7 +570,8 @@ export class CloudSyncEngine {
       stepConfirmations: this.app.state.stepConfirmations || {},
       timer: this.app.state.timer,
       currentStage: this.app.state.groupMaxStage || this.app.state.currentStage,
-      isFinalSubmitted: this.app.state.isFinalSubmitted
+      isFinalSubmitted: this.app.state.isFinalSubmitted,
+      activeAgentAnalyzing: this.app.state.activeAgentAnalyzing || null
     };
 
     this.lastTimestamp = snapshot.timestamp;
@@ -1637,6 +1638,16 @@ export class CloudSyncEngine {
 
     if (remoteData.currentStage) {
       this.app.state.groupMaxStage = remoteData.currentStage;
+    }
+
+    // 🤖 智能体正在分析动态状态跨端实时同步
+    if (remoteData.activeAgentAnalyzing !== undefined) {
+      const oldSig = this.app.state.activeAgentAnalyzing ? `${this.app.state.activeAgentAnalyzing.title}_${this.app.state.activeAgentAnalyzing.detail}` : '';
+      const newSig = remoteData.activeAgentAnalyzing ? `${remoteData.activeAgentAnalyzing.title}_${remoteData.activeAgentAnalyzing.detail}` : '';
+      if (oldSig !== newSig) {
+        this.app.state.activeAgentAnalyzing = remoteData.activeAgentAnalyzing;
+        needWorkspaceRender = true;
+      }
     }
 
     this.app.saveGroupState(myGroupId);

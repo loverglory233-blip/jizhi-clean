@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2549";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2549";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2549";
-import { AuthManager } from "./auth.js?v=20260905_v2549";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2549";
-import { renderLoginView } from "./login.js?v=20260905_v2549";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2549";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2549";
+} from "./constants.js?v=20260905_v2550";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260905_v2550";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2550";
+import { AuthManager } from "./auth.js?v=20260905_v2550";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2550";
+import { renderLoginView } from "./login.js?v=20260905_v2550";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2550";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2550";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2549";
+} from "./editor.js?v=20260905_v2550";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -334,6 +334,7 @@ export class App {
       this.state.currentStage = cached.currentStage || 'stage1';
       this.state.groupMaxStage = cached.currentStage || 'stage1';
       this.state.isFinalSubmitted = (cached.isFinalSubmitted !== undefined) ? !!cached.isFinalSubmitted : false;
+      this.state.activeAgentAnalyzing = cached.activeAgentAnalyzing || null;
       if (cached.timer) {
         this.state.timer = Object.assign({}, defaultState.timer, cached.timer);
       }
@@ -390,6 +391,7 @@ export class App {
       this.state.currentStage = 'stage1';
       this.state.groupMaxStage = 'stage1';
       this.state.isFinalSubmitted = false;
+      this.state.activeAgentAnalyzing = null;
       this.stage2StartTime = null;
       this.stage3StartTime = null;
     }
@@ -456,12 +458,27 @@ export class App {
         groupMaxStage: this.state.groupMaxStage,
         presence: this.state.presence,
         isFinalSubmitted: this.state.isFinalSubmitted,
+        activeAgentAnalyzing: this.state.activeAgentAnalyzing || null,
         updatedAt: Date.now()
       };
       const snapStr = JSON.stringify(snap);
       sessionStorage.setItem('jizhi_active_workspace_snap', snapStr);
       localStorage.setItem('jizhi_active_workspace_snap', snapStr);
     } catch (e) {}
+  }
+
+  // 🤖 智能体正在分析动态状态设置器（全端毫秒级实时同步广播）
+  setActiveAgentAnalyzing(info = null) {
+    this.state.activeAgentAnalyzing = info;
+    if (this.cloudSyncEngine && typeof this.cloudSyncEngine.pushSnapshot === 'function') {
+      this.cloudSyncEngine.pushSnapshot();
+    }
+    if (typeof window.renderChat === 'function') {
+      window.renderChat(this.state);
+    }
+    if (typeof this.renderStudentWorkspace === 'function' && this.state.studentViewMode === 'workspace') {
+      this.renderStudentWorkspace(false);
+    }
   }
 
   // 💬 精准单条发信入库方法（确保任何来源的消息 100% 毫秒级写入 MySQL chat_messages 实体表）
@@ -2966,12 +2983,11 @@ export class App {
       return true;
     });
 
-    this.state.activeAgentAnalyzing = {
+    this.setActiveAgentAnalyzing({
       icon: isInst ? '📐' : '🎪',
       title: agentRole,
       detail: `${agentRole}正在研读评估《${normTitle}》（作者：${normAuthor}）...`
-    };
-    renderChat(this.state);
+    });
 
     const taskPrompt = `小组成员【${normAuthor}】在选题池${isModify ? '修改完善了' : '提出了新'}提案《${normTitle}》。
 请作为资深${isInst ? '备课引导师/教学设计教研专家' : '学术拍卖师/实证研究专家'}：
@@ -3052,8 +3068,7 @@ export class App {
       renderChat(this.state);
     } finally {
       this._inFlightEvaluations.delete(evalKey);
-      this.state.activeAgentAnalyzing = null;
-      renderChat(this.state);
+      this.setActiveAgentAnalyzing(null);
     }
   }
 
@@ -3571,12 +3586,11 @@ ${votedDetails}
       this.sendSingleChatMessage(thinkingMsg, 'stage1');
     }
 
-    this.state.activeAgentAnalyzing = {
+    this.setActiveAgentAnalyzing({
       icon: isInst ? '📐' : '🎪',
       title: agentRole,
       detail: `${agentRole}正在根据讨论区研讨记录提炼【${isInst ? '教学课题与方案概述' : '论文主题与研究方案'}】...`
-    };
-    if (typeof renderChat === 'function') renderChat(this.state);
+    });
 
     const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
     const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('投票结果出炉') || m.text.includes('全票推选') || m.text.includes('投票已完成') || m.text.includes('投票完成') || m.text.includes('投票揭晓') || m.text.includes('公约草案')));
@@ -3746,8 +3760,7 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
       this.renderStudentWorkspace();
       renderChat(this.state);
     } finally {
-      this.state.activeAgentAnalyzing = null;
-      renderChat(this.state);
+      this.setActiveAgentAnalyzing(null);
     }
   }
 
@@ -3788,12 +3801,11 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
       this.sendSingleChatMessage(thinkingMsg, 'stage1');
     }
 
-    this.state.activeAgentAnalyzing = {
+    this.setActiveAgentAnalyzing({
       icon: isInst ? '📐' : '🎪',
       title: agentRole,
       detail: `${agentRole}正在根据讨论区研讨记录提炼【6大${isInst ? '模块' : '章节'}时间预算分配】...`
-    };
-    if (typeof renderChat === 'function') renderChat(this.state);
+    });
 
     const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
     // 💡 局部精准切片：只截取主题确立后关于时间预算的研讨记录，严格控制 token 花销
@@ -3909,8 +3921,7 @@ ${chatSnippet}
       this.renderStudentWorkspace();
       renderChat(this.state);
     } finally {
-      this.state.activeAgentAnalyzing = null;
-      renderChat(this.state);
+      this.setActiveAgentAnalyzing(null);
     }
   }
 
@@ -3953,12 +3964,11 @@ ${chatSnippet}
       this.sendSingleChatMessage(thinkingMsg, 'stage1');
     }
 
-    this.state.activeAgentAnalyzing = {
+    this.setActiveAgentAnalyzing({
       icon: isInst ? '📐' : '🎪',
       title: agentRole,
       detail: `${agentRole}正在根据讨论区研讨记录提炼【小组成员任务分工】...`
-    };
-    if (typeof renderChat === 'function') renderChat(this.state);
+    });
 
     let members = [];
     if (Array.isArray(this.state.members)) members = this.state.members;
@@ -4088,8 +4098,7 @@ ${chatSnippet}
       this.renderStudentWorkspace();
       renderChat(this.state);
     } finally {
-      this.state.activeAgentAnalyzing = null;
-      renderChat(this.state);
+      this.setActiveAgentAnalyzing(null);
     }
   }
 
@@ -4263,12 +4272,11 @@ ${instructionSection}
     this._isGeneratingContract = true;
 
     // 🤖 在聊天区展示正在提炼中的思考状态
-    this.state.activeAgentAnalyzing = {
+    this.setActiveAgentAnalyzing({
       icon: isInst ? '📐' : '🎪',
       title: agentRole,
       detail: `${agentRole}正在通读全组研讨并一键智能提炼全套《${contractTitle}》...`
-    };
-    if (typeof renderChat === 'function') renderChat(this.state);
+    });
 
     try {
       const resp = await callCozeAgentAPI('auctioneer', fullContractPrompt, { stage: 'stage1', topic: defaultTopic });
@@ -4330,8 +4338,7 @@ ${instructionSection}
       console.warn('One-click generate contract AI call error:', err);
     } finally {
       this._isGeneratingContract = false;
-      this.state.activeAgentAnalyzing = null;
-      if (typeof renderChat === 'function') renderChat(this.state);
+      this.setActiveAgentAnalyzing(null);
     }
 
     // 🛡️ 严格遵循真实研讨：若确实没有提取出方案，直接显示“暂无”，绝对不添加任何预设套话兜底！
@@ -4638,13 +4645,11 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
       const genreDesc = getGenrePromptDescriptor(taskType);
 
       // 🌟 1. 挂载责任编辑正在分析中动态状态框
-      this.state.activeAgentAnalyzing = {
+      this.setActiveAgentAnalyzing({
         icon: '🤝',
         title: '【责任编辑】正在提炼半程研讨共识...',
         detail: '正在深度整合全组自查痛点与研讨记录，提炼修改共识要点并交棒审稿专家...'
-      };
-      this.renderStudentWorkspace();
-      renderChat(this.state);
+      });
       await new Promise(r => setTimeout(r, 1500));
 
       const isInst = (taskType === 'instructional');
@@ -4669,13 +4674,11 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
       renderChat(this.state);
 
       // 🌟 2. 切换为审稿编辑/教研专家二审质检正在分析中动态状态框
-      this.state.activeAgentAnalyzing = {
+      this.setActiveAgentAnalyzing({
         icon: '📝',
         title: `【${reviewingName}】正在下发《${isInst ? '磨课修正清单' : '二审修正清单'}》...`,
         detail: '正在深度审阅正文草稿并结合自查瓶颈，生成包含【诊断问题+改进建议】的双结构清单...'
-      };
-      this.renderStudentWorkspace();
-      renderChat(this.state);
+      });
       await new Promise(r => setTimeout(r, 1500));
 
       // 审稿专家结合自查瓶颈、讨论与正文下发【诊断问题 + 改进建议】双结构《二审修正清单》
@@ -4825,9 +4828,8 @@ ${chatSnippet}
     } catch (e) {
       console.warn('handleS2ManagingSummary error:', e);
     } finally {
-      this.state.activeAgentAnalyzing = null; // 🌟 研判完毕，清除动态分析框
+      this.setActiveAgentAnalyzing(null); // 🌟 研判完毕，清除动态分析框
       this._isGeneratingManagingSummary = false;
-      renderChat(this.state);
       this.renderStudentWorkspace(); // 🌟 立即解锁并展开左侧正文上方的【半程修正清单】卡片！
     }
   }
@@ -4910,13 +4912,11 @@ ${chatSnippet}
 
     try {
       // 🌟 挂载审稿编辑/教研专家三审正在分析中动态状态框
-      this.state.activeAgentAnalyzing = {
+      this.setActiveAgentAnalyzing({
         icon: '📝',
         title: `【${reviewingName}】正在审查清单落实与定稿冲刺...`,
         detail: '正在评估全组修改对策与落实方案，起草成稿与答辩冲刺寄语...'
-      };
-      this.renderStudentWorkspace();
-      renderChat(this.state);
+      });
       await new Promise(r => setTimeout(r, 1500));
 
       const respSummary = await callCozeAgentAPI('reviewingEditor', summaryPrompt, { stage: 'stage2', topic, taskType });
@@ -4950,8 +4950,7 @@ ${chatSnippet}
     } catch (e) {
       console.warn('handleS2ReviewingSummary error:', e);
     } finally {
-      this.state.activeAgentAnalyzing = null; // 🌟 研判完毕，清除动态分析框
-      renderChat(this.state);
+      this.setActiveAgentAnalyzing(null); // 🌟 研判完毕，清除动态分析框
       this.renderStudentWorkspace();
     }
   }
@@ -5008,13 +5007,11 @@ ${chatSnippet}
 主席发言：[100~130 字自然语言点评与顺推裁决]`;
 
     // 🌟 挂载中间委员正在提炼共识思考气泡
-    this.state.activeAgentAnalyzing = {
+    this.setActiveAgentAnalyzing({
       icon: '🟡',
       title: `【中间委员】正在研读全组讨论并提炼【${inqLabel}】答辩共识...`,
       detail: '正在整合组员辩护要点，自动定案回填矩阵并推导下一阶段裁决...'
-    };
-    renderChat(this.state);
-    this.renderStudentWorkspace();
+    });
 
     try {
       const resp = await callCozeAgentAPI('neutral', evalInquiryPrompt, { stage: 'stage3', topic });
@@ -5066,9 +5063,8 @@ ${chatSnippet}
       currentInquiry.isFinalized = true;
       this.syncStage3();
     } finally {
-      this.state.activeAgentAnalyzing = null;
+      this.setActiveAgentAnalyzing(null);
       this.renderStudentWorkspace();
-      renderChat(this.state);
     }
   }
 
@@ -5335,13 +5331,11 @@ ${chatSnippet}
 
       if (!hasProp || !hasOpp) {
         // 🌟 挂载答辩委员会并行审阅动态思考气泡
-        this.state.activeAgentAnalyzing = {
+        this.setActiveAgentAnalyzing({
           icon: '🎓',
           title: '【答辩委员会】正反方评审专家正在审阅全篇论文...',
           detail: '正方立论专家正在提炼肯定亮点，反方商榷专家正在研拟针对实质询...'
-        };
-        renderChat(this.state);
-        this.renderStudentWorkspace();
+        });
 
         const propPrompt = `${genreDesc}
 
@@ -5404,7 +5398,7 @@ ${chatSnippet}
         } catch (e) {
           console.warn('[Stage3 Committee] 并行请求警告:', e);
         } finally {
-          this.state.activeAgentAnalyzing = null;
+          this.setActiveAgentAnalyzing(null);
         }
 
         if (!propText || propText.trim().length === 0 || !oppText || oppText.trim().length === 0) {
@@ -5493,13 +5487,11 @@ ${chatSnippet}
       const hasChairGuide = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('答辩思路引导') || m.text?.includes('质询 ①') || m.text?.includes('意见 1')));
       if (!hasChairGuide) {
         // 🌟 挂载中间委员思路引导思考气泡
-        this.state.activeAgentAnalyzing = {
+        this.setActiveAgentAnalyzing({
           icon: '🟡',
           title: '【中间委员】正在审阅答辩清单并生成第一题破局思路支架...',
           detail: '正在梳理正反两方专家焦点，为全组定制第一题答辩思路引导...'
-        };
-        renderChat(this.state);
-        this.renderStudentWorkspace();
+        });
 
         const chairPrompt = `${genreDesc}
 
@@ -5520,7 +5512,7 @@ ${chatSnippet}
             timeoutPromise
           ]);
         } finally {
-          this.state.activeAgentAnalyzing = null;
+          this.setActiveAgentAnalyzing(null);
         }
 
         if (!chairText || chairText.trim().length === 0) {
@@ -6722,13 +6714,11 @@ ${chatSnippet}
       const reviewerRoleName = isInstTask ? '教研专家' : '审稿编辑';
 
       // 🌟 1. 立即挂载审稿编辑/教研专家一审正在质检中动态状态框
-      this.state.activeAgentAnalyzing = {
+      this.setActiveAgentAnalyzing({
         icon: '📝',
         title: `【${reviewerRoleName}】正在进行初审破题把脉质检...`,
         detail: `正在全量通读当前已起草的全部正文段落，以开篇破题为主线进行通盘${isInstTask ? '教学设计' : '学术'}把脉...`
-      };
-      this.renderStudentWorkspace();
-      renderChat(this.state);
+      });
 
       setTimeout(async () => {
         try {
@@ -6736,9 +6726,7 @@ ${chatSnippet}
           const latestS2ChatList = this.state.chatLogs?.stage2 || [];
           if (latestS2ChatList.some(isRealFirstReviewMsg) || (this.state.stage2?.firstReviewText && this.state.stage2?.reviewMilestone === 'first_review_done')) {
             this._isTriggeringFirstReview = false;
-            this.state.activeAgentAnalyzing = null;
-            renderChat(this.state);
-            this.renderStudentWorkspace();
+            this.setActiveAgentAnalyzing(null);
             return;
           }
 
@@ -6803,10 +6791,8 @@ ${contentSnippet}
         } catch (err) {
           console.error('[FirstReview] fatal error:', err);
         } finally {
-          this.state.activeAgentAnalyzing = null;
+          this.setActiveAgentAnalyzing(null);
           this._isTriggeringFirstReview = false;
-          renderChat(this.state);
-          this.renderStudentWorkspace();
         }
       }, delayMs);
       return;
@@ -7374,13 +7360,11 @@ ${contentSnippet}
 
       alert(`✅ 你 (${memberName}) 已成功提交半程自查与互阅打卡！\n\n目前组内已打卡：${submittedCount}/${totalMembersCount} 人。\n全组成员已集齐！责任编辑正在右侧研讨区梳理全组自查认知分歧，请稍候...`);
 
-      this.state.activeAgentAnalyzing = {
+      this.setActiveAgentAnalyzing({
         icon: '🤝',
         title: '【责任编辑】正在分析全组自查打卡与一致性分歧...',
         detail: '正在深度整合全组自查反馈、偏离脱节章节与瓶颈诉求，梳理研讨对齐焦点...'
-      };
-      renderChat(this.state);
-      this.renderStudentWorkspace();
+      });
       await new Promise(r => setTimeout(r, 1500));
 
       const avgOverallRating = (allSubs.reduce((sum, s) => sum + (s.overallRating || 5), 0) / (allSubs.length || 1)).toFixed(1);
@@ -7419,8 +7403,7 @@ ${contentSnippet}
       } catch (e) {
         console.warn('managingEditor divergence analysis error:', e);
       } finally {
-        this.state.activeAgentAnalyzing = null;
-        renderChat(this.state);
+        this.setActiveAgentAnalyzing(null);
       }
       if (!managingText || managingText.trim().length === 0) {
         managingText = `🤝 【${managingName}·自查研判与对齐引导】：全员自查打卡已完成！汇总全组反馈，提炼出核心焦点：

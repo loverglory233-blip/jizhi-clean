@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260905_v2549";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260905_v2549";
+} from "./constants.js?v=20260905_v2550";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260905_v2550";
 
 export const getPanoGroupData = (pano, gid) => {
   if (!pano || typeof pano !== 'object' || !gid) return null;
@@ -1549,6 +1549,24 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                       <span id="teacher-chat-count-badge" style="font-size:11px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">全阶段汇总 (${combinedGroupChatLogs.length}条)</span>
                     </div>
                     <div class="teacher-chat-stream" id="teacher-unified-chat-stream" style="flex:1; min-height:0; height:100%; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;">
+                      ${state.activeAgentAnalyzing ? `
+                        <div style="background:linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border:1.5px solid #93c5fd; border-radius:8px; padding:8px 12px; margin-bottom:4px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 2px 8px rgba(37,99,235,0.08); flex-shrink:0;">
+                          <div style="display:flex; align-items:center; gap:8px;">
+                            <div style="width:16px; height:16px; border:2px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 0.9s linear infinite; flex-shrink:0;"></div>
+                            <div>
+                              <div style="font-size:12px; font-weight:800; color:#1e3a8a;">
+                                ${state.activeAgentAnalyzing.icon || '🤖'} ${escapeHtml(state.activeAgentAnalyzing.title || '智能体正在分析中...')}
+                              </div>
+                              <div style="font-size:11px; color:#2563eb; margin-top:1px;">
+                                ${escapeHtml(state.activeAgentAnalyzing.detail || '正在研读全篇并进行深度诊断...')}
+                              </div>
+                            </div>
+                          </div>
+                          <span style="font-size:10px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:2px 8px; border-radius:10px;">
+                            ⏳ 深度质检中
+                          </span>
+                        </div>
+                      ` : ''}
                       ${combinedGroupChatLogs.length > 0 ? combinedGroupChatLogs.map(m => {
                         const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                         const isAgent = AgentProfiles[m.sender] !== undefined;
