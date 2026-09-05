@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2647
+ * Version: 20260906_v2648
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2647';
+  const APP_VERSION = '20260906_v2648';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1424,7 +1424,7 @@
               padWin.document.cookie = `name=${encodeURIComponent(userName)}; path=/; max-age=86400`;
             }
 
-            // 🛡️ 确保顶部原生 editbar 显示正常，并确保正文容器保持舒适阅读背景与清晰字色（保留原生作者色彩高亮）
+            // 🛡️ 确保顶部原生 editbar 显示正常，隐藏无用 home 跳转按钮，正文保持纯净学术排版（底色透明无色块）
             const doc = padWin.document;
             if (doc) {
               let styleEl = doc.getElementById('jizhi-etherpad-guard-style');
@@ -1438,6 +1438,12 @@
                   background-color: #ffffff !important;
                   color-scheme: light !important;
                 }
+                /* 🛡️ 隐藏 Etherpad 底部的 Home 图标和根目录跳转，杜绝误点 🏠 导致在 iframe 内递归嵌套主站 */
+                #home, .home, a[href="/"], a[href="."], a[href=".."], [data-lkey="pad.home"], [data-key="home"], .menu_left .home, #menu_left .home, .bottom-bar a[href="/"], nav.navbar a[href="/"] {
+                  display: none !important;
+                  visibility: hidden !important;
+                  pointer-events: none !important;
+                }
               `;
               if (!styleEl) {
                 styleEl = doc.createElement('style');
@@ -1446,6 +1452,21 @@
                 (doc.head || doc.documentElement).appendChild(styleEl);
               } else {
                 styleEl.textContent = guardCss;
+              }
+
+              // 🛡️ 拦截任何点击根路径跳转的默认行为
+              if (!doc._jizhiHomeClickBlocked) {
+                doc._jizhiHomeClickBlocked = true;
+                doc.addEventListener('click', (e) => {
+                  const targetLink = e.target && e.target.closest ? e.target.closest('a') : null;
+                  if (targetLink) {
+                    const href = targetLink.getAttribute('href');
+                    if (href === '/' || href === '' || href === '.' || href === '..' || href === '#') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }
+                  }
+                }, true);
               }
 
               try {
@@ -1471,9 +1492,28 @@
                   const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
                   if (aceInner && aceInner.contentDocument) {
                     const innerDoc = aceInner.contentDocument;
-                    // 🛡️ 清理可能残留的白底强行覆盖样式标签
-                    const oldWhiteStyle = innerDoc.getElementById('jizhi-author-white-bg-style');
-                    if (oldWhiteStyle) oldWhiteStyle.remove();
+                    let innerStyle = innerDoc.getElementById('jizhi-author-white-bg-style');
+                    const innerCss = `
+                      html, body, #innerdocbody {
+                        background-color: #ffffff !important;
+                        color: #0f172a !important;
+                        color-scheme: light !important;
+                      }
+                      /* 🛡️ 保持纯净学术论文排版：文字无大块底色背景，底色设为透明，深黑字色清晰美观 */
+                      span[class*="author-"], .author {
+                        background-color: transparent !important;
+                        background: transparent !important;
+                        color: #0f172a !important;
+                      }
+                    `;
+                    if (!innerStyle) {
+                      innerStyle = innerDoc.createElement('style');
+                      innerStyle.id = 'jizhi-author-white-bg-style';
+                      innerStyle.textContent = innerCss;
+                      (innerDoc.head || innerDoc.documentElement).appendChild(innerStyle);
+                    } else {
+                      innerStyle.textContent = innerCss;
+                    }
                   }
                 }
               } catch(e) {}
@@ -13252,54 +13292,8 @@
         // 匹配每个 authorClass 到真实的 membersList 成员
         const selfMem = membersList.find(m => isSameUser(m, currUser) || isSameUser(m, currUserCode) || (currUserName && m.name === currUserName) || (currUser?.id && isSameId(m.id, currUser.id))) || currUser;
 
-        // 🛡️ 全局永久作者-成员映射缓存：杜绝任何重入波动与跨成员冒领
-        if (!window._jizhiAuthorToMemberMap) {
-          window._jizhiAuthorToMemberMap = new Map();
-        }
-        const authorMap = window._jizhiAuthorToMemberMap;
-
-        const localAuthorIdCandidates = new Set();
-        if (window._jizhiLocalAuthorClasses) {
-          window._jizhiLocalAuthorClasses.forEach(c => localAuthorIdCandidates.add(c));
-        }
-        if (padWin) {
-          if (padWin.clientVars) {
-            if (padWin.clientVars.userId) localAuthorIdCandidates.add(padWin.clientVars.userId);
-            if (padWin.clientVars.collab_client_vars && padWin.clientVars.collab_client_vars.userId) localAuthorIdCandidates.add(padWin.clientVars.collab_client_vars.userId);
-            if (padWin.clientVars.collab_client_vars?.myUserInfo?.userId) localAuthorIdCandidates.add(padWin.clientVars.collab_client_vars.myUserInfo.userId);
-          }
-          if (padWin.pad) {
-            if (typeof padWin.pad.getUserId === 'function') {
-              try { const uid = padWin.pad.getUserId(); if (uid) localAuthorIdCandidates.add(uid); } catch(e){}
-            }
-            if (padWin.pad.myUserInfo && padWin.pad.myUserInfo.userId) localAuthorIdCandidates.add(padWin.pad.myUserInfo.userId);
-            if (padWin.pad.collabClient) {
-              if (typeof padWin.pad.collabClient.getUserId === 'function') {
-                try { const uid = padWin.pad.collabClient.getUserId(); if (uid) localAuthorIdCandidates.add(uid); } catch(e){}
-              }
-              if (typeof padWin.pad.collabClient.getCurrentUser === 'function') {
-                try { const u = padWin.pad.collabClient.getCurrentUser(); if (u && u.userId) localAuthorIdCandidates.add(u.userId); } catch(e){}
-              }
-            }
-          }
-        }
-        if (window._localDetectedAuthorClass) {
-          localAuthorIdCandidates.add(window._localDetectedAuthorClass);
-        }
-
-        // 1. 本地所有已检测到的 Author ID 100% 权威强绑定给当前登录用户 selfMem
-        for (const cand of localAuthorIdCandidates) {
-          if (!cand) continue;
-          const candStr = String(cand).trim().toLowerCase();
-          const candRaw = candStr.replace(/^(author[-_]|a[._-])/i, '');
-          if (candRaw && selfMem) {
-            authorMap.set(candRaw, selfMem);
-            authorMap.set('a.' + candRaw, selfMem);
-            authorMap.set('a-' + candRaw, selfMem);
-            authorMap.set('a_' + candRaw, selfMem);
-            authorMap.set(candStr, selfMem);
-          }
-        }
+        // 🛡️ 作者-成员映射器：精准解析 Etherpad 记录的每位组员真实姓名与作者 ID
+        const authorMap = new Map();
 
         const isPlaceholderName = (nameStr) => {
           if (!nameStr) return true;
@@ -13307,22 +13301,19 @@
           return s === '' || s === '组员' || s === '学术组员' || s === 'unnamed' || s === 'author' || s === 'guest' || s === 'null' || s === 'undefined';
         };
 
-        // 2. 遍历 authorData 注册组内各同伴的真实作者标记
+        // 1. 优先遍历 authorData，依据姓名与 ID 权威绑定组内所有同伴（包括自己与组内其他成员）
         Object.entries(authorData).forEach(([aKey, aObj]) => {
           if (!aKey || !aObj) return;
           const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
           if (!rawId) return;
 
-          // 如果该 ID 已经被判定为本地当前用户，绝不覆盖
-          if (authorMap.has(rawId) && authorMap.get(rawId) === selfMem) return;
-
           const aName = (aObj.name && !isPlaceholderName(aObj.name)) ? String(aObj.name).trim() : '';
           const aColor = aObj.colorId !== undefined ? aObj.colorId : aObj.color;
 
-          // 优先依据姓名匹配同伴
+          // 优先依据姓名 / 用户标识精准匹配组员
           if (aName) {
             const cleanAName = aName.toLowerCase();
-            const nameMatched = membersList.find(m => {
+            const nameMatched = targetMembersList.find(m => {
               if (!m) return false;
               const mKeys = getUserAllKeys(m);
               return mKeys.some(k => k.toLowerCase() === cleanAName || cleanAName.includes(k.toLowerCase()) || k.toLowerCase().includes(cleanAName));
@@ -13337,9 +13328,9 @@
             }
           }
 
-          // 依据颜色匹配同伴
+          // 依据颜色匹配组员
           if (aColor) {
-            const colorMatched = membersList.find(m => m.color && areColorsEqual(m.color, aColor));
+            const colorMatched = targetMembersList.find(m => m.color && areColorsEqual(m.color, aColor));
             if (colorMatched) {
               authorMap.set(rawId, colorMatched);
               authorMap.set('a.' + rawId, colorMatched);
@@ -13350,6 +13341,18 @@
             }
           }
         });
+
+        // 2. 本地刚键入产生的未入表临时作者类名，与当前用户 selfMem 关联
+        if (window._localDetectedAuthorClass && selfMem) {
+          const localRaw = String(window._localDetectedAuthorClass).replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
+          if (localRaw && !authorMap.has(localRaw)) {
+            authorMap.set(localRaw, selfMem);
+            authorMap.set('a.' + localRaw, selfMem);
+            authorMap.set('a-' + localRaw, selfMem);
+            authorMap.set('a_' + localRaw, selfMem);
+            authorMap.set(window._localDetectedAuthorClass, selfMem);
+          }
+        }
 
         const isRecentlyTypingLocally = (Date.now() - (window._lastLocalPadInputTime || 0) < 20000);
         const assignedAuthors = new Map();
