@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2616
+ * Version: 20260905_v2617
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2616';
+  const APP_VERSION = '20260905_v2617';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1272,6 +1272,33 @@
         const doc = iframe.contentDocument;
         if (!doc) return;
 
+        // 🛡️ 彻底隐藏并清除 Etherpad 内部可能卡住的 #connectivity（“重新连接到您的记事本...”）和 #loading 阻塞提示
+        const conn = doc.querySelector('#connectivity');
+        if (conn) {
+          conn.style.setProperty('display', 'none', 'important');
+          conn.classList.remove('reconnecting', 'error', 'loading', 'disconnected');
+        }
+        const loading = doc.querySelector('#loading');
+        if (loading) {
+          loading.style.setProperty('display', 'none', 'important');
+        }
+        doc.querySelectorAll('.gritter-item, .gritter-item-wrapper, #offline-notification').forEach(el => el.remove());
+
+        let hideStyle = doc.getElementById('jizhi-hide-connectivity-style');
+        if (!hideStyle) {
+          hideStyle = doc.createElement('style');
+          hideStyle.id = 'jizhi-hide-connectivity-style';
+          hideStyle.textContent = `
+            #connectivity, #loading, .gritter-item, .gritter-item-wrapper, #offline-notification {
+              display: none !important;
+              visibility: hidden !important;
+              opacity: 0 !important;
+              pointer-events: none !important;
+            }
+          `;
+          (doc.head || doc.documentElement).appendChild(hideStyle);
+        }
+
         const toolbars = doc.querySelectorAll('.toolbar, #editbar, #menu_left, #menu_right, .menu, #toolbar, nav.navbar, .menu_left, .menu_right, .editbar, #editbar ul, .menu_left ul, .menu_right ul, .editbar ul');
         toolbars.forEach(tb => {
           tb.style.removeProperty('display');
@@ -1300,7 +1327,7 @@
             outerBody.style.removeProperty('cursor');
             outerBody.style.removeProperty('user-select');
             outerBody.style.removeProperty('-webkit-user-select');
-            outerBody.style.removeProperty('pointer-events');
+            outerBody.style.setProperty('pointer-events', 'auto', 'important');
           }
 
           const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
@@ -1309,18 +1336,23 @@
             const innerBody = innerDoc.querySelector('#innerdocbody') || innerDoc.querySelector('.innerdocbody') || innerDoc.body;
             if (innerBody) {
               innerBody.setAttribute('contenteditable', 'true');
-              innerBody.style.removeProperty('cursor');
+              innerBody.style.setProperty('cursor', 'text', 'important');
+              innerBody.style.setProperty('pointer-events', 'auto', 'important');
               innerBody.style.removeProperty('user-select');
               innerBody.style.removeProperty('-webkit-user-select');
-              innerBody.style.removeProperty('pointer-events');
             }
           }
         }
 
         const padWin = iframe.contentWindow;
         if (padWin) {
-          if (padWin.pad && padWin.pad.editor && typeof padWin.pad.editor.enable === 'function') {
-            try { padWin.pad.editor.enable(); } catch(e){}
+          if (padWin.pad) {
+            if (typeof padWin.pad.handleChannelState === 'function') {
+              try { padWin.pad.handleChannelState('CONNECTED'); } catch(e){}
+            }
+            if (padWin.pad.editor && typeof padWin.pad.editor.enable === 'function') {
+              try { padWin.pad.editor.enable(); } catch(e){}
+            }
           }
           if (padWin.clientVars) {
             padWin.clientVars.readonly = false;
