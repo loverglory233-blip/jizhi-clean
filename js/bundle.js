@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2602
+ * Version: 20260905_v2604
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2602';
+  const APP_VERSION = '20260905_v2604';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5620,16 +5620,19 @@
         if (remoteS1.contract?.taskAssignments) {
           document.querySelectorAll('.task-assignment-input').forEach(inp => {
             const mKey = inp.dataset.mkey;
-            const mid = inp.dataset.mid;
+            const mid = inp.dataset.id || inp.dataset.mid;
+            const mName = inp.dataset.name;
             let remoteVal = undefined;
             if (mKey && remoteS1.contract.taskAssignments[mKey] !== undefined) {
               remoteVal = remoteS1.contract.taskAssignments[mKey];
             } else if (mid && remoteS1.contract.taskAssignments[mid] !== undefined) {
               remoteVal = remoteS1.contract.taskAssignments[mid];
+            } else if (mName && remoteS1.contract.taskAssignments[mName] !== undefined) {
+              remoteVal = remoteS1.contract.taskAssignments[mName];
             } else {
               // 兼容性模糊匹配（如学号/用户名/ID交叉）
               for (const [k, v] of Object.entries(remoteS1.contract.taskAssignments)) {
-                if (k === mKey || k === mid || (mKey && (k.endsWith(mKey) || mKey.endsWith(k)))) {
+                if (k === mKey || k === mid || k === mName || (mKey && (k.endsWith(mKey) || mKey.endsWith(k))) || (mName && (k.includes(mName) || mName.includes(k)))) {
                   remoteVal = v;
                   break;
                 }
@@ -6195,9 +6198,160 @@
   const getPanoGroupData = (pano, gid) => {
     if (!pano || typeof pano !== 'object' || !gid) return null;
     if (pano[gid]) return pano[gid];
-    const found = Object.entries(pano).find(([k]) => isSameId(k, gid));
+    const normGid = String(gid).replace(/^group_/, '');
+    const found = Object.entries(pano).find(([k]) => isSameId(k, gid) || isSameId(k, normGid) || isSameId(k, `group_${normGid}`) || (typeof normalizeId === 'function' && normalizeId(k) === normalizeId(gid)));
     return found ? found[1] : null;
   };
+
+  function renderStage1LeftCardContent(state, activeMonitorGroup, monitorMembersList, isInst, genreCfg, authManager) {
+    if (!activeMonitorGroup) return '';
+    const members = monitorMembersList || [];
+    const s1 = state.stage1 || {};
+    const proposals = s1.proposals || [];
+    const votesMap = s1.votes || {};
+    const hasVotedMap = s1.hasVoted || {};
+    const contract = s1.contract || {};
+    const timeAlloc = contract.timeAllocations || {};
+    const tasks = contract.taskAssignments || {};
+    const confirmedMembers = contract.confirmedMembers || {};
+
+    const votedCount = members.filter(m => hasVotedMap[m.id] || (m.name && hasVotedMap[m.name])).length;
+    const isLocked = !!contract.isLocked;
+    const mergedTopic = s1.mergedTitle || contract.topic || '';
+    const overviewText = contract.overview || s1.researchOverview || '';
+    const confirmedCount = members.filter(m => confirmedMembers[m.id] || (m.name && confirmedMembers[m.name])).length;
+
+    return `
+      <div style="flex-shrink:0; font-size:16px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">
+        <span>🎪 阶段一实操同屏: 初始提案与${isInst ? '备课' : '学术'}公约 (${escapeHtml(activeMonitorGroup.name || activeMonitorGroup.id)})</span>
+        <span style="background:#eff6ff; color:#1d4ed8; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:700;">阶段一实况</span>
+      </div>
+
+      <!-- 1. 【第一步】💡 组员初始提案展台 -->
+      <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:12px; padding:14px; flex-shrink:0;">
+        <div style="font-size:13.5px; font-weight:800; color:#1e40af; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+          <span>💡 组员初始${isInst ? '教学' : '学术'}提案展台 (${proposals.length}/${members.length || 1} 人已提交):</span>
+          <span style="font-size:11.5px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">
+            共投 ${votedCount} 票
+          </span>
+        </div>
+        ${proposals.length > 0 ? `
+          <div class="proposals-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:10px;">
+            ${proposals.map((p, idx) => {
+              const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
+              const authorObj = members.find(m => m.id === p.author || m.name === p.authorName || m.name === p.author);
+              const authorUser = allGlobalUsers.find(u => u.id === p.author || u.name === p.authorName);
+              const authorName = authorObj ? authorObj.name : (authorUser ? authorUser.name : (p.authorName || p.author || `组员${idx+1}`));
+              const votes = members.filter(m => {
+                const v = votesMap[m.id] || (m.name && votesMap[m.name]);
+                return v === p.id;
+              }).length;
+              return `
+                <div style="background:#ffffff; border:1.5px solid #e2e8f0; border-radius:8px; padding:10px; display:flex; flex-direction:column; justify-content:space-between; gap:6px; box-shadow:0 1px 3px rgba(0,0,0,0.02);">
+                  <div>
+                    <div style="font-size:13px; font-weight:800; color:#0f172a; line-height:1.4; margin-bottom:4px;">${escapeHtml(p.title || '未命名选题')}</div>
+                    <div style="font-size:11px; color:#64748b;">👤 提交人: <b>${escapeHtml(authorName)}</b></div>
+                  </div>
+                  <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #f1f5f9; padding-top:6px;">
+                    <span style="font-size:11px; color:#2563eb; font-weight:700;">🗳️ 得票数: ${votes}</span>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        ` : `
+          <div style="text-align:center; padding:16px; color:#94a3b8; font-size:12px;">⏳ 本组暂无成员提交选题提案</div>
+        `}
+      </div>
+
+      <!-- 2. 【第二步】📜 团队协同合作公约 -->
+      <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:12px;">
+        <div style="font-size:13.5px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
+          <span>📜 团队协同合作${isInst ? '备课' : '学术'}公约 (${escapeHtml(activeMonitorGroup.name || activeMonitorGroup.id)}):</span>
+          <span style="font-size:11.5px; background:${isLocked ? '#ecfdf5' : '#eff6ff'}; color:${isLocked ? '#059669' : '#2563eb'}; padding:2px 8px; border-radius:6px; font-weight:700;">
+            ${isLocked ? '🔒 公约已全员签署生效' : '✍️ 协作拟定中'}
+          </span>
+        </div>
+
+        <!-- 📌 【槽位 1】确认融合课题 -->
+        <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; border-left:4px solid #2563eb;">
+          <div style="font-size:11.5px; font-weight:800; color:#1e40af; margin-bottom:3px;">📌 【槽位 1】确认${isInst ? '融合教学设计课题' : '融合论文研究主题'}:</div>
+          <div style="font-size:13.5px; font-weight:800; color:#0f172a; line-height:1.4;">${escapeHtml(mergedTopic || '（小组暂未敲定最终论题）')}</div>
+        </div>
+
+        <!-- 📝 【槽位 2】方案概述 -->
+        <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; border-left:4px solid #059669;">
+          <div style="font-size:11.5px; font-weight:800; color:#065f46; margin-bottom:3px;">
+            📝 【槽位 2】${isInst ? '教学设计整体构想与主线 (核心情境、活动主线与重难点突破)' : '研究方案概述 (具体情境、案例、聚焦点与方法)'}:
+          </div>
+          <div style="font-size:13px; font-weight:600; color:${overviewText ? '#0f172a' : '#94a3b8'}; line-height:1.5; white-space:pre-wrap; word-break:break-word;">${escapeHtml(overviewText || '（小组暂未录入方案概述）')}</div>
+        </div>
+
+        <!-- 📚 核心模块与时间规划 -->
+        <div style="background:#ffffff; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
+          <div style="font-weight:800; color:#1e40af; margin-bottom:8px; font-size:12.5px;">
+            📚 ${isInst ? '教学设计' : '研究方案'}核心模块与时间规划:
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:8px;">
+            ${(genreCfg.modules || []).map(sec => {
+              const timeVal = (timeAlloc[sec.key] !== undefined) ? timeAlloc[sec.key] : sec.defaultMinutes;
+              return `
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-left:3.5px solid ${sec.color}; border-radius:6px; padding:6px 8px; display:flex; justify-content:space-between; align-items:center;">
+                  <span style="font-weight:700; color:#334155; font-size:11.5px;">${sec.title}</span>
+                  <span style="font-size:11.5px; color:#2563eb; font-weight:800;">${timeVal} 分钟</span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- 👥 小组成员具体任务分工 -->
+        <div style="background:#ffffff; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
+          <div style="font-weight:800; color:#1e40af; margin-bottom:8px; font-size:12.5px;">
+            👥 本组小组成员具体任务分工 (共 ${members.length} 人):
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            ${members.map((m, idx) => {
+              const mKey = m.id || m.name || (`mem_${idx}`);
+              const taskVal = tasks[mKey] !== undefined ? tasks[mKey] :
+                (m.id && tasks[m.id] !== undefined ? tasks[m.id] :
+                (m.name && tasks[m.name] !== undefined ? tasks[m.name] : ''));
+              return `
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:6px 10px; display:flex; flex-direction:column; gap:3px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-weight:800; color:${m.color || '#2563eb'}; font-size:12px;">${m.avatar || '👤'} ${escapeHtml(m.name)}:</span>
+                  </div>
+                  <div style="font-size:11.5px; color:${taskVal ? '#0f172a' : '#94a3b8'}; font-weight:${taskVal ? '600' : '400'};">
+                    ${taskVal ? escapeHtml(taskVal) : '（暂未在公约中录入具体分工）'}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- ✍️ 组员签署确认状态矩阵 -->
+        <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
+          <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+            <span>✍️ 组员签署确认状态:</span>
+            <span style="font-size:11.5px; color:#2563eb; font-weight:700;">
+              签署进度: ${confirmedCount}/${members.length}
+            </span>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            ${members.map(m => {
+              const isConf = confirmedMembers && (confirmedMembers[m.id] || (m.name && confirmedMembers[m.name]));
+              return `
+                <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#f8fafc'}; padding:3px 8px; border-radius:6px; font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
+                  ${m.avatar || '👤'} ${escapeHtml(m.name)}: <b>${isConf ? '✅ 已签署' : '⏳ 未签署'}</b>
+                </span>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+  }
 
   /* ==========================================================================
      6.8 TEACHER MONITOR IN-PLACE INCREMENTAL UPDATER (PREVENT IFRAME THRASHING)
@@ -6314,6 +6468,15 @@
             全员在线 (${online}/${total || online})
           </span>
         `;
+      }
+    }
+
+    // 4.5. 阶段一特定组件（提案展台、公约课题、方案概述、时间规划、组员分工与签署状态）
+    if (effectiveMonitorStage === 'stage1') {
+      const s1LeftCard = container.querySelector('#teacher-stage1-left-card');
+      if (s1LeftCard) {
+        const isInst = (monitorTaskObj?.taskType === 'instructional');
+        s1LeftCard.innerHTML = renderStage1LeftCardContent(state, activeMonitorGroup, monitorMembersList, isInst, genreCfg, authManager);
       }
     }
 
@@ -6539,6 +6702,28 @@
     const activeMonitorGroup = (activeClass?.groups || []).find(g => g.id === activeMonitorGId) || (activeClass?.groups && activeClass.groups[0]) || null;
     const monitorMembersObj = (activeClass && activeMonitorGId) ? authManager.getGroupMembersForWorkspace(activeMonitorGId, activeClass.id) : {};
     const monitorMembersList = Object.values(monitorMembersObj);
+
+    // 🛡️ 优先从全景数据中同步当前选中组的完整阶段数据（公约、分工、正文、聊天），防止初次渲染为空白
+    if (state.monitorPanorama && activeMonitorGId) {
+      const curPanoG = getPanoGroupData(state.monitorPanorama, activeMonitorGId);
+      if (curPanoG) {
+        if (curPanoG.stage1 && (!state.stage1 || !state.stage1.proposals || state.stage1.proposals.length === 0 || !state.stage1.contract)) {
+          state.stage1 = curPanoG.stage1;
+        }
+        if (curPanoG.stage2 && (!state.stage2 || !state.stage2.unifiedContent)) {
+          state.stage2 = { ...(curPanoG.stage2 || {}), ...(state.stage2 || {}) };
+        }
+        if (curPanoG.stage3 && (!state.stage3 || !state.stage3.feedbackItems)) {
+          state.stage3 = curPanoG.stage3;
+        }
+        if (curPanoG.chatLogs && (!state.chatLogs || (state.chatLogs.stage1?.length === 0 && state.chatLogs.stage2?.length === 0))) {
+          state.chatLogs = curPanoG.chatLogs;
+        }
+        if (curPanoG.currentStage) {
+          state.currentStage = curPanoG.currentStage;
+        }
+      }
+    }
 
     const monitorStageMode = state.teacherMonitorStageMode || state.monitorStageTab || 'auto';
     const effectiveMonitorStage = monitorStageMode === 'auto' ? (state.currentStage || 'stage1') : monitorStageMode;
@@ -7777,139 +7962,8 @@
                     return `
                       <div style="display:grid; grid-template-columns: minmax(0, 1fr) 300px; gap:16px; width:100%; box-sizing:border-box; height:820px; max-height:820px; align-items:stretch;">
                         <!-- 左侧卡片：以阶段一左侧为主，高度统一为 820px，内部自适应滚动 -->
-                        <div class="card" style="padding:18px 20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px; min-width:0; box-sizing:border-box; height:820px; max-height:820px; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain;">
-                          <div style="flex-shrink:0; font-size:16px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">
-                            <span>🎪 阶段一实操同屏: 初始提案与${isInst ? '备课' : '学术'}公约 (${activeMonitorGroup.name})</span>
-                            <span style="background:#eff6ff; color:#1d4ed8; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:700;">阶段一实况</span>
-                          </div>
-
-                          <!-- 1. 【第一步】💡 组员初始提案展台 -->
-                          <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:12px; padding:14px; flex-shrink:0;">
-                            <div style="font-size:13.5px; font-weight:800; color:#1e40af; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
-                              <span>💡 组员初始${isInst ? '教学' : '学术'}提案展台 (${(state.stage1?.proposals || []).length}/${monitorMembersList.length || 1} 人已提交):</span>
-                              <span style="font-size:11.5px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">
-                                共投 ${monitorMembersList.filter(m => state.stage1?.hasVoted && (state.stage1.hasVoted[m.id] || (m.name && state.stage1.hasVoted[m.name]))).length} 票
-                              </span>
-                            </div>
-                            ${(state.stage1?.proposals && state.stage1.proposals.length > 0) ? `
-                              <div class="proposals-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:10px;">
-                                ${state.stage1.proposals.map((p, idx) => {
-                                  const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
-                                  const authorObj = monitorMembersList.find(m => m.id === p.author || m.name === p.authorName || m.name === p.author);
-                                  const authorUser = allGlobalUsers.find(u => u.id === p.author || u.name === p.authorName);
-                                  const authorName = authorObj ? authorObj.name : (authorUser ? authorUser.name : (p.authorName || p.author || `组员${idx+1}`));
-                                  const votes = monitorMembersList.filter(m => {
-                                    if (!state.stage1?.votes) return false;
-                                    const v = state.stage1.votes[m.id] || (m.name && state.stage1.votes[m.name]);
-                                    return v === p.id;
-                                  }).length;
-                                  return `
-                                    <div style="background:#ffffff; border:1.5px solid #e2e8f0; border-radius:8px; padding:10px; display:flex; flex-direction:column; justify-content:space-between; gap:6px; box-shadow:0 1px 3px rgba(0,0,0,0.02);">
-                                      <div>
-                                        <div style="font-size:13px; font-weight:800; color:#0f172a; line-height:1.4; margin-bottom:4px;">${escapeHtml(p.title || '未命名选题')}</div>
-                                        <div style="font-size:11px; color:#64748b;">👤 提交人: <b>${escapeHtml(authorName)}</b></div>
-                                      </div>
-                                      <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #f1f5f9; padding-top:6px;">
-                                        <span style="font-size:11px; color:#2563eb; font-weight:700;">🗳️ 得票数: ${votes}</span>
-                                      </div>
-                                    </div>
-                                  `;
-                                }).join('')}
-                              </div>
-                            ` : `
-                              <div style="text-align:center; padding:16px; color:#94a3b8; font-size:12px;">⏳ 本组暂无成员提交选题提案</div>
-                            `}
-                          </div>
-
-                          <!-- 2. 【第二步】📜 团队协同合作公约 (1:1 镜像学生端结构) -->
-                          <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:12px;">
-                            <div style="font-size:13.5px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
-                              <span>📜 团队协同合作${isInst ? '备课' : '学术'}公约 (${activeMonitorGroup.name}):</span>
-                              <span style="font-size:11.5px; background:${state.stage1?.contract?.isLocked ? '#ecfdf5' : '#eff6ff'}; color:${state.stage1?.contract?.isLocked ? '#059669' : '#2563eb'}; padding:2px 8px; border-radius:6px; font-weight:700;">
-                                ${state.stage1?.contract?.isLocked ? '🔒 公约已全员签署生效' : '✍️ 协作拟定中'}
-                              </span>
-                            </div>
-
-                            <!-- 📌 【槽位 1】确认融合研究/备课主题 -->
-                            <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; border-left:4px solid #2563eb;">
-                              <div style="font-size:11.5px; font-weight:800; color:#1e40af; margin-bottom:3px;">📌 【槽位 1】确认${isInst ? '融合教学设计课题' : '融合论文研究主题'}:</div>
-                              <div style="font-size:13.5px; font-weight:800; color:#0f172a; line-height:1.4;">${escapeHtml(state.stage1?.mergedTitle || state.stage1?.contract?.topic || '（小组暂未敲定最终论题）')}</div>
-                            </div>
-
-                            <!-- 📝 【槽位 2】方案概述 / 教学构思与主线 -->
-                            <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; border-left:4px solid #059669;">
-                              <div style="font-size:11.5px; font-weight:800; color:#065f46; margin-bottom:3px;">
-                                📝 【槽位 2】${isInst ? '教学设计整体构想与主线 (核心情境、活动主线与重难点突破)' : '研究方案概述 (具体情境、案例、聚焦点与方法)'}:
-                              </div>
-                              <div style="font-size:13px; font-weight:600; color:${(state.stage1?.contract?.overview || state.stage1?.researchOverview) ? '#0f172a' : '#94a3b8'}; line-height:1.5; white-space:pre-wrap; word-break:break-word;">${escapeHtml(state.stage1?.contract?.overview || state.stage1?.researchOverview || '（小组暂未录入方案概述）')}</div>
-                            </div>
-
-                            <!-- 📚 6大核心模块与时间规划 (独立模块) -->
-                            <div style="background:#ffffff; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
-                              <div style="font-weight:800; color:#1e40af; margin-bottom:8px; font-size:12.5px;">
-                                📚 ${isInst ? '教学设计' : '研究方案'}核心模块与时间规划:
-                              </div>
-                              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:8px;">
-                                ${(genreCfg.modules || []).map(sec => {
-                                  const timeAlloc = state.stage1?.contract?.timeAllocations || {};
-                                  const timeVal = (timeAlloc[sec.key] !== undefined) ? timeAlloc[sec.key] : sec.defaultMinutes;
-                                  return `
-                                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-left:3.5px solid ${sec.color}; border-radius:6px; padding:6px 8px; display:flex; justify-content:space-between; align-items:center;">
-                                      <span style="font-weight:700; color:#334155; font-size:11.5px;">${sec.title}</span>
-                                      <span style="font-size:11.5px; color:#2563eb; font-weight:800;">${timeVal} 分钟</span>
-                                    </div>
-                                  `;
-                                }).join('')}
-                              </div>
-                            </div>
-
-                            <!-- 👥 小组成员具体任务分工 (与时间完全分开，按组员展示) -->
-                            <div style="background:#ffffff; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
-                              <div style="font-weight:800; color:#1e40af; margin-bottom:8px; font-size:12.5px;">
-                                👥 本组小组成员具体任务分工 (共 ${monitorMembersList.length} 人):
-                              </div>
-                              <div style="display:flex; flex-direction:column; gap:6px;">
-                                ${monitorMembersList.map((m, idx) => {
-                                  const mKey = m.id   || m.name || (`mem_${idx}`);
-                                  const tasks = state.stage1?.contract?.taskAssignments || {};
-                                  const taskVal = tasks[mKey] !== undefined ? tasks[mKey] :
-                                    (m.id && tasks[m.id] !== undefined ? tasks[m.id] :
-                                    (m.id && tasks[m.id] !== undefined ? tasks[m.id] :
-                                    (m.name && tasks[m.name] !== undefined ? tasks[m.name] : '')));
-                                  return `
-                                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:6px 10px; display:flex; flex-direction:column; gap:3px;">
-                                      <div style="display:flex; justify-content:space-between; align-items:center;">
-                                        <span style="font-weight:800; color:${m.color || '#2563eb'}; font-size:12px;">${m.avatar || '👤'} ${escapeHtml(m.name)}:</span>
-                                      </div>
-                                      <div style="font-size:11.5px; color:${taskVal ? '#0f172a' : '#94a3b8'}; font-weight:${taskVal ? '600' : '400'};">
-                                        ${taskVal ? escapeHtml(taskVal) : '（暂未在公约中录入具体分工）'}
-                                      </div>
-                                    </div>
-                                  `;
-                                }).join('')}
-                              </div>
-                            </div>
-
-                            <!-- ✍️ 组员签署确认状态矩阵 -->
-                            <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
-                              <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
-                                <span>✍️ 组员签署确认状态:</span>
-                                <span style="font-size:11.5px; color:#2563eb; font-weight:700;">
-                                  签署进度: ${monitorMembersList.filter(m => { const c = state.stage1?.contract?.confirmedMembers || {}; return c[m.id] || c[m.id] || (m.name && c[m.name]); }).length}/${monitorMembersList.length}
-                                </span>
-                              </div>
-                              <div style="display:flex; gap:6px; flex-wrap:wrap;">
-                                ${monitorMembersList.map(m => {
-                                  const isConf = state.stage1?.contract?.confirmedMembers && (state.stage1.contract.confirmedMembers[m.id] || state.stage1.contract.confirmedMembers[m.id] || (m.name && state.stage1.contract.confirmedMembers[m.name]));
-                                  return `
-                                    <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#f8fafc'}; padding:3px 8px; border-radius:6px; font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
-                                      ${m.avatar || '👤'} ${escapeHtml(m.name)}: <b>${isConf ? '✅ 已签署' : '⏳ 未签署'}</b>
-                                    </span>
-                                  `;
-                                }).join('')}
-                              </div>
-                            </div>
-                          </div>
+                        <div class="card" id="teacher-stage1-left-card" style="padding:18px 20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px; min-width:0; box-sizing:border-box; height:820px; max-height:820px; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain;">
+                          ${renderStage1LeftCardContent(state, activeMonitorGroup, monitorMembersList, isInst, genreCfg, authManager)}
                         </div>
 
                         ${renderUnifiedRightChatCard()}
@@ -10551,6 +10605,9 @@
       state.activeMonitorGroupId = targetGId;
       state._lastMonitorHash = '';
       state._lastEpHash = '';
+      if (window.app && window.app.state) {
+        window.app.state.activeMonitorGroupId = targetGId;
+      }
       const gData = getPanoGroupData(state.monitorPanorama, targetGId);
       if (gData) {
         state.stage1 = gData.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
@@ -10559,10 +10616,18 @@
         state.chatLogs = gData.chatLogs || { stage1: [], stage2: [], stage3: [] };
         state.currentStage = gData.currentStage || 'stage1';
         state.isFinalSubmitted = !!gData.isFinalSubmitted;
+        if (window.app && window.app.state) {
+          window.app.state.stage1 = state.stage1;
+          window.app.state.stage2 = state.stage2;
+          window.app.state.stage3 = state.stage3;
+          window.app.state.chatLogs = state.chatLogs;
+          window.app.state.currentStage = state.currentStage;
+          window.app.state.isFinalSubmitted = state.isFinalSubmitted;
+        }
       }
-      if (window.app) {
-        window.app.state.activeMonitorGroupId = targetGId;
-        window.app.loadGroupState(targetGId);
+      if (window.app && window.app.cloudSyncEngine) {
+        window.app.cloudSyncEngine.groupId = targetGId;
+        window.app.cloudSyncEngine.updateScopeKeys();
       }
       // 🛡️ 小组切换持久化：刷新后精准恢复到此次选中的小组
       try {
@@ -11669,7 +11734,7 @@
             </div>
           </div>
           <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-            ⏳ 动态分析中
+            ⏳ 动态分析中 <span class="agent-elapsed-timer" data-start="${effectiveAnalyzing._ts || Date.now()}">(已耗时 0s)</span>
           </span>
         </div>
       ` : ''}
@@ -11936,7 +12001,7 @@
                 return `
                   <div style="display:flex; flex-direction:column; gap:6px; width:100%; background:#ffffff; padding:12px 14px; border-radius:8px; border:1px solid #e2e8f0; box-sizing:border-box;">
                     <span style="font-weight:800; color:${m.color || '#2563eb'}; font-size:13px;">${m.avatar || '👤'} ${m.name}:</span>
-                    <input type="text" class="large-contract-input task-assignment-input" data-mkey="${mKey}" data-lock-key="task_${mKey}" value="${taskVal}" ${isInputDisabled ? 'disabled readonly style="opacity:0.8; cursor:not-allowed; background:#f8fafc;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:10px 14px; font-size:13px; font-family:sans-serif;" placeholder="在聊天中商定或在此录入具体负责的写作章节与任务...">
+                    <input type="text" class="large-contract-input task-assignment-input" data-mkey="${mKey}" data-id="${m.id || ''}" data-name="${m.name || ''}" data-lock-key="task_${mKey}" value="${taskVal}" ${isInputDisabled ? 'disabled readonly style="opacity:0.8; cursor:not-allowed; background:#f8fafc;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:10px 14px; font-size:13px; font-family:sans-serif;" placeholder="在聊天中商定或在此录入具体负责的写作章节与任务...">
                   </div>
                 `;
               }).join('')}
@@ -13287,7 +13352,7 @@
               </div>
             </div>
             <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-              ⏳ 深度质检中
+              ⏳ 深度质检中 <span class="agent-elapsed-timer" data-start="${effectiveAnalyzing._ts || Date.now()}">(已耗时 0s)</span>
             </span>
           </div>
         `;
@@ -13558,7 +13623,7 @@
               </div>
             </div>
             <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-              ⏳ 深度质检中
+              ⏳ 深度质检中 <span class="agent-elapsed-timer" data-start="${effAnalyzing._ts || Date.now()}">(已耗时 0s)</span>
             </span>
           </div>
           `;
@@ -14668,7 +14733,7 @@
               ${escapeHtml((analyzing.title || '智能体专家').replace(/[【】]/g, ''))}
             </span>
             <span style="font-size:10px; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:1px 6px; border-radius:10px; margin-left:6px; font-weight:700;">
-              ⏳ 正在深度研读与质检中...
+              ⏳ 正在深度研读与质检中... <span class="agent-elapsed-timer" data-start="${analyzing._ts || Date.now()}">(已耗时 0s)</span>
             </span>
           </div>
           <div class="msg-bubble thinking-bubble" style="background:#f8fafc; border:1.5px dashed #3b82f6; display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:12px; color:#1e40af; box-shadow:0 1px 3px rgba(37,99,235,0.06);">
@@ -15049,6 +15114,20 @@
     window.addEventListener('compositionend', () => { window._isGlobalComposing = false; }, true);
     // 🛡️ Safari 兜底：合成被 blur/Esc 打断时 compositionend 可能不触发，导致标志永久卡 true（进而跳过重渲染）
     window.addEventListener('blur', () => { window._isGlobalComposing = false; }, true);
+
+    // ⏱️ 智能体动态耗时秒数定时器（每秒自动更新界面中的全部 .agent-elapsed-timer）
+    if (!window._agentTimerIntervalStarted) {
+      window._agentTimerIntervalStarted = true;
+      setInterval(() => {
+        document.querySelectorAll('.agent-elapsed-timer').forEach(el => {
+          const startTs = Number(el.dataset.start);
+          if (startTs && !isNaN(startTs)) {
+            const elapsedSec = Math.max(0, Math.floor((Date.now() - startTs) / 1000));
+            el.textContent = `(已耗时 ${elapsedSec}s)`;
+          }
+        });
+      }, 1000);
+    }
   }
 
   /* ==========================================================================
@@ -15396,6 +15475,20 @@
           this.state.stage3CommitteeLoading = false;
         }
       } else {
+        // 🛡️ 教师端监控模式：如果已有全景监控数据，优先从全景快照恢复，杜绝被空默认值覆盖
+        if (isTeacher && this.state.monitorPanorama && groupId) {
+          const gData = (this.state.monitorPanorama[groupId] || Object.values(this.state.monitorPanorama).find(g => g && (g.groupId === groupId || String(g.groupId).replace(/^group_/, '') === String(groupId).replace(/^group_/, ''))));
+          if (gData) {
+            this.state.chatLogs = gData.chatLogs || { stage1: [], stage2: [], stage3: [] };
+            this.state.stage1 = gData.stage1 || JSON.parse(JSON.stringify(defaultState.stage1));
+            this.state.stage2 = gData.stage2 || JSON.parse(JSON.stringify(defaultState.stage2));
+            this.state.stage3 = gData.stage3 || JSON.parse(JSON.stringify(defaultState.stage3));
+            this.state.currentStage = gData.currentStage || 'stage1';
+            this.state.groupMaxStage = gData.currentStage || 'stage1';
+            this.state.isFinalSubmitted = !!gData.isFinalSubmitted;
+            return;
+          }
+        }
         // 🛡️ 切换到新组时，第1行代码立刻清空内存残留消息，彻底杜绝上一组的聊天残影
         this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
         this.state.stage1 = JSON.parse(JSON.stringify(defaultState.stage1));
@@ -19133,9 +19226,22 @@
         s1.contractStep = 'time'; // 顺推至时间分配阶段
 
         const overviewInp = document.getElementById('contract-overview-input');
-        if (overviewInp) overviewInp.value = finalOverview;
+        if (overviewInp) {
+          overviewInp.value = finalOverview;
+          overviewInp.dispatchEvent(new Event('input', { bubbles: true }));
+        }
         const topicInp = document.getElementById('contract-topic-input');
-        if (topicInp) topicInp.value = finalTopic;
+        if (topicInp) {
+          topicInp.value = finalTopic;
+          topicInp.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        if (this.state.stage1) this.state.stage1._topicExtractFailed = false;
+        await this.clearStepConfirmation('s1_topic');
+        this.syncStage1();
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        this.renderStudentWorkspace();
 
         guideSpeech = guideSpeech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师|备课引导师|引导师)[·\s]*(?:方案确立|主题与方案确立|方案提炼)?】[：:]\s*/g, '');
         const noticeText = `🏛️ 【${agentRole}·主题与方案确立】：全组${isInst ? '教学论题' : '研究论题'}《${finalTopic}》与方案概述已成功提炼并录入公约看板！👉 接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定完成后点击左侧【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！`;
@@ -19153,12 +19259,6 @@
           this.sendSingleChatMessage(noticeMsg, 'stage1');
         }
 
-        if (this.state.stage1) this.state.stage1._topicExtractFailed = false;
-        await this.clearStepConfirmation('s1_topic');
-        this.syncStage1();
-        this.syncChatLogs();
-        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-        this.renderStudentWorkspace();
         renderChat(this.state);
         if (typeof showGlobalBannerNotice === 'function') {
           showGlobalBannerNotice('✅ 提炼成功', '已成功提炼并录入公约看板，请继续讨论【时间分配】！', 'success', 5000);
@@ -19355,6 +19455,21 @@
         s1.contract._timeGeneratedByAi = true;
         s1.contractStep = 'tasks'; // 推进至第三步：任务分工
 
+        document.querySelectorAll('.contract-time-input').forEach(inp => {
+          const k = inp.dataset.key;
+          if (k && timeAlloc[k] !== undefined) {
+            inp.value = timeAlloc[k];
+            inp.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        });
+
+        if (this.state.stage1) this.state.stage1._timeExtractFailed = false;
+        await this.clearStepConfirmation('s1_time');
+        this.syncStage1();
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        this.renderStudentWorkspace();
+
         guideSpeech = guideSpeech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师|备课引导师|引导师)[·\s]*(?:时间预算确立|时间分配)?】[：:]\s*/g, '');
         const noticeText = `🏛️ 【${agentRole}·时间预算确立】：6 大${isInst ? '模块' : '章节'}时间规划已提炼录入看板！👉 请全组成员在左侧仔细审查核对，如对时间规划有异议可直接在左侧输入框修改调整；接下来请在讨论区商讨组员具体分工认领，商定后点击左侧【👥 分工讨论差不多了？一键提炼【任务分工】】！`;
 
@@ -19371,12 +19486,6 @@
           this.sendSingleChatMessage(noticeMsg, 'stage1');
         }
 
-        if (this.state.stage1) this.state.stage1._timeExtractFailed = false;
-        await this.clearStepConfirmation('s1_time');
-        this.syncStage1();
-        this.syncChatLogs();
-        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-        this.renderStudentWorkspace();
         renderChat(this.state);
         if (typeof showGlobalBannerNotice === 'function') {
           showGlobalBannerNotice('✅ 提炼成功', '已成功提炼时间分配预算！请继续在讨论区研讨【任务分工】。', 'success', 5000);
@@ -19507,9 +19616,13 @@
           '负责数据分析模型构建与研究工具问卷设计'
         ];
 
+        // 1. 初始化全员默认保底分工（绝不留空）
         members.forEach((m, idx) => {
-          const mKey = m.id || m.name;
-          taskAssignments[mKey] = defaultTasks[idx % defaultTasks.length];
+          const mKey = m.id || m.name || `mem_${idx}`;
+          const def = defaultTasks[idx % defaultTasks.length];
+          taskAssignments[mKey] = def;
+          if (m.id) taskAssignments[m.id] = def;
+          if (m.name) taskAssignments[m.name] = def;
         });
 
         if (resp && resp.trim().length > 0) {
@@ -19519,24 +19632,41 @@
             if (jsonMatch) {
               const parsed = safeJsonParse(jsonMatch[0]);
               if (parsed && parsed.assignments && typeof parsed.assignments === 'object') {
+                const assignObj = parsed.assignments;
                 members.forEach((m, idx) => {
-                  const mKey = m.id || m.name;
-                  const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id];
-                  if (matchedVal) taskAssignments[mKey] = String(matchedVal).trim();
+                  const mKey = m.id || m.name || `mem_${idx}`;
+                  let matchedVal = assignObj[m.name] || assignObj[m.id] || assignObj[mKey];
+                  if (!matchedVal) {
+                    for (const [k, v] of Object.entries(assignObj)) {
+                      if (v && (k.includes(m.name) || (m.id && k.includes(m.id)) || (m.name && m.name.includes(k)))) {
+                        matchedVal = v;
+                        break;
+                      }
+                    }
+                  }
+                  if (matchedVal && typeof matchedVal === 'string' && matchedVal.trim().length > 0) {
+                    const cleanVal = matchedVal.trim();
+                    taskAssignments[mKey] = cleanVal;
+                    if (m.id) taskAssignments[m.id] = cleanVal;
+                    if (m.name) taskAssignments[m.name] = cleanVal;
+                  }
                 });
               }
               if (parsed && parsed.guideText) guideSpeech = parsed.guideText;
             }
 
-            // 2. 自然语言与列表按成员名字提取容错
-            members.forEach(m => {
-              const mKey = m.id || m.name;
+            // 2. 自然语言与列表按成员名字模糊正则提取容错
+            members.forEach((m, idx) => {
+              const mKey = m.id || m.name || `mem_${idx}`;
               const names = [m.name, m.id].filter(Boolean);
               for (const name of names) {
                 const reg = new RegExp(`(?:[-*•\\d.]\\s*)?(?:${name})[：:\\s\\-]+([^\n\r]+)`, 'i');
                 const match = resp.match(reg);
                 if (match && match[1] && match[1].trim().length > 3) {
-                  taskAssignments[mKey] = match[1].trim().replace(/^[：:\s"“]+|[”"\s]+$/g, '');
+                  const cleanVal = match[1].trim().replace(/^[：:\s"“]+|[”"\s]+$/g, '');
+                  taskAssignments[mKey] = cleanVal;
+                  if (m.id) taskAssignments[m.id] = cleanVal;
+                  if (m.name) taskAssignments[m.name] = cleanVal;
                   break;
                 }
               }
@@ -19554,12 +19684,31 @@
           return true;
         });
 
+        // 3. 确保存入状态并直接写入 DOM 实体输入框
         if (!s1.contract) s1.contract = {};
         s1.contract.taskAssignments = taskAssignments;
         s1.contract._tasksGeneratedByAi = true;
         s1.contract.isDraftGenerated = true;
         s1.contract._draftedTime = Date.now();
         s1.contractStep = 'completed'; // 提炼全部完成
+
+        document.querySelectorAll('.task-assignment-input').forEach(inp => {
+          const mKey = inp.dataset.mkey;
+          const mId = inp.dataset.id;
+          const mName = inp.dataset.name;
+          const val = taskAssignments[mKey] || (mId ? taskAssignments[mId] : '') || (mName ? taskAssignments[mName] : '');
+          if (val) {
+            inp.value = val;
+            inp.dispatchEvent(new Event('input', { bubbles: true }));
+          }
+        });
+
+        if (this.state.stage1) this.state.stage1._tasksExtractFailed = false;
+        await this.clearStepConfirmation('s1_tasks');
+        this.syncStage1();
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        this.renderStudentWorkspace();
 
         guideSpeech = guideSpeech.replace(/^(?:📜|🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师|备课引导师|引导师)[·\s]*(?:公约生成完毕|任务分工|草案就绪)?】[：:]\s*/g, '');
         const noticeText = `🏛️ 【${agentRole}·公约草案就绪】：全组成员分工已成功配置，公约草案已全部生成就绪！👉 请全组成员在左侧公约看板仔细审查核对，如对论题、方案、时间或分工有异议，可直接在左侧看板修改调整或在讨论区商议；确认无误后请在公约下方点击【✍️ 签署确认${contractTitle}】！全员签署后将正式解锁【${stage2Title}】！`;
@@ -19577,12 +19726,6 @@
           this.sendSingleChatMessage(noticeMsg, 'stage1');
         }
 
-        if (this.state.stage1) this.state.stage1._tasksExtractFailed = false;
-        await this.clearStepConfirmation('s1_tasks');
-        this.syncStage1();
-        this.syncChatLogs();
-        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-        this.renderStudentWorkspace();
         renderChat(this.state);
         if (typeof showGlobalBannerNotice === 'function') {
           showGlobalBannerNotice('✅ 提炼成功', '公约草案已全部生成就绪，请全组成员核对并在下方签署！', 'success', 5000);
@@ -19846,17 +19989,48 @@
                   finalTimes = Object.assign({}, defaultTimes, parsed.timeAllocations);
                 }
                 if (parsed.assignments && typeof parsed.assignments === 'object') {
+                  const assignObj = parsed.assignments;
                   membersList.forEach((m, idx) => {
-                    const mKey = m.id || m.name;
-                    const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id];
-                    if (matchedVal) finalAssignments[mKey] = matchedVal;
+                    const mKey = m.id || m.name || `mem_${idx}`;
+                    let matchedVal = assignObj[m.name] || assignObj[m.id] || assignObj[mKey];
+                    if (!matchedVal) {
+                      for (const [k, v] of Object.entries(assignObj)) {
+                        if (v && (k.includes(m.name) || (m.id && k.includes(m.id)) || (m.name && m.name.includes(k)))) {
+                          matchedVal = v;
+                          break;
+                        }
+                      }
+                    }
+                    if (matchedVal && typeof matchedVal === 'string' && matchedVal.trim().length > 0) {
+                      const cleanVal = matchedVal.trim();
+                      finalAssignments[mKey] = cleanVal;
+                      if (m.id) finalAssignments[m.id] = cleanVal;
+                      if (m.name) finalAssignments[m.name] = cleanVal;
+                    }
                   });
                 }
                 isSuccess = true;
               }
             }
 
-            // 2. 若未由左侧按键生成且 JSON 未能提取出 overview，进入正则与自然语言容错提取
+            // 2. 正则与自然语言列表按成员名字模糊匹配容错
+            membersList.forEach((m, idx) => {
+              const mKey = m.id || m.name || `mem_${idx}`;
+              const names = [m.name, m.id].filter(Boolean);
+              for (const name of names) {
+                const reg = new RegExp(`(?:[-*•\\d.]\\s*)?(?:${name})[：:\\s\\-]+([^\n\r]+)`, 'i');
+                const match = resp.match(reg);
+                if (match && match[1] && match[1].trim().length > 3) {
+                  const cleanVal = match[1].trim().replace(/^[：:\s"“]+|[”"\s]+$/g, '');
+                  finalAssignments[mKey] = cleanVal;
+                  if (m.id) finalAssignments[m.id] = cleanVal;
+                  if (m.name) finalAssignments[m.name] = cleanVal;
+                  break;
+                }
+              }
+            });
+
+            // 3. 若未由左侧按键生成且 JSON 未能提取出 overview，进入正则与自然语言容错提取
             if (!hasTopicFromLeftAgent && (!finalOverview || !finalOverview.trim())) {
               const tMatch = resp.match(/(?:【(?:教学)?(?:研究)?(?:课题|论文题目|题目|课题名称|选题)】|(?:课题|论文题目|课题名称|题目|选题)[：:\s]*)[《“"]?([^》”"\n\r]+)[》”"]?/i);
               if (tMatch && tMatch[1] && tMatch[1].trim().length > 1) {
@@ -19957,6 +20131,24 @@
       s1.contractStep = 'completed'; // 提炼全部完成，左侧3个分步按钮全部退场
       s1.flowStep = 'refining';
 
+      // 3. 确保存入状态并直接写入 DOM 实体输入框
+      document.querySelectorAll('.task-assignment-input').forEach(inp => {
+        const mKey = inp.dataset.mkey;
+        const mId = inp.dataset.id;
+        const mName = inp.dataset.name;
+        const val = finalAssignments[mKey] || (mId ? finalAssignments[mId] : '') || (mName ? finalAssignments[mName] : '');
+        if (val) {
+          inp.value = val;
+          inp.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      });
+
+      await this.clearStepConfirmation('s1_full_contract');
+      this.syncStage1();
+      this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      this.renderStudentWorkspace();
+
       let noticeText = '';
       if (hasTopicFromLeftAgent && hasTimeFromLeftAgent) {
         noticeText = `🏛️ 【${agentRole}·公约草案就绪】：已保留左侧确立的主题、方案与时间预算，全组成员分工已成功提炼配置，公约草案已全部就绪！👉 请全组成员在左侧仔细审查核对，可自由微调修改，确认无误后点击【✍️ 签署确认${contractTitle}】！`;
@@ -19979,10 +20171,7 @@
         this.sendSingleChatMessage(noticeMsg, 'stage1');
       }
 
-      await this.clearStepConfirmation('s1_full_contract');
-      this.syncStage1();
-      this.syncChatLogs();
-      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      if (typeof renderChat === 'function') renderChat(this.state);
       this.renderStudentWorkspace();
       renderChat(this.state);
 
@@ -21449,7 +21638,7 @@
                   </div>
                 </div>
                 <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
-                  ⏳ 动态分析中
+                  ⏳ 动态分析中 <span class="agent-elapsed-timer" data-start="${analyzing._ts || Date.now()}">(已耗时 0s)</span>
                 </span>
               </div>
             `;
@@ -21761,7 +21950,33 @@
             overviewInp.style.cursor = isContractLocked ? 'not-allowed' : 'text';
             overviewInp.style.background = isContractLocked ? '#f8fafc' : '#ffffff';
           }
-          document.querySelectorAll('.contract-time-input, .task-assignment-input').forEach(inp => {
+          document.querySelectorAll('.contract-time-input').forEach(inp => {
+            const modKey = inp.dataset.key;
+            if (modKey && s1.contract?.timeAllocations && s1.contract.timeAllocations[modKey] !== undefined) {
+              const val = s1.contract.timeAllocations[modKey];
+              if (document.activeElement !== inp && inp.value != val) inp.value = val;
+            }
+            if (document.activeElement !== inp) {
+              inp.disabled = isContractLocked;
+              inp.readOnly = isContractLocked;
+              inp.style.opacity = isContractLocked ? '0.8' : '1';
+              inp.style.cursor = isContractLocked ? 'not-allowed' : (inp.tagName === 'INPUT' ? 'text' : 'auto');
+              inp.style.background = isContractLocked ? '#f8fafc' : '#ffffff';
+            }
+          });
+
+          document.querySelectorAll('.task-assignment-input').forEach(inp => {
+            const mKey = inp.dataset.mkey;
+            const mId = inp.dataset.id;
+            const mName = inp.dataset.name;
+            if (s1.contract?.taskAssignments) {
+              const val = (mKey && s1.contract.taskAssignments[mKey] !== undefined) ? s1.contract.taskAssignments[mKey] :
+                ((mId && s1.contract.taskAssignments[mId] !== undefined) ? s1.contract.taskAssignments[mId] :
+                ((mName && s1.contract.taskAssignments[mName] !== undefined) ? s1.contract.taskAssignments[mName] : ''));
+              if (val && document.activeElement !== inp && inp.value !== val) {
+                inp.value = val;
+              }
+            }
             if (document.activeElement !== inp) {
               inp.disabled = isContractLocked;
               inp.readOnly = isContractLocked;
