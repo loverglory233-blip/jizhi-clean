@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2812";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260905_v2812";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2812";
-import { AuthManager } from "./auth.js?v=20260905_v2812";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2812";
-import { renderLoginView } from "./login.js?v=20260905_v2812";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2812";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2812";
+} from "./constants.js?v=20260905_v2545";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260905_v2545";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2545";
+import { AuthManager } from "./auth.js?v=20260905_v2545";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2545";
+import { renderLoginView } from "./login.js?v=20260905_v2545";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2545";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2545";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2812";
+} from "./editor.js?v=20260905_v2545";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1114,13 +1114,8 @@ export class App {
 
       // 🛡️ 任务撤销守卫：当前任务被教师删除时立即弹窗拦截引导返回大厅
       if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
-        let deletedTaskIds = new Set();
-        try {
-          const delList = JSON.parse(localStorage.getItem('jizhi_deleted_task_ids')) || [];
-          if (Array.isArray(delList)) deletedTaskIds = new Set(delList);
-        } catch (e) {}
         const allTasks = this.authManager ? this.authManager.getTasks() : [];
-        const isTaskStillAlive = allTasks.some(t => t && t.id === this.state.activeTaskId) && !deletedTaskIds.has(this.state.activeTaskId);
+        const isTaskStillAlive = allTasks.some(t => t && t.id === this.state.activeTaskId);
         if (allTasks.length > 0 && !isTaskStillAlive && !this._isHandlingTaskRevoked) {
           this.showTaskRevokedModal(this.state.activeTaskTitle || '当前写作任务');
           return;
@@ -1585,9 +1580,9 @@ export class App {
           const hasUnsubmitted = unsubmittedMembers.length > 0;
 
           // 🚀 核心强制弹窗：会议发起满 3 分钟（180,000ms），凡是当前登录学生【尚未完成自查打卡】：
-          // 无论何时切回或刷新，直接在屏幕正中央强制弹出自查打卡弹窗（不发群聊点名消息，清爽无感）
+          // 无论何时切回或刷新，直接在屏幕正中央强制弹出自查打卡弹窗（若用户主动关闭过则不再重复强弹）
           const isModalOpen = !!document.querySelector('.modal-overlay');
-          if (this.state.currentStage === 'stage2' && isMeetingActive && meetingElapsed >= 180000 && !isMemberSubmitted(currUserObj)) {
+          if (this.state.currentStage === 'stage2' && isMeetingActive && meetingElapsed >= 180000 && !isMemberSubmitted(currUserObj) && !this._meetingModalDismissedByUser) {
             if (!isModalOpen && !this._meetingModalForceShown && typeof this.showMeetingModal === 'function') {
               this._meetingModalForceShown = true;
               this.showMeetingModal();
@@ -7153,7 +7148,10 @@ ${contentSnippet}
       }
     }
 
-    const closeModal = () => document.body.removeChild(modal);
+    const closeModal = () => {
+      this._meetingModalDismissedByUser = true;
+      if (modal.parentNode) modal.parentNode.removeChild(modal);
+    };
     modal.querySelector('#btn-close-meeting').addEventListener('click', closeModal);
     modal.querySelector('#btn-cancel-meeting').addEventListener('click', closeModal);
 
@@ -7230,11 +7228,13 @@ ${contentSnippet}
       const submissions = this.state.stage2.meetingSubmissions;
       const submittedCount = membersList.filter(m => isMemberDone(submissions, m)).length;
 
+      // 无论何种分支，提交后立刻关闭弹窗并设置已关闭标记
+      closeModal();
+
       // 仅当全组所有成员全部打卡完毕时，才解锁并生成【半程编辑修正清单】
       if (submittedCount < totalMembersCount) {
         this.syncStage2();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-        closeModal();
         this.renderStudentWorkspace();
         renderChat(this.state);
         alert(`✅ 你 (${memberName}) 已成功提交半程自查与互阅打卡！\n\n目前组内已打卡：${submittedCount}/${totalMembersCount} 人。\n需组内所有 ${totalMembersCount} 名成员全部完成打卡后，将自动为全组汇总生成【半程修正清单】！`);

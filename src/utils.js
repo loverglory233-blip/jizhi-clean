@@ -1149,31 +1149,105 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
 }
 
 /**
+ * 🆔 全局统一 ID 归一化工具 (Universal ID Normalizer)
+ * 将 class_101 / 101, group_1 / 1, task_101 / 101 统一归一化，
+ * 彻底杜绝前后缀或大小写差异，同时严格隔离不同编号的班级与小组。
+ */
+export function normalizeId(id) {
+  if (id === null || id === undefined) return '';
+  let s = String(id).trim().toLowerCase();
+  if (s === 'all' || s === 'class_all' || s === 'group_all' || s === 'task_all' || s === '*' || s === 'all_class' || s === 'all_group' || s === 'all_task') {
+    return 'all';
+  }
+  // 剥离 class_, cls_, group_, grp_, task_ 等通用前缀
+  s = s.replace(/^(class_|cls_|group_|grp_|task_)/, '');
+  return s;
+}
+
+/**
+ * 🔍 判断两个 ID 是否指代同一个实体（归一化比对）
+ */
+export function isSameId(id1, id2) {
+  if (id1 === null || id1 === undefined || id2 === null || id2 === undefined) return false;
+  const n1 = normalizeId(id1);
+  const n2 = normalizeId(id2);
+  if (!n1 || !n2) return false;
+  return n1 === n2;
+}
+
+/**
  * 🌐 全局统一教学范围匹配器 (Universal Educational Scope Matcher)
- * 彻底消除因全等与死板判定导致的通知/问卷/范文“误杀遗漏”
+ * 严格保持班级/小组/任务物理隔离，杜绝跨班串通与 ID 前缀不一致导致的遗漏
  */
 export function isScopeMatch(target = {}, context = {}) {
-  const { classId: tClassId, targetGroupId: tGroupId, taskId: tTaskId, targetClassIds: tClassIds, targetGroupIds: tGroupIds, className: tClassName } = target;
+  const { 
+    classId: tClassId, 
+    targetGroupId: tGroupId, 
+    groupId: tDirectGroupId,
+    taskId: tTaskId, 
+    targetClassIds: tClassIds, 
+    targetGroupIds: tGroupIds, 
+    className: tClassName 
+  } = target;
+  
+  const targetGroupId = tGroupId || tDirectGroupId;
   const { userClassId, userGroupId, currentTaskId, userClassName } = context;
 
-  // 1. 班级范围匹配 (支持全校广播 all / class_all / 空值 / 数组包含 all，或班级ID/班级名匹配)
-  const matchClass = !tClassId || tClassId === 'all' || tClassId === 'class_all' ||
-                     (!userClassId) ||
-                     (userClassId && (
-                       tClassId === userClassId ||
-                       (Array.isArray(tClassIds) && (tClassIds.includes('all') || tClassIds.includes('class_all') || tClassIds.includes(userClassId))) ||
-                       (userClassName && tClassName && tClassName === userClassName)
-                     ));
+  // 1. 班级范围匹配 (支持全校广播 all / 空值 / 数组包含 all，或班级ID归一化精准匹配)
+  const normTargetClass = normalizeId(tClassId);
+  const isClassBroadcast = !tClassId || normTargetClass === 'all' || normTargetClass === '';
 
-  // 2. 小组范围匹配 (支持 all / 空值 / 小组ID一致 / 小组ID数组包含)
-  const matchGroup = !tGroupId || tGroupId === 'all' || tGroupId === 'group_all' ||
-                     (!userGroupId) ||
-                     (userGroupId && tGroupId === userGroupId) ||
-                     (Array.isArray(tGroupIds) && (tGroupIds.includes('all') || tGroupIds.includes('group_all') || (userGroupId && tGroupIds.includes(userGroupId))));
+  let matchClass = false;
+  if (isClassBroadcast) {
+    matchClass = true;
+  } else {
+    const normUserClass = normalizeId(userClassId);
+    if (normUserClass && normTargetClass === normUserClass) {
+      matchClass = true;
+    } else if (Array.isArray(tClassIds) && tClassIds.some(cid => {
+      const n = normalizeId(cid);
+      return n === 'all' || (normUserClass && n === normUserClass);
+    })) {
+      matchClass = true;
+    } else if (userClassName && tClassName && String(tClassName).trim().toLowerCase() === String(userClassName).trim().toLowerCase()) {
+      matchClass = true;
+    }
+  }
 
-  // 3. 任务范围匹配 (支持 all / task_all / 空值 / 任务ID精准一致)
-  const matchTask = !tTaskId || tTaskId === 'all' || tTaskId === 'task_all' ||
-                    (!currentTaskId) || (currentTaskId && (tTaskId === currentTaskId));
+  // 2. 小组范围匹配 (支持全班广播 all / 空值 / 数组包含 all，或小组ID归一化精准匹配)
+  const normTargetGroup = normalizeId(targetGroupId);
+  const isGroupBroadcast = !targetGroupId || normTargetGroup === 'all' || normTargetGroup === '';
+
+  let matchGroup = false;
+  if (isGroupBroadcast) {
+    matchGroup = true;
+  } else {
+    const normUserGroup = normalizeId(userGroupId);
+    if (normUserGroup && normTargetGroup === normUserGroup) {
+      matchGroup = true;
+    } else if (Array.isArray(tGroupIds) && tGroupIds.some(gid => {
+      const n = normalizeId(gid);
+      return n === 'all' || (normUserGroup && n === normUserGroup);
+    })) {
+      matchGroup = true;
+    }
+  }
+
+  // 3. 任务范围匹配 (支持全部任务 all / 空值，或任务ID归一化精准匹配)
+  const normTargetTask = normalizeId(tTaskId);
+  const isTaskBroadcast = !tTaskId || normTargetTask === 'all' || normTargetTask === '';
+
+  let matchTask = false;
+  if (isTaskBroadcast) {
+    matchTask = true;
+  } else {
+    const normCurrentTask = normalizeId(currentTaskId);
+    if (normCurrentTask && normTargetTask === normCurrentTask) {
+      matchTask = true;
+    } else if (!currentTaskId) {
+      matchTask = true;
+    }
+  }
 
   return !!(matchClass && matchGroup && matchTask);
 }

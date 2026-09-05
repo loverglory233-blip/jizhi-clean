@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2812';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs } from './utils.js?v=20260905_v2812';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2545';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs } from './utils.js?v=20260905_v2545';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -752,32 +752,24 @@ export class CloudSyncEngine {
     }
     this._hasPulledGlobal = true;
 
-    // 🌐 服务端全局教务与文献资源同步到本地（tasks/users/classes/announcements/referencePapers）
-    // 教师一旦发布新范文或公告，学生端在任务工作台内 1~2 秒内自动无感对齐更新
+    // 🌐 服务端全局教务与文献资源同步到本地（tasks/users/classes/announcements/referencePapers/surveys）
+    // 教师一旦发布新范文、通知、问卷或调整任务，学生端在任务工作台内 1~2 秒内自动无感对齐更新
     if (this.app.authManager) {
       if (remoteData.tasks !== undefined && remoteData.tasks !== null && Array.isArray(remoteData.tasks)) {
-        let deletedTaskIds = new Set();
-        try {
-          const delList = JSON.parse(localStorage.getItem('jizhi_deleted_task_ids')) || [];
-          if (Array.isArray(delList)) deletedTaskIds = new Set(delList);
-        } catch (e) {}
-
-        const localTasks = this.app.authManager.getTasks();
         const taskMap = new Map();
 
-        // 1) 装载云端任务（排除已删除任务）
+        // 1) 装载云端权威任务
         remoteData.tasks.forEach(remoteT => {
-          if (remoteT && remoteT.id && !deletedTaskIds.has(remoteT.id)) {
+          if (remoteT && remoteT.id) {
             taskMap.set(remoteT.id, remoteT);
           }
         });
 
-        // 2) 教师端保留本地有效任务，学生端绝不复活已删任务
+        // 2) 教师端保留本地在途任务
         if (isTeacher) {
+          const localTasks = this.app.authManager.getTasks();
           localTasks.forEach(localT => {
             if (!localT || !localT.id) return;
-            if (deletedTaskIds.has(localT.id)) return;
-
             if (!taskMap.has(localT.id)) {
               taskMap.set(localT.id, localT);
             } else {
@@ -801,11 +793,12 @@ export class CloudSyncEngine {
 
         const mergedTasks = Array.from(taskMap.values());
         localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
+        localStorage.setItem('jizhi_pure_v10_tasks_db', JSON.stringify(mergedTasks));
 
         // 🛡️ 核心守卫：当前任务被教师删除时立即弹窗引导返回大厅
         if (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) {
           const activeTid = this.app.state.activeTaskId;
-          const isTaskStillAlive = taskMap.has(activeTid) && !deletedTaskIds.has(activeTid);
+          const isTaskStillAlive = taskMap.has(activeTid);
           if (taskMap.size > 0 && !isTaskStillAlive && !this.app._isHandlingTaskRevoked) {
             this.app.showTaskRevokedModal(this.app.state.activeTaskTitle || '当前写作任务');
             return;
@@ -831,24 +824,17 @@ export class CloudSyncEngine {
         }
       }
       if (Array.isArray(remoteData.users) && remoteData.users.length > 0) {
-        let deletedUserIds = new Set();
-        try {
-          const delList = JSON.parse(localStorage.getItem('jizhi_deleted_user_ids')) || [];
-          if (Array.isArray(delList)) deletedUserIds = new Set(delList.map(x => String(x).trim().toLowerCase()));
-        } catch (e) {}
-
         const localUsers = this.app.authManager.getUsers();
         const userMap = new Map();
         remoteData.users.forEach(u => {
           if (u && u.id) {
             const k = String(u.id).trim().toLowerCase();
-            if (!deletedUserIds.has(k)) userMap.set(k, u);
+            userMap.set(k, u);
           }
         });
         localUsers.forEach(u => {
           if (u && u.id) {
             const k = String(u.id).trim().toLowerCase();
-            if (deletedUserIds.has(k)) return;
             if (!userMap.has(k)) {
               userMap.set(k, u);
             } else {
@@ -862,52 +848,41 @@ export class CloudSyncEngine {
       }
       try {
         if (Array.isArray(remoteData.classes) && remoteData.classes.length > 0) {
-          let deletedClassIds = new Set();
-          try {
-            const delList = JSON.parse(localStorage.getItem('jizhi_deleted_class_ids')) || [];
-            if (Array.isArray(delList)) deletedClassIds = new Set(delList);
-          } catch (e) {}
-
           const localClasses = this.app.authManager.getClasses();
           const classMap = new Map();
           remoteData.classes.forEach(c => {
-            if (c && c.id && !deletedClassIds.has(c.id)) {
+            if (c && c.id) {
               classMap.set(c.id, c);
             }
           });
-          localClasses.forEach(c => {
-            if (c && c.id) {
-              if (deletedClassIds.has(c.id)) return;
-              if (!classMap.has(c.id)) {
-                classMap.set(c.id, c);
-              } else {
-                const rClass = classMap.get(c.id);
-                const mergedStudentIds = Array.from(new Set([...(rClass.studentIds || []), ...(c.studentIds || [])]));
-                const grpMap = new Map();
-                (rClass.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
-                (c.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
-                classMap.set(c.id, { ...rClass, ...c, studentIds: mergedStudentIds, groups: Array.from(grpMap.values()) });
+          if (isTeacher) {
+            localClasses.forEach(c => {
+              if (c && c.id) {
+                if (!classMap.has(c.id)) {
+                  classMap.set(c.id, c);
+                } else {
+                  const rClass = classMap.get(c.id);
+                  const mergedStudentIds = Array.from(new Set([...(rClass.studentIds || []), ...(c.studentIds || [])]));
+                  const grpMap = new Map();
+                  (rClass.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
+                  (c.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
+                  classMap.set(c.id, { ...rClass, ...c, studentIds: mergedStudentIds, groups: Array.from(grpMap.values()) });
+                }
               }
-            }
-          });
+            });
+          }
           localStorage.setItem('jizhi_pure_v10_classes_db', JSON.stringify(Array.from(classMap.values())));
           if (this.app.authManager.sanitizeAndDeduplicateGroups) {
             this.app.authManager.sanitizeAndDeduplicateGroups();
           }
         }
         if (Array.isArray(remoteData.announcements)) {
-          let deletedAnnIds = new Set();
-          try {
-            const delList = JSON.parse(localStorage.getItem('jizhi_deleted_ann_ids')) || [];
-            if (Array.isArray(delList)) deletedAnnIds = new Set(delList);
-          } catch (e) {}
-
           const key = STORAGE_KEY_ANNOUNCEMENTS;
           const local = JSON.parse(localStorage.getItem(key) || '[]');
           const annMap = new Map();
 
           remoteData.announcements.forEach(remoteAnn => {
-            if (remoteAnn && remoteAnn.id && !deletedAnnIds.has(remoteAnn.id)) {
+            if (remoteAnn && remoteAnn.id) {
               annMap.set(remoteAnn.id, remoteAnn);
             }
           });
@@ -915,7 +890,6 @@ export class CloudSyncEngine {
           if (isTeacher) {
             local.forEach(localAnn => {
               if (!localAnn || !localAnn.id) return;
-              if (deletedAnnIds.has(localAnn.id)) return;
               if (!annMap.has(localAnn.id)) {
                 annMap.set(localAnn.id, localAnn);
               }
@@ -969,19 +943,13 @@ export class CloudSyncEngine {
         }
 
         if (Array.isArray(remoteData.referencePapers)) {
-          let deletedPaperIds = new Set();
-          try {
-            const delList = JSON.parse(localStorage.getItem('jizhi_deleted_paper_ids')) || [];
-            if (Array.isArray(delList)) deletedPaperIds = new Set(delList);
-          } catch (e) {}
-
           const key = 'jizhi_reference_papers_db';
           const local = JSON.parse(localStorage.getItem(key) || '[]');
           const localIds = new Set(local.map(p => p && p.id));
           const paperMap = new Map();
 
           remoteData.referencePapers.forEach(p => {
-            if (p && p.id && !deletedPaperIds.has(p.id)) {
+            if (p && p.id) {
               paperMap.set(p.id, p);
             }
           });
@@ -989,7 +957,6 @@ export class CloudSyncEngine {
           if (isTeacher) {
             local.forEach(localP => {
               if (localP && localP.id) {
-                if (deletedPaperIds.has(localP.id)) return;
                 if (!paperMap.has(localP.id)) {
                   paperMap.set(localP.id, localP);
                 }
@@ -1031,18 +998,12 @@ export class CloudSyncEngine {
         }
 
         if (Array.isArray(remoteData.surveys)) {
-          let deletedSurveyIds = new Set();
-          try {
-            const delList = JSON.parse(localStorage.getItem('jizhi_deleted_survey_ids')) || [];
-            if (Array.isArray(delList)) deletedSurveyIds = new Set(delList);
-          } catch (e) {}
-
           const key = 'jizhi_surveys_list_db';
           const local = JSON.parse(localStorage.getItem(key) || '[]');
           const surveyMap = new Map();
 
           remoteData.surveys.forEach(s => {
-            if (s && s.id && !deletedSurveyIds.has(s.id)) {
+            if (s && s.id) {
               surveyMap.set(s.id, s);
             }
           });
@@ -1050,7 +1011,6 @@ export class CloudSyncEngine {
           if (isTeacher) {
             local.forEach(localS => {
               if (localS && localS.id) {
-                if (deletedSurveyIds.has(localS.id)) return;
                 if (!surveyMap.has(localS.id)) {
                   surveyMap.set(localS.id, localS);
                 }
