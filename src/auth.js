@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2605';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260905_v2605';
+} from './constants.js?v=20260905_v2606';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260905_v2606';
 
 export class AuthManager {
   constructor() {
@@ -2086,15 +2086,72 @@ export class AuthManager {
     }
   }
 
-  // 📚 教师端下发学术范文：更新元数据并广播通知，由学生端在阶段二结合文献配置自主呈现
+  getReferencePaperById(paperId) {
+    if (!paperId) return null;
+    const papers = this.getAllReferencePapers();
+    return papers.find(p => p && isSameId(p.id, paperId)) || null;
+  }
+
+  // 📚 教师端下发学术范文：更新元数据并广播通知，向目标小组研讨流中注入审稿编辑推送提示
   pushReferencePaperToGroupChat(paperId, targetGroupId = 'all') {
     this.pushGlobalMeta();
+    const papers = this.getAllReferencePapers();
+    const paper = papers.find(p => p && isSameId(p.id, paperId));
+    if (paper) {
+      const allTasks = this.getTasks();
+      const taskObj = allTasks.find(t => isSameId(t.id, paper.taskId));
+      const isInst = (taskObj && taskObj.taskType === 'instructional');
+      const reviewingName = isInst ? '教研专家' : '审稿编辑';
+      const reviewingSenderName = isInst ? '教研专家 · 质量把关' : '审稿编辑 · 质量把关';
+
+      let targetGroupIds = [];
+      if (Array.isArray(paper.targetGroupIds) && paper.targetGroupIds.length > 0) {
+        targetGroupIds = paper.targetGroupIds;
+      } else if (targetGroupId && targetGroupId !== 'all') {
+        targetGroupIds = [targetGroupId];
+      } else if (paper.classId) {
+        const allClasses = this.getClasses();
+        const cls = allClasses.find(c => isSameId(c.id, paper.classId));
+        if (cls && Array.isArray(cls.groups)) {
+          targetGroupIds = cls.groups.map(g => g.id);
+        }
+      }
+
+      targetGroupIds.forEach(gid => {
+        const payload = {
+          scopeKey: `${paper.taskId}_${gid}`,
+          taskId: paper.taskId,
+          groupId: gid,
+          classId: paper.classId,
+          stage: 'stage2',
+          message: {
+            id: `msg_paper_push_${paper.id}_${gid}`,
+            classId: paper.classId,
+            groupId: gid,
+            taskId: paper.taskId,
+            stage: 'stage2',
+            sender: 'reviewingEditor',
+            senderName: reviewingSenderName,
+            text: `📝 【${reviewingName}·新参考文献下发】：任课教师最新下发了精选参考范文《${paper.title || '学术参考范文'}》！👉 全组成员可点击正文顶部【📚 查阅参考范文库】直接研读学习，参考其核心论点、论证架构与规范表述，为全篇正文起草与修改完善提供高质量支架！`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          }
+        };
+
+        fetch(`sync.php?action=send_chat&groupId=${encodeURIComponent(gid)}&taskId=${encodeURIComponent(paper.taskId)}&classId=${encodeURIComponent(paper.classId || '')}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).catch(() => {});
+      });
+    }
+
     if ('BroadcastChannel' in window) {
       try {
         if (!window._jizhiGlobalBc) {
           window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
         }
-        window._jizhiGlobalBc.postMessage({ type: 'paper_updated', paperId, targetGroupId });
+        window._jizhiGlobalBc.postMessage({ type: 'paper_updated', paperId, paper, targetGroupId });
       } catch (e) {}
     }
   }
