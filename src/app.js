@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2810";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260905_v2810";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2810";
-import { AuthManager } from "./auth.js?v=20260905_v2810";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2810";
-import { renderLoginView } from "./login.js?v=20260905_v2810";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2810";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2810";
+} from "./constants.js?v=20260905_v2811";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260905_v2811";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2811";
+import { AuthManager } from "./auth.js?v=20260905_v2811";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2811";
+import { renderLoginView } from "./login.js?v=20260905_v2811";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2811";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2811";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2810";
+} from "./editor.js?v=20260905_v2811";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1320,11 +1320,6 @@ export class App {
     this.stageInactivityTimer = setInterval(async () => {
       const currUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
       if (!currUserObj || currUserObj.role === 'teacher') return;
-
-      // 🔄 0. 极速版本心跳同步：拉取教师端最新发布的通知、任务与延期 (基于服务端版本戳，版本未变 0 开销)
-      if (this.authManager && this.authManager.pullGlobalMeta) {
-        try { await this.authManager.pullGlobalMeta(); } catch (e) {}
-      }
 
       const allTasks = this.authManager ? this.authManager.getTasks() : [];
       const effClassId = this.state.activeStudentClassId || currUserObj.classId || null;
