@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2599";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2599";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2599";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2600";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2600";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2600";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -116,81 +116,6 @@ export function getEffectiveAgentAnalyzing(state = null) {
         _ts: Date.now(),
         detail: `${role}正在综合质询辩驳与各评委观点，下发终审定案裁决...`
       };
-    }
-  }
-
-  // 3. 阶段一全员确认状态自动感知（全员确认达成且未失败未落库时，保证右侧卡片与左侧提炼中绝对同步出现）
-  const curStage = currState.currentStage || 'stage1';
-  if (curStage === 'stage1') {
-    const s1 = currState.stage1 || {};
-    const confs = currState.stepConfirmations || {};
-    let members = [];
-    if (app && app.authManager) {
-      const u = app.authManager.getCurrentUser();
-      const effClassId = app.authManager.getEffectiveStudentClassId(u, currState.activeTaskId);
-      const effGroup = app.authManager.getStudentActiveGroup(u, effClassId);
-      const rawG = app.authManager.getGroupMembersForWorkspace(effGroup?.id || currState.activeGroupId || null, effClassId);
-      members = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
-    }
-    if (members.length === 0) {
-      if (Array.isArray(currState.members)) members = currState.members;
-      else if (currState.members && typeof currState.members === 'object') members = Object.values(currState.members);
-    }
-    const totalCount = (members && members.length > 0) ? members.length : 1;
-
-    const countConfirmed = (stepKey) => {
-      if (!confs || !confs[stepKey]) return 0;
-      return members.filter(m => isMemberDone(confs[stepKey], m)).length;
-    };
-
-    if (s1.contractStep === 'tasks') {
-      const isFull = totalCount > 0 && countConfirmed('s1_tasks') >= totalCount;
-      if (isFull && !s1._tasksExtractFailed && (!s1.contract?.tasks || s1.contract.tasks.length === 0)) {
-        const role = isInst ? '备课引导师' : '协同调度员';
-        return {
-          icon: '👥',
-          title: role,
-          isExtracting: true,
-          _ts: Date.now(),
-          detail: `${role}正在根据研讨过程提炼【各组员具体任务分工与职责】...`
-        };
-      }
-    } else if (s1.contractStep === 'time') {
-      const isFull = totalCount > 0 && countConfirmed('s1_time') >= totalCount;
-      if (isFull && !s1._timeExtractFailed && (!s1.contract?.timeline || s1.contract.timeline.length === 0)) {
-        const role = isInst ? '备课引导师' : '时间规划师';
-        return {
-          icon: '⏱️',
-          title: role,
-          isExtracting: true,
-          _ts: Date.now(),
-          detail: `${role}正在根据研讨成果提炼并规划【${isInst ? '教学各环节时间分配' : '论文研究各阶段时间分配'}】...`
-        };
-      }
-    } else if (!s1.contractStep || s1.contractStep === 'topic') {
-      const isFull = totalCount > 0 && countConfirmed('s1_topic') >= totalCount;
-      if (isFull && !s1._topicExtractFailed && (!s1.contract?.topic || !s1.contract?.plan)) {
-        const role = isInst ? '备课引导师' : '学术拍卖师';
-        return {
-          icon: isInst ? '📐' : '🎪',
-          title: role,
-          isExtracting: true,
-          _ts: Date.now(),
-          detail: `${role}正在根据讨论区研讨记录提炼【${isInst ? '教学课题与方案概述' : '论文主题与研究方案'}】...`
-        };
-      }
-    } else if (s1.contractStep === 'full_contract') {
-      const isFull = totalCount > 0 && countConfirmed('s1_full_contract') >= totalCount;
-      if (isFull && !s1.contract?.isDraftGenerated && !app?._contractGenerateFailed) {
-        const role = isInst ? '备课引导师' : '公约起草官';
-        return {
-          icon: '📋',
-          title: role,
-          isExtracting: true,
-          _ts: Date.now(),
-          detail: `${role}正在整合主题、时间与分工，生成完整的团队协同公约草案...`
-        };
-      }
     }
   }
 
@@ -713,9 +638,11 @@ function renderStage1Canvas(canvas, state, handlers) {
                     </button>
                   `;
                 }
+                const isDisabled = isTasksRunning || isExtractingAny || (isMe && !isFull);
+                const btnBg = isTasksRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')));
                 return `
-                  <button id="btn-extract-tasks" ${isTasksRunning || isExtractingAny || isFull ? 'disabled' : ''} style="background:${isTasksRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTasksRunning || isExtractingAny || isFull ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
-                    ${isTasksRunning ? `⏳ 正在提炼【任务分工】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 智能体提炼中...` : (isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`)))}
+                  <button id="btn-extract-tasks" ${isDisabled ? 'disabled' : ''} style="background:${btnBg}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isDisabled ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
+                    ${isTasksRunning ? `⏳ 正在提炼【任务分工】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点此开始提炼【任务分工】` : (isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`)))}
                   </button>
                 `;
               } else if (s1.contractStep === 'time') {
@@ -731,9 +658,11 @@ function renderStage1Canvas(canvas, state, handlers) {
                     </button>
                   `;
                 }
+                const isDisabled = isTimeRunning || isExtractingAny || (isMe && !isFull);
+                const btnBg = isTimeRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)')));
                 return `
-                  <button id="btn-extract-time" ${isTimeRunning || isExtractingAny || isFull ? 'disabled' : ''} style="background:${isTimeRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #0284c7, #0369a1)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTimeRunning || isExtractingAny || isFull ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
-                    ${isTimeRunning ? `⏳ 正在提炼【时间分配】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 智能体提炼中...` : (isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`)))}
+                  <button id="btn-extract-time" ${isDisabled ? 'disabled' : ''} style="background:${btnBg}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isDisabled ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
+                    ${isTimeRunning ? `⏳ 正在提炼【时间分配】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点此开始提炼【时间分配】` : (isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`)))}
                   </button>
                 `;
               } else {
@@ -757,9 +686,11 @@ function renderStage1Canvas(canvas, state, handlers) {
                     </button>
                   `;
                 }
+                const isDisabled = isTopicRunning || isExtractingAny || (isMe && !isFull);
+                const btnBg = isTopicRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)')));
                 return `
-                  <button id="btn-extract-topic" ${isTopicRunning || isExtractingAny || isFull ? 'disabled' : ''} style="background:${isTopicRunning ? 'linear-gradient(135deg, #d97706, #b45309)' : (isExtractingAny ? '#94a3b8' : (isFull ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)')))}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isTopicRunning || isExtractingAny || isFull ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
-                    ${isTopicRunning ? `⏳ 正在提炼【${extractName}】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 智能体提炼中...` : (isMe ? `✅ 您已确认提炼${extractName} (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【${extractName}】 (${count}/${totalMembersCount})`)))}
+                  <button id="btn-extract-topic" ${isDisabled ? 'disabled' : ''} style="background:${btnBg}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isDisabled ? 'not-allowed' : 'pointer'}; opacity:1; pointer-events:auto; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
+                    ${isTopicRunning ? `⏳ 正在提炼【${extractName}】...` : (isExtractingAny ? `⏳ 智能体正在提炼中，请稍候...` : (isFull ? `⚡ 全员已确认 (${count}/${totalMembersCount}) · 点此开始提炼【${extractName}】` : (isMe ? `✅ 您已确认提炼${extractName} (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【${extractName}】 (${count}/${totalMembersCount})`)))}
                   </button>
                 `;
               }
@@ -1494,9 +1425,6 @@ function renderStage1Canvas(canvas, state, handlers) {
           alert(`🔒 请先完成全员提案提交与投票推选！\n\n当前全组投票进度：${totalVotesCast}/${totalMembersCount} 人已投票。\n投票结束后拍卖师将落槌揭晓结果，随后方可开启主题与方案提炼。`);
           return;
         }
-        if (s1._topicExtractFailed) {
-          return;
-        }
         if (isAnyExtracting(state)) {
           if (typeof showGlobalBannerNotice === 'function') {
             showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
@@ -1512,9 +1440,6 @@ function renderStage1Canvas(canvas, state, handlers) {
     const btnExtractTime = canvas.querySelector('#btn-extract-time');
     if (btnExtractTime) {
       btnExtractTime.addEventListener('click', () => {
-        if (s1._timeExtractFailed) {
-          return;
-        }
         if (isAnyExtracting(state)) {
           if (typeof showGlobalBannerNotice === 'function') {
             showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
@@ -1530,9 +1455,6 @@ function renderStage1Canvas(canvas, state, handlers) {
     const btnExtractTasks = canvas.querySelector('#btn-extract-tasks');
     if (btnExtractTasks) {
       btnExtractTasks.addEventListener('click', () => {
-        if (s1._tasksExtractFailed) {
-          return;
-        }
         if (isAnyExtracting(state)) {
           if (typeof showGlobalBannerNotice === 'function') {
             showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
