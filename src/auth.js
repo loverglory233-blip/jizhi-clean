@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2592';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260905_v2592';
+} from './constants.js?v=20260905_v2593';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260905_v2593';
 
 export class AuthManager {
   constructor() {
@@ -673,7 +673,7 @@ export class AuthManager {
           changed = true;
         }
 
-        const idKey = norm.id.toLowerCase();
+        const idKey = normalizeId(norm.id).toLowerCase();
         if (!seenIds.has(idKey)) {
           seenIds.add(idKey);
           uniqueUsers.push(norm);
@@ -973,7 +973,7 @@ export class AuthManager {
     const targetClass = classId ? (classes.find(c => c.id === classId) || null) : null;
     
     const existingUser = users.find(u =>
-      u.role !== 'teacher' && u.id && u.id.trim().toLowerCase() === cleanId.toLowerCase()
+      u && u.role !== 'teacher' && isSameId(u.id, cleanId)
     );
 
     const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
@@ -1038,7 +1038,7 @@ export class AuthManager {
       if (!code || !name) return;
       addedCodes.push(code.toLowerCase());
 
-      const existing = users.find(u => u && u.id.trim().toLowerCase() === code.toLowerCase());
+      const existing = users.find(u => u && isSameId(u.id, code));
       if (existing) {
         existing.id = code;
         existing.name = name;
@@ -1234,7 +1234,7 @@ export class AuthManager {
 
     // 2) 小组解析
     const group = this.getStudentActiveGroup(user, activeClass.id);
-    if (!group || !group.id || group.id.startsWith('group_unassigned_')) {
+    if (!group || !group.id || String(group.id).startsWith('group_unassigned_')) {
       return { ok: false, reason: '你尚未被分配到协作小组，请联系教师分配后再进入正文写作' };
     }
 
@@ -2312,7 +2312,7 @@ export class AuthManager {
 
     // 1. 本地立即更新
     const users = this.getUsers();
-    const target = users.find(u => u && u.id && u.id.toLowerCase() === acc.toLowerCase());
+    const target = users.find(u => u && isSameId(u.id, acc));
     if (target) {
       target.password = newPassword;
       localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));

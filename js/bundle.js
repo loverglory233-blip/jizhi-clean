@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2592
+ * Version: 20260905_v2593
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2592';
+  const APP_VERSION = '20260905_v2593';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2446,7 +2446,7 @@
             changed = true;
           }
 
-          const idKey = norm.id.toLowerCase();
+          const idKey = normalizeId(norm.id).toLowerCase();
           if (!seenIds.has(idKey)) {
             seenIds.add(idKey);
             uniqueUsers.push(norm);
@@ -2746,7 +2746,7 @@
       const targetClass = classId ? (classes.find(c => c.id === classId) || null) : null;
 
       const existingUser = users.find(u =>
-        u.role !== 'teacher' && u.id && u.id.trim().toLowerCase() === cleanId.toLowerCase()
+        u && u.role !== 'teacher' && isSameId(u.id, cleanId)
       );
 
       const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
@@ -2811,7 +2811,7 @@
         if (!code || !name) return;
         addedCodes.push(code.toLowerCase());
 
-        const existing = users.find(u => u && u.id.trim().toLowerCase() === code.toLowerCase());
+        const existing = users.find(u => u && isSameId(u.id, code));
         if (existing) {
           existing.id = code;
           existing.name = name;
@@ -3007,7 +3007,7 @@
 
       // 2) 小组解析
       const group = this.getStudentActiveGroup(user, activeClass.id);
-      if (!group || !group.id || group.id.startsWith('group_unassigned_')) {
+      if (!group || !group.id || String(group.id).startsWith('group_unassigned_')) {
         return { ok: false, reason: '你尚未被分配到协作小组，请联系教师分配后再进入正文写作' };
       }
 
@@ -4085,7 +4085,7 @@
 
       // 1. 本地立即更新
       const users = this.getUsers();
-      const target = users.find(u => u && u.id && u.id.toLowerCase() === acc.toLowerCase());
+      const target = users.find(u => u && isSameId(u.id, acc));
       if (target) {
         target.password = newPassword;
         localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
@@ -6079,7 +6079,7 @@
       if (!val) return;
       const allUsers = (authManager && authManager.getUsers) ? authManager.getUsers() : [];
       const isTeacher = allUsers.some(u => 
-        (u.role === 'teacher' || u.isTeacher) && u.id && u.id.toLowerCase() === val
+        (u.role === 'teacher' || u.isTeacher) && isSameId(u.id, val)
       );
       if (isTeacher) {
         const teacherRadio = container.querySelector('input[name="login-role"][value="teacher"]');
@@ -8496,7 +8496,7 @@
         if (!name || !code) { alert('⚠️ 请填齐学生姓名和学号！'); return; }
         try {
           const users = authManager.getUsers();
-          const isAlreadyExist = users.some(u => (u.id && u.id.trim().toLowerCase() === code.toLowerCase()));
+          const isAlreadyExist = users.some(u => isSameId(u.id, code));
           const targetUser = authManager.addStudentToClass(name, code, targetCls ? targetCls.id : null, pwd || '123');
           if (targetCls) {
             if (isAlreadyExist) {
@@ -12749,7 +12749,7 @@
     const isFinalSubmitted = !!state.isFinalSubmitted;
     const isEditorReadonly = isTaskDeadlineExpired || isFinalSubmitted;
 
-    if (!userGroupId || userGroupId === 'null' || userGroupId.startsWith('group_unassigned')) {
+    if (!userGroupId || userGroupId === 'null' || String(userGroupId || '').startsWith('group_unassigned')) {
       canvas.innerHTML = showResolutionBlock('未检测到您被分配的具体协作小组，请联系教师在教务空间分配小组后再进入');
       return;
     }
