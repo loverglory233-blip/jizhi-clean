@@ -1212,7 +1212,7 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
             padWin.document.cookie = `name=${encodeURIComponent(userName)}; path=/; max-age=86400`;
           }
           
-          // 🛡️ 仅确保顶部原生 editbar 显示正常，不添加任何额外间距或偏移
+          // 🛡️ 仅确保顶部原生 editbar 显示正常，并确保正文保持学术纯白底（移除丑陋的整块作者背景色）
           const doc = padWin.document;
           if (doc) {
             let styleEl = doc.getElementById('jizhi-etherpad-guard-style');
@@ -1225,9 +1225,36 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
                   visibility: visible !important;
                   opacity: 1 !important;
                 }
+                span[class*="author-"], .author {
+                  background-color: transparent !important;
+                  background: transparent !important;
+                }
               `;
               (doc.head || doc.documentElement).appendChild(styleEl);
             }
+
+            try {
+              const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
+              if (aceOuter && aceOuter.contentDocument) {
+                const outerDoc = aceOuter.contentDocument;
+                const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
+                if (aceInner && aceInner.contentDocument) {
+                  const innerDoc = aceInner.contentDocument;
+                  let innerStyle = innerDoc.getElementById('jizhi-author-white-bg-style');
+                  if (!innerStyle) {
+                    innerStyle = innerDoc.createElement('style');
+                    innerStyle.id = 'jizhi-author-white-bg-style';
+                    innerStyle.textContent = `
+                      span[class*="author-"], .author, #innerdocbody span[class*="author-"] {
+                        background-color: transparent !important;
+                        background: transparent !important;
+                      }
+                    `;
+                    (innerDoc.head || innerDoc.documentElement).appendChild(innerStyle);
+                  }
+                }
+              }
+            } catch(e) {}
           }
         }
       } catch(e) {}

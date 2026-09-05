@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260905_v2632"
+TARGET_VERSION="20260905_v2633"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -350,29 +350,34 @@ if [ -n "$EP_DIR" ]; then
     done
   fi
 
-  # 写入高可用无拦截且让插件自动挂载的标准 settings.json (杜绝手写 toolbar 引起的 500 模板异常)
+  # 写入高可用无拦截且让插件自动挂载的标准 settings.json (使用生产级 MySQL 存储，开启协同与色彩)
   cat << 'EPSETEOF' > "$EP_DIR/settings.json"
 {
-  "title": "JIZHI Academic Etherpad",
+  "title": "JIZHI Academic Pad",
   "ip": "0.0.0.0",
   "port": 9001,
-  "dbType": "dirty",
+  "dbType": "mysql",
   "dbSettings": {
-    "filename": "var/dirty.db"
+    "user": "jizhi",
+    "host": "127.0.0.1",
+    "port": 3306,
+    "password": "KxDmdtSWaTtHafdZ",
+    "database": "jizhi",
+    "charset": "utf8mb4"
   },
+  "trustProxy": true,
+  "skinName": "colibris",
   "defaultPadText": "",
   "padOptions": {
-    "noColors": true,
+    "noColors": false,
     "showControls": true,
     "showChat": false,
     "showLineNumbers": true,
-    "useMonospaceFont": false,
-    "userName": "学术组员"
+    "useMonospaceFont": false
   },
   "suppressErrorsInPadText": true,
   "requireAuthentication": false,
   "requireAuthorization": false,
-  "trustProxy": true,
   "socketTransportProtocols": ["websocket", "polling"],
   "loadTest": false,
   "exposeVersion": false,
@@ -381,13 +386,14 @@ if [ -n "$EP_DIR" ]; then
 }
 EPSETEOF
 
-  # 🚀 深度重启与载入最新语言包和工具栏配置（Dirty.db/MySQL 持久化保证数据 100% 完整无损）
+  # 🚀 深度重启与载入最新语言包和工具栏配置（MySQL 持久化保证数据 100% 完整无损）
   echo "   ⚡ 重新加载并重启 Etherpad 协同文档引擎..."
   fuser -k 9001/tcp 2>/dev/null || true
   kill -9 $(lsof -t -i:9001 2>/dev/null) 2>/dev/null || true
   pkill -9 -f "node.*server\.js" 2>/dev/null || true
   pkill -9 -f "node.*etherpad" 2>/dev/null || true
   pkill -9 -f "bin/run.sh" 2>/dev/null || true
+  pkill -9 -f "node" 2>/dev/null || true
   sleep 1
 
   cd "$EP_DIR"
@@ -395,34 +401,8 @@ EPSETEOF
   > /var/log/etherpad.log
   export NODE_ENV=production
 
-  NODE_BIN=""
-  for nb in /www/server/nodejs/v18.20.7/bin/node /www/server/nodejs/v22*/bin/node /www/server/nodejs/v20*/bin/node /www/server/nodejs/v18*/bin/node /www/server/nodejs/v*/bin/node /usr/local/bin/node /usr/bin/node; do
-    if [ -x "$nb" ]; then
-      NODE_BIN="$nb"
-      break
-    fi
-  done
-  [ -z "$NODE_BIN" ] && NODE_BIN=$(which node 2>/dev/null || echo "node")
-
-  echo "   🚀 启动 Node 引擎: $NODE_BIN"
-
-  # 确保模块链接无缝关联
-  if [ -d "$EP_DIR/node_modules" ] && [ ! -d "$EP_DIR/src/node_modules" ]; then
-    ln -sf "$EP_DIR/node_modules" "$EP_DIR/src/node_modules" 2>/dev/null || true
-  elif [ -d "$EP_DIR/src/node_modules" ] && [ ! -d "$EP_DIR/node_modules" ]; then
-    ln -sf "$EP_DIR/src/node_modules" "$EP_DIR/node_modules" 2>/dev/null || true
-  fi
-
-  export NODE_PATH="$EP_DIR/node_modules:$EP_DIR/src/node_modules:$NODE_PATH"
-  export NODE_ENV=production
-
-  if [ -f "src/node/server.ts" ]; then
-    nohup "$NODE_BIN" --require tsx/cjs src/node/server.ts > /var/log/etherpad.log 2>&1 &
-  elif [ -f "src/node/server.js" ]; then
-    nohup "$NODE_BIN" src/node/server.js > /var/log/etherpad.log 2>&1 &
-  elif [ -f "node_modules/ep_etherpad-lite/node/server.js" ]; then
-    nohup "$NODE_BIN" node_modules/ep_etherpad-lite/node/server.js --root > /var/log/etherpad.log 2>&1 &
-  fi
+  echo "   🚀 以 root 权限启动 Etherpad 官方守护进程..."
+  nohup ./bin/run.sh --root > /var/log/etherpad.log 2>&1 &
 
   EP_READY=0
   for i in {1..35}; do
