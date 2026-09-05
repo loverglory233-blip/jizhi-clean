@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2695";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2695";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2695";
-import { AuthManager } from "./auth.js?v=20260906_v2695";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2695";
-import { renderLoginView } from "./login.js?v=20260906_v2695";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2695";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2695";
+} from "./constants.js?v=20260906_v2696";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2696";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2696";
+import { AuthManager } from "./auth.js?v=20260906_v2696";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2696";
+import { renderLoginView } from "./login.js?v=20260906_v2696";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2696";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2696";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2695";
+} from "./editor.js?v=20260906_v2696";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6015,12 +6015,6 @@ ${chatSnippet}
           detail: '正方立论专家正在提炼肯定亮点，反方商榷专家正在研拟针对实质询...'
         });
 
-        // ⚡ 智能提炼正文核心摘要，大幅压缩大模型上下文与首字生成延迟（从 45s 压降至 6~8s）
-        let optimizedDocSnippet = rawContent;
-        if (optimizedDocSnippet.length > 1800) {
-          optimizedDocSnippet = optimizedDocSnippet.slice(0, 1600) + '\n...(正文核心主体已通读)...';
-        }
-
         const propPrompt = `${genreDesc}
 
 针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会正方评审教授发表 150~200 字的肯定支持评审意见：
@@ -6054,11 +6048,11 @@ ${chatSnippet}
 态度客观严谨、温和建设，纯自然语言输出，200~260字。`;
 
         try {
-          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 30000));
+          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 50000));
           const promises = [];
           if (!hasProp) {
             promises.push(Promise.race([
-              callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: optimizedDocSnippet, taskType }),
+              callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent, taskType }),
               timeoutPromise
             ]));
           } else {
@@ -6068,7 +6062,7 @@ ${chatSnippet}
 
           if (!hasOpp) {
             promises.push(Promise.race([
-              callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: optimizedDocSnippet, taskType }),
+              callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent, taskType }),
               timeoutPromise
             ]));
           } else {
