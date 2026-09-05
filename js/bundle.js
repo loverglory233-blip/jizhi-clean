@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2618
+ * Version: 20260905_v2619
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2618';
+  const APP_VERSION = '20260905_v2619';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1251,11 +1251,13 @@
     if (!iframe) return;
     iframe._isReadonlyEnforced = false;
 
-    // 1. 彻底清除所有的只读拦截遮罩（包括 container 和 document 中的所有残留遮罩）
+    // 1. 彻底清除所有的只读拦截遮罩与浮层（包括 container 和 document 中的所有残留遮罩）
     const removeShields = () => {
       try {
         const container = iframe.parentElement;
         if (container) {
+          container.style.pointerEvents = 'auto';
+          container.style.cursor = 'auto';
           const shields = container.querySelectorAll('.etherpad-readonly-shield');
           shields.forEach(s => s.remove());
         }
@@ -1264,13 +1266,23 @@
     };
     removeShields();
 
-    // 2. 清除 iframe 内部 DOM 上的只读限制，让 Etherpad 恢复原生渲染与编辑落焦
+    // 2. 清除 iframe 内部 DOM 上的只读限制，恢复工具栏可点击及正文编辑落焦
     const tryUnlock = () => {
       if (iframe._isReadonlyEnforced) return;
       removeShields();
       try {
         const doc = iframe.contentDocument;
         if (!doc) return;
+
+        // 移除 body 和 html 上的 readonly 类名
+        if (doc.body) {
+          doc.body.classList.remove('readonly');
+          doc.body.style.pointerEvents = 'auto';
+        }
+        if (doc.documentElement) {
+          doc.documentElement.classList.remove('readonly');
+          doc.documentElement.style.pointerEvents = 'auto';
+        }
 
         // 🛡️ 彻底隐藏并清除 Etherpad 内部可能卡住的 #connectivity（“重新连接到您的记事本...”）和 #loading 阻塞提示
         const conn = doc.querySelector('#connectivity');
@@ -1295,6 +1307,17 @@
               opacity: 0 !important;
               pointer-events: none !important;
             }
+            #editbar, .toolbar, #menu_left, #menu_right, .menu, #toolbar, nav.navbar, .menu_left, .menu_right, .editbar {
+              display: block !important;
+              visibility: visible !important;
+              opacity: 1 !important;
+              pointer-events: auto !important;
+              filter: none !important;
+            }
+            #editbar *, .toolbar * {
+              pointer-events: auto !important;
+              cursor: pointer !important;
+            }
           `;
           (doc.head || doc.documentElement).appendChild(hideStyle);
         }
@@ -1304,6 +1327,8 @@
           tb.style.removeProperty('display');
           tb.style.removeProperty('visibility');
           tb.style.removeProperty('opacity');
+          tb.style.setProperty('pointer-events', 'auto', 'important');
+          tb.style.setProperty('filter', 'none', 'important');
         });
 
         const footers = doc.querySelectorAll('#footer, .bottom-bar, #chatbox');
@@ -1317,11 +1342,13 @@
           editorBox.style.removeProperty('top');
           editorBox.style.removeProperty('position');
           editorBox.style.removeProperty('z-index');
+          editorBox.style.setProperty('pointer-events', 'auto', 'important');
         }
 
         const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
         if (aceOuter && aceOuter.contentDocument) {
           const outerDoc = aceOuter.contentDocument;
+          if (outerDoc.body) outerDoc.body.classList.remove('readonly');
           const outerBody = outerDoc.querySelector('#outerdocbody') || outerDoc.body;
           if (outerBody) {
             outerBody.style.removeProperty('cursor');
@@ -1333,6 +1360,8 @@
           const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
           if (aceInner && aceInner.contentDocument) {
             const innerDoc = aceInner.contentDocument;
+            innerDoc._jizhiReadonlyBound = false;
+            if (innerDoc.body) innerDoc.body.classList.remove('readonly');
             const innerBody = innerDoc.querySelector('#innerdocbody') || innerDoc.querySelector('.innerdocbody') || innerDoc.body;
             if (innerBody) {
               innerBody.setAttribute('contenteditable', 'true');
@@ -1369,13 +1398,13 @@
       iframe.addEventListener('load', () => {
         if (!iframe._isReadonlyEnforced) {
           tryUnlock();
-          [50, 150, 300, 600, 1200, 2500].forEach(delay => setTimeout(tryUnlock, delay));
+          [50, 150, 300, 600, 1000, 1500, 2500].forEach(delay => setTimeout(tryUnlock, delay));
         }
       });
     }
 
     tryUnlock();
-    [50, 150, 300, 600, 1200, 2500].forEach(delay => setTimeout(tryUnlock, delay));
+    [50, 100, 200, 350, 600, 1000, 1500, 2500, 4000].forEach(delay => setTimeout(tryUnlock, delay));
   }
   if (typeof window !== 'undefined') {
     window.liftEtherpadReadonly = liftEtherpadReadonly;
