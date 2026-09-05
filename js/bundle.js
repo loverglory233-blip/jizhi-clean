@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2632
+ * Version: 20260906_v2635
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2632';
+  const APP_VERSION = '20260906_v2635';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1418,22 +1418,90 @@
               padWin.document.cookie = `name=${encodeURIComponent(userName)}; path=/; max-age=86400`;
             }
 
-            // 🛡️ 仅确保顶部原生 editbar 显示正常，不添加任何额外间距或偏移
+            // 🛡️ 确保顶部原生 editbar 显示正常，并确保正文保持学术纯白底 + 深色正文字体（彻底杜绝大色块背景与白字隐形）
             const doc = padWin.document;
             if (doc) {
               let styleEl = doc.getElementById('jizhi-etherpad-guard-style');
+              const guardCss = `
+                #editbar {
+                  display: block !important;
+                  visibility: visible !important;
+                  opacity: 1 !important;
+                }
+                html, body {
+                  background-color: #ffffff !important;
+                  background: #ffffff !important;
+                  color: #0f172a !important;
+                  color-scheme: light !important;
+                }
+                span[class*="author-"], .author {
+                  background-color: transparent !important;
+                  background: transparent !important;
+                  color: #0f172a !important;
+                }
+              `;
               if (!styleEl) {
                 styleEl = doc.createElement('style');
                 styleEl.id = 'jizhi-etherpad-guard-style';
-                styleEl.textContent = `
-                  #editbar {
-                    display: block !important;
-                    visibility: visible !important;
-                    opacity: 1 !important;
-                  }
-                `;
+                styleEl.textContent = guardCss;
                 (doc.head || doc.documentElement).appendChild(styleEl);
+              } else {
+                styleEl.textContent = guardCss;
               }
+
+              try {
+                const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
+                if (aceOuter && aceOuter.contentDocument) {
+                  const outerDoc = aceOuter.contentDocument;
+                  let outerStyle = outerDoc.getElementById('jizhi-outer-guard-style');
+                  const outerCss = `
+                    html, body, #outerdocbody {
+                      background-color: #ffffff !important;
+                      background: #ffffff !important;
+                      color: #0f172a !important;
+                      color-scheme: light !important;
+                    }
+                  `;
+                  if (!outerStyle) {
+                    outerStyle = outerDoc.createElement('style');
+                    outerStyle.id = 'jizhi-outer-guard-style';
+                    outerStyle.textContent = outerCss;
+                    (outerDoc.head || outerDoc.documentElement).appendChild(outerStyle);
+                  } else {
+                    outerStyle.textContent = outerCss;
+                  }
+
+                  const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
+                  if (aceInner && aceInner.contentDocument) {
+                    const innerDoc = aceInner.contentDocument;
+                    let innerStyle = innerDoc.getElementById('jizhi-author-white-bg-style');
+                    const innerCss = `
+                      html, body, #innerdocbody {
+                        background-color: #ffffff !important;
+                        background: #ffffff !important;
+                        color: #0f172a !important;
+                        color-scheme: light !important;
+                      }
+                      #innerdocbody, #innerdocbody * {
+                        color: #0f172a !important;
+                      }
+                      span[class*="author-"], .author, #innerdocbody span[class*="author-"], .ace-line {
+                        background-color: transparent !important;
+                        background: transparent !important;
+                        color: #0f172a !important;
+                      }
+                    `;
+                    if (!innerStyle) {
+                      innerStyle = innerDoc.createElement('style');
+                      innerStyle.id = 'jizhi-author-white-bg-style';
+                      innerStyle.textContent = innerCss;
+                      (innerDoc.head || innerDoc.documentElement).appendChild(innerStyle);
+                    } else {
+                      innerStyle.textContent = innerCss;
+                    }
+                  }
+                }
+              } catch(e) {}
             }
           }
         } catch(e) {}
@@ -4675,49 +4743,17 @@
 
             const f2 = document.getElementById('stage2-etherpad-frame');
             if (f2) {
-              const currentSrc = f2.src || f2.getAttribute('src') || '';
-              if (currentSrc.includes('readOnly=true') || f2._wasPreviouslyReadonly) {
-                f2._wasPreviouslyReadonly = false;
-                f2._isReadonlyEnforced = false;
-                const container = f2.parentElement;
-                if (container) {
-                  container.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
-                  let cleanSrc = currentSrc.replace(/[&?]readOnly=true/g, '').replace(/[&?]showControls=false/g, '&showControls=true');
-                  if (!cleanSrc.includes('_t=')) cleanSrc += `&_t=${Date.now()}`;
-                  const newIframe = document.createElement('iframe');
-                  newIframe.id = 'stage2-etherpad-frame';
-                  newIframe.src = cleanSrc;
-                  newIframe.style.cssText = 'width:100%; height:100%; min-height:440px; border:none; display:block; background:#ffffff;';
-                  newIframe.setAttribute('allow', 'clipboard-read; clipboard-write; fullscreen');
-                  f2.replaceWith(newIframe);
-                }
-              } else {
-                liftEtherpadReadonly(f2);
-              }
+              f2._wasPreviouslyReadonly = false;
+              f2._isReadonlyEnforced = false;
+              liftEtherpadReadonly(f2);
             }
           }
           if (!isS3FinalDone) {
             const f3 = document.getElementById('stage3-etherpad-frame');
             if (f3) {
-              const currentSrc = f3.src || f3.getAttribute('src') || '';
-              if (currentSrc.includes('readOnly=true') || f3._wasPreviouslyReadonly) {
-                f3._wasPreviouslyReadonly = false;
-                f3._isReadonlyEnforced = false;
-                const container = f3.parentElement;
-                if (container) {
-                  container.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
-                  let cleanSrc = currentSrc.replace(/[&?]readOnly=true/g, '').replace(/[&?]showControls=false/g, '&showControls=true');
-                  if (!cleanSrc.includes('_t=')) cleanSrc += `&_t=${Date.now()}`;
-                  const newIframe = document.createElement('iframe');
-                  newIframe.id = 'stage3-etherpad-frame';
-                  newIframe.src = cleanSrc;
-                  newIframe.style.cssText = 'width:100%; height:100%; min-height:540px; border:none; display:block;';
-                  newIframe.setAttribute('allow', 'clipboard-read; clipboard-write');
-                  f3.replaceWith(newIframe);
-                }
-              } else {
-                liftEtherpadReadonly(f3);
-              }
+              f3._wasPreviouslyReadonly = false;
+              f3._isReadonlyEnforced = false;
+              liftEtherpadReadonly(f3);
             }
           }
         }
@@ -13219,7 +13255,7 @@
         }
 
         // 匹配每个 authorClass 到真实的 membersList 成员
-        const selfMem = membersList.find(m => isSameUser(m, currUser) || isSameUser(m, currUserCode) || (currUserName && m.name === currUserName)) || currUser;
+        const selfMem = membersList.find(m => isSameUser(m, currUser) || isSameUser(m, currUserCode) || (currUserName && m.name === currUserName) || (currUser?.id && isSameId(m.id, currUser.id))) || currUser;
 
         const localAuthorIdCandidates = new Set();
         if (padWin) {
@@ -13250,22 +13286,30 @@
         const assignedAuthors = new Map();
         const unassignedKeys = [];
 
+        const isPlaceholderName = (nameStr) => {
+          if (!nameStr) return true;
+          const s = String(nameStr).trim().toLowerCase();
+          return s === '' || s === '组员' || s === '学术组员' || s === 'unnamed' || s === 'author' || s === 'guest' || s === 'null' || s === 'undefined';
+        };
+
         const matchMemberForAuthor = (aKey, authorName, authorColor) => {
-          const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '');
+          const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
           const normDot = 'a.' + rawId;
           const normHyphen = 'a-' + rawId;
           const normUnderscore = 'a_' + rawId;
 
-          // 1. 本地当前活跃操作作者 -> 100% 绑定为当前登录用户
+          // 1. 本地当前活跃操作作者 / 键盘输入捕获类名 -> 100% 绑定为当前登录用户
           for (const cand of localAuthorIdCandidates) {
-            const candRaw = String(cand).replace(/^(author[-_]|a[._-])/i, '');
-            if (aKey === cand || normDot === cand || normHyphen === cand || normUnderscore === cand || (rawId && candRaw && rawId === candRaw)) {
+            if (!cand) continue;
+            const candStr = String(cand).trim().toLowerCase();
+            const candRaw = candStr.replace(/^(author[-_]|a[._-])/i, '');
+            if (aKey.toLowerCase() === candStr || normDot === candStr || normHyphen === candStr || normUnderscore === candStr || (rawId && candRaw && rawId === candRaw)) {
               if (selfMem) return selfMem;
             }
           }
 
-          // 2. 精确姓名 / ID 匹配
-          if (authorName && authorName !== '组员' && authorName !== 'unnamed') {
+          // 2. 精确姓名 / ID 匹配（剔除占位符）
+          if (authorName && !isPlaceholderName(authorName)) {
             const cleanAuthorName = authorName.trim().toLowerCase();
             const nameMatched = membersList.find(m => {
               if (!m) return false;
@@ -13290,7 +13334,7 @@
           let authorName = '';
           let authorColor = null;
 
-          const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '');
+          const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
           const normDot = 'a.' + rawId;
           const normHyphen = 'a-' + rawId;
           const normUnderscore = 'a_' + rawId;
@@ -13304,8 +13348,8 @@
           }
           if (!foundAuthorObj) {
             for (const k of Object.keys(authorData)) {
-              const kRaw = k.replace(/^(author[-_]|a[._-])/i, '');
-              if (k === aKey || (rawId && (kRaw === rawId || k.includes(rawId) || aKey.includes(kRaw)))) {
+              const kRaw = k.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
+              if (k.toLowerCase() === aKey.toLowerCase() || (rawId && (kRaw === rawId || k.includes(rawId) || aKey.includes(kRaw)))) {
                 foundAuthorObj = authorData[k];
                 break;
               }
@@ -13313,7 +13357,7 @@
           }
 
           if (foundAuthorObj) {
-            if (foundAuthorObj.name && foundAuthorObj.name !== '组员' && foundAuthorObj.name !== 'unnamed') {
+            if (foundAuthorObj.name && !isPlaceholderName(foundAuthorObj.name)) {
               authorName = String(foundAuthorObj.name).trim();
             }
             if (foundAuthorObj.colorId !== undefined || foundAuthorObj.color) {
@@ -13329,25 +13373,35 @@
           }
         });
 
-        // 4. 对尚未精确匹配的 authorClass，优先分配给当前登录用户（若当前登录用户尚未有 assignedAuthor），其余再分配给组内成员
-        const alreadyAssignedMemberIds = new Set(Array.from(assignedAuthors.values()).map(m => m.id));
-        const remainingMembers = [];
-        if (selfMem && !alreadyAssignedMemberIds.has(selfMem.id)) {
-          remainingMembers.push(selfMem);
-        }
-        membersList.forEach(m => {
-          if (!alreadyAssignedMemberIds.has(m.id) && (!selfMem || m.id !== selfMem.id)) {
-            remainingMembers.push(m);
+        // 4. 对尚未精确匹配的 authorClass，优先分配给当前登录用户
+        const nonUnassignedKeys = Object.keys(rawCounts).filter(k => k !== 'unassigned');
+        if (nonUnassignedKeys.length === 1 && selfMem) {
+          // 单人编辑或首次输入：唯一 authorClass 100% 归属于当前登录用户
+          assignedAuthors.set(nonUnassignedKeys[0], selfMem);
+        } else {
+          const alreadyAssignedMemberIds = new Set(Array.from(assignedAuthors.values()).map(m => m?.id || m?.studentCode || m?.name));
+          const remainingMembers = [];
+          if (selfMem && !alreadyAssignedMemberIds.has(selfMem.id) && !alreadyAssignedMemberIds.has(selfMem.studentCode) && !alreadyAssignedMemberIds.has(selfMem.name)) {
+            remainingMembers.push(selfMem);
           }
-        });
+          membersList.forEach(m => {
+            const mKey = m?.id || m?.studentCode || m?.name;
+            if (!alreadyAssignedMemberIds.has(mKey) && (!selfMem || (m.id !== selfMem.id && m.name !== selfMem.name))) {
+              remainingMembers.push(m);
+            }
+          });
 
-        let remIdx = 0;
-        unassignedKeys.forEach(aKey => {
-          if (remIdx < remainingMembers.length) {
-            assignedAuthors.set(aKey, remainingMembers[remIdx]);
-            remIdx++;
-          }
-        });
+          let remIdx = 0;
+          unassignedKeys.forEach(aKey => {
+            if (remIdx < remainingMembers.length) {
+              assignedAuthors.set(aKey, remainingMembers[remIdx]);
+              remIdx++;
+            } else if (selfMem) {
+              // 若所有未分配位耗尽，默认归属本地登录作者
+              assignedAuthors.set(aKey, selfMem);
+            }
+          });
+        }
 
         // 5. 累计各成员字数（未匹配作者严禁冒领，按作者特征或平分处理）
         let totalAssignedChars = 0;
@@ -13359,15 +13413,10 @@
             memberCounts[targetMember.id] = (memberCounts[targetMember.id] || 0) + count;
             if (targetMember.name) memberCounts[targetMember.name] = (memberCounts[targetMember.name] || 0) + count;
             totalAssignedChars += count;
-          } else if (aKey !== 'unassigned') {
-            // 未知外部作者：按组内未分配成员依次归属或平分，绝不全盘冒领为当前登录用户
-            const unassignedTarget = remainingMembers.find(m => !alreadyAssignedMemberIds.has(m.id));
-            if (unassignedTarget) {
-              memberCounts[unassignedTarget.id] = (memberCounts[unassignedTarget.id] || 0) + count;
-              if (unassignedTarget.name) memberCounts[unassignedTarget.name] = (memberCounts[unassignedTarget.name] || 0) + count;
-              alreadyAssignedMemberIds.add(unassignedTarget.id);
-              totalAssignedChars += count;
-            }
+          } else if (aKey !== 'unassigned' && selfMem) {
+            memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + count;
+            if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + count;
+            totalAssignedChars += count;
           }
         });
 
@@ -13801,32 +13850,9 @@
             existingFrame._wasPreviouslyReadonly = true;
             enforceEtherpadReadonly(existingFrame);
           } else {
-            // 🔑 关键修复：直接检查 iframe 当前 src 是否含 readOnly=true
-            // 必须通过 DOM replaceWith 彻底销毁旧 iframe，杀死旧 WebSocket 连接，杜绝多连接竞争卡在“重新连接中”
-            const currentSrc = existingFrame.src || existingFrame.getAttribute('src') || '';
-            if (currentSrc.includes('readOnly=true') || existingFrame._wasPreviouslyReadonly) {
-              existingFrame._wasPreviouslyReadonly = false;
-              existingFrame._isReadonlyEnforced = false;
-              const container = existingFrame.parentElement;
-              if (container) {
-                container.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
-                document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
-                const newIframe = document.createElement('iframe');
-                newIframe.id = 'stage2-etherpad-frame';
-                newIframe.src = `${padUrl}&_t=${Date.now()}`;
-                newIframe.style.cssText = 'width:100%; height:100%; min-height:440px; border:none; display:block; background:#ffffff;';
-                newIframe.setAttribute('allow', 'clipboard-read; clipboard-write; fullscreen');
-                newIframe.onload = () => {
-                  const el = document.getElementById('ep-status-text-s2');
-                  if (el) el.innerText = 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)';
-                  try { if (window.liftEtherpadReadonly) window.liftEtherpadReadonly(newIframe); } catch(e){}
-                };
-                existingFrame.replaceWith(newIframe);
-              }
-            } else {
-              liftEtherpadReadonly(existingFrame);
-            }
             existingFrame._wasPreviouslyReadonly = false;
+            liftEtherpadReadonly(existingFrame);
+            ensureEtherpadUserSync(existingFrame, currUserName, currUserColor);
           }
         }
 
@@ -14415,32 +14441,9 @@
           existingFrame._wasPreviouslyReadonly = true;
           enforceEtherpadReadonly(existingFrame);
         } else {
-          // 🔑 关键修复：直接检查 iframe 当前 src 是否含 readOnly=true
-          // 必须通过 DOM replaceWith 彻底销毁旧 iframe，杀死旧 WebSocket 连接，杜绝多连接竞争卡在“重新连接中”
-          const currentSrc = existingFrame.src || existingFrame.getAttribute('src') || '';
-          if (currentSrc.includes('readOnly=true') || existingFrame._wasPreviouslyReadonly) {
-            existingFrame._wasPreviouslyReadonly = false;
-            existingFrame._isReadonlyEnforced = false;
-            const container = existingFrame.parentElement;
-            if (container) {
-              container.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
-              document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
-              let newSrc = currentSrc.replace(/[&?]readOnly=true/g, '').replace(/[&?]showControls=false/g, '&showControls=true');
-              if (!newSrc.includes('_t=')) newSrc += `&_t=${Date.now()}`;
-              const newIframe = document.createElement('iframe');
-              newIframe.id = 'stage3-etherpad-frame';
-              newIframe.src = newSrc;
-              newIframe.style.cssText = 'width:100%; height:100%; min-height:540px; border:none; display:block;';
-              newIframe.setAttribute('allow', 'clipboard-read; clipboard-write');
-              newIframe.onload = () => {
-                try { if (window.liftEtherpadReadonly) window.liftEtherpadReadonly(newIframe); } catch(e){}
-              };
-              existingFrame.replaceWith(newIframe);
-            }
-          } else {
-            liftEtherpadReadonly(existingFrame);
-          }
           existingFrame._wasPreviouslyReadonly = false;
+          liftEtherpadReadonly(existingFrame);
+          ensureEtherpadUserSync(existingFrame, currUserName, currUserColor);
         }
       }
       return;
