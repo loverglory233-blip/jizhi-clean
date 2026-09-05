@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2676";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2676";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2676";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2677";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2677";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2677";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -2277,9 +2277,9 @@ function renderStage2Canvas(canvas, state, handlers) {
           <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:6px; padding:6px 12px; margin-bottom:6px; flex-shrink:0; box-shadow:0 1px 3px rgba(5,150,105,0.06);">
             <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
               <div style="font-size:12px; font-weight:800; color:#059669; display:flex; align-items:center; gap:8px;">
-                <span>📋 【半程修正清单】(${taskGenreKey === 'instructional' ? '教研专家' : '审稿专家'} 3 项修改要求)</span>
+                <span>📋 【半程修正清单】(${totalItems} 项修改要求)</span>
                 <span style="font-size:11px; background:${isAllDone ? '#d1fae5' : '#fef3c7'}; color:${isAllDone ? '#065f46' : '#b45309'}; border:1px solid ${isAllDone ? '#a7f3d0' : '#fde68a'}; padding:1px 8px; border-radius:10px; font-weight:800;">
-                  ${isAllDone ? '🎉 3 项要求已全部落实' : `⏳ 已落实 ${completedCount}/${totalItems} 项`}
+                  ${isAllDone ? `🎉 ${totalItems} 项要求已全部落实` : `⏳ 已落实 ${completedCount}/${totalItems} 项`}
                 </span>
               </div>
               <span id="icon-toggle-action-plan" style="font-size:11px; color:#059669; font-weight:700; background:#ffffff; border:1px solid #a7f3d0; padding:1.5px 8px; border-radius:4px;">▲ 收起清单</span>
@@ -2517,9 +2517,9 @@ function renderStage2Canvas(canvas, state, handlers) {
           <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:6px; padding:6px 12px; margin-bottom:6px; flex-shrink:0; box-shadow:0 1px 3px rgba(5,150,105,0.06);">
             <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
               <div style="font-size:12px; font-weight:800; color:#059669; display:flex; align-items:center; gap:8px;">
-                <span>📋 【半程修正清单】(审稿专家 3 项修改要求)</span>
+                <span>📋 【半程修正清单】(${totalItems} 项修改要求)</span>
                 <span style="font-size:11px; background:${isAllDone ? '#d1fae5' : '#fef3c7'}; color:${isAllDone ? '#065f46' : '#b45309'}; border:1px solid ${isAllDone ? '#a7f3d0' : '#fde68a'}; padding:1px 8px; border-radius:10px; font-weight:800;">
-                  ${isAllDone ? '🎉 3 项要求已全部落实' : `⏳ 已落实 ${completedCount}/${totalItems} 项`}
+                  ${isAllDone ? `🎉 ${totalItems} 项要求已全部落实` : `⏳ 已落实 ${completedCount}/${totalItems} 项`}
                 </span>
               </div>
               <span id="icon-toggle-action-plan" style="font-size:11px; color:#059669; font-weight:700; background:#ffffff; border:1px solid #a7f3d0; padding:1.5px 8px; border-radius:4px;">▲ 收起清单</span>
