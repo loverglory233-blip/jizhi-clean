@@ -110,7 +110,11 @@ function getCozeAccessToken($forceRefresh = false) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+    curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+    curl_setopt($ch, CURLOPT_TCP_NODELAY, 1);
+    curl_setopt($ch, CURLOPT_ENCODING, '');
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 4);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
     $resp = curl_exec($ch);
     curl_close($ch);
 
@@ -375,6 +379,10 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+curl_setopt($ch, CURLOPT_TCP_NODELAY, 1);
+curl_setopt($ch, CURLOPT_ENCODING, '');
+curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 4);
 curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
 $resp = curl_exec($ch);
@@ -396,6 +404,10 @@ if ($httpCode === 401 || (strpos($resp, '4100') !== false || strpos($resp, '4001
         curl_setopt($chRetry, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($chRetry, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($chRetry, CURLOPT_SSL_VERIFYHOST, 0);
+        curl_setopt($chRetry, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+        curl_setopt($chRetry, CURLOPT_TCP_NODELAY, 1);
+        curl_setopt($chRetry, CURLOPT_ENCODING, '');
+        curl_setopt($chRetry, CURLOPT_CONNECTTIMEOUT, 4);
         curl_setopt($chRetry, CURLOPT_TIMEOUT, 30);
         $resp = curl_exec($chRetry);
         curl_close($chRetry);
