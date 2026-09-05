@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2582";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2582";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2582";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2583";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2583";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2583";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一达成全员确认提炼中时，右侧分析卡片绝对同步呈现）
@@ -19,7 +19,7 @@ export function getEffectiveAgentAnalyzing(state = null) {
   const explicitAnalyzing = currState.activeAgentAnalyzing || (app && app.state && app.state.activeAgentAnalyzing);
   if (explicitAnalyzing && typeof explicitAnalyzing === 'object') {
     const ts = explicitAnalyzing._ts || explicitAnalyzing.timestamp || 0;
-    if (!ts || (Date.now() - ts < 90000)) {
+    if (!ts || (Date.now() - ts < 35000)) {
       return explicitAnalyzing;
     }
   }
@@ -168,7 +168,7 @@ export function isAnyExtracting(state = null) {
   if (currState && currState.activeAgentAnalyzing) {
     const analyzing = currState.activeAgentAnalyzing;
     const ts = analyzing._ts || analyzing.timestamp || 0;
-    if (ts && (Date.now() - ts > 90000)) {
+    if (ts && (Date.now() - ts > 35000)) {
       currState.activeAgentAnalyzing = null;
       if (app && app.state) app.state.activeAgentAnalyzing = null;
     }
@@ -678,8 +678,8 @@ function renderStage1Canvas(canvas, state, handlers) {
                 const isTasksFailed = !!(s1._tasksExtractFailed);
                 if (isTasksFailed) {
                   return `
-                    <button id="btn-extract-tasks" disabled style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; opacity:0.95; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(217,119,6,0.3);">
-                      ⚠️ 提炼遇阻 · 全员已确认 (${count}/${totalMembersCount}) · 请在右侧讨论区点击【重新提炼】
+                    <button id="btn-extract-tasks" style="background:linear-gradient(135deg, #ea580c, #c2410c); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; opacity:1; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(234,88,12,0.3); transition:all 0.2s;">
+                      🔄 提炼遇阻，点此重新提炼【任务分工】
                     </button>
                   `;
                 }
@@ -696,8 +696,8 @@ function renderStage1Canvas(canvas, state, handlers) {
                 const isTimeFailed = !!(s1._timeExtractFailed);
                 if (isTimeFailed) {
                   return `
-                    <button id="btn-extract-time" disabled style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; opacity:0.95; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(217,119,6,0.3);">
-                      ⚠️ 提炼遇阻 · 全员已确认 (${count}/${totalMembersCount}) · 请在右侧讨论区点击【重新提炼】
+                    <button id="btn-extract-time" style="background:linear-gradient(135deg, #ea580c, #c2410c); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; opacity:1; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(234,88,12,0.3); transition:all 0.2s;">
+                      🔄 提炼遇阻，点此重新提炼【时间分配】
                     </button>
                   `;
                 }
@@ -722,8 +722,8 @@ function renderStage1Canvas(canvas, state, handlers) {
                 const extractName = (taskGenreKey === 'instructional') ? '课题与教学构想' : '主题与研究方案';
                 if (isTopicFailed) {
                   return `
-                    <button id="btn-extract-topic" disabled style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; opacity:0.95; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(217,119,6,0.3);">
-                      ⚠️ 提炼遇阻 · 全员已确认 (${count}/${totalMembersCount}) · 请在右侧讨论区点击【重新提炼】
+                    <button id="btn-extract-topic" style="background:linear-gradient(135deg, #ea580c, #c2410c); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; opacity:1; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(234,88,12,0.3); transition:all 0.2s;">
+                      🔄 提炼遇阻，点此重新提炼【${extractName}】
                     </button>
                   `;
                 }
@@ -3831,8 +3831,12 @@ export function renderChatActionBar(state) {
         </button>
       `;
       actionBar.querySelector('#btn-s3-inquiry-summary')?.addEventListener('click', () => {
-        if (window.app && typeof window.app.handleS3InquirySummary === 'function') {
-          window.app.handleS3InquirySummary(currentInquiry);
+        if (window.app && typeof window.app.handleStepConfirmation === 'function') {
+          window.app.handleStepConfirmation(stepKey, () => {
+            window.app.handleS3InquirySummary(null, currentInquiry);
+          }, inqLabel);
+        } else if (window.app && typeof window.app.handleS3InquirySummary === 'function') {
+          window.app.handleS3InquirySummary(null, currentInquiry);
         }
       });
     } else {
