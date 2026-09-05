@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2620
+ * Version: 20260905_v2621
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2620';
+  const APP_VERSION = '20260905_v2621';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1251,7 +1251,7 @@
     if (!iframe) return;
     iframe._isReadonlyEnforced = false;
 
-    // 1. 彻底清除所有的只读拦截遮罩与浮层（包括 container 和 document 中的所有残留遮罩）
+    // 1. 精准清除当前特定 iframe 容器中的只读拦截遮罩（绝不误删已归档历史阶段的遮罩）
     const removeShields = () => {
       try {
         const container = iframe.parentElement;
@@ -1261,7 +1261,6 @@
           const shields = container.querySelectorAll('.etherpad-readonly-shield');
           shields.forEach(s => s.remove());
         }
-        document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
       } catch(e) {}
     };
     removeShields();
@@ -13505,9 +13504,8 @@
           }
         }
 
-        // 🛡️ 工具栏与输入守卫：只要任务处于可编辑状态，确保所有只读遮罩立刻移除，工具栏持续常驻
+        // 🛡️ 工具栏与输入守卫：只要阶段二处于进行中且可编辑，确保阶段二遮罩立刻移除，工具栏持续常驻
         if (!isEditorReadonly) {
-          document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
           const s2f = document.getElementById('stage2-etherpad-frame');
           if (s2f) {
             if (s2f.parentElement) {

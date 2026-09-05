@@ -1045,7 +1045,7 @@ export function liftEtherpadReadonly(iframe) {
   if (!iframe) return;
   iframe._isReadonlyEnforced = false;
 
-  // 1. 彻底清除所有的只读拦截遮罩与浮层（包括 container 和 document 中的所有残留遮罩）
+  // 1. 精准清除当前特定 iframe 容器中的只读拦截遮罩（绝不误删已归档历史阶段的遮罩）
   const removeShields = () => {
     try {
       const container = iframe.parentElement;
@@ -1055,7 +1055,6 @@ export function liftEtherpadReadonly(iframe) {
         const shields = container.querySelectorAll('.etherpad-readonly-shield');
         shields.forEach(s => s.remove());
       }
-      document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
     } catch(e) {}
   };
   removeShields();
