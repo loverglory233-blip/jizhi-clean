@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2573
+ * Version: 20260905_v2575
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2573';
+  const APP_VERSION = '20260905_v2575';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2975,7 +2975,7 @@
         const clsTasks = tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === 'class_all' || isSameId(t.classId, activeClass.id));
         activeTask = clsTasks.length > 0 ? clsTasks[0] : tasks[0];
       }
-      const resolvedTaskId = activeTask ? activeTask.id : `task_${activeClass.id}_default`;
+      const resolvedTaskId = activeTask ? activeTask.id : '';
 
       // 4) 成员 = 当前登录用户本身
       return {
@@ -4290,7 +4290,8 @@
 
       let taskId = this.app.state.activeTaskId || null;
       if (!taskId && isTeacher) {
-        taskId = `task_${effectiveClassId}_default`;
+        const allTasks = this.app.authManager ? this.app.authManager.getTasks() : [];
+        taskId = allTasks[0] ? allTasks[0].id : '';
       }
       if (isStudent && this.app.state.studentViewMode !== 'workspace') {
         taskId = null;
@@ -4435,8 +4436,6 @@
         !this.app.state.activeTaskId ||
         this.app.state.activeTaskId === t.id ||
         (t.title && this.app.state.activeTaskId === t.title) ||
-        (t.id && t.id.includes('default')) ||
-        (this.app.state.activeTaskId && this.app.state.activeTaskId.includes('default')) ||
         (t.title && badgeText.includes(t.title))
       );
       const isTaskHall = !isWorkspace || this.app.state.studentViewMode === 'task_list';
@@ -8388,7 +8387,8 @@
           try {
             const newC = authManager.createClass(name.trim());
             state.activeClassId = newC.id;
-            state.activeTaskId = `task_${newC.id}_default`;
+            const newCTasks = authManager.getTasksForClass ? authManager.getTasksForClass(newC.id) : [];
+            state.activeTaskId = (newCTasks[0] && newCTasks[0].id) ? newCTasks[0].id : '';
             state.activeMonitorGroupId = (newC.groups && newC.groups[0]) ? newC.groups[0].id : null;
             state.monitorPanorama = null;
             state._lastMonitorHash = '';
@@ -12489,7 +12489,7 @@
     let userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || null;
     let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || '';
 
-    // 🛡️ 班级/小组/成员/任务严格解析：任一解析不到 → 明确提示并阻止渲染正文画布（不再静默兜底 group_1 / task_default / null）
+    // 🛡️ 班级/小组/成员/任务严格解析：任一解析不到 → 明确提示并阻止渲染正文画布（不再静默兜底）
     const authMgr = (window.app && window.app.authManager) ? window.app.authManager : null;
     if (authMgr && typeof authMgr.resolveStudentActiveContext === 'function') {
       const strictCtx = authMgr.resolveStudentActiveContext(currUser, {
@@ -15090,7 +15090,8 @@
 
       let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : null);
       if (!taskId && isTeacher) {
-        taskId = `task_${effectiveClassId}_default`;
+        const allTasks = this.authManager ? this.authManager.getTasks() : [];
+        taskId = allTasks[0] ? allTasks[0].id : '';
       }
       this.state.activeTaskId = taskId;
       this.state.activeGroupId = groupId;
@@ -15295,7 +15296,10 @@
       const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || null;
       let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : null);
       if (!taskId) {
-        if (isTeacher) taskId = `task_${effectiveClassId}_default`;
+        if (isTeacher) {
+          const allTasks = this.authManager ? this.authManager.getTasks() : [];
+          taskId = allTasks[0] ? allTasks[0].id : '';
+        }
         else return; // 学生端必须有真实任务 ID
       }
 
@@ -20264,7 +20268,10 @@
       const groupId = this.getEffectiveGroupId();
       let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : null);
       if (!taskId) {
-        if (isTeacher) taskId = `task_${effectiveClassId}_default`;
+        if (isTeacher) {
+          const allTasks = this.authManager ? this.authManager.getTasks() : [];
+          taskId = allTasks[0] ? allTasks[0].id : '';
+        }
         else return; // 学生未选定真实任务时绝不触发开场白
       }
 

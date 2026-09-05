@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260905_v2573";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260905_v2573";
+} from "./constants.js?v=20260905_v2575";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260905_v2575";
 
 export const getPanoGroupData = (pano, gid) => {
   if (!pano || typeof pano !== 'object' || !gid) return null;
@@ -2288,7 +2288,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
         try {
           const newC = authManager.createClass(name.trim());
           state.activeClassId = newC.id;
-          state.activeTaskId = `task_${newC.id}_default`;
+          const newCTasks = authManager.getTasksForClass ? authManager.getTasksForClass(newC.id) : [];
+          state.activeTaskId = (newCTasks[0] && newCTasks[0].id) ? newCTasks[0].id : '';
           state.activeMonitorGroupId = (newC.groups && newC.groups[0]) ? newC.groups[0].id : null;
           state.monitorPanorama = null;
           state._lastMonitorHash = '';

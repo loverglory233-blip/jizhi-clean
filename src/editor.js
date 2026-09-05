@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2573";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2573";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2573";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2575";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2575";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2575";
 
 /**
  * 🛡️ 全局提炼互斥状态判定工具函数
@@ -1387,7 +1387,7 @@ function renderStage2Canvas(canvas, state, handlers) {
   let userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || null;
   let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || '';
 
-  // 🛡️ 班级/小组/成员/任务严格解析：任一解析不到 → 明确提示并阻止渲染正文画布（不再静默兜底 group_1 / task_default / null）
+  // 🛡️ 班级/小组/成员/任务严格解析：任一解析不到 → 明确提示并阻止渲染正文画布（不再静默兜底）
   const authMgr = (window.app && window.app.authManager) ? window.app.authManager : null;
   if (authMgr && typeof authMgr.resolveStudentActiveContext === 'function') {
     const strictCtx = authMgr.resolveStudentActiveContext(currUser, {

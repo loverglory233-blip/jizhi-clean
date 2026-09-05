@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2573';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260905_v2573';
+} from './constants.js?v=20260905_v2575';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260905_v2575';
 
 export class AuthManager {
   constructor() {
@@ -1248,7 +1248,7 @@ export class AuthManager {
       const clsTasks = tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === 'class_all' || isSameId(t.classId, activeClass.id));
       activeTask = clsTasks.length > 0 ? clsTasks[0] : tasks[0];
     }
-    const resolvedTaskId = activeTask ? activeTask.id : `task_${activeClass.id}_default`;
+    const resolvedTaskId = activeTask ? activeTask.id : '';
 
     // 4) 成员 = 当前登录用户本身
     return {

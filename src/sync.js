@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2573';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2573';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2575';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260905_v2575';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -41,7 +41,8 @@ export class CloudSyncEngine {
     
     let taskId = this.app.state.activeTaskId || null;
     if (!taskId && isTeacher) {
-      taskId = `task_${effectiveClassId}_default`;
+      const allTasks = this.app.authManager ? this.app.authManager.getTasks() : [];
+      taskId = allTasks[0] ? allTasks[0].id : '';
     }
     if (isStudent && this.app.state.studentViewMode !== 'workspace') {
       taskId = null;
@@ -186,8 +187,6 @@ export class CloudSyncEngine {
       !this.app.state.activeTaskId ||
       this.app.state.activeTaskId === t.id ||
       (t.title && this.app.state.activeTaskId === t.title) ||
-      (t.id && t.id.includes('default')) ||
-      (this.app.state.activeTaskId && this.app.state.activeTaskId.includes('default')) ||
       (t.title && badgeText.includes(t.title))
     );
     const isTaskHall = !isWorkspace || this.app.state.studentViewMode === 'task_list';
