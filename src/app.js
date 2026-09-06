@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2750";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2750";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2750";
-import { AuthManager } from "./auth.js?v=20260907_v2750";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2750";
-import { renderLoginView } from "./login.js?v=20260907_v2750";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2750";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2750";
+} from "./constants.js?v=20260907_v2751";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2751";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2751";
+import { AuthManager } from "./auth.js?v=20260907_v2751";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2751";
+import { renderLoginView } from "./login.js?v=20260907_v2751";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2751";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2751";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2750";
+} from "./editor.js?v=20260907_v2751";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2133,6 +2133,14 @@ export class App {
 ③ 引导全组在讨论区商定对策，商定差不多后点击上方【💡 ${inqLabel} 讨论差不多了？帮我总结并填入】！纯自然语言输出，130~160字。`;
 
               (async () => {
+                // 🌟 挂载中间委员正在生成当前质询思路引导动态思考气泡
+                this.setActiveAgentAnalyzing({
+                  icon: '🟡',
+                  title: `【${chairShort}】正在研判【${inqLabel}】并生成破局思路支架...`,
+                  detail: `正在梳理【${inqLabel}】核心质询焦点，为全组生成针对性辩护与修改思路指引...`
+                });
+                if (typeof this.renderCanvas === 'function') this.renderCanvas();
+
                 let aiGuideText = '';
                 try {
                   const resp = await callCozeAgentAPI('neutral', guidePrompt, { stage: 'stage3', topic, queryPoint: inqIndex, milestoneKey: `stage3_chair_guide_${inqIndex}` });
@@ -2143,6 +2151,8 @@ export class App {
                   console.warn('Auto-recover chair guide AI error:', e);
                 } finally {
                   this._isRecoveringChairGuide = false;
+                  this.setActiveAgentAnalyzing(null);
+                  if (typeof this.renderCanvas === 'function') this.renderCanvas();
                 }
 
                 if (!aiGuideText) {
