@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2722";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2722";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2722";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2723";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2723";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2723";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -4027,8 +4027,11 @@ export function renderChatActionBar(state) {
         </button>
       `;
       actionBar.querySelector('#btn-s3-inquiry-summary')?.addEventListener('click', () => {
-        // 🔑 答辩意见总结：单人点击即可，不需要全员确认，内部有 _isAnalyzingS3Inquiry 防并发锁
-        if (window.app && typeof window.app.handleS3InquirySummary === 'function') {
+        if (window.app && typeof window.app.handleStepConfirmation === 'function') {
+          window.app.handleStepConfirmation(stepKey, () => {
+            window.app.handleS3InquirySummary(null, currentInquiry);
+          }, inqLabel);
+        } else if (window.app && typeof window.app.handleS3InquirySummary === 'function') {
           window.app.handleS3InquirySummary(null, currentInquiry);
         }
       });
