@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2747";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2747";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2747";
-import { AuthManager } from "./auth.js?v=20260907_v2747";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2747";
-import { renderLoginView } from "./login.js?v=20260907_v2747";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2747";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2747";
+} from "./constants.js?v=20260907_v2748";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2748";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2748";
+import { AuthManager } from "./auth.js?v=20260907_v2748";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2748";
+import { renderLoginView } from "./login.js?v=20260907_v2748";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2748";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2748";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2747";
+} from "./editor.js?v=20260907_v2748";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -7809,6 +7809,12 @@ ${chatSnippet}
 
             // 🌟 纯自主手动录入模式：直接在左侧矩阵填写的，不触发中间委员插话打扰
             // 仅当全部 3 项质询全被填完时，由中间委员提醒全员可以提交终稿了
+            const unadoptedOppCount = items.filter(f => f.role === 'opponent' && (!f.response || !f.response.trim())).length;
+            const taskType = this.getCurrentTaskType();
+            const isInst = (taskType === 'instructional');
+            const docName = isInst ? '教学设计' : '论文';
+            const chairName = isInst ? '答辩主席' : '中间委员';
+
             if (unadoptedOppCount === 0) {
               const allDoneMsg = {
                 sender: 'neutral',
@@ -7829,7 +7835,6 @@ ${chatSnippet}
           }
         } finally {
           this._isSavingDirectFeedback = false;
-        }
         }
       },
 
