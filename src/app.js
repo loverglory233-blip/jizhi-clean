@@ -1502,8 +1502,15 @@ export class App {
       
       let finalText = (text && text.trim().length > 0) ? text.trim() : '';
       if (!finalText) {
-        // 🛡️ 绝不硬编码虚假发言：若大模型未成功返回，静默放弃，绝不发送伪造套话
-        return;
+        if (fallbackText && fallbackText.trim().length > 0) {
+          finalText = fallbackText.trim();
+        } else {
+          const taskType = this.getCurrentTaskType();
+          const isInst = (taskType === 'instructional');
+          const roleMap = { auctioneer: isInst ? '备课引导师' : '拍卖师', managingEditor: isInst ? '备课组长' : '责任编辑', reviewingEditor: isInst ? '教研专家' : '审稿编辑', proponent: isInst ? '正方专家' : '正方委员', opponent: isInst ? '反方专家' : '反方委员', neutral: isInst ? '答辩主席' : '中间委员' };
+          const roleName = roleMap[botKey] || (isInst ? '备课组长' : '责任编辑');
+          finalText = `💡 【${roleName}】：网络响应稍微慢了一步～如果大家需要我的针对性指导，可以在讨论区输入 @${roleName} 重新召唤我！`;
+        }
       }
 
       const msg = {
@@ -1521,7 +1528,22 @@ export class App {
       renderChat(this.state);
     } catch (e) {
       console.warn('Agent nudge error:', e);
-      // 🛡️ 失败时静默退出，绝不发送假文本
+      let finalText = (fallbackText && fallbackText.trim().length > 0) ? fallbackText.trim() : '';
+      if (finalText) {
+        const msg = {
+          id: 'msg_nudge_' + Date.now(),
+          sender: botKey,
+          text: finalText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
+        this.state.chatLogs[stage].push(msg);
+        this.sendSingleChatMessage(msg, stage);
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        renderChat(this.state);
+      }
     } finally {
       this._isHandlingAgentNudge = false;
     }
@@ -1621,10 +1643,19 @@ export class App {
             let comfortText = '';
             if (stage === 'stage1') {
               agentSender = 'auctioneer';
+              comfortText = isInst
+                ? `📐 【备课引导师·备课启发】：遇到教学构思瓶颈是非常正常的探索过程！\n💡 建议可以从大家熟悉的真实课堂学情切入，先列出 1~2 个最想攻克的核心重难点，再构思探究活动，全组一起出谋划策！`
+                : `🎪 【拍卖师·选题启发】：遇到构思瓶颈是非常正常的学术探索过程！\n💡 建议可以从大家熟悉的真实教学场景切入，先列出 1~2 个最想解决的具体痛点，再逐步完善理论框架，全组一起出谋划策！`;
             } else if (stage === 'stage2') {
               agentSender = 'managingEditor';
+              comfortText = isInst
+                ? `🤝 【备课组长·暖心护航】：感到备课卡顿或疲惫时，不妨先暂停打字深呼吸！\n💡 可以先在研讨区把教学活动卡点抛给组员，大家头脑风暴互相提供思路支架，一步一步拆解难点！`
+                : `🤝 【责任编辑·暖心护航】：感到写作卡顿或疲惫时，不妨先暂停打字深呼吸！\n💡 可以先在研讨区把卡点或困惑抛给组员，大家头脑风暴互相提供思路支架，一步一步拆解难点！`;
             } else if (stage === 'stage3') {
               agentSender = 'neutral';
+              comfortText = isInst
+                ? `🟡 【答辩主席·答辩启发】：教研答辩中的尖锐质询正是让教学方案更加扎实的宝贵契机！\n💡 评委的质询指出了可以进一步补强的空间，建议结合刚才提到的学情优势，从教学实施补救的角度从容辩护！`
+                : `🟡 【中间委员·答辩启发】：学术答辩中的尖锐质询正是让方案更加严谨的宝贵契机！\n💡 反方的质询指出了可以进一步补强的空间，建议结合正方刚才提到的实践应用优势，从操作化补救的角度从容辩护！`;
             }
 
             const negativeRaw = (lastNegativeChat.text || '').trim();
@@ -1633,7 +1664,7 @@ export class App {
             setTimeout(async () => {
               try {
                 const nudgeMilestoneKey = `nudge_${stage}_${agentSender}_${lastNegativeChat._timeMs || '0'}`;
-                await this.queueAgentNudge(agentSender, comfortPrompt, '', stage, nudgeMilestoneKey);
+                await this.queueAgentNudge(agentSender, comfortPrompt, comfortText, stage, nudgeMilestoneKey);
               } finally {
                 this._isHandlingEmotion = false;
               }
@@ -6124,17 +6155,22 @@ ${chatSnippet}
       const inqIndex = feedbacks.indexOf(currentInquiry);
       const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
 
-      // 🛡️ 提取组员针对本题的真实讨论记录（严禁漏掉组员发言）
+      // 🛡️ 提取组员真实讨论记录：全量提取组员讨论，杜绝任何 .slice(-6) 生硬剪裁！
       const s3ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
-      const lastChairIdx = s3ChatLogs.map(m => m.sender).lastIndexOf('neutral');
-      const msgsForInquiry = (lastChairIdx >= 0)
-        ? s3ChatLogs.slice(lastChairIdx + 1).filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system')
-        : s3ChatLogs.filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-      // 若中间委员之后无发言，获取本阶段最近组员发言，杜绝空讨论导致大模型凭空臆测
-      const effectiveMsgs = (msgsForInquiry.length > 0)
-        ? msgsForInquiry
-        : s3ChatLogs.filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system').slice(-6);
+      const allStudentMsgs = s3ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+      
+      // 定位针对当前质询的引导发言位置
+      const inqGuideIdx = s3ChatLogs.findIndex(m => m && m.sender === 'neutral' && ((m.text || '').includes(inqLabel) || (m.text || '').includes(`针对${inqLabel}`)));
+      let msgsForInquiry = [];
+      if (inqGuideIdx >= 0) {
+        msgsForInquiry = s3ChatLogs.slice(inqGuideIdx + 1).filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+      }
+      // 若当前引导后组员已有发言，使用当前发言；若尚未单独发言，全量提取阶段三全部组员研讨发言，绝不截断丢弃！
+      const effectiveMsgs = (msgsForInquiry && msgsForInquiry.length > 0) ? msgsForInquiry : allStudentMsgs;
       const chatSnippet = effectiveMsgs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在商讨辩护思路与修改对策';
+
+      // 🛡️ 提取当前小组完整的正文草稿全文，绝不截断
+      const rawDoc = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '';
 
       const remainingOppCount = feedbacks.filter(f => f.role === 'opponent' && f !== currentInquiry && (!f.response || !f.response.trim())).length;
       const nextInquiry = feedbacks.find(f => f.role === 'opponent' && f !== currentInquiry && (!f.response || !f.response.trim()));
@@ -6153,8 +6189,9 @@ ${chatSnippet}
 
       const evalInquiryPrompt = `【课题】: 《${topic}》
 【反方质询（${inqLabel}）】: ${currentInquiry.comment || currentInquiry.content}
-【组员在讨论区的真实辩护发言】:
+【组员在讨论区的真实辩护发言（全量研讨记录，绝无截断）】:
 ${chatSnippet}
+${rawDoc ? `\n【小组当前正文草稿全文（全量通读，确保答辩陈述契合正文具体章节）】:\n${rawDoc}\n` : ''}
 ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内容】: ${nextInqFullContent}` : ''}
 
 【本次即时指令】:
@@ -6177,7 +6214,7 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
           : '正在忠实整合组员辩护要点，自动定案回填矩阵并顺推下一质询...'
       });
 
-      const resp = await callCozeAgentAPI('neutral', evalInquiryPrompt, { stage: 'stage3', topic, milestoneKey: `stage3_inquiry_${inqIndex}` });
+      const resp = await callCozeAgentAPI('neutral', evalInquiryPrompt, { stage: 'stage3', topic, actualDoc: rawDoc, milestoneKey: `stage3_inquiry_${inqIndex}` });
       let extractedResponse = '';
       let chairSpeech = (remainingOppCount > 0)
         ? `🟡 【${chairShort}·答辩定案与顺推】：【${inqLabel}】辩护方案已定案归档！👉 请全组将研讨焦点转向【${nextLabel}（反方质询：${nextInqFullContent.slice(0, 45)}...）】，继续在讨论区商定对策！商定后点击上方【💡 ${nextLabel} 讨论差不多了？帮我总结并填入】！`
@@ -8501,8 +8538,8 @@ ${contentSnippet}
       }
 
       if (!careText) {
-        // 🛡️ 严格红线：大模型生成未完成时绝不发送虚假的硬编码兜底消息，直接退出
-        return;
+        // 🌟 协作贡献比关怀：以大模型为主，大模型异常时以温暖兜底为辅
+        careText = `🤝 【${managingName}·协同关怀】：大家都在按节奏推进！主要聚焦【${targetChapter}】的 ${targetName} 同学也可以逐步动笔啦。建议可以先通读同伴已起草的段落，从中汲取灵感并打通前后逻辑衔接，遇到难点随时在研讨区抛出来，全组共同思考推进！`;
       }
 
       const msg = {
