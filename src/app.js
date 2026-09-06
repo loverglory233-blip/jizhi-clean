@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2735";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260907_v2735";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2735";
-import { AuthManager } from "./auth.js?v=20260907_v2735";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2735";
-import { renderLoginView } from "./login.js?v=20260907_v2735";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2735";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2735";
+} from "./constants.js?v=20260907_v2736";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260907_v2736";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2736";
+import { AuthManager } from "./auth.js?v=20260907_v2736";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2736";
+import { renderLoginView } from "./login.js?v=20260907_v2736";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2736";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2736";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2735";
+} from "./editor.js?v=20260907_v2736";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2926,7 +2926,10 @@ export class App {
 
     // 0. 更新当前内存中活跃任务对象的 deadline
     if (this.authManager) {
-      const activeTask = this.authManager.getActiveTask();
+      const allTasks = this.authManager.getTasks ? this.authManager.getTasks() : [];
+      const activeTask = (typeof this.authManager.getActiveTask === 'function')
+        ? this.authManager.getActiveTask()
+        : (allTasks.find(t => isSameId(t.id, extTask.id) || (extTask.title && t.title === extTask.title)) || null);
       if (activeTask && (isSameId(activeTask.id, extTask.id) || (extTask.title && activeTask.title === extTask.title))) {
         Object.assign(activeTask, extTask);
       }
@@ -6275,9 +6278,10 @@ ${chatSnippet}
       if (typeof showGlobalBannerNotice === 'function') {
         showGlobalBannerNotice('🔒 阶段已封稿', '本阶段终稿已提交定案，答辩委员会专家审阅已归档。', 'info', 4000);
       }
-      return;
-    }
-    const curTask = (this.authManager) ? this.authManager.getActiveTask() : null;
+    const allTasks = this.authManager ? this.authManager.getTasks() : [];
+    const curTask = (this.authManager && typeof this.authManager.getActiveTask === 'function')
+      ? this.authManager.getActiveTask()
+      : (allTasks.find(t => isSameId(t.id, this.state.activeTaskId)) || (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
     if (curTask && isTaskExpired(curTask)) {
       if (typeof showGlobalBannerNotice === 'function') {
         showGlobalBannerNotice('⏳ 任务已截止', '当前任务已截止锁定。若需继续审阅，请任课教师顺延截止时间。', 'warning', 4000);

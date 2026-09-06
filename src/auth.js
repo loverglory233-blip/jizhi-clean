@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260907_v2735';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260907_v2735';
+} from './constants.js?v=20260907_v2736';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260907_v2736';
 
 export class AuthManager {
   constructor() {
@@ -724,6 +724,16 @@ export class AuthManager {
     } catch (e) { tasks = []; }
     if (!Array.isArray(tasks)) tasks = [];
     return tasks;
+  }
+  getActiveTask(taskId = null) {
+    const targetId = taskId || (window.app?.state?.activeTaskId) || null;
+    const tasks = this.getTasks();
+    if (!tasks || tasks.length === 0) return null;
+    if (targetId) {
+      const found = tasks.find(t => isSameId(t.id, targetId) || (t.title && t.title === targetId));
+      if (found) return found;
+    }
+    return tasks.find(t => !isTaskExpired(t)) || tasks[0] || null;
   }
   getAnnouncements() {
     let announcements = [];
