@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2734';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260907_v2734';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2735';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260907_v2735';
 
 export class CloudSyncEngine {
   constructor(app) {
