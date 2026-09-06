@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2743";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2743";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2743";
-import { AuthManager } from "./auth.js?v=20260907_v2743";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2743";
-import { renderLoginView } from "./login.js?v=20260907_v2743";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2743";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2743";
+} from "./constants.js?v=20260907_v2744";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2744";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2744";
+import { AuthManager } from "./auth.js?v=20260907_v2744";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2744";
+import { renderLoginView } from "./login.js?v=20260907_v2744";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2744";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2744";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2743";
+} from "./editor.js?v=20260907_v2744";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -8904,10 +8904,13 @@ ${contentSnippet}
       const managingName = isInst ? '备课组长' : '责任编辑';
       const reviewingName = isInst ? '教研专家' : '审稿编辑';
 
+      const checkInPrefix = `【半程打卡汇总】：已全员集齐 ${submittedCount} 位组员的编辑会议打卡记录！\n`;
+
       const genreDesc = getGenrePromptDescriptor(taskType);
       const managingPrompt = `${genreDesc}
 
 【全组半程自查打卡真实汇报数据】：
+- 全组打卡情况：已全员收到 ${submittedCount} 位组员的编辑会议打卡记录！
 - 构思偏离/目标脱节环节：${hasIdeationDev ? ideationFocusText : '无'}
 - 前后逻辑脱节环节：${hasTransDev ? transFocusText : '无'}
 - 语言语体/术语规范问题环节：${hasStyleDev ? styleFocusText : '无'}
@@ -8916,7 +8919,7 @@ ${contentSnippet}
 - 质量自评均分：${avgOverallRating} 星
 
 请作为责任编辑（过程学伴），发表 120~150 字的【自查研判与一致性研讨号召】：
-① 肯定全组成员已完成自查互阅打卡；
+① 第一句明确说明已全员收到全组 ${submittedCount} 位组员的编辑会议打卡记录；
 ② 【全部如实说明·绝不隐瞒】：全面、客观梳理组员在自查中汇报的各项脱节痛点（凡是学生汇报的脱节痛点如：${transFocusText}、${primaryAcademicB} 等，均须全部逐一说明，绝不遗漏）；
 ③ 【号召一致性研讨】：号召全组成员在讨论区围绕上述脱节环节展开深度对齐研讨，商定统一的衔接方案；商定差不多后点击下方【💡 讨论差不多了？让责任编辑总结】！
 （纯自然语言输出，120~150字，【绝对严禁出现“分工”字眼】）`;
@@ -8925,8 +8928,8 @@ ${contentSnippet}
       if (!hasDivergence) {
         // 🌟 无分歧模式：全员高度协调一致，直接发表肯定与引荐寄语，跳过责任编辑总结
         managingText = isInst
-          ? `🤝 【备课组长·半程自查研判】：🎉 各位老师，集体备课自查互阅打卡已全员完成！经过数据综合研判，全篇教案在三维教学目标、新知探究活动与语体规范上口径统一、前后贯通，未发现教学环节脱节或目标偏离！全组备课推进非常扎实顺利，无需在讨论区停滞对齐，下面直接有请教研专家通读全篇教学设计，为大家进行深度教研质检，下发磨课诊断意见与《磨课修正清单》！`
-          : `🤝 【责任编辑·半程自查研判】：🎉 各位研究者，全组半程自查互阅打卡已全员完成！经过数据综合研判，全篇各章节在论题立意、论证衔接与学术语体上高度协调一致，未发现明显的前后脱节或构思偏离！全组当前的写作推进非常扎实，无需在讨论区停滞对齐，下面直接有请审稿编辑通读全文草稿，为大家进行深度学术质检，下发二审诊断意见与《二审修正清单》！`;
+          ? `🤝 【备课组长·半程自查研判】：🎉 各位老师，已成功收到全组 ${submittedCount} 位组员的编辑会议打卡记录！经过数据综合研判，全篇教案在三维教学目标、新知探究活动与语体规范上口径统一、前后贯通，未发现教学环节脱节或目标偏离！全组备课推进非常扎实顺利，无需在讨论区停滞对齐，下面直接有请教研专家通读全篇教学设计，为大家进行深度教研质检，下发磨课诊断意见与《磨课修正清单》！`
+          : `🤝 【责任编辑·半程自查研判】：🎉 各位研究者，已成功收到全组 ${submittedCount} 位组员的编辑会议打卡记录！经过数据综合研判，全篇各章节在论题立意、论证衔接与学术语体上高度协调一致，未发现明显的前后脱节或构思偏离！全组当前的写作推进非常扎实，无需在讨论区停滞对齐，下面直接有请审稿编辑通读全文草稿，为大家进行深度学术质检，下发二审诊断意见与《二审修正清单》！`;
         this.setActiveAgentAnalyzing(null);
       } else {
         try {
@@ -8944,7 +8947,13 @@ ${contentSnippet}
           this.setActiveAgentAnalyzing(null);
         }
         if (!managingText || managingText.trim().length === 0) {
-          managingText = `🤝 【${managingName}·网络提醒】：📡 正在深度分析全组自查打卡与分歧，网络连接稍有延迟未能获取到即时研判。<br><button class="btn-retry-ai" onclick="window.app.showMeetingModal()" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成自查研判与对齐引导</button>`;
+          managingText = `🤝 【${managingName}·自查研判与一致性研讨】：已成功收到全组 ${submittedCount} 位组员的编辑会议打卡记录！全组自查显示在部分章节衔接与研究设计上存在一定分歧或脱节痛点（重点集中在：${transFocusText} 与“${primaryAcademicB}”）。请全组在讨论区围绕上述痛点充分展开一致性研讨，对齐修改主线后点击下方【💡 讨论差不多了？让责任编辑总结】！`;
+        } else {
+          // 确保开头自然包含打卡记录说明
+          const cleanManagingText = managingText.replace(/^🤝\s*【[^】]+】[：:]\s*/, '').trim();
+          if (!cleanManagingText.includes('打卡记录') && !cleanManagingText.includes('打卡')) {
+            managingText = `🤝 【${managingName}·自查研判与一致性研讨】：已成功收到全组 ${submittedCount} 位组员的编辑会议打卡记录！${cleanManagingText}`;
+          }
         }
       }
 
@@ -8980,8 +8989,8 @@ ${contentSnippet}
       // 🌟 无分歧时自动无缝交棒给审稿编辑（教研专家）：先出二审问题建议，再装配半程清单卡片，跳过责任编辑总结
       if (!hasDivergence) {
         const directHandoverText = isInst
-          ? `🤝 【备课组长·一致性研判】：全组备课目标与活动设计高度契合一致，直接交棒教研专家通读全篇进行深度磨课质检！`
-          : `🤝 【责任编辑·一致性研判】：全篇立意与章节逻辑高度协同连贯，直接交棒审稿专家通读全篇进行深度学术质检！`;
+          ? `🤝 【备课组长·一致性研判】：已成功收到全组 ${submittedCount} 位组员的编辑会议打卡记录！全组备课目标与活动设计高度契合一致，直接交棒教研专家通读全篇进行深度磨课质检！`
+          : `🤝 【责任编辑·一致性研判】：已成功收到全组 ${submittedCount} 位组员的编辑会议打卡记录！全篇立意与章节逻辑高度协同连贯，直接交棒审稿专家通读全篇进行深度学术质检！`;
         setTimeout(() => {
           this.triggerReviewingEditorAfterDiscussion(directHandoverText);
         }, 800);
