@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2706
+ * Version: 20260906_v2707
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2706';
+  const APP_VERSION = '20260906_v2707';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -19116,62 +19116,63 @@
      */
     async triggerVoteGuidance(isRetry = false, failedMsgId = null) {
       if (this._isTriggeringVoteGuidance && !isRetry) return;
-      this._isTriggeringVoteGuidance = true;
-      const s1 = this.state.stage1 || {};
-      const taskType = this.getCurrentTaskType();
-      const isInst = (taskType === 'instructional');
-      const genreDesc = getGenrePromptDescriptor(taskType);
-      const agentTitle = isInst ? '备课引导师' : '学术拍卖师';
-      const senderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
-      const prefixTag = isInst ? '备课引导师·方案研讨' : '学术拍卖师·落槌与方案研讨';
-      const docThemeNoun = isInst ? '教学主题与备课方案' : '主题与研究方案';
 
-      const tally = s1.votes || {};
-      const proposals = s1.proposals || [];
-      let maxVotes = -1;
-      let winningProposal = null;
-      proposals.forEach(p => {
-        const count = tally[p.id] || 0;
-        if (count > maxVotes) {
-          maxVotes = count;
-          winningProposal = p;
-        }
-      });
-
-      const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
-      const effClassId = this.state.activeStudentClassId || currUser?.classId || null;
-      const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUser, effClassId) : null;
-      const membersList = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0) 
-        ? effGroup.members 
-        : (this.state.members || [{ name: 'A' }, { name: 'B' }, { name: 'C' }]);
-      const totalMembersCount = membersList.length;
-
-      const isUnanimous = (winningProposal && maxVotes === totalMembersCount && totalMembersCount > 0);
-
-      // 🛡️ 单次触发守卫：若非重试且已存在方案研讨指引，直接跳过避免重复调用
+      // 🛡️ 单次触发守卫：若非重试且已存在方案研讨指引，直接跳过避免重复调用（移至上锁之前，避免锁死）
       const s1Logs = this.state.chatLogs?.stage1 || [];
       const hasExistingGuide = s1Logs.some(m => m && (String(m.id || '').startsWith('vote_unanimous') || String(m.id || '').startsWith('vote_divergence') || (m.sender === 'auctioneer' && (m.text || '').includes('方案研讨'))));
       if (hasExistingGuide && !isRetry) return;
 
-      // 🛡️ 清理已有的同类失败气泡与思考中占位气泡
-      this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => {
-        if (!m) return false;
-        if (String(m.id).startsWith('thinking_vote') || m.isThinking) return false;
-        if (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('研讨指引')) return false;
-        if (failedMsgId && m.id === failedMsgId) return false;
-        return true;
-      });
-
-      this.setActiveAgentAnalyzing({
-        icon: isInst ? '📐' : '🎪',
-        title: agentTitle,
-        detail: `${agentTitle}正在分析全组投票意向与方案细化维度...`
-      });
-
-      let guideMsgId = '';
-      let guideText = '';
-
+      this._isTriggeringVoteGuidance = true;
       try {
+        const s1 = this.state.stage1 || {};
+        const taskType = this.getCurrentTaskType();
+        const isInst = (taskType === 'instructional');
+        const genreDesc = getGenrePromptDescriptor(taskType);
+        const agentTitle = isInst ? '备课引导师' : '学术拍卖师';
+        const senderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
+        const prefixTag = isInst ? '备课引导师·方案研讨' : '学术拍卖师·落槌与方案研讨';
+        const docThemeNoun = isInst ? '教学主题与备课方案' : '主题与研究方案';
+
+        const tally = s1.votes || {};
+        const proposals = s1.proposals || [];
+        let maxVotes = -1;
+        let winningProposal = null;
+        proposals.forEach(p => {
+          const count = tally[p.id] || 0;
+          if (count > maxVotes) {
+            maxVotes = count;
+            winningProposal = p;
+          }
+        });
+
+        const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
+        const effClassId = this.state.activeStudentClassId || currUser?.classId || null;
+        const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUser, effClassId) : null;
+        const membersList = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0) 
+          ? effGroup.members 
+          : (this.state.members || [{ name: 'A' }, { name: 'B' }, { name: 'C' }]);
+        const totalMembersCount = membersList.length;
+
+        const isUnanimous = (winningProposal && maxVotes === totalMembersCount && totalMembersCount > 0);
+
+        // 🛡️ 清理已有的同类失败气泡与思考中占位气泡
+        this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => {
+          if (!m) return false;
+          if (String(m.id).startsWith('thinking_vote') || m.isThinking) return false;
+          if (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('研讨指引')) return false;
+          if (failedMsgId && m.id === failedMsgId) return false;
+          return true;
+        });
+
+        this.setActiveAgentAnalyzing({
+          icon: isInst ? '📐' : '🎪',
+          title: agentTitle,
+          detail: `${agentTitle}正在分析全组投票意向与方案细化维度...`
+        });
+
+        let guideMsgId = '';
+        let guideText = '';
+
         if (isUnanimous && winningProposal) {
           // 情境 A：投票全票一致
           s1.mergedTitle = winningProposal.title;
@@ -19597,52 +19598,53 @@
     async _doExtractTopic(btnElement = null) {
       if (this._isExtractingTopic) return;
       this._isExtractingTopic = true;
-      if (this.state.stage1) this.state.stage1._topicExtractFailed = false;
-      this.disableAllRetryButtons(btnElement, `⏳ 正在重新提炼【主题与方案】...`);
-      this.renderStudentWorkspace();
-      const s1 = this.state.stage1 || {};
-      const taskType = this.getCurrentTaskType();
-      const isInst = (taskType === 'instructional');
-      const agentRole = isInst ? '备课引导师' : '学术拍卖师';
-      const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
+      try {
+        if (this.state.stage1) this.state.stage1._topicExtractFailed = false;
+        this.disableAllRetryButtons(btnElement, `⏳ 正在重新提炼【主题与方案】...`);
+        this.renderStudentWorkspace();
+        const s1 = this.state.stage1 || {};
+        const taskType = this.getCurrentTaskType();
+        const isInst = (taskType === 'instructional');
+        const agentRole = isInst ? '备课引导师' : '学术拍卖师';
+        const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
 
-      this.setActiveAgentAnalyzing({
-        icon: isInst ? '📐' : '🎪',
-        title: agentRole,
-        isExtracting: true,
-        detail: `${agentRole}正在根据讨论区研讨记录提炼【${isInst ? '教学课题与方案概述' : '论文主题与研究方案'}】...`
-      });
+        this.setActiveAgentAnalyzing({
+          icon: isInst ? '📐' : '🎪',
+          title: agentRole,
+          isExtracting: true,
+          detail: `${agentRole}正在根据讨论区研讨记录提炼【${isInst ? '教学课题与方案概述' : '论文主题与研究方案'}】...`
+        });
 
-      const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-      const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('投票结果出炉') || m.text.includes('全票推选') || m.text.includes('投票已完成') || m.text.includes('投票完成') || m.text.includes('投票揭晓') || m.text.includes('公约草案')));
-      const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs;
-      const validUserLogs = relevantLogs.filter(m => {
-        if (!m || !m.text) return false;
-        if (m.isThinking) return false;
-        if (m.sender === 'system' || AgentProfiles[m.sender]) return false;
-        if (typeof m.text === 'string' && m.text.startsWith('[IMG_DATA]:')) return false;
-        if (typeof m.text === 'string' && (m.text.includes('【投票结果】') || m.text.includes('【公约草案就绪】') || m.text.includes('【全盘公约就绪】'))) return false;
-        return true;
-      });
-      const chatSnippet = validUserLogs.map(m => {
-        const name = m.senderName || m.sender || '组员';
-        const cleanText = (m.text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        return `${name}: ${cleanText}`;
-      }).filter(line => line.trim().length > 0).join('\n');
+        const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
+        const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('投票结果出炉') || m.text.includes('全票推选') || m.text.includes('投票已完成') || m.text.includes('投票完成') || m.text.includes('投票揭晓') || m.text.includes('公约草案')));
+        const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs;
+        const validUserLogs = relevantLogs.filter(m => {
+          if (!m || !m.text) return false;
+          if (m.isThinking) return false;
+          if (m.sender === 'system' || AgentProfiles[m.sender]) return false;
+          if (typeof m.text === 'string' && m.text.startsWith('[IMG_DATA]:')) return false;
+          if (typeof m.text === 'string' && (m.text.includes('【投票结果】') || m.text.includes('【公约草案就绪】') || m.text.includes('【全盘公约就绪】'))) return false;
+          return true;
+        });
+        const chatSnippet = validUserLogs.map(m => {
+          const name = m.senderName || m.sender || '组员';
+          const cleanText = (m.text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          return `${name}: ${cleanText}`;
+        }).filter(line => line.trim().length > 0).join('\n');
 
-      // 抓取小组成员提交的提案详情（包含标题与方案说明）
-      const propList = (s1.proposals && Array.isArray(s1.proposals)) ? s1.proposals : [];
-      const propDetails = propList.map((p, idx) => {
-        const authorStr = p.authorName ? ` (提交人: ${p.authorName})` : (p.author ? ` (提交人: ${p.author})` : '');
-        const descStr = p.description ? `\n  方案说明: ${p.description.replace(/\n+/g, ' ').trim()}` : '';
-        return `提案${idx + 1}: 《${p.title || '未命名'}》${authorStr}${descStr}`;
-      }).join('\n');
+        // 抓取小组成员提交的提案详情（包含标题与方案说明）
+        const propList = (s1.proposals && Array.isArray(s1.proposals)) ? s1.proposals : [];
+        const propDetails = propList.map((p, idx) => {
+          const authorStr = p.authorName ? ` (提交人: ${p.authorName})` : (p.author ? ` (提交人: ${p.author})` : '');
+          const descStr = p.description ? `\n  方案说明: ${p.description.replace(/\n+/g, ' ').trim()}` : '';
+          return `提案${idx + 1}: 《${p.title || '未命名'}》${authorStr}${descStr}`;
+        }).join('\n');
 
-      const defaultCandidateFallback = isInst ? '优质课教学设计方案' : '学术协同研究课题';
-      const currentCandidate = s1.mergedTitle || s1.contract?.topic || (propList[0] ? propList[0].title : defaultCandidateFallback);
-      const allPropTitles = propList.map(p => `《${p.title}》`).join('、');
+        const defaultCandidateFallback = isInst ? '优质课教学设计方案' : '学术协同研究课题';
+        const currentCandidate = s1.mergedTitle || s1.contract?.topic || (propList[0] ? propList[0].title : defaultCandidateFallback);
+        const allPropTitles = propList.map(p => `《${p.title}》`).join('、');
 
-      const extractPrompt = `【任务指令：请根据讨论区研讨记录，为小组成员同时提炼出【槽位1 课题名称】与 120~200 字【槽位2 方案概述】】
+        const extractPrompt = `【任务指令：请根据讨论区研讨记录，为小组成员同时提炼出【槽位1 课题名称】与 120~200 字【槽位2 方案概述】】
 
   【小组成员在讨论区的全部真实研讨发言（从引导后至点击前的研讨切片，学生发言完全是日常口语交流、随性沟通、碎片化构想）】:
   ${chatSnippet || '（小组成员在讨论区暂无更多方案研讨发言）'}
@@ -19662,7 +19664,6 @@
     "guideText": "${isInst ? '教学课题与教学方案概述' : '论文主题与研究方案概述'}已成功生成并录入公约看板！接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定后点击【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！"
   }`;
 
-      try {
         const resp = await callCozeAgentAPI('auctioneer', extractPrompt, { stage: 'stage1', topic: currentCandidate, taskType, milestoneKey: 'stage1_extract_topic' });
         if (!resp || resp.trim().length === 0) {
           throw new Error('未能获取到主题与方案提炼结果');
@@ -19845,45 +19846,46 @@
     async _doExtractTime(btnElement = null) {
       if (this._isExtractingTime) return;
       this._isExtractingTime = true;
-      if (this.state.stage1) this.state.stage1._timeExtractFailed = false;
-      this.disableAllRetryButtons(btnElement, `⏳ 正在重新提炼【时间分配】...`);
-      this.renderStudentWorkspace();
-      const s1 = this.state.stage1 || {};
-      const taskType = this.getCurrentTaskType();
-      const isInst = (taskType === 'instructional');
-      const agentRole = isInst ? '备课引导师' : '学术拍卖师';
-      const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
+      try {
+        if (this.state.stage1) this.state.stage1._timeExtractFailed = false;
+        this.disableAllRetryButtons(btnElement, `⏳ 正在重新提炼【时间分配】...`);
+        this.renderStudentWorkspace();
+        const s1 = this.state.stage1 || {};
+        const taskType = this.getCurrentTaskType();
+        const isInst = (taskType === 'instructional');
+        const agentRole = isInst ? '备课引导师' : '学术拍卖师';
+        const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
 
-      this.setActiveAgentAnalyzing({
-        icon: '⏱️',
-        title: agentRole,
-        isExtracting: true,
-        detail: `${agentRole}正在根据讨论区研讨记录提炼【6 大${isInst ? '模块' : '章节'}时间预算分配】...`
-      });
+        this.setActiveAgentAnalyzing({
+          icon: '⏱️',
+          title: agentRole,
+          isExtracting: true,
+          detail: `${agentRole}正在根据讨论区研讨记录提炼【6 大${isInst ? '模块' : '章节'}时间预算分配】...`
+        });
 
-      const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-      const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('投票结果出炉') || m.text.includes('全票推选') || m.text.includes('投票已完成') || m.text.includes('投票完成') || m.text.includes('投票揭晓') || m.text.includes('公约草案')));
-      const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs;
-      const validUserLogs = relevantLogs.filter(m => {
-        if (!m || !m.text) return false;
-        if (m.isThinking) return false;
-        if (m.sender === 'system' || AgentProfiles[m.sender]) return false;
-        if (typeof m.text === 'string' && m.text.startsWith('[IMG_DATA]:')) return false;
-        if (typeof m.text === 'string' && (m.text.includes('【投票结果】') || m.text.includes('【公约草案就绪】') || m.text.includes('【全盘公约就绪】'))) return false;
-        return true;
-      });
-      const chatSnippet = validUserLogs.map(m => {
-        const name = m.senderName || m.sender || '组员';
-        const cleanText = (m.text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        return `${name}: ${cleanText}`;
-      }).filter(line => line.trim().length > 0).join('\n');
+        const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
+        const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('投票结果出炉') || m.text.includes('全票推选') || m.text.includes('投票已完成') || m.text.includes('投票完成') || m.text.includes('投票揭晓') || m.text.includes('公约草案')));
+        const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs;
+        const validUserLogs = relevantLogs.filter(m => {
+          if (!m || !m.text) return false;
+          if (m.isThinking) return false;
+          if (m.sender === 'system' || AgentProfiles[m.sender]) return false;
+          if (typeof m.text === 'string' && m.text.startsWith('[IMG_DATA]:')) return false;
+          if (typeof m.text === 'string' && (m.text.includes('【投票结果】') || m.text.includes('【公约草案就绪】') || m.text.includes('【全盘公约就绪】'))) return false;
+          return true;
+        });
+        const chatSnippet = validUserLogs.map(m => {
+          const name = m.senderName || m.sender || '组员';
+          const cleanText = (m.text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          return `${name}: ${cleanText}`;
+        }).filter(line => line.trim().length > 0).join('\n');
 
-      const genreCfg = TASK_GENRE_CONFIGS[taskType] || TASK_GENRE_CONFIGS.experiment;
-      const allTasks = this.authManager ? this.authManager.getTasks() : [];
-      const curTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
-      const totalDurationMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
+        const genreCfg = TASK_GENRE_CONFIGS[taskType] || TASK_GENRE_CONFIGS.experiment;
+        const allTasks = this.authManager ? this.authManager.getTasks() : [];
+        const curTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
+        const totalDurationMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
 
-      const timePrompt = `小组成员已就${isInst ? '教学设计方案 6 大模块' : '学术论文 6 大章节'}的时间预算规划在讨论区展开了非制式自由研讨。
+        const timePrompt = `小组成员已就${isInst ? '教学设计方案 6 大模块' : '学术论文 6 大章节'}的时间预算规划在讨论区展开了非制式自由研讨。
   【组内关于时间规划与各${isInst ? '模块' : '章节'}侧重的真实研讨记录（全量记录）】:
   ${chatSnippet}
   【参考${isInst ? '备课设计' : '论文写作'}总时长】: ${totalDurationMin} 分钟
@@ -19906,7 +19908,6 @@
     "guideText": "全篇 6 大${isInst ? '模块' : '章节'}时间预算已成功配置并录入公约看板！接下来请全组在讨论区商定各自负责认领的${isInst ? '撰写模块' : '写作章节'}与任务分工！商定完成后点击左侧【👥 一键提炼任务分工】！"
   }`;
 
-      try {
         const resp = await callCozeAgentAPI('auctioneer', timePrompt, { stage: 'stage1', topic: s1.mergedTitle || (isInst ? '教学设计' : '论文'), taskType, milestoneKey: 'stage1_time_alloc' });
         if (!resp || resp.trim().length === 0) {
           throw new Error('未能获取到时间分配提炼结果');
@@ -20070,37 +20071,38 @@
     async _doExtractTasks(btnElement = null) {
       if (this._isExtractingTasks) return;
       this._isExtractingTasks = true;
-      if (this.state.stage1) this.state.stage1._tasksExtractFailed = false;
-      this.disableAllRetryButtons(btnElement, `⏳ 正在重新提炼【任务分工】...`);
-      this.renderStudentWorkspace();
-      const s1 = this.state.stage1 || {};
-      const taskType = this.getCurrentTaskType();
-      const isInst = (taskType === 'instructional');
-      const agentRole = isInst ? '备课引导师' : '学术拍卖师';
-      const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
-      const stage2Title = isInst ? '阶段二：集体备课室' : '阶段二：学术编辑部';
-      const contractTitle = isInst ? '备课公约' : '学术公约';
-      this.setActiveAgentAnalyzing({
-        icon: isInst ? '📐' : '🎪',
-        title: agentRole,
-        isExtracting: true,
-        detail: `${agentRole}正在根据讨论区研讨记录提炼【小组成员任务分工】...`
-      });
+      try {
+        if (this.state.stage1) this.state.stage1._tasksExtractFailed = false;
+        this.disableAllRetryButtons(btnElement, `⏳ 正在重新提炼【任务分工】...`);
+        this.renderStudentWorkspace();
+        const s1 = this.state.stage1 || {};
+        const taskType = this.getCurrentTaskType();
+        const isInst = (taskType === 'instructional');
+        const agentRole = isInst ? '备课引导师' : '学术拍卖师';
+        const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
+        const stage2Title = isInst ? '阶段二：集体备课室' : '阶段二：学术编辑部';
+        const contractTitle = isInst ? '备课公约' : '学术公约';
+        this.setActiveAgentAnalyzing({
+          icon: isInst ? '📐' : '🎪',
+          title: agentRole,
+          isExtracting: true,
+          detail: `${agentRole}正在根据讨论区研讨记录提炼【小组成员任务分工】...`
+        });
 
-      let members = [];
-      if (Array.isArray(this.state.members)) members = this.state.members;
-      else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
+        let members = [];
+        if (Array.isArray(this.state.members)) members = this.state.members;
+        else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
 
-      const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-      // 💡 局部精准切片：只截取时间预算确立后关于任务分工认领的研讨记录，严格控制 token 花销
-      const timeNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('时间预算确立') || m.text.includes('时间分配') || m.text.includes('分工')));
-      const relevantLogs = (timeNoticeIdx >= 0) ? s1ChatLogs.slice(timeNoticeIdx) : s1ChatLogs.slice(-15);
-      const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !m.text.startsWith('[IMG_DATA]:'));
-      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(l => l.trim().length > 0).join('\n') || '组员正在商定分工';
+        const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
+        // 💡 局部精准切片：只截取时间预算确立后关于任务分工认领的研讨记录，严格控制 token 花销
+        const timeNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('时间预算确立') || m.text.includes('时间分配') || m.text.includes('分工')));
+        const relevantLogs = (timeNoticeIdx >= 0) ? s1ChatLogs.slice(timeNoticeIdx) : s1ChatLogs.slice(-15);
+        const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !m.text.startsWith('[IMG_DATA]:'));
+        const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(l => l.trim().length > 0).join('\n') || '组员正在商定分工';
 
-      const membersInfo = members.map(m => `- ${m.name || m.id}`).join('\n');
+        const membersInfo = members.map(m => `- ${m.name || m.id}`).join('\n');
 
-      const taskPrompt = `小组成员已在讨论区就 6 大${isInst ? '模块' : '章节'}的分工认领展开了非制式自由研讨。
+        const taskPrompt = `小组成员已在讨论区就 6 大${isInst ? '模块' : '章节'}的分工认领展开了非制式自由研讨。
   【小组成员名单】:
   ${membersInfo}
   【组内关于任务分工的真实研讨记录（全量记录，发言自由口语化）】:
@@ -20118,7 +20120,6 @@
     "guideText": "太棒了！全组成员分工已全部生成就绪！请全员核对左侧公约并在下方点击【✍️ 签署确认${contractTitle}】！全员签署后将正式解锁【${stage2Title}】！"
   }`;
 
-      try {
         const resp = await callCozeAgentAPI('auctioneer', taskPrompt, { stage: 'stage1', topic: s1.mergedTitle || (isInst ? '教学设计' : '论文'), taskType, milestoneKey: 'stage1_task_assign' });
         if (!resp || resp.trim().length === 0) {
           throw new Error('未能获取到任务分工提炼结果');
@@ -20868,40 +20869,41 @@
       this.handleStepConfirmation('s2_managing', () => this._doGenerateS2ManagingSummary(), `让${managingTitle}总结`);
     }
 
-    async _doGenerateS2ManagingSummary() {
+    async _doGenerateS2ManagingSummary(btnElement = null) {
+      this.disableAllRetryButtons(btnElement, `⏳ 正在重新提炼【责任编辑小结】...`);
       const s2 = this.state.stage2 || {};
       if (!this.state.stage2) this.state.stage2 = s2;
 
       if (this._isGeneratingManagingSummary) return;
       this._isGeneratingManagingSummary = true;
+      try {
+        const s2ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
+        const meetingNoticeIdx = s2ChatLogs.findIndex(m => m && m.text && (m.text.includes('半程会议') || m.text.includes('自查') || m.text.includes('修改思路')));
+        const relevantLogs = (meetingNoticeIdx >= 0) ? s2ChatLogs.slice(meetingNoticeIdx) : s2ChatLogs;
+        const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.sender.includes('Editor'));
+        const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在围绕论文前后脱节与论证方法深化讨论修改思路';
 
-      const s2ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
-      const meetingNoticeIdx = s2ChatLogs.findIndex(m => m && m.text && (m.text.includes('半程会议') || m.text.includes('自查') || m.text.includes('修改思路')));
-      const relevantLogs = (meetingNoticeIdx >= 0) ? s2ChatLogs.slice(meetingNoticeIdx) : s2ChatLogs;
-      const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.sender.includes('Editor'));
-      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在围绕论文前后脱节与论证方法深化讨论修改思路';
+        const subs = s2.meetingSubmissions || {};
+        const subValues = Object.values(subs);
 
-      const subs = s2.meetingSubmissions || {};
-      const subValues = Object.values(subs);
+        const allIdeationSecs = Array.from(new Set(subValues.flatMap(s => s.ideationSections || []).filter(Boolean)));
+        const allTransSecs = Array.from(new Set(subValues.flatMap(s => s.transSections || []).filter(Boolean)));
+        const allStyleSecs = Array.from(new Set(subValues.flatMap(s => s.styleSections || []).filter(Boolean)));
 
-      const allIdeationSecs = Array.from(new Set(subValues.flatMap(s => s.ideationSections || []).filter(Boolean)));
-      const allTransSecs = Array.from(new Set(subValues.flatMap(s => s.transSections || []).filter(Boolean)));
-      const allStyleSecs = Array.from(new Set(subValues.flatMap(s => s.styleSections || []).filter(Boolean)));
+        const hasIdeationDev = subValues.some(s => (s.ideationConsistency || '').includes('偏离')) || allIdeationSecs.length > 0;
+        const hasTransDev = subValues.some(s => (s.transitionState || '').includes('脱节')) || allTransSecs.length > 0;
+        const hasStyleDev = subValues.some(s => (s.styleState || '').includes('割裂') || (s.styleState || '').includes('混乱') || (s.styleState || '').includes('口语')) || allStyleSecs.length > 0;
 
-      const hasIdeationDev = subValues.some(s => (s.ideationConsistency || '').includes('偏离')) || allIdeationSecs.length > 0;
-      const hasTransDev = subValues.some(s => (s.transitionState || '').includes('脱节')) || allTransSecs.length > 0;
-      const hasStyleDev = subValues.some(s => (s.styleState || '').includes('割裂') || (s.styleState || '').includes('混乱') || (s.styleState || '').includes('口语')) || allStyleSecs.length > 0;
+        const bottlenecks = [...new Set(subValues.map(v => v.bAcademic).filter(Boolean))].join('；') || '方法设计操作化不足与理论文献支撑单薄';
+        const focusIssues = [...new Set(subValues.map(v => v.userText).filter(Boolean))].join('；') || '核心概念统领与章节逻辑过渡';
+        const transIssues = allTransSecs.length > 0 ? allTransSecs.join('、') : '';
+        const styleIssues = allStyleSecs.length > 0 ? allStyleSecs.join('、') : '';
+        const ideationIssues = allIdeationSecs.length > 0 ? allIdeationSecs.join('、') : '';
 
-      const bottlenecks = [...new Set(subValues.map(v => v.bAcademic).filter(Boolean))].join('；') || '方法设计操作化不足与理论文献支撑单薄';
-      const focusIssues = [...new Set(subValues.map(v => v.userText).filter(Boolean))].join('；') || '核心概念统领与章节逻辑过渡';
-      const transIssues = allTransSecs.length > 0 ? allTransSecs.join('、') : '';
-      const styleIssues = allStyleSecs.length > 0 ? allStyleSecs.join('、') : '';
-      const ideationIssues = allIdeationSecs.length > 0 ? allIdeationSecs.join('、') : '';
+        const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+        const rawDoc = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
 
-      const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-      const rawDoc = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
-
-      const managingPrompt = `小组成员已在讨论区就论文《${topic}》的前序修改方向展开了半程研讨。
+        const managingPrompt = `小组成员已在讨论区就论文《${topic}》的前序修改方向展开了半程研讨。
   【组员自查打卡反映的全部瓶颈与脱节痛点】: ${bottlenecks}
   【组员自查聚焦关注点】: ${focusIssues}
   【组员指出的脱节章节】: ${transIssues || '前后章节衔接与概念统一'}
@@ -20916,7 +20918,6 @@
   ③ 隆重引出审稿专家通读全篇下发《二审修正清单》。
   （纯自然语言输出，120~160字，严禁输出代码块）`;
 
-      try {
         const taskType = this.getCurrentTaskType();
         const isInst = (taskType === 'instructional');
         const managingName = isInst ? '备课组长' : '责任编辑';
@@ -21018,25 +21019,26 @@
       this.handleStepConfirmation('s2_reviewing', () => this._doGenerateS2ReviewingSummary(), `让${reviewingTitle}总结`);
     }
 
-    async _doGenerateS2ReviewingSummary() {
+    async _doGenerateS2ReviewingSummary(btnElement = null) {
+      this.disableAllRetryButtons(btnElement, `⏳ 正在重新提炼【审稿编辑小结】...`);
       const s2 = this.state.stage2 || {};
       if (!this.state.stage2) this.state.stage2 = s2;
 
       if (this._isGeneratingReviewSummary) return;
       this._isGeneratingReviewSummary = true;
+      try {
+        const s2ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
+        const checklistIdx = s2ChatLogs.findIndex(m => m && m.text && m.text.includes('二审修正清单'));
+        const relevantLogs = (checklistIdx >= 0) ? s2ChatLogs.slice(checklistIdx) : s2ChatLogs;
+        const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+        const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员已商定修改落实对策';
 
-      const s2ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
-      const checklistIdx = s2ChatLogs.findIndex(m => m && m.text && m.text.includes('二审修正清单'));
-      const relevantLogs = (checklistIdx >= 0) ? s2ChatLogs.slice(checklistIdx) : s2ChatLogs;
-      const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员已商定修改落实对策';
+        const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+        const taskType = this.getCurrentTaskType();
+        const isInst = (taskType === 'instructional');
+        const reviewingName = isInst ? '教研专家' : '审稿编辑';
 
-      const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-      const taskType = this.getCurrentTaskType();
-      const isInst = (taskType === 'instructional');
-      const reviewingName = isInst ? '教研专家' : '审稿编辑';
-
-      const summaryPrompt = `小组成员已就《${isInst ? '磨课修正清单' : '二审修正清单'}》在讨论区明确了具体的修改对策与协同落实方案。
+        const summaryPrompt = `小组成员已就《${isInst ? '磨课修正清单' : '二审修正清单'}》在讨论区明确了具体的修改对策与协同落实方案。
   【组内关于清单落实的讨论记录】:
   ${chatSnippet}
 
@@ -21044,7 +21046,6 @@
   ① 肯定大家清晰务实的修改对策与严谨备课/协作态度（严禁出现“分工”字眼”）；
   ② 鼓励全组回到左侧正文继续高效协同与修改，冲刺最终高质量${isInst ? '教学设计方案' : '学术成文'}！（纯自然语言，90~120字，严禁输出代码块）`;
 
-      try {
         this.setActiveAgentAnalyzing({ icon: '📝', title: `【${reviewingName}】正在审查清单落实与定稿冲刺...`, detail: '正在评估全组修改对策与落实方案，起草成稿与答辩冲刺寄语...' });
         await new Promise(r => setTimeout(r, 1500));
 
@@ -21089,35 +21090,37 @@
       if (this._isAnalyzingS3Inquiry) {
         return;
       }
-      this._isAnalyzingS3Inquiry = true;
-      this.disableAllRetryButtons(btnElement, `⏳ 正在重新生成答辩定案...`);
       const s3 = this.state.stage3 || {};
       const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
       const currentInquiry = (targetInquiry && targetInquiry.role) ? targetInquiry : feedbacks.find(f => f.role === 'opponent' && (!f.response || !f.response.trim()));
       if (!currentInquiry) return;
 
-      const inqIndex = feedbacks.indexOf(currentInquiry);
-      const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
+      this._isAnalyzingS3Inquiry = true;
+      try {
+        this.disableAllRetryButtons(btnElement, `⏳ 正在重新生成答辩定案...`);
 
-      const s3ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
-      const lastChairIdx = s3ChatLogs.map(m => m.sender).lastIndexOf('neutral');
-      const msgsForInquiry = s3ChatLogs.slice(lastChairIdx + 1).filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-      const chatSnippet = msgsForInquiry.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在商讨辩护思路与修改对策';
+        const inqIndex = feedbacks.indexOf(currentInquiry);
+        const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
 
-      const remainingOppCount = feedbacks.filter(f => f.role === 'opponent' && f !== currentInquiry && (!f.response || !f.response.trim())).length;
-      const nextInquiry = feedbacks.find(f => f.role === 'opponent' && f !== currentInquiry && (!f.response || !f.response.trim()));
-      const nextIndex = nextInquiry ? feedbacks.indexOf(nextInquiry) : -1;
-      const nextLabel = nextIndex >= 1 ? `意见 ${nextIndex}` : '下一项质询';
+        const s3ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
+        const lastChairIdx = s3ChatLogs.map(m => m.sender).lastIndexOf('neutral');
+        const msgsForInquiry = s3ChatLogs.slice(lastChairIdx + 1).filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+        const chatSnippet = msgsForInquiry.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在商讨辩护思路与修改对策';
 
-      const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '论文方案';
+        const remainingOppCount = feedbacks.filter(f => f.role === 'opponent' && f !== currentInquiry && (!f.response || !f.response.trim())).length;
+        const nextInquiry = feedbacks.find(f => f.role === 'opponent' && f !== currentInquiry && (!f.response || !f.response.trim()));
+        const nextIndex = nextInquiry ? feedbacks.indexOf(nextInquiry) : -1;
+        const nextLabel = nextIndex >= 1 ? `意见 ${nextIndex}` : '下一项质询';
 
-      const taskType = this.getCurrentTaskType();
-      const isInst = (taskType === 'instructional');
-      const docName = isInst ? '教学设计' : '论文';
-      const chairSenderName = isInst ? '答辩委员会主席' : '答辩委员会主席 · 中间委员';
-      const chairShort = isInst ? '答辩主席' : '中间委员';
+        const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '论文方案';
 
-      const evalInquiryPrompt = `小组成员已就核心课题《${topic}》针对【反方质询 ${inqLabel}】在研讨区展开了辩护与修改商议。
+        const taskType = this.getCurrentTaskType();
+        const isInst = (taskType === 'instructional');
+        const docName = isInst ? '教学设计' : '论文';
+        const chairSenderName = isInst ? '答辩委员会主席' : '答辩委员会主席 · 中间委员';
+        const chairShort = isInst ? '答辩主席' : '中间委员';
+
+        const evalInquiryPrompt = `小组成员已就核心课题《${topic}》针对【反方质询 ${inqLabel}】在研讨区展开了辩护与修改商议。
   【反方原始质询】: ${currentInquiry.comment || currentInquiry.content}
   【小组成员的真实辩护讨论记录】:
   ${chatSnippet}
@@ -21132,14 +21135,13 @@
   答辩陈述：[提取 80~100 字逻辑严密、论据充分的正式答辩词与终稿修改对策，用于回填左侧矩阵]
   主席发言：[100~130 字自然语言点评与顺推裁决]`;
 
-      // 🌟 挂载中间委员正在提炼共识思考气泡
-      this.setActiveAgentAnalyzing({
-        icon: '🟡',
-        title: `【中间委员】正在研读全组讨论并提炼【${inqLabel}】答辩共识...`,
-        detail: '正在整合组员辩护要点，自动定案回填矩阵并推导下一阶段裁决...'
-      });
+        // 🌟 挂载中间委员正在提炼共识思考气泡
+        this.setActiveAgentAnalyzing({
+          icon: '🟡',
+          title: `【中间委员】正在研读全组讨论并提炼【${inqLabel}】答辩共识...`,
+          detail: '正在整合组员辩护要点，自动定案回填矩阵并推导下一阶段裁决...'
+        });
 
-      try {
         const resp = await callCozeAgentAPI('neutral', evalInquiryPrompt, { stage: 'stage3', topic, milestoneKey: `stage3_inquiry_${inqIndex}` });
         let extractedResponse = chatSnippet.slice(0, 150);
         let chairSpeech = (remainingOppCount > 0)
@@ -23129,29 +23131,32 @@
 
       if (!hasMeetingCalledInLogs && isMeetingDue && !this._isTriggeringMeetingCall) {
         this._isTriggeringMeetingCall = true;
-        s2.reviewMilestone = 'meeting_called';
-        s2.meetingStep = 'discussing_divergence';
-        s2.meetingCalledTime = Date.now();
+        try {
+          s2.reviewMilestone = 'meeting_called';
+          s2.meetingStep = 'discussing_divergence';
+          s2.meetingCalledTime = Date.now();
 
-        const taskType = this.getCurrentTaskType();
-        const isInst = (taskType === 'instructional');
-        const managingName = isInst ? '备课组长' : '责任编辑';
-        const docTypeNoun = isInst ? '教案' : '论文';
+          const taskType = this.getCurrentTaskType();
+          const isInst = (taskType === 'instructional');
+          const managingName = isInst ? '备课组长' : '责任编辑';
+          const docTypeNoun = isInst ? '教案' : '论文';
 
-        const meetingCallMsg = {
-          sender: 'managingEditor',
-          senderName: managingName,
-          text: `🤝 【${managingName}·半程研讨号召】：关注到全组${docTypeNoun}撰写已推进过半！请大家先暂停各自起草，花 1~2 分钟通读当前全篇草稿。重点审查：各章节逻辑是否连贯？前后构思是否存在脱节或分歧？\n👉 请大家在讨论区充分交流修改思路；商定差不多后，点击聊天框上方【💡 讨论差不多了？让${managingName}总结】按钮，我们将为大家提炼共识并下发《二审修正清单》！`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: now
-        };
-        if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-        this.state.chatLogs.stage2.push(meetingCallMsg);
-        this.syncChatLogs();
-        this.syncStage2();
-        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-        renderChat(this.state);
-        this._isTriggeringMeetingCall = false;
+          const meetingCallMsg = {
+            sender: 'managingEditor',
+            senderName: managingName,
+            text: `🤝 【${managingName}·半程研讨号召】：关注到全组${docTypeNoun}撰写已推进过半！请大家先暂停各自起草，花 1~2 分钟通读当前全篇草稿。重点审查：各章节逻辑是否连贯？前后构思是否存在脱节或分歧？\n👉 请大家在讨论区充分交流修改思路；商定差不多后，点击聊天框上方【💡 讨论差不多了？让${managingName}总结】按钮，我们将为大家提炼共识并下发《二审修正清单》！`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: now
+          };
+          if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+          this.state.chatLogs.stage2.push(meetingCallMsg);
+          this.syncChatLogs();
+          this.syncStage2();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          renderChat(this.state);
+        } finally {
+          this._isTriggeringMeetingCall = false;
+        }
         return;
       }
 
