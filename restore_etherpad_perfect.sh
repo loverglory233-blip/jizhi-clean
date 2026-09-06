@@ -127,7 +127,7 @@ chmod -R 777 var 2>/dev/null || true
 
 echo "🚀 [4/4] 启动 Etherpad 服务并实施健康校验..."
 export NODE_ENV=production
-nohup "$NODE_BIN" src/node/server.js > /var/log/etherpad.log 2>&1 &
+nohup ./bin/run.sh --root > /var/log/etherpad.log 2>&1 &
 
 SUCCESS=0
 for i in {1..25}; do
