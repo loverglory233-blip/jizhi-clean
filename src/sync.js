@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2704';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2704';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2705';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2705';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -589,18 +589,6 @@ export class CloudSyncEngine {
       return;
     }
 
-    // 🛡️ 带宽优化：聊天记录全量保留（确保教师导出完整），改为对正文草稿做差量检测：
-    //   正文未变时只传长度摘要，不重复传输数千字；正文变了才完整推送。
-    const rawStage2 = this.app.state.stage2 || {};
-    const currentDocContent = rawStage2.unifiedContent || '';
-    const currentDocHash = currentDocContent.length + '_' + currentDocContent.slice(-32);
-    const docChanged = (currentDocHash !== this._lastPushedDocHash);
-    if (docChanged) this._lastPushedDocHash = currentDocHash;
-
-    const stage2ForSnapshot = docChanged
-      ? rawStage2
-      : { ...rawStage2, unifiedContent: currentDocContent ? `__len:${currentDocContent.length}` : '' };
-
     const snapshot = {
       timestamp: Date.now(),
       groupId: groupId,
@@ -609,7 +597,7 @@ export class CloudSyncEngine {
       presence: this.app.state.presence || {},
       chatLogs: this.app.state.chatLogs,
       stage1: this.app.state.stage1,
-      stage2: stage2ForSnapshot,
+      stage2: this.app.state.stage2,
       stage3: this.app.state.stage3,
       stepConfirmations: this.app.state.stepConfirmations || {},
       timer: this.app.state.timer,
@@ -1514,13 +1502,10 @@ export class CloudSyncEngine {
 
       if (remoteData.stage2.unifiedContent !== undefined) {
         let remoteHtml = remoteData.stage2.unifiedContent || '';
-        // 🛡️ 跳过占位摘要（带宽优化产生的 __len:xxx 标记），不覆盖本地真实正文
-        if (!remoteHtml.startsWith('__len:')) {
-          const isLocalPadActive = !!document.getElementById('stage2-etherpad-frame');
-          const localLen = (this.app.state.stage2?.unifiedContent || '').length;
-          if (!isLocalPadActive || remoteHtml.length >= localLen || localLen === 0) {
-            this.app.state.stage2.unifiedContent = remoteHtml;
-          }
+        const isLocalPadActive = !!document.getElementById('stage2-etherpad-frame');
+        const localLen = (this.app.state.stage2?.unifiedContent || '').length;
+        if (!isLocalPadActive || remoteHtml.length >= localLen || localLen === 0) {
+          this.app.state.stage2.unifiedContent = remoteHtml;
         }
       }
 
