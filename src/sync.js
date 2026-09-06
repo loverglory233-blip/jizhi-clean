@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2715';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2715';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2717';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2717';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -223,7 +223,7 @@ export class CloudSyncEngine {
       // 🛡️ 调用 app.handleTaskExtendedUnlock 统一彻底恢复权限、清理所有阶段在途锁并自愈拉起智能体
       if (!nowExpired) {
         if (typeof this.app.handleTaskExtendedUnlock === 'function') {
-          this.app.handleTaskExtendedUnlock(t);
+          this.app.handleTaskExtendedUnlock(t, prevDeadline);
         } else {
           const f2 = document.getElementById('stage2-etherpad-frame');
           if (f2) {
@@ -241,6 +241,7 @@ export class CloudSyncEngine {
           document.querySelectorAll('#stage2-deadline-expired-banner, #stage3-deadline-expired-banner').forEach(b => b.remove());
           if (typeof this.app.renderHeader === 'function') this.app.renderHeader();
           if (typeof this.app.renderStudentWorkspace === 'function') this.app.renderStudentWorkspace(true);
+          showTaskExtendedUnlockModal(t, prevDeadline, true);
         }
       }
       if (!isNoticeAlreadyShown) {

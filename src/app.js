@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2715";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2715";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2715";
-import { AuthManager } from "./auth.js?v=20260906_v2715";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2715";
-import { renderLoginView } from "./login.js?v=20260906_v2715";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2715";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2715";
+} from "./constants.js?v=20260906_v2717";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2717";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2717";
+import { AuthManager } from "./auth.js?v=20260906_v2717";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2717";
+import { renderLoginView } from "./login.js?v=20260906_v2717";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2717";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2717";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2715";
+} from "./editor.js?v=20260906_v2717";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -216,7 +216,7 @@ export class App {
             if (this.state.studentViewMode === 'task_list') {
               this.renderMain();
             } else if (this.state.studentViewMode === 'workspace' && (isSameId(this.state.activeTaskId, extTask.id) || (extTask.title && this.state.activeTaskId === extTask.title))) {
-              this.handleTaskExtendedUnlock(extTask);
+              this.handleTaskExtendedUnlock(extTask, e.data.prevDeadline || '');
             }
           }
 
@@ -2891,7 +2891,7 @@ export class App {
   }
 
   // ⚡ 任务延期/恢复可编辑全线激活处理器：彻底恢复权限、清理阻塞锁、重绘画布并自愈拉起对应智能体
-  handleTaskExtendedUnlock(extTask) {
+  handleTaskExtendedUnlock(extTask, prevDeadline = '') {
     if (!extTask) return;
 
     // 0. 更新当前内存中活跃任务对象的 deadline
@@ -2902,7 +2902,7 @@ export class App {
       }
     }
 
-    // 1. 全局清理在途锁、超时戳与阻断标记
+    // 1. 全局清理瞬态调用锁（注意：仅清理并发在途锁，绝不重置已完成的历史里程碑）
     this._isTriggeringFirstReview = false;
     this._isTriggeringSecondReview = false;
     this._isTriggeringFinalReview = false;
@@ -2960,26 +2960,51 @@ export class App {
     this.renderStudentWorkspace(true);
     renderChat(this.state);
 
-    // 5. 🎯 分阶段差异化精准唤醒（已完成的历史阶段绝不重复触发任何已结束的流程和智能体）
+    // 5. 🎯 分阶段差异化精准唤醒：严格遵守【各阶段分开唤醒，已提交阶段绝不回复，且当前阶段中已触发过的智能体绝对不可重新回复】
     if (activeStage === 'stage1') {
       if (!isS1Done) {
-        // 阶段一未完成：唤醒阶段一开场白、提案收集与研讨指引
-        this.triggerStageWelcomeSpeech('stage1');
-        this.checkAndTriggerAllProposalsGathered();
-        this.checkAndTriggerVoteGuidanceIfNeeded();
+        const s1Logs = this.state.chatLogs?.stage1 || [];
+        const hasAuctioneerIntro = s1Logs.some(m => m && (m.sender === 'auctioneer' || (m.id && String(m.id).includes('auctioneer'))) && (m.text?.includes('阶段一') || m.text?.includes('拍卖会') || m.text?.includes('备课工作坊') || m.text?.includes('开场') || m.text?.includes('欢迎来到')));
+        const hasGatheredMsg = s1._allProposalsPrompted || this.state.s1_allPropsGatheredSent || s1Logs.some(m => m && ((m.text || '').includes('提案集齐与协同研讨') || (m.text || '').includes('提案集齐')));
+        const hasGuideMsg = s1Logs.some(m => m && (String(m.id || '').startsWith('vote_unanimous') || String(m.id || '').startsWith('vote_divergence') || (m.sender === 'auctioneer' && ((m.text || '').includes('方案研讨') || (m.text || '').includes('落槌与方案研讨')))));
+
+        if (!hasAuctioneerIntro) {
+          this.triggerStageWelcomeSpeech('stage1');
+        }
+        if (!hasGatheredMsg) {
+          this.checkAndTriggerAllProposalsGathered();
+        }
+        if (!hasGuideMsg) {
+          this.checkAndTriggerVoteGuidanceIfNeeded();
+        }
       }
     } else if (activeStage === 'stage2') {
       if (!isS2Done) {
-        // 阶段二未完成：唤醒责任编辑开场白、正文字数里程碑质检
-        this.triggerStageWelcomeSpeech('stage2');
+        const s2Logs = this.state.chatLogs?.stage2 || [];
+        const hasManagingIntro = s2Logs.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('阶段二') || m.text?.includes('开场欢迎') || m.text?.includes('开场') || m.text?.includes('公约分工与时间规划') || (m.id && String(m.id).includes('stage2_managing'))));
+        const hasReviewingIntro = s2Logs.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('开场寄语') || m.text?.includes('开场') || (m.id && String(m.id).includes('stage2_reviewing'))));
+        const hasFirstReview = s2Logs.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('一审') || m.text?.includes('初审') || m.text?.includes('破题把脉') || m.text?.includes('破题质检'))) || !!s2.firstReviewText || ['first_review_done', 'meeting_called', 'second_review_received', 'checklist_issued'].includes(s2.reviewMilestone);
+        const hasMeetingCall = s2Logs.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('半程研讨号召') || m.text?.includes('半程会议号召'))) || ['meeting_called', 'second_review_received', 'checklist_issued'].includes(s2.reviewMilestone) || !!(s2.actionPlan?.isGenerated);
+        const hasSecondReview = s2Logs.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('二审修正清单') || m.text?.includes('磨课修正清单') || m.text?.includes('半程修正清单') || m.text?.includes('二审意见') || m.text?.includes('磨课质检') || m.text?.includes('二审修正'))) || !!(s2.actionPlan?.isGenerated) || !!s2.secondReviewText || !!this.state.stage2SecondReviewText || ['second_review_received', 'checklist_issued'].includes(s2.reviewMilestone);
+
+        // ① 开场白：仅当未发言过时才触发
+        if (!hasManagingIntro || !hasReviewingIntro) {
+          this.triggerStageWelcomeSpeech('stage2');
+        }
+
+        // ② 字数把脉与半程号召：若一审或半程号召尚未触发，则根据当前内容审查
         const liveText = s2.unifiedContent || '';
-        if (liveText) {
+        if (liveText && (!hasFirstReview || !hasMeetingCall)) {
           setTimeout(() => {
             this.checkAgentTriggersOnContent(liveText);
           }, 600);
         }
-        // 检查半程研讨打卡完成但审稿清单未下发的情形
-        if (s2.pendingReviewing || this.state.stage2PendingReviewing) {
+
+        // ③ 二审修正清单：若已存在，彻底清理待下发标记，绝不重复生成！仅当确实在途待下发且历史从未生成时才触发
+        if (hasSecondReview) {
+          if (s2) s2.pendingReviewing = null;
+          this.state.stage2PendingReviewing = null;
+        } else if (s2.pendingReviewing || this.state.stage2PendingReviewing) {
           setTimeout(() => {
             this.triggerReviewingEditorAfterDiscussion();
           }, 800);
@@ -2991,7 +3016,8 @@ export class App {
         const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
         const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
         const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
-        if (!hasProp || !hasOpp || !s3.feedbackItems || s3.feedbackItems.length === 0) {
+        const hasItems = s3.feedbackItems && s3.feedbackItems.length > 0;
+        if (!hasProp || !hasOpp || !hasItems) {
           setTimeout(() => {
             this.runStage3CommitteePipeline();
           }, 300);
@@ -2999,8 +3025,12 @@ export class App {
       }
     }
 
+    // 6. 弹出任务延长时间浮窗与全局通知
     const extDurationStr = extTask.lastExtension?.extendDurationStr || (extTask.lastExtension?.addedMinutes ? `（增加了 ${extTask.lastExtension.addedMinutes} 分钟）` : '');
     showGlobalBannerNotice('⏳ 任务延期提醒', `本任务截止时间已由任课教师延长至 ${extTask.deadline || '新截止时间'} ${extDurationStr}！协作通道已畅通。`, 'info', 8000);
+    if (!document.getElementById('modal-task-extended-unlock')) {
+      showTaskExtendedUnlockModal(extTask, prevDeadline || extTask.lastExtension?.prevDeadline || '', true);
+    }
   }
 
   initStudentEvents() {
@@ -5933,8 +5963,13 @@ ${chatSnippet}
       const reviewingName = isInst ? '教研专家' : '审稿编辑';
       const stage2Title = isInst ? '阶段二：集体备课室' : '阶段二：学术编辑部';
 
-      const hasManagingIntro = logs.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('阶段二') || m.text?.includes('开场欢迎') || m.text?.includes('开场')));
-      const hasReviewingIntro = logs.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('开场寄语') || m.text?.includes('开场')));
+      const hasManagingIntro = logs.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('阶段二') || m.text?.includes('开场欢迎') || m.text?.includes('开场') || m.text?.includes('公约分工与时间规划') || (m.id && String(m.id).includes('stage2_managing'))));
+      const hasReviewingIntro = logs.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('开场寄语') || m.text?.includes('开场') || (m.id && String(m.id).includes('stage2_reviewing'))));
+
+      if (hasManagingIntro && hasReviewingIntro) {
+        sessionStorage.setItem(welcomeFlagKey, '1');
+        return;
+      }
 
       const curClassId = this.state.activeClassId || this.state.activeStudentClassId || null;
       const availablePapers = (this.authManager) ? this.authManager.getReferencePapers(groupId, curClassId, taskId) : [];
@@ -5995,8 +6030,42 @@ ${chatSnippet}
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
 
         // 🛡️ 审稿编辑/教研专家规则：必须在【责任编辑/备课组长之后】发言，且【仅当当前任务下发了范文/文献】时才说开场白
-        if (hasPapers && !hasReviewingIntro) {
+        if (hasPapers && !hasReviewingIntro && !this._isSchedulingReviewingIntro) {
+          this._isSchedulingReviewingIntro = true;
           setTimeout(() => {
+            try {
+              const latestLogs = this.state.chatLogs?.stage2 || [];
+              const alreadyHas = latestLogs.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('开场寄语') || m.text?.includes('开场') || (m.id && String(m.id).includes('stage2_reviewing'))));
+              if (alreadyHas) return;
+
+              const reviewingWelcome = {
+                id: `msg_welcome_${taskId}_${groupId}_stage2_reviewing`,
+                classId: effectiveClassId,
+                groupId: groupId,
+                taskId: taskId,
+                stage: 'stage2',
+                sender: 'reviewingEditor',
+                senderName: isInst ? '教研专家 · 质量把关' : '审稿编辑 · 质量把关',
+                text: `📝 【${reviewingName}·开场寄语】：大家好！我是本阶段的${reviewingName}。在大家的${isInst ? '教学设计' : '写作'}过程中，我将分别在开篇破题、半程${isInst ? '磨课' : '研讨'}与终审定稿三个关键节点为大家提供质检把脉与修改清单，护航全篇${isInst ? '教学设计' : '学术'}质量！👉 遇到瓶颈时，建议大家参考顶部【${isInst ? '教学范例' : '学术范文'}】与参考资料支架，学习规范的${isInst ? '教学设计与活动探究架构' : '学术行文与章节论述架构'}！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now()
+              };
+              latestLogs.push(reviewingWelcome);
+              this.sendSingleChatMessage(reviewingWelcome, 'stage2');
+              if (typeof window.renderChat === 'function') window.renderChat(this.state);
+            } finally {
+              this._isSchedulingReviewingIntro = false;
+            }
+          }, 2000);
+        }
+      } else if (hasManagingIntro && hasPapers && !hasReviewingIntro && !this._isSchedulingReviewingIntro) {
+        this._isSchedulingReviewingIntro = true;
+        setTimeout(() => {
+          try {
+            const latestLogs = this.state.chatLogs?.stage2 || [];
+            const alreadyHas = latestLogs.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('开场寄语') || m.text?.includes('开场') || (m.id && String(m.id).includes('stage2_reviewing'))));
+            if (alreadyHas) return;
+
             const reviewingWelcome = {
               id: `msg_welcome_${taskId}_${groupId}_stage2_reviewing`,
               classId: effectiveClassId,
@@ -6009,28 +6078,12 @@ ${chatSnippet}
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now()
             };
-            logs.push(reviewingWelcome);
+            latestLogs.push(reviewingWelcome);
             this.sendSingleChatMessage(reviewingWelcome, 'stage2');
             if (typeof window.renderChat === 'function') window.renderChat(this.state);
-          }, 2000);
-        }
-      } else if (hasManagingIntro && hasPapers && !hasReviewingIntro) {
-        setTimeout(() => {
-          const reviewingWelcome = {
-            id: `msg_welcome_${taskId}_${groupId}_stage2_reviewing`,
-            classId: effectiveClassId,
-            groupId: groupId,
-            taskId: taskId,
-            stage: 'stage2',
-            sender: 'reviewingEditor',
-            senderName: isInst ? '教研专家 · 质量把关' : '审稿编辑 · 质量把关',
-            text: `📝 【${reviewingName}·开场寄语】：大家好！我是本阶段的${reviewingName}。在大家的${isInst ? '教学设计' : '写作'}过程中，我将分别在开篇破题、半程${isInst ? '磨课' : '研讨'}与终审定稿三个关键节点为大家提供质检把脉与修改清单，护航全篇${isInst ? '教学设计' : '学术'}质量！👉 遇到瓶颈时，建议大家参考顶部【${isInst ? '教学范例' : '学术范文'}】与参考资料支架，学习规范的${isInst ? '教学设计与活动探究架构' : '学术行文与章节论述架构'}！`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now()
-          };
-          logs.push(reviewingWelcome);
-          this.sendSingleChatMessage(reviewingWelcome, 'stage2');
-          if (typeof window.renderChat === 'function') window.renderChat(this.state);
+          } finally {
+            this._isSchedulingReviewingIntro = false;
+          }
         }, 1200);
       }
     }
@@ -6609,21 +6662,38 @@ ${chatSnippet}
       // 🎪 阶段一守护：仅在小组处于阶段一且阶段一未签署公约时触发
       if (curStage === 'stage1') {
         if (!isS1Done) {
-          this.triggerStageWelcomeSpeech('stage1');
-          this.checkAndTriggerAllProposalsGathered();
-          this.checkAndTriggerVoteGuidanceIfNeeded();
+          const s1Logs = this.state.chatLogs?.stage1 || [];
+          const hasAuctioneerIntro = s1Logs.some(m => m && (m.sender === 'auctioneer' || (m.id && String(m.id).includes('auctioneer'))) && (m.text?.includes('阶段一') || m.text?.includes('拍卖会') || m.text?.includes('备课工作坊') || m.text?.includes('开场') || m.text?.includes('欢迎来到')));
+          const hasGatheredMsg = this.state.stage1?._allProposalsPrompted || this.state.s1_allPropsGatheredSent || s1Logs.some(m => m && ((m.text || '').includes('提案集齐与协同研讨') || (m.text || '').includes('提案集齐')));
+          const hasGuideMsg = s1Logs.some(m => m && (String(m.id || '').startsWith('vote_unanimous') || String(m.id || '').startsWith('vote_divergence') || (m.sender === 'auctioneer' && ((m.text || '').includes('方案研讨') || (m.text || '').includes('落槌与方案研讨')))));
+
+          if (!hasAuctioneerIntro) this.triggerStageWelcomeSpeech('stage1');
+          if (!hasGatheredMsg) this.checkAndTriggerAllProposalsGathered();
+          if (!hasGuideMsg) this.checkAndTriggerVoteGuidanceIfNeeded();
         }
       }
 
       // ✍️ 阶段二自愈守护：仅在小组处于阶段二且初稿未正式确认归档时触发
       else if (curStage === 'stage2') {
         if (!isS2Done) {
-          this.triggerStageWelcomeSpeech('stage2');
+          const s2Logs = this.state.chatLogs?.stage2 || [];
+          const hasManagingIntro = s2Logs.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('阶段二') || m.text?.includes('开场欢迎') || m.text?.includes('开场') || m.text?.includes('公约分工与时间规划') || (m.id && String(m.id).includes('stage2_managing'))));
+          const hasReviewingIntro = s2Logs.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('开场寄语') || m.text?.includes('开场') || (m.id && String(m.id).includes('stage2_reviewing'))));
+          const hasFirstReview = s2Logs.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('一审') || m.text?.includes('初审') || m.text?.includes('破题把脉') || m.text?.includes('破题质检'))) || !!this.state.stage2?.firstReviewText || ['first_review_done', 'meeting_called', 'second_review_received', 'checklist_issued'].includes(this.state.stage2?.reviewMilestone);
+          const hasMeetingCall = s2Logs.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('半程研讨号召') || m.text?.includes('半程会议号召'))) || ['meeting_called', 'second_review_received', 'checklist_issued'].includes(this.state.stage2?.reviewMilestone) || !!(this.state.stage2?.actionPlan?.isGenerated);
+          const hasSecondReview = s2Logs.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('二审修正清单') || m.text?.includes('磨课修正清单') || m.text?.includes('半程修正清单') || m.text?.includes('二审意见') || m.text?.includes('磨课质检') || m.text?.includes('二审修正'))) || !!(this.state.stage2?.actionPlan?.isGenerated) || !!this.state.stage2?.secondReviewText || !!this.state.stage2SecondReviewText || ['second_review_received', 'checklist_issued'].includes(this.state.stage2?.reviewMilestone);
+
+          if (!hasManagingIntro || !hasReviewingIntro) {
+            this.triggerStageWelcomeSpeech('stage2');
+          }
           const cleanTxt = this.state.stage2?.unifiedContent || '';
-          if (cleanTxt && typeof this.checkAgentTriggersOnContent === 'function') {
+          if (cleanTxt && (!hasFirstReview || !hasMeetingCall) && typeof this.checkAgentTriggersOnContent === 'function') {
             this.checkAgentTriggersOnContent(cleanTxt);
           }
-          if ((this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing) && typeof this.triggerReviewingEditorAfterDiscussion === 'function') {
+          if (hasSecondReview) {
+            if (this.state.stage2) this.state.stage2.pendingReviewing = null;
+            this.state.stage2PendingReviewing = null;
+          } else if ((this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing) && typeof this.triggerReviewingEditorAfterDiscussion === 'function') {
             this.triggerReviewingEditorAfterDiscussion();
           }
         }
@@ -6632,15 +6702,16 @@ ${chatSnippet}
       // 🎓 阶段三自愈守护：仅在处于阶段三且尚未终审提交归档时自愈
       else if (curStage === 'stage3') {
         if (!isS3Done) {
-          this.triggerStageWelcomeSpeech('stage3');
           const s3 = this.state.stage3 || {};
           const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
           const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
           const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
-          const canAutoRun = (!hasProp || !hasOpp || !s3.feedbackItems || s3.feedbackItems.length === 0) &&
+          const hasItems = s3.feedbackItems && s3.feedbackItems.length > 0;
+          const canAutoRun = (!hasProp || !hasOpp || !hasItems) &&
             !this._isStage3PipelineRunning &&
             (Date.now() - (this._lastStage3PipelineAttempt || 0) > 30000);
           if (canAutoRun) {
+            this.triggerStageWelcomeSpeech('stage3');
             this.runStage3CommitteePipeline();
           }
         }
@@ -7683,17 +7754,17 @@ ${chatSnippet}
         this.syncChatLogs();
         renderChat(this.state);
         hasFirstReviewInLogs = true;
-      } else if (s2.reviewMilestone === 'first_review_done') {
-        s2.reviewMilestone = 'none';
       }
     }
+
+    const isFirstReviewAlreadyDone = hasFirstReviewInLogs || !!s2.firstReviewText || ['first_review_done', 'meeting_called', 'second_review_received', 'checklist_issued'].includes(s2.reviewMilestone);
 
     // 🛡️ 300ms 防抖节流（由后端分布式原子排他锁与缓存池保障全组仅调用 1 次大模型）
     const delayMs = 300;
 
     // 🛡️ 如果之前触发中途因异常未完成且已超过 20 秒，允许重置重试
     const isReview1InProgressTimedOut = (s2.reviewMilestone === 'first_review_in_progress' && (!s2._review1StartTime || (now - s2._review1StartTime > 20000)));
-    const canTriggerReview1 = !hasFirstReviewInLogs && isReview1Due && !this._isTriggeringFirstReview && (s2.reviewMilestone !== 'first_review_done' && (s2.reviewMilestone !== 'first_review_in_progress' || isReview1InProgressTimedOut));
+    const canTriggerReview1 = !isFirstReviewAlreadyDone && isReview1Due && !this._isTriggeringFirstReview && (s2.reviewMilestone !== 'first_review_in_progress' || isReview1InProgressTimedOut);
 
     if (canTriggerReview1) {
       this._isTriggeringFirstReview = true;
@@ -7807,14 +7878,16 @@ ${contentSnippet}
     // ═══════════════════════════════════════════════════════════════
     // 🛡️ 第二次学术质检与编辑会议（目标字数的 70% / 阶段二起草时间水位 70% · 深度研讨）
     // ═══════════════════════════════════════════════════════════════
-    const isMeetingDue = (hasFirstReviewInLogs || s2.reviewMilestone === 'first_review_done') && (wordProgress >= 0.70 || timeProgress >= 0.70 || rawDoc.length >= (targetWordCount * 0.70));
+    const isMeetingDue = (hasFirstReviewInLogs || s2.reviewMilestone === 'first_review_done' || isFirstReviewAlreadyDone) && (wordProgress >= 0.70 || timeProgress >= 0.70 || rawDoc.length >= (targetWordCount * 0.70));
     const hasMeetingCalledInLogs = s2ChatList.some(m => m.sender === 'managingEditor' && (m.text.includes('半程会议号召') || m.text.includes('半程研讨号召')));
+    const hasPassedMeeting = hasMeetingCalledInLogs || ['meeting_called', 'second_review_received', 'checklist_issued'].includes(s2.reviewMilestone) || !!(s2.actionPlan?.isGenerated) || !!s2.secondReviewText;
+
     if (hasMeetingCalledInLogs && s2.reviewMilestone !== 'meeting_called' && s2.reviewMilestone !== 'action_plan_generated') {
       s2.reviewMilestone = 'meeting_called';
       this.syncStage2();
     }
 
-    if (!hasMeetingCalledInLogs && isMeetingDue && !this._isTriggeringMeetingCall) {
+    if (!hasPassedMeeting && isMeetingDue && !this._isTriggeringMeetingCall) {
       this._isTriggeringMeetingCall = true;
       try {
         s2.reviewMilestone = 'meeting_called';
@@ -8617,6 +8690,28 @@ ${contentSnippet}
     if (this._isTriggeringSecondReview || this.isCurrentTaskReadOnly()) return;
     const ctx = this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing;
     if (!ctx) return;
+
+    // 🛡️ 严格单次下发守卫：若二审修正清单/磨课清单已存在，彻底清理待下发标记并立即退出，绝不发重复小结，绝不重复调用大模型！
+    const s2ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
+    const hasSecondReviewInLogs = s2ChatLogs.some(m => m && m.sender === 'reviewingEditor' && (
+      m.text?.includes('二审修正清单') || 
+      m.text?.includes('磨课修正清单') || 
+      m.text?.includes('半程修正清单') || 
+      m.text?.includes('二审意见') || 
+      m.text?.includes('磨课质检') ||
+      m.text?.includes('二审修正')
+    ));
+    const hasActionPlan = !!(this.state.stage2?.actionPlan?.isGenerated || (this.state.stage2?.actionPlan?.items && this.state.stage2.actionPlan.items.length > 0));
+    const hasSecondReviewText = !!(this.state.stage2?.secondReviewText || this.state.stage2SecondReviewText);
+    const isMilestoneDone = (this.state.stage2?.reviewMilestone === 'second_review_received' || this.state.stage2?.reviewMilestone === 'checklist_issued');
+
+    if (hasSecondReviewInLogs || hasActionPlan || hasSecondReviewText || isMilestoneDone) {
+      console.log('🛡️ 二审修正清单已存在，跳过重复触发与回复');
+      if (this.state.stage2) this.state.stage2.pendingReviewing = null;
+      this.state.stage2PendingReviewing = null;
+      return;
+    }
+
     this._isTriggeringSecondReview = true;
     if (this.state.stage2) this.state.stage2.pendingReviewing = null;
     this.state.stage2PendingReviewing = null;
