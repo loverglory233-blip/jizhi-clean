@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2711";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2711";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2711";
-import { AuthManager } from "./auth.js?v=20260906_v2711";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2711";
-import { renderLoginView } from "./login.js?v=20260906_v2711";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2711";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2711";
+} from "./constants.js?v=20260906_v2713";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2713";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2713";
+import { AuthManager } from "./auth.js?v=20260906_v2713";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2713";
+import { renderLoginView } from "./login.js?v=20260906_v2713";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2713";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2713";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2711";
+} from "./editor.js?v=20260906_v2713";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -216,36 +216,7 @@ export class App {
             if (this.state.studentViewMode === 'task_list') {
               this.renderMain();
             } else if (this.state.studentViewMode === 'workspace' && (isSameId(this.state.activeTaskId, extTask.id) || (extTask.title && this.state.activeTaskId === extTask.title))) {
-              this._isTriggeringFirstReview = false;
-              this._isTriggeringSecondReview = false;
-              this._isTriggeringFinalReview = false;
-              this._isGeneratingManagingSummary = false;
-              this._isAgentReplyInProgress = false;
-              this._isStage3PipelineRunning = false;
-              this._lastStage3PipelineAttempt = 0;
-              this.renderHeader();
-              this.renderCanvas();
-              renderChat(this.state);
-              if (this.state.currentStage === 'stage3') {
-                const s3 = this.state.stage3 || {};
-                const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
-                const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
-                const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
-                if (!hasProp || !hasOpp || !s3.feedbackItems || s3.feedbackItems.length === 0) {
-                  setTimeout(() => {
-                    this.runStage3CommitteePipeline();
-                  }, 300);
-                }
-              } else if (this.state.currentStage === 'stage2' && this.state.stage2?.unifiedContent) {
-                setTimeout(() => {
-                  this.checkAgentTriggersOnContent(this.state.stage2.unifiedContent);
-                }, 1000);
-              } else if (this.state.currentStage === 'stage1' || !this.state.currentStage) {
-                this.checkAndTriggerAllProposalsGathered();
-                this.checkAndTriggerVoteGuidanceIfNeeded();
-              }
-              const extDurationStr = extTask.lastExtension?.extendDurationStr || (extTask.lastExtension?.addedMinutes ? `（增加了 ${extTask.lastExtension.addedMinutes} 分钟）` : '');
-              showGlobalBannerNotice('⏳ 任务延期提醒', `本任务截止时间已由任课教师延长至 ${extTask.deadline || '新截止时间'} ${extDurationStr}！协作通道已畅通。`, 'info', 8000);
+              this.handleTaskExtendedUnlock(extTask);
             }
           }
 
@@ -2909,6 +2880,102 @@ export class App {
       () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
       () => this.backToTaskList()
     );
+  }
+
+  renderCanvas() {
+    if (!this.handlers) {
+      this.renderStudentWorkspace(false);
+      return;
+    }
+    renderCanvas(this.state, this.handlers);
+  }
+
+  // ⚡ 任务延期/恢复可编辑全线激活处理器：彻底恢复权限、清理阻塞锁、重绘画布并自愈拉起对应智能体
+  handleTaskExtendedUnlock(extTask) {
+    if (!extTask) return;
+
+    // 0. 更新当前内存中活跃任务对象的 deadline
+    if (this.authManager) {
+      const activeTask = this.authManager.getActiveTask();
+      if (activeTask && (isSameId(activeTask.id, extTask.id) || (extTask.title && activeTask.title === extTask.title))) {
+        Object.assign(activeTask, extTask);
+      }
+    }
+
+    // 1. 全局清理所有阶段智能体在途锁、提取时间戳、超时戳与重试阻断
+    this._isTriggeringFirstReview = false;
+    this._isTriggeringSecondReview = false;
+    this._isTriggeringFinalReview = false;
+    this._isGeneratingManagingSummary = false;
+    this._isGeneratingReviewSummary = false;
+    this._isExtractingTopic = false;
+    this._isExtractingTime = false;
+    this._isExtractingTasks = false;
+    this._isGeneratingContract = false;
+    this._isTriggeringVoteGuidance = false;
+    this._isAnalyzingS3Inquiry = false;
+    this._isAgentReplyInProgress = false;
+    this._isHandlingAgentNudge = false;
+    this._isStage3PipelineRunning = false;
+    this._lastStage3PipelineAttempt = 0;
+    this.isViewingPastStage = false;
+    if (this.state) this.state.isViewingPastStage = false;
+    if (typeof window !== 'undefined') window._firstPadScanTriggered = false;
+
+    // 2. 彻底解除 Etherpad 协同文档所有层级的只读锁定、遮罩与样式限制
+    const f2 = document.getElementById('stage2-etherpad-frame');
+    if (f2) {
+      f2._wasPreviouslyReadonly = false;
+      f2._isReadonlyEnforced = false;
+      liftEtherpadReadonly(f2);
+    }
+    const f3 = document.getElementById('stage3-etherpad-frame');
+    if (f3) {
+      f3._wasPreviouslyReadonly = false;
+      f3._isReadonlyEnforced = false;
+      liftEtherpadReadonly(f3);
+    }
+    document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+    document.querySelectorAll('#stage2-deadline-expired-banner, #stage3-deadline-expired-banner').forEach(b => b.remove());
+
+    // 3. 重新全量渲染学生工作台（isForced = true 强制就地重绘所有按钮、输入框并恢复事件绑定）
+    this.renderStudentWorkspace(true);
+    renderChat(this.state);
+
+    // 4. 自动激活/自愈拉起当前阶段对应智能体
+    const curStage = this.state.currentStage || 'stage1';
+    this.triggerStageWelcomeSpeech(curStage);
+
+    if (curStage === 'stage1') {
+      this.checkAndTriggerAllProposalsGathered();
+      this.checkAndTriggerVoteGuidanceIfNeeded();
+    } else if (curStage === 'stage2') {
+      const liveText = this.state.stage2?.unifiedContent || '';
+      if (liveText) {
+        setTimeout(() => {
+          this.checkAgentTriggersOnContent(liveText);
+        }, 600);
+      }
+      // 检查半程研讨是否已完成打卡但二审清单尚未下发
+      if (this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing) {
+        setTimeout(() => {
+          this.triggerReviewingEditorAfterDiscussion();
+        }, 800);
+      }
+    } else if (curStage === 'stage3') {
+      const s3 = this.state.stage3 || {};
+      const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
+      const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
+      const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
+      if (!hasProp || !hasOpp || !s3.feedbackItems || s3.feedbackItems.length === 0) {
+        setTimeout(() => {
+          this.runStage3CommitteePipeline();
+        }, 300);
+      }
+    }
+
+    const extDurationStr = extTask.lastExtension?.extendDurationStr || (extTask.lastExtension?.addedMinutes ? `（增加了 ${extTask.lastExtension.addedMinutes} 分钟）` : '');
+    showGlobalBannerNotice('⏳ 任务延期提醒', `本任务截止时间已由任课教师延长至 ${extTask.deadline || '新截止时间'} ${extDurationStr}！协作通道已畅通。`, 'info', 8000);
   }
 
   initStudentEvents() {
@@ -6515,6 +6582,17 @@ ${chatSnippet}
       if (this.state.currentStage === 'stage1' || !this.state.currentStage) {
         this.checkAndTriggerAllProposalsGathered();
         this.checkAndTriggerVoteGuidanceIfNeeded();
+      }
+
+      // ✍️ 阶段二自愈守护：只要处于阶段二且可编辑，检测字数里程碑触发与半程研讨后二审下发
+      if (this.state.currentStage === 'stage2') {
+        const cleanTxt = this.state.stage2?.unifiedContent || '';
+        if (cleanTxt && typeof this.checkAgentTriggersOnContent === 'function') {
+          this.checkAgentTriggersOnContent(cleanTxt);
+        }
+        if ((this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing) && typeof this.triggerReviewingEditorAfterDiscussion === 'function') {
+          this.triggerReviewingEditorAfterDiscussion();
+        }
       }
 
       // 🎓 阶段三自愈守护：只要处于阶段三且答辩矩阵为空，且距离上次执行超过 30 秒，拉起答辩委员会流水线

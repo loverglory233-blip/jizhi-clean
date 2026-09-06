@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2711';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2711';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2713';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2713';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -202,7 +202,6 @@ export class CloudSyncEngine {
     try { shownEvents = JSON.parse(localStorage.getItem('jizhi_shown_deadline_events') || '{}'); } catch (e) {}
     const eventKey = `${t.id}_${t.deadline}`;
     const isNoticeAlreadyShown = !!shownEvents[eventKey];
-    if (isNoticeAlreadyShown) return;
     shownEvents[eventKey] = true;
     try { localStorage.setItem('jizhi_shown_deadline_events', JSON.stringify(shownEvents)); } catch (e) {}
 
@@ -221,49 +220,28 @@ export class CloudSyncEngine {
 
     if (isCurrentTask) {
       // 🎯 场景 1：学生正处于该任务工作台内部
-      // 🛡️ 严格保护：仅解除当前未完成阶段的只读锁（已完成的历史阶段如阶段一公约、阶段二初稿始终保持只读锁定）
+      // 🛡️ 调用 app.handleTaskExtendedUnlock 统一彻底恢复权限、清理所有阶段在途锁并自愈拉起智能体
       if (!nowExpired) {
-        const isS2Done = !!(this.app.state.stage2?.isDraftConfirmed);
-        const isS3FinalDone = !!this.app.state.isFinalSubmitted;
-        
-        if (!isS2Done) {
-          const correctMax = (this.app.state.stage1?.contract?.isConfirmed) ? 'stage2' : 'stage1';
-          this.app.state.groupMaxStage = correctMax;
-          if (this.app.state.currentStage === 'stage3') {
-            this.app.state.currentStage = correctMax;
-          }
-          if (this.app.state.stage3) {
-            this.app.state.stage3 = { feedbackItems: [], proponentAnalysis: null, opponentAnalysis: null, meetingSubmissions: {} };
-          }
-          if (this.app.state.chatLogs && this.app.state.chatLogs.stage3) {
-            this.app.state.chatLogs.stage3 = [];
-          }
-          this.app.state.stage3CommitteeLoading = false;
-
+        if (typeof this.app.handleTaskExtendedUnlock === 'function') {
+          this.app.handleTaskExtendedUnlock(t);
+        } else {
           const f2 = document.getElementById('stage2-etherpad-frame');
           if (f2) {
             f2._wasPreviouslyReadonly = false;
             f2._isReadonlyEnforced = false;
             liftEtherpadReadonly(f2);
           }
-        }
-        if (!isS3FinalDone) {
           const f3 = document.getElementById('stage3-etherpad-frame');
           if (f3) {
             f3._wasPreviouslyReadonly = false;
             f3._isReadonlyEnforced = false;
             liftEtherpadReadonly(f3);
           }
+          document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+          document.querySelectorAll('#stage2-deadline-expired-banner, #stage3-deadline-expired-banner').forEach(b => b.remove());
+          if (typeof this.app.renderHeader === 'function') this.app.renderHeader();
+          if (typeof this.app.renderStudentWorkspace === 'function') this.app.renderStudentWorkspace(true);
         }
-      }
-      // ⏱️ 立即就地刷新顶部倒计时与工作台画布状态（移除过期横幅与只读锁，恢复可操作按钮）
-      this.app._isStage3PipelineRunning = false;
-      this.app._lastStage3PipelineAttempt = 0;
-      if (typeof this.app.renderHeader === 'function') {
-        this.app.renderHeader();
-      }
-      if (typeof this.app.renderStudentWorkspace === 'function') {
-        this.app.renderStudentWorkspace(true);
       }
       if (!isNoticeAlreadyShown) {
         showGlobalBannerNotice(
