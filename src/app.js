@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2713";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2713";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2713";
-import { AuthManager } from "./auth.js?v=20260906_v2713";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2713";
-import { renderLoginView } from "./login.js?v=20260906_v2713";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2713";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2713";
+} from "./constants.js?v=20260906_v2715";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2715";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2715";
+import { AuthManager } from "./auth.js?v=20260906_v2715";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2715";
+import { renderLoginView } from "./login.js?v=20260906_v2715";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2715";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2715";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2713";
+} from "./editor.js?v=20260906_v2715";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2902,7 +2902,7 @@ export class App {
       }
     }
 
-    // 1. 全局清理所有阶段智能体在途锁、提取时间戳、超时戳与重试阻断
+    // 1. 全局清理在途锁、超时戳与阻断标记
     this._isTriggeringFirstReview = false;
     this._isTriggeringSecondReview = false;
     this._isTriggeringFinalReview = false;
@@ -2918,59 +2918,84 @@ export class App {
     this._isHandlingAgentNudge = false;
     this._isStage3PipelineRunning = false;
     this._lastStage3PipelineAttempt = 0;
-    this.isViewingPastStage = false;
-    if (this.state) this.state.isViewingPastStage = false;
     if (typeof window !== 'undefined') window._firstPadScanTriggered = false;
 
-    // 2. 彻底解除 Etherpad 协同文档所有层级的只读锁定、遮罩与样式限制
+    // 2. 判定各阶段完成与归档状态（已确认提交的历史阶段绝对不可篡改，不可重新解锁为可写！）
+    const s1 = this.state.stage1 || {};
+    const s2 = this.state.stage2 || {};
+    const s3 = this.state.stage3 || {};
+    const isS1Done = !!(s1.contract?.isConfirmed);
+    const isS2Done = !!(s2.isDraftConfirmed);
+    const isS3Done = !!(this.state.isFinalSubmitted);
+
+    // 当前小组实际最高推进阶段（杜绝越权或被旧状态带偏）
+    let activeStage = this.state.currentStage || 'stage1';
+
+    // 3. 按阶段精准解除 Etherpad 只读锁（只解除当前未完成阶段的文档；已提交完成的历史阶段如阶段二初稿严格保持只读锁定）
     const f2 = document.getElementById('stage2-etherpad-frame');
     if (f2) {
-      f2._wasPreviouslyReadonly = false;
-      f2._isReadonlyEnforced = false;
-      liftEtherpadReadonly(f2);
+      if (!isS2Done) {
+        f2._wasPreviouslyReadonly = false;
+        f2._isReadonlyEnforced = false;
+        liftEtherpadReadonly(f2);
+      }
     }
     const f3 = document.getElementById('stage3-etherpad-frame');
     if (f3) {
-      f3._wasPreviouslyReadonly = false;
-      f3._isReadonlyEnforced = false;
-      liftEtherpadReadonly(f3);
+      if (!isS3Done) {
+        f3._wasPreviouslyReadonly = false;
+        f3._isReadonlyEnforced = false;
+        liftEtherpadReadonly(f3);
+      }
     }
-    document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+    // 仅移除因任务截止超时而产生的遮罩与红横幅
+    document.querySelectorAll('.etherpad-readonly-shield').forEach(s => {
+      // 若阶段二已正式签署归档且在阶段三，则保留阶段二文档的保护遮罩
+      if (s.closest('#stage2-etherpad-container') && isS2Done && activeStage === 'stage3') return;
+      s.remove();
+    });
     document.querySelectorAll('#stage2-deadline-expired-banner, #stage3-deadline-expired-banner').forEach(b => b.remove());
 
-    // 3. 重新全量渲染学生工作台（isForced = true 强制就地重绘所有按钮、输入框并恢复事件绑定）
+    // 4. 重新渲染学生工作台（强制就地重绘当前阶段画布、恢复按钮与可编辑权限）
     this.renderStudentWorkspace(true);
     renderChat(this.state);
 
-    // 4. 自动激活/自愈拉起当前阶段对应智能体
-    const curStage = this.state.currentStage || 'stage1';
-    this.triggerStageWelcomeSpeech(curStage);
-
-    if (curStage === 'stage1') {
-      this.checkAndTriggerAllProposalsGathered();
-      this.checkAndTriggerVoteGuidanceIfNeeded();
-    } else if (curStage === 'stage2') {
-      const liveText = this.state.stage2?.unifiedContent || '';
-      if (liveText) {
-        setTimeout(() => {
-          this.checkAgentTriggersOnContent(liveText);
-        }, 600);
+    // 5. 🎯 分阶段差异化精准唤醒（已完成的历史阶段绝不重复触发任何已结束的流程和智能体）
+    if (activeStage === 'stage1') {
+      if (!isS1Done) {
+        // 阶段一未完成：唤醒阶段一开场白、提案收集与研讨指引
+        this.triggerStageWelcomeSpeech('stage1');
+        this.checkAndTriggerAllProposalsGathered();
+        this.checkAndTriggerVoteGuidanceIfNeeded();
       }
-      // 检查半程研讨是否已完成打卡但二审清单尚未下发
-      if (this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing) {
-        setTimeout(() => {
-          this.triggerReviewingEditorAfterDiscussion();
-        }, 800);
+    } else if (activeStage === 'stage2') {
+      if (!isS2Done) {
+        // 阶段二未完成：唤醒责任编辑开场白、正文字数里程碑质检
+        this.triggerStageWelcomeSpeech('stage2');
+        const liveText = s2.unifiedContent || '';
+        if (liveText) {
+          setTimeout(() => {
+            this.checkAgentTriggersOnContent(liveText);
+          }, 600);
+        }
+        // 检查半程研讨打卡完成但审稿清单未下发的情形
+        if (s2.pendingReviewing || this.state.stage2PendingReviewing) {
+          setTimeout(() => {
+            this.triggerReviewingEditorAfterDiscussion();
+          }, 800);
+        }
       }
-    } else if (curStage === 'stage3') {
-      const s3 = this.state.stage3 || {};
-      const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
-      const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
-      const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
-      if (!hasProp || !hasOpp || !s3.feedbackItems || s3.feedbackItems.length === 0) {
-        setTimeout(() => {
-          this.runStage3CommitteePipeline();
-        }, 300);
+    } else if (activeStage === 'stage3') {
+      if (!isS3Done) {
+        // 阶段三未最终提交：检查答辩委员会专家发言与修改清单
+        const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
+        const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
+        const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
+        if (!hasProp || !hasOpp || !s3.feedbackItems || s3.feedbackItems.length === 0) {
+          setTimeout(() => {
+            this.runStage3CommitteePipeline();
+          }, 300);
+        }
       }
     }
 
@@ -6576,36 +6601,48 @@ ${chatSnippet}
 
     // 默认自动触发当前阶段对应智能体的开场白与阶段三专家评审（仅在可编辑状态下触发，只读模式严禁触发任何新智能体）
     if (!this.isCurrentTaskReadOnly()) {
-      this.triggerStageWelcomeSpeech(this.state.currentStage || 'stage1');
+      const curStage = this.state.currentStage || 'stage1';
+      const isS1Done = !!(this.state.stage1?.contract?.isConfirmed);
+      const isS2Done = !!(this.state.stage2?.isDraftConfirmed);
+      const isS3Done = !!(this.state.isFinalSubmitted);
 
-      // 🎪 阶段一守护：随时检测全员提案与速评是否齐备 / 投票结果出炉后研讨指引是否缺失
-      if (this.state.currentStage === 'stage1' || !this.state.currentStage) {
-        this.checkAndTriggerAllProposalsGathered();
-        this.checkAndTriggerVoteGuidanceIfNeeded();
-      }
-
-      // ✍️ 阶段二自愈守护：只要处于阶段二且可编辑，检测字数里程碑触发与半程研讨后二审下发
-      if (this.state.currentStage === 'stage2') {
-        const cleanTxt = this.state.stage2?.unifiedContent || '';
-        if (cleanTxt && typeof this.checkAgentTriggersOnContent === 'function') {
-          this.checkAgentTriggersOnContent(cleanTxt);
-        }
-        if ((this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing) && typeof this.triggerReviewingEditorAfterDiscussion === 'function') {
-          this.triggerReviewingEditorAfterDiscussion();
+      // 🎪 阶段一守护：仅在小组处于阶段一且阶段一未签署公约时触发
+      if (curStage === 'stage1') {
+        if (!isS1Done) {
+          this.triggerStageWelcomeSpeech('stage1');
+          this.checkAndTriggerAllProposalsGathered();
+          this.checkAndTriggerVoteGuidanceIfNeeded();
         }
       }
 
-      // 🎓 阶段三自愈守护：只要处于阶段三且答辩矩阵为空，且距离上次执行超过 30 秒，拉起答辩委员会流水线
-      if (this.state.currentStage === 'stage3') {
-        const s3 = this.state.stage3 || {};
-        const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
-        const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
-        const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
-        const canAutoRun = (!hasProp || !hasOpp || !s3.feedbackItems || s3.feedbackItems.length === 0) &&
-          !this._isStage3PipelineRunning &&
-          (Date.now() - (this._lastStage3PipelineAttempt || 0) > 30000);
-        if (canAutoRun) {
-          this.runStage3CommitteePipeline();
+      // ✍️ 阶段二自愈守护：仅在小组处于阶段二且初稿未正式确认归档时触发
+      else if (curStage === 'stage2') {
+        if (!isS2Done) {
+          this.triggerStageWelcomeSpeech('stage2');
+          const cleanTxt = this.state.stage2?.unifiedContent || '';
+          if (cleanTxt && typeof this.checkAgentTriggersOnContent === 'function') {
+            this.checkAgentTriggersOnContent(cleanTxt);
+          }
+          if ((this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing) && typeof this.triggerReviewingEditorAfterDiscussion === 'function') {
+            this.triggerReviewingEditorAfterDiscussion();
+          }
+        }
+      }
+
+      // 🎓 阶段三自愈守护：仅在处于阶段三且尚未终审提交归档时自愈
+      else if (curStage === 'stage3') {
+        if (!isS3Done) {
+          this.triggerStageWelcomeSpeech('stage3');
+          const s3 = this.state.stage3 || {};
+          const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
+          const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
+          const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
+          const canAutoRun = (!hasProp || !hasOpp || !s3.feedbackItems || s3.feedbackItems.length === 0) &&
+            !this._isStage3PipelineRunning &&
+            (Date.now() - (this._lastStage3PipelineAttempt || 0) > 30000);
+          if (canAutoRun) {
+            this.runStage3CommitteePipeline();
+          }
         }
       }
     }
