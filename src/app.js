@@ -6213,51 +6213,33 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
 
       const resp = await callCozeAgentAPI('neutral', evalInquiryPrompt, { stage: 'stage3', topic, actualDoc: rawDoc, milestoneKey: `stage3_inquiry_${inqIndex}` });
       let extractedResponse = '';
-      let chairSpeech = (remainingOppCount > 0)
-        ? `🟡 【${chairShort}·答辩定案与顺推】：【${inqLabel}】辩护方案已定案归档！👉 请全组将研讨焦点转向【${nextLabel}（反方质询：${nextInqFullContent.slice(0, 45)}...）】，继续在讨论区商定对策！商定后点击上方【💡 ${nextLabel} 讨论差不多了？帮我总结并填入】！`
-        : `🟡 【${chairShort}·全部质询定案完毕】：🎉 各位${isInst ? '备课教师' : '研究者'}，全部质询均已辩护定案并获委员会全票认可！👉 请全组成员在右上角点击【✍️ 确认答辩完成】，全员确认后系统将正式解锁并进入【修改${docName}终稿】面板！`;
+      let chairSpeech = '';
 
       const lines = (resp && typeof resp === 'string') ? resp.trim().split('\n') : [];
       const respLine = lines.find(l => l && (l.includes('答辩陈述：') || l.includes('答辩陈述:')));
       const speechLine = lines.find(l => l && (l.includes('主席发言：') || l.includes('主席发言:')));
 
-      // 🛡️ 严格审查：大模型必须成功返回且包含标准【答辩陈述】标签！绝不启动本地截取兜底，若未生成全套内容直接出重试按键！
-      if (resp && resp.trim().length > 0 && respLine) {
-        let extractedResponse = respLine.replace(/^.*答辩陈述[：:]\s*/, '').trim();
-        let chairSpeech = speechLine ? speechLine.replace(/^.*主席发言[：:]\s*/, '').trim() : '';
-        if (!chairSpeech) {
-          // 若主席发言标签漏写，提取答辩陈述之后的行
-          const respIdx = lines.indexOf(respLine);
-          chairSpeech = lines.slice(respIdx + 1).join('\n').trim();
-        }
+      // 🛡️ 严格审查：大模型必须成功返回，且必须同时包含【答辩陈述】与【主席发言】标准标签！
+      // 绝不启动任何切片兜底、绝不本地瞎猜！若标签缺失直接触发网络提醒与重新生成按键！
+      if (resp && resp.trim().length > 0 && respLine && speechLine) {
+        const extractedResponse = respLine.replace(/^.*答辩陈述[：:]\s*/, '').trim();
+        const extractedChairSpeech = speechLine.replace(/^.*主席发言[：:]\s*/, '').trim();
 
         // 自动回填至左侧当前卡片并标记定案
         currentInquiry.response = extractedResponse;
         currentInquiry.isFinalized = true;
         currentInquiry.status = 'finalized';
 
-        // 智能拼接：确保包含“回填成功、可检查修改”与“顺推引导”
-        const checkTip = `【${inqLabel}】答辩陈述已成功录入左侧裁决矩阵！请全组成员在左侧核对，如有异议可随时直接在左侧输入框补充修改。`;
-        const nextGuide = (remainingOppCount > 0)
-          ? `👉 接下来请全组将研讨焦点转向【${nextLabel}（反方质询：${nextInqFullContent.slice(0, 45)}...）】，继续在讨论区商定对策！商定后点击上方【💡 ${nextLabel} 讨论差不多了？帮我总结并填入】！`
-          : `👉 全部质询均已辩护定案并获委员会全票认可！请全组成员在右上角点击【✍️ 确认答辩完成】，全员确认后将进入【修改${docName}终稿】！`;
-
-        const cleanSpeech = chairSpeech.replace(/^🟡\s*【[^】]+】[：:]\s*/, '').trim();
-        if (cleanSpeech.includes('定案归档') || cleanSpeech.includes('定案回填') || cleanSpeech.includes('裁决矩阵') || cleanSpeech.includes('答辩陈述')) {
-          chairSpeech = `🟡 【${chairShort}·答辩定案与顺推】：${checkTip} ${cleanSpeech}`;
-          if (!chairSpeech.includes(nextLabel) && remainingOppCount > 0) {
-            chairSpeech += `\n\n${nextGuide}`;
-          }
-        } else {
-          chairSpeech = `🟡 【${chairShort}·答辩定案与顺推】：${checkTip} ${cleanSpeech}\n\n${nextGuide}`;
-        }
+        // 规范主席发言格式，确保带有标准前缀
+        const cleanSpeech = extractedChairSpeech.replace(/^🟡\s*【[^】]+】[：:]\s*/, '').trim();
+        chairSpeech = `🟡 【${chairShort}·针对${inqLabel}答辩定案与顺推】：${cleanSpeech}`;
 
         // 清理历史残留的网络提醒错误气泡
         if (this.state.chatLogs.stage3) {
           this.state.chatLogs.stage3 = this.state.chatLogs.stage3.filter(m => !m || !(m.sender === 'neutral' && (m.text || '').includes('网络提醒')));
         }
       } else {
-        // ⚠️ 只要大模型生成未完成或缺少答辩陈述，严禁兜底硬塞，必须直接出重试按键！
+        // ⚠️ 只要大模型生成未完成或缺少任何一个标签，严禁兜底硬塞，必须直接出重试按键！
         chairSpeech = `🟡 【${chairShort}·网络提醒】：📡 答辩审阅大模型未能按标准完成【${inqLabel}】定案分析。<br><button class="btn-retry-ai" onclick="window.app.handleS3InquirySummary(this)" style="margin-top:6px; background:#d97706; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成【${inqLabel}】答辩定案</button>`;
       }
 
