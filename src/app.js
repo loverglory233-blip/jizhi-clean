@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2736";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260907_v2736";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2736";
-import { AuthManager } from "./auth.js?v=20260907_v2736";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2736";
-import { renderLoginView } from "./login.js?v=20260907_v2736";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2736";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2736";
+} from "./constants.js?v=20260907_v2737";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260907_v2737";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2737";
+import { AuthManager } from "./auth.js?v=20260907_v2737";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2737";
+import { renderLoginView } from "./login.js?v=20260907_v2737";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2737";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2737";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2736";
+} from "./editor.js?v=20260907_v2737";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2923,6 +2923,7 @@ export class App {
   // ⚡ 任务延期/恢复可编辑全线激活处理器：彻底恢复权限、清理阻塞锁、重绘画布并自愈拉起对应智能体
   handleTaskExtendedUnlock(extTask, prevDeadline = '') {
     if (!extTask) return;
+    const activeStage = this.state.currentStage || 'stage1';
 
     // 0. 更新当前内存中活跃任务对象的 deadline
     if (this.authManager) {
@@ -3004,6 +3005,17 @@ export class App {
     this.renderStudentWorkspace(true);
     renderChat(this.state);
 
+    // 🌟 立即弹出任务延长时间全屏浮窗与全局通知（优先呈现，绝不因后续逻辑受阻）
+    try {
+      const extDurationStr = extTask.lastExtension?.extendDurationStr || (extTask.lastExtension?.addedMinutes ? `（增加了 ${extTask.lastExtension.addedMinutes} 分钟）` : '');
+      showGlobalBannerNotice('⏳ 任务延期提醒', `本任务截止时间已由任课教师延长至 ${extTask.deadline || '新截止时间'} ${extDurationStr}！协作通道已畅通。`, 'info', 8000);
+      if (!document.getElementById('modal-task-extended-unlock')) {
+        showTaskExtendedUnlockModal(extTask, prevDeadline || extTask.lastExtension?.prevDeadline || '', true);
+      }
+    } catch (err) {
+      console.warn('showTaskExtendedUnlockModal error:', err);
+    }
+
     // 5. 🎯 分阶段差异化精准唤醒：严格遵守【各阶段分开唤醒，已提交阶段绝不回复，且当前阶段中已触发过的智能体绝对不可重新回复】
     if (activeStage === 'stage1') {
       if (!isS1Done) {
@@ -3076,12 +3088,6 @@ export class App {
       }
     }
 
-    // 6. 弹出任务延长时间浮窗与全局通知
-    const extDurationStr = extTask.lastExtension?.extendDurationStr || (extTask.lastExtension?.addedMinutes ? `（增加了 ${extTask.lastExtension.addedMinutes} 分钟）` : '');
-    showGlobalBannerNotice('⏳ 任务延期提醒', `本任务截止时间已由任课教师延长至 ${extTask.deadline || '新截止时间'} ${extDurationStr}！协作通道已畅通。`, 'info', 8000);
-    if (!document.getElementById('modal-task-extended-unlock')) {
-      showTaskExtendedUnlockModal(extTask, prevDeadline || extTask.lastExtension?.prevDeadline || '', true);
-    }
   }
 
   initStudentEvents() {

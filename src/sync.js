@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2736';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260907_v2736';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2737';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260907_v2737';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -191,21 +191,31 @@ export class CloudSyncEngine {
       try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
     }
 
-    if (!prevDeadline || !t.deadline) return;
-    const prevMs = new Date(String(prevDeadline).replace(/-/g, '/')).getTime();
-    const newMs = new Date(String(t.deadline).replace(/-/g, '/')).getTime();
-    if (isNaN(prevMs) || isNaN(newMs) || newMs <= prevMs) return;
-    const addedMin = Math.round((newMs - prevMs) / 60000);
-    if (addedMin <= 0) return;
+    // 🛡️ 稳健提取真实的旧截止时间（兼容纯日期字符串与带扩展时间戳的组合 Key）
+    let cleanPrevDeadline = String(prevDeadline || '').split('_')[0].trim();
+    if (!cleanPrevDeadline && t.lastExtension?.prevDeadline) {
+      cleanPrevDeadline = String(t.lastExtension.prevDeadline).trim();
+    }
+    const cleanNewDeadline = String(t.deadline || '').trim();
+    if (!cleanNewDeadline) return;
+
+    let prevMs = cleanPrevDeadline ? new Date(cleanPrevDeadline.replace(/-/g, '/')).getTime() : NaN;
+    let newMs = new Date(cleanNewDeadline.replace(/-/g, '/')).getTime();
+    let addedMin = (!isNaN(prevMs) && !isNaN(newMs)) ? Math.round((newMs - prevMs) / 60000) : (parseInt(t.lastExtension?.addedMinutes, 10) || 0);
+
+    if (addedMin <= 0 && (!isNaN(prevMs) && !isNaN(newMs) && newMs <= prevMs)) return;
+    if (addedMin <= 0 && t.lastExtension && parseInt(t.lastExtension.addedMinutes, 10) > 0) {
+      addedMin = parseInt(t.lastExtension.addedMinutes, 10);
+    }
 
     let shownEvents = {};
     try { shownEvents = JSON.parse(localStorage.getItem('jizhi_shown_deadline_events') || '{}'); } catch (e) {}
-    const eventKey = `${t.id}_${t.deadline}`;
+    const eventKey = `${t.id}_${t.deadline}_${t.lastExtension?.extendedAt || ''}`;
     const isNoticeAlreadyShown = !!shownEvents[eventKey];
     shownEvents[eventKey] = true;
     try { localStorage.setItem('jizhi_shown_deadline_events', JSON.stringify(shownEvents)); } catch (e) {}
 
-    const prevExpired = isTaskExpired(prevDeadline);
+    const prevExpired = cleanPrevDeadline ? isTaskExpired(cleanPrevDeadline) : false;
     const nowExpired = isTaskExpired(t);
     const isWorkspace = (this.app.state.studentViewMode === 'workspace' || !!document.getElementById('chat-stream') || !!document.querySelector('.app-layout'));
     const badgeText = document.querySelector('.brand-badge')?.innerText || '';
@@ -216,14 +226,14 @@ export class CloudSyncEngine {
       (t.title && badgeText.includes(t.title))
     );
     const isTaskHall = !isWorkspace || this.app.state.studentViewMode === 'task_list';
-    const extDurationStr = `（增加了 ${addedMin} 分钟）`;
+    const extDurationStr = addedMin > 0 ? `（增加了 ${addedMin} 分钟）` : '';
 
     if (isCurrentTask) {
       // 🎯 场景 1：学生正处于该任务工作台内部
       // 🛡️ 调用 app.handleTaskExtendedUnlock 统一彻底恢复权限、清理所有阶段在途锁并自愈拉起智能体
       if (!nowExpired) {
         if (typeof this.app.handleTaskExtendedUnlock === 'function') {
-          this.app.handleTaskExtendedUnlock(t, prevDeadline);
+          this.app.handleTaskExtendedUnlock(t, cleanPrevDeadline);
         } else {
           const f2 = document.getElementById('stage2-etherpad-frame');
           if (f2) {
