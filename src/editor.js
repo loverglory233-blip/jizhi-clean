@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2767";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2767";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2767";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2769";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2769";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2769";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -18,6 +18,28 @@ export function getEffectiveAgentAnalyzing(state = null) {
   // 1. 如果已有显式的 activeAgentAnalyzing 且未超时（120秒大模型兜底保护）
   const explicitAnalyzing = currState.activeAgentAnalyzing || (app && app.state && app.state.activeAgentAnalyzing);
   if (explicitAnalyzing && typeof explicitAnalyzing === 'object') {
+    // 🛡️ 智能自愈 1：终稿修改指南已生成时，如果还有残留的分析气泡，立即强制消除
+    const title = explicitAnalyzing.title || '';
+    if (title.includes('终审裁决') || title.includes('修改指南')) {
+      const s3Logs = (currState.chatLogs && currState.chatLogs.stage3) ? currState.chatLogs.stage3 : [];
+      if (s3Logs.some(m => m && (m._revisionSummaryFlag === true || (m.text && m.text.includes('终稿修改指南'))))) {
+        if (currState.activeAgentAnalyzing) currState.activeAgentAnalyzing = null;
+        if (app && app.state) app.state.activeAgentAnalyzing = null;
+        return null;
+      }
+    }
+    // 🛡️ 智能自愈 2：质询答辩定案已全部完成时，如果还有残留的分析气泡，立即消除
+    if (title.includes('答辩共识') || title.includes('答辩定案')) {
+      const s3 = currState.stage3 || {};
+      const items = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
+      const pendingOppCount = items.filter(f => f && f.role === 'opponent' && (!f.response || !f.response.trim())).length;
+      if (pendingOppCount === 0 && items.length > 0) {
+        if (currState.activeAgentAnalyzing) currState.activeAgentAnalyzing = null;
+        if (app && app.state) app.state.activeAgentAnalyzing = null;
+        return null;
+      }
+    }
+
     const ts = explicitAnalyzing._ts || explicitAnalyzing.timestamp || 0;
     if (!ts || (Date.now() - ts < 120000)) {
       return explicitAnalyzing;

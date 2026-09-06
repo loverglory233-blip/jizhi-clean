@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2767";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2767";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2767";
-import { AuthManager } from "./auth.js?v=20260907_v2767";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2767";
-import { renderLoginView } from "./login.js?v=20260907_v2767";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2767";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2767";
+} from "./constants.js?v=20260907_v2769";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2769";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2769";
+import { AuthManager } from "./auth.js?v=20260907_v2769";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2769";
+import { renderLoginView } from "./login.js?v=20260907_v2769";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2769";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2769";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2767";
+} from "./editor.js?v=20260907_v2769";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -574,6 +574,10 @@ export class App {
     if (typeof this.renderStudentWorkspace === 'function' && this.state.studentViewMode === 'workspace') {
       this.renderStudentWorkspace(false);
     }
+  }
+
+  clearActiveAgentAnalyzing() {
+    this.setActiveAgentAnalyzing(null);
   }
 
   // 💬 精准单条发信入库方法（确保任何来源的消息 100% 毫秒级写入 MySQL chat_messages 实体表）
@@ -6036,7 +6040,7 @@ ${feedbackSummaryLines || '（全组已通过答辩，无重大修改意见）'}
       s3._revisionSummaryFailed = true;
     } finally {
       this._isTriggeringRevisionSummary = false;
-      this.clearActiveAgentAnalyzing && this.clearActiveAgentAnalyzing();
+      this.setActiveAgentAnalyzing(null);
       if (typeof this.renderStudentWorkspace === 'function') {
         this.renderStudentWorkspace();
       }

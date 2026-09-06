@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2767
+ * Version: 20260907_v2769
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2767';
+  const APP_VERSION = '20260907_v2769';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11588,6 +11588,28 @@
     // 1. 如果已有显式的 activeAgentAnalyzing 且未超时（120秒大模型兜底保护）
     const explicitAnalyzing = currState.activeAgentAnalyzing || (app && app.state && app.state.activeAgentAnalyzing);
     if (explicitAnalyzing && typeof explicitAnalyzing === 'object') {
+      // 🛡️ 智能自愈 1：终稿修改指南已生成时，如果还有残留的分析气泡，立即强制消除
+      const title = explicitAnalyzing.title || '';
+      if (title.includes('终审裁决') || title.includes('修改指南')) {
+        const s3Logs = (currState.chatLogs && currState.chatLogs.stage3) ? currState.chatLogs.stage3 : [];
+        if (s3Logs.some(m => m && (m._revisionSummaryFlag === true || (m.text && m.text.includes('终稿修改指南'))))) {
+          if (currState.activeAgentAnalyzing) currState.activeAgentAnalyzing = null;
+          if (app && app.state) app.state.activeAgentAnalyzing = null;
+          return null;
+        }
+      }
+      // 🛡️ 智能自愈 2：质询答辩定案已全部完成时，如果还有残留的分析气泡，立即消除
+      if (title.includes('答辩共识') || title.includes('答辩定案')) {
+        const s3 = currState.stage3 || {};
+        const items = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
+        const pendingOppCount = items.filter(f => f && f.role === 'opponent' && (!f.response || !f.response.trim())).length;
+        if (pendingOppCount === 0 && items.length > 0) {
+          if (currState.activeAgentAnalyzing) currState.activeAgentAnalyzing = null;
+          if (app && app.state) app.state.activeAgentAnalyzing = null;
+          return null;
+        }
+      }
+
       const ts = explicitAnalyzing._ts || explicitAnalyzing.timestamp || 0;
       if (!ts || (Date.now() - ts < 120000)) {
         return explicitAnalyzing;
@@ -16296,6 +16318,10 @@
       if (typeof this.renderStudentWorkspace === 'function' && this.state.studentViewMode === 'workspace') {
         this.renderStudentWorkspace(false);
       }
+    }
+
+    clearActiveAgentAnalyzing() {
+      this.setActiveAgentAnalyzing(null);
     }
 
     // 💬 精准单条发信入库方法（确保任何来源的消息 100% 毫秒级写入 MySQL chat_messages 实体表）
@@ -21758,7 +21784,7 @@
         s3._revisionSummaryFailed = true;
       } finally {
         this._isTriggeringRevisionSummary = false;
-        this.clearActiveAgentAnalyzing && this.clearActiveAgentAnalyzing();
+        this.setActiveAgentAnalyzing(null);
         if (typeof this.renderStudentWorkspace === 'function') {
           this.renderStudentWorkspace();
         }
