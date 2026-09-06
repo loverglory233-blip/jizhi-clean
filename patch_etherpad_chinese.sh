@@ -28,11 +28,11 @@ echo "⚡ Node 环境: $NODE_BIN"
 
 echo "📝 [2/3] 注入超全中文语言包并优化标签属性..."
 
-"$NODE_BIN" -e '
+cat << 'PATCH_JS_EOF' > /tmp/patch_ep_chinese.js
 const fs = require("fs");
 const path = require("path");
 
-const epDir = process.argv[1];
+const epDir = process.argv[2] || process.argv[1];
 const zhDict = {
   "ep_tables4.menuCreateTable": "插入表格",
   "ep_tables4.menuInsertRowAbove": "在上方插入行",
@@ -145,7 +145,10 @@ searchDirs.slice(2).forEach(nm => {
 });
 
 console.log("   ✅ 中文翻译词条注入完成，模板语法缺陷已全部校正！");
-' "$EP_DIR"
+PATCH_JS_EOF
+
+"$NODE_BIN" /tmp/patch_ep_chinese.js "$EP_DIR"
+rm -f /tmp/patch_ep_chinese.js
 
 echo "🔄 [3/3] 优雅平滑重启 Etherpad 进程使翻译生效..."
 cd "$EP_DIR"
