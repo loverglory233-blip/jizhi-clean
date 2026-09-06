@@ -6188,16 +6188,14 @@ ${rawDoc ? `\n【小组当前正文草稿全文（全量通读，确保答辩陈
 ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内容】: ${nextInqFullContent}` : ''}
 
 【本次即时指令】:
-1. 答辩陈述（80~100字）：
-   - 【尊重学生发言 + 适度补充 1~2 个动作】：
-     * 若小组成员在讨论区发言充分，严格归纳学生的核心辩护要点；
-     * 若小组成员发言较为简短单薄，必须基于学生提到的点，适度自然补充 1~2 个契合方案阶段的具体动作（绝不多加，也不泛泛而谈）；
-   - 【严格遵守方案阶段红线（无数据）】：明确当前处于【开题/方案设计阶段，尚未实测，绝无实际数据】！绝对严禁捏造假数据，严禁捏造或承诺具体的统计系数、α信度值或拟合指标；补充的动作必须聚焦于“文献经典佐证、正文测量工具章节界定、操作化实施规范”，切实解决反方质疑。
-2. 主席发言（100~130字）：定案本题；${remainingOppCount > 0 ? `顺推【${nextLabel}】，必须明确引述反方针对该题的核心质疑原文（“${nextInqFullContent.slice(0, 80)}...”），并给出针对性破局思路。` : `宣布全部质询辩护完毕，提醒全员在右上方点击【✍️ 确认答辩完成】以解锁终稿修改面板。`}
+请严格分为以下两部分输出（严禁漏写标签，严禁多余标记）：
 
-请严格按格式输出：
-答辩陈述：[80~100字]
-主席发言：[100~130字]`;
+答辩陈述：[此处必须严格总结提炼讨论区学生的真实发言（80~100字）：
+① 学生发言充分时：严格归纳学生的核心辩护与修改要点；
+② 学生发言单薄时：基于学生提到的切入点，适度自然补充 1~2 个方案阶段落地动作（绝不多加，严守开题无数据红线，聚焦文献佐证与工具界定）。
+这段话将被系统自动填入左侧表格。]
+
+主席发言：🟡 【答辩主席·${inqLabel} 定案与顺推】：全组针对【${inqLabel}】的辩护方案已录入左侧清单！请大家在左侧核对修改。${remainingOppCount > 0 ? `👉 接下来请全组聚焦【${nextLabel}】——反方核心质疑是：“${nextInqFullContent.slice(0, 80)}...”。建议大家从 [结合下一题反方的具体痛点，给出针对性的破局思路与修改支架，100~130字] 切入商讨对策！商定后请点击上方按钮填入！` : `👉 全部质询均已辩护定案并获委员会全票认可！请全组成员在右上角点击【✍️ 确认答辩完成】，进入终稿修改！`}`;
 
       const isRetry = !!btnElement;
       // 🌟 挂载中间委员正在提炼共识思考气泡
@@ -6230,21 +6228,12 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
         currentInquiry.isFinalized = true;
         currentInquiry.status = 'finalized';
 
-        // 💡 前端合成完整主席播报：必须明确告知【当前意见已生成录入矩阵，可核对修改】+ 大模型的顺推破局点评 +【顺推指引】
-        const checkTip = `【${inqLabel}】答辩陈述已成功录入左侧裁决矩阵！请全组成员在左侧核对，如有异议可随时直接在左侧输入框补充修改。`;
-        const nextGuide = (remainingOppCount > 0)
-          ? `👉 接下来请全组将研讨焦点转向【${nextLabel}（反方质询：${nextInqFullContent.slice(0, 45)}...）】，继续在讨论区商定对策！商定后点击上方【💡 ${nextLabel} 讨论差不多了？帮我总结并填入】！`
-          : `👉 全部质询均已辩护定案并获委员会全票认可！请全组成员在右上角点击【✍️ 确认答辩完成】，全员确认后将进入【修改${docName}终稿】！`;
-
-        const cleanSpeech = extractedChairSpeech.replace(/^🟡\s*【[^】]+】[：:]\s*/, '').trim();
-        if (cleanSpeech.includes('定案归档') || cleanSpeech.includes('定案回填') || cleanSpeech.includes('裁决矩阵') || cleanSpeech.includes('答辩陈述') || cleanSpeech.includes('录入左侧')) {
-          chairSpeech = `🟡 【${chairShort}·答辩定案与顺推】：${checkTip} ${cleanSpeech}`;
-          if (!chairSpeech.includes(nextLabel) && remainingOppCount > 0) {
-            chairSpeech += `\n\n${nextGuide}`;
-          }
-        } else {
-          chairSpeech = `🟡 【${chairShort}·答辩定案与顺推】：${checkTip} ${cleanSpeech}\n\n${nextGuide}`;
+        // 统一提取并确保带有标准主席前缀
+        let cleanSpeech = extractedChairSpeech.trim();
+        if (!cleanSpeech.startsWith('🟡')) {
+          cleanSpeech = `🟡 【${chairShort}·针对${inqLabel}答辩定案与顺推】：${cleanSpeech}`;
         }
+        chairSpeech = cleanSpeech;
 
         // 清理历史残留的网络提醒错误气泡
         if (this.state.chatLogs.stage3) {
