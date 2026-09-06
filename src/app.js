@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2724";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2724";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2724";
-import { AuthManager } from "./auth.js?v=20260906_v2724";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2724";
-import { renderLoginView } from "./login.js?v=20260906_v2724";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2724";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2724";
+} from "./constants.js?v=20260906_v2725";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2725";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2725";
+import { AuthManager } from "./auth.js?v=20260906_v2725";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2725";
+import { renderLoginView } from "./login.js?v=20260906_v2725";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2725";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2725";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2724";
+} from "./editor.js?v=20260906_v2725";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2918,6 +2918,7 @@ export class App {
     this._isAgentReplyInProgress = false;
     this._isHandlingAgentNudge = false;
     this._isStage3PipelineRunning = false;
+    this._isTriggeringRevisionSummary = false;
     this._lastStage3PipelineAttempt = 0;
     if (this.state.stage3) {
       this.state.stage3._pipelineCallingTimestamp = 0;
@@ -3032,6 +3033,13 @@ export class App {
           setTimeout(() => {
             this.runStage3CommitteePipeline();
           }, 300);
+        }
+        // 若已全员确认答辩（isRevisionConfirmed）但中间委员终稿修改总结尚未发，补触发
+        if (s3.isRevisionConfirmed) {
+          const hasRevSummary = s3Logs.some(m => m && m._revisionSummaryFlag === true);
+          if (!hasRevSummary) {
+            setTimeout(() => { this.triggerRevisionEntrySummary(); }, 600);
+          }
         }
       }
     }
@@ -5783,6 +5791,79 @@ ${chatSnippet}
   }
 
   /**
+   * 📋 全员确认答辩后：中间委员生成一段总结性陈词，把主要答辩修改点归纳列出，引导全组落实到终稿
+   * 触发条件：isRevisionConfirmed=true 且聊天记录里尚未有 revision_entry_summary 标记的 neutral 消息
+   * 防重入：_isTriggeringRevisionSummary
+   */
+  async triggerRevisionEntrySummary() {
+    if (this._isTriggeringRevisionSummary) return;
+    const s3 = this.state.stage3 || {};
+    if (!s3.isRevisionConfirmed) return;
+
+    // 幂等检测：已发过就不再重复
+    const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
+    const alreadySent = s3Logs.some(m => m && m._revisionSummaryFlag === true);
+    if (alreadySent) return;
+
+    this._isTriggeringRevisionSummary = true;
+    try {
+      const taskType = this.getCurrentTaskType();
+      const isInst = (taskType === 'instructional');
+      const topic = (this.state.stage1 && (this.state.stage1.mergedTitle || this.state.stage1.contract?.topic)) || '本课题';
+      const docName = isInst ? '教学设计' : '论文';
+      const chairShort = isInst ? '答辩主席' : '中间委员';
+
+      const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
+      const adoptedItems = feedbacks.filter(f => f && f.role === 'opponent' && f.response && f.response.trim());
+      const feedbackSummaryLines = adoptedItems.map((f, i) =>
+        `【质询 ${i + 1}】${f.title || f.comment || ''}：${f.response || ''}`
+      ).join('\n');
+
+      const prompt = `小组已完成全部答辩质询并全员确认进入终稿修改阶段。\n课题：《${topic}》\n\n已通过的答辩修改共识如下：\n${feedbackSummaryLines || '（全组已通过答辩，无重大修改意见）'}\n\n请作为答辩委员会主席（${chairShort}），发表一段【终稿修改指导总结陈词】：\n1. 简要肯定全组答辩表现（1句）；\n2. 把上述修改共识归纳成清晰的修改要点（每条一句，不超过 3 条）；\n3. 提醒全组将修改落实到《${docName}》终稿正文中，完成后点击【🚀 提交${docName}终稿】完成归档。\n纯自然语言输出，总长 120~150 字。`;
+
+      this.setActiveAgentAnalyzing({
+        icon: '🟡',
+        title: `【${chairShort}】正在归纳答辩修改要点，起草终稿修改指导总结...`,
+        detail: '正在将答辩共识整合为终稿修改清单陈词...'
+      });
+
+      let fallbackText = `🟡 【${chairShort}·终稿修改指导】：全体${isInst ? '备课教师' : '研究者'}辛苦了！答辩已全部通过，请参考左侧答辩裁决矩阵中的修改共识，将各条修改对策落实到【📝 修改${docName}终稿】正文中，完成后由代表点击【🚀 提交${docName}终稿】完成最终归档！`;
+
+      let resp = null;
+      try {
+        resp = await callCozeAgentAPI('neutral', prompt, { stage: 'stage3', topic, milestoneKey: 'stage3_revision_entry_summary' });
+      } catch (e) {
+        console.warn('triggerRevisionEntrySummary AI error:', e);
+      }
+
+      const speechText = (resp && resp.trim().length > 20) ? `🟡 【${chairShort}·终稿修改指导总结】：${resp.trim()}` : fallbackText;
+
+      const msg = {
+        sender: 'neutral',
+        text: speechText,
+        _revisionSummaryFlag: true,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now() + 100
+      };
+      if (!this.state.chatLogs) this.state.chatLogs = {};
+      if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
+      // 再次幂等检测（防并发）
+      if (!this.state.chatLogs.stage3.some(m => m && m._revisionSummaryFlag === true)) {
+        this.state.chatLogs.stage3.push(msg);
+        this.syncStage3();
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        renderChat(this.state);
+      }
+    } catch (e) {
+      console.warn('triggerRevisionEntrySummary error:', e);
+    } finally {
+      this._isTriggeringRevisionSummary = false;
+      this.clearActiveAgentAnalyzing && this.clearActiveAgentAnalyzing();
+    }
+  }
+
+  /**
    * 🎓 阶段三队列式逐条研讨：一键提炼当前质询答辩词，自动回填左侧矩阵，并顺推下一题/终审裁决
    */
   async handleS3InquirySummary(btnElement = null, targetInquiry = null) {
@@ -7477,6 +7558,9 @@ ${chatSnippet}
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           this.renderStudentWorkspace();
           renderChat(this.state);
+
+          // 📋 延迟触发中间委员答辩修改总结陈词（把修改要点归纳后引导落实到终稿）
+          setTimeout(() => { this.triggerRevisionEntrySummary(); }, 1500);
 
           const autoKey = `jizhi_autoadvanced_${this.state.activeTaskId}_stage3_editor`;
           if (!sessionStorage.getItem(autoKey)) {
