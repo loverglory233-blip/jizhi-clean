@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2740";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260907_v2740";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2740";
-import { AuthManager } from "./auth.js?v=20260907_v2740";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2740";
-import { renderLoginView } from "./login.js?v=20260907_v2740";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2740";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2740";
+} from "./constants.js?v=20260907_v2741";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2741";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2741";
+import { AuthManager } from "./auth.js?v=20260907_v2741";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2741";
+import { renderLoginView } from "./login.js?v=20260907_v2741";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2741";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2741";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2740";
+} from "./editor.js?v=20260907_v2741";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4507,6 +4507,9 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
         topicInp.value = finalTopic;
         topicInp.dispatchEvent(new Event('input', { bubbles: true }));
       }
+      setTimeout(() => {
+        flashHighlightElement('#contract-topic-input, #contract-overview-input');
+      }, 100);
 
       if (this.state.stage1) this.state.stage1._topicExtractFailed = false;
       await this.clearStepConfirmation('s1_topic');
@@ -4533,7 +4536,7 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
 
       renderChat(this.state);
       if (typeof showGlobalBannerNotice === 'function') {
-        showGlobalBannerNotice('✅ 提炼成功', '已成功提炼并录入公约看板，请继续讨论【时间分配】！', 'success', 5000);
+        showGlobalBannerNotice('💡 课题与方案提炼成功！', `《${finalTopic}》与方案概述已成功录入公约看板，请继续讨论【时间分配】！`, 'success', 5000);
       }
     } catch (e) {
       console.warn('Extract topic & overview error:', e);
@@ -4732,6 +4735,9 @@ ${chatSnippet}
           inp.dispatchEvent(new Event('input', { bubbles: true }));
         }
       });
+      setTimeout(() => {
+        flashHighlightElement('.contract-time-input');
+      }, 100);
 
       if (this.state.stage1) this.state.stage1._timeExtractFailed = false;
       await this.clearStepConfirmation('s1_time');
@@ -4758,7 +4764,7 @@ ${chatSnippet}
 
       renderChat(this.state);
       if (typeof showGlobalBannerNotice === 'function') {
-        showGlobalBannerNotice('✅ 提炼成功', '已成功提炼时间分配预算！请继续在讨论区研讨【任务分工】。', 'success', 5000);
+        showGlobalBannerNotice('⏱️ 时间分配提炼成功！', '6 大模块时间规划已成功填入公约看板，请继续讨论【任务分工】！', 'success', 5000);
       }
     } catch (e) {
       console.warn('Extract time error:', e);
@@ -4972,6 +4978,9 @@ ${chatSnippet}
           inp.dispatchEvent(new Event('input', { bubbles: true }));
         }
       });
+      setTimeout(() => {
+        flashHighlightElement('.task-assignment-input');
+      }, 100);
 
       if (this.state.stage1) this.state.stage1._tasksExtractFailed = false;
       await this.clearStepConfirmation('s1_tasks');
@@ -4998,7 +5007,7 @@ ${chatSnippet}
 
       renderChat(this.state);
       if (typeof showGlobalBannerNotice === 'function') {
-        showGlobalBannerNotice('✅ 提炼成功', '公约草案已全部生成就绪，请全组成员核对并在下方签署！', 'success', 5000);
+        showGlobalBannerNotice('👥 组员分工提炼成功！', '公约草案已全部生成就绪，请全组成员核对并在下方签署！', 'success', 6000);
       }
     } catch (e) {
       console.warn('Extract tasks error:', e);
@@ -5753,6 +5762,13 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
         s2.actionPlan = { isGenerated: true, generatedAt: Date.now(), items: finalItems, completedMap: {} };
         s2.meetingStep = 'discussing_checklist';
         s2.reviewMilestone = 'second_review_received';
+
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('📋 修正清单已生成送达！', `【${isInst ? '磨课修正清单' : '二审修正清单'}】已下发至讨论区与下方工作台，请全组聚焦诊断问题开展研讨！`, 'success', 6000);
+        }
+        setTimeout(() => {
+          flashHighlightElement('#stage2-action-plan-card, .action-plan-container');
+        }, 300);
       }
 
       const msgReviewing = { sender: 'reviewingEditor', senderName: isInst ? '教学质量 · 教研专家' : '学术质量 · 审稿编辑', text: reviewingText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() + 10 };
@@ -5920,6 +5936,9 @@ ${chatSnippet}
           _timeMs: Date.now() + 100
         };
         this.state.chatLogs.stage3.push(msg);
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('🎯 终稿修改指南已提炼就绪！', '【答辩终审裁决与修改指南】已下发至讨论区，请对照要点完善终稿！', 'success', 6000);
+        }
       } else {
         // ⚠️ 生成遇阻：给出重试网络提醒气泡，标记失败状态，供用户随时重试
         s3._revisionSummaryFailed = true;
@@ -6551,6 +6570,14 @@ ${chatSnippet}
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       if (typeof window.renderChat === 'function') window.renderChat(this.state);
       this.renderStudentWorkspace();
+
+      if (typeof showGlobalBannerNotice === 'function') {
+        showGlobalBannerNotice('🎓 专家质询已提炼就绪！', '正反方专家质询已录入左侧【答辩裁决矩阵】，请全组聚焦质询开展答辩！', 'success', 6000);
+      }
+      setTimeout(() => {
+        flashHighlightElement('.feedback-item-card, .feedback-direct-input');
+      }, 300);
+
       await new Promise(r => setTimeout(r, 600));
 
       // 4. 中间委员独立调用 Coze API，引导第 1 题辩护
@@ -7764,6 +7791,13 @@ ${chatSnippet}
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             this.renderStudentWorkspace();
             renderChat(this.state);
+
+            if (typeof showGlobalBannerNotice === 'function') {
+              showGlobalBannerNotice('✅ 答辩结论已保存！', `已成功录入【${labelTitle}】答辩共识并同步至全组裁决矩阵！`, 'success', 4000);
+            }
+            setTimeout(() => {
+              flashHighlightElement(`.feedback-direct-input[data-id="${item.id}"]`);
+            }, 200);
 
             // 只有反方质询且有未完成项时才顺推
             const unadoptedOppCount = items.filter(f => f.role === 'opponent' && (!f.response || f.response.trim().length === 0)).length;
@@ -9083,6 +9117,15 @@ ${fullDoc}
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
       this.renderStudentWorkspace();
+
+      if (this.state.stage2?.actionPlan?.isGenerated) {
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('📋 修正清单已生成送达！', `【${isInst ? '磨课修正清单' : '二审修正清单'}】已下发至讨论区与下方工作台，请全组聚焦诊断问题开展研讨！`, 'success', 6000);
+        }
+        setTimeout(() => {
+          flashHighlightElement('#stage2-action-plan-card, .action-plan-container');
+        }, 300);
+      }
     } catch (e) {
       console.warn('[triggerReviewingEditorAfterDiscussion] error:', e);
     } finally {

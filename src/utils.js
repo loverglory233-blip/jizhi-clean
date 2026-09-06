@@ -1565,3 +1565,29 @@ if (typeof document !== 'undefined') {
     }
   }
 }
+
+/**
+ * 🌟 元素提炼/填充成功高亮微动效（提供温和即时视觉反馈，消除割裂感）
+ */
+export function flashHighlightElement(elementOrSelector, color = '#10b981') {
+  if (typeof document === 'undefined') return;
+  const elements = typeof elementOrSelector === 'string'
+    ? Array.from(document.querySelectorAll(elementOrSelector))
+    : (Array.isArray(elementOrSelector) ? elementOrSelector : (elementOrSelector ? [elementOrSelector] : []));
+
+  elements.forEach(el => {
+    if (!el || !el.style) return;
+    const oldTransition = el.style.transition;
+    const oldBoxShadow = el.style.boxShadow;
+    const oldBorderColor = el.style.borderColor;
+    el.style.transition = 'all 0.35s ease';
+    el.style.borderColor = color;
+    el.style.boxShadow = `0 0 0 4px rgba(16, 185, 129, 0.28)`;
+    setTimeout(() => {
+      el.style.boxShadow = oldBoxShadow || '';
+      el.style.borderColor = oldBorderColor || '';
+      el.style.transition = oldTransition || '';
+    }, 2800);
+  });
+}
+
