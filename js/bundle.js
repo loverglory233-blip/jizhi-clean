@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2725
+ * Version: 20260906_v2726
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2725';
+  const APP_VERSION = '20260906_v2726';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -21363,12 +21363,12 @@
           `【质询 ${i + 1}】${f.title || f.comment || ''}：${f.response || ''}`
         ).join('\n');
 
-        const prompt = `小组已完成全部答辩质询并全员确认进入终稿修改阶段。\n课题：《${topic}》\n\n已通过的答辩修改共识如下：\n${feedbackSummaryLines || '（全组已通过答辩，无重大修改意见）'}\n\n请作为答辩委员会主席（${chairShort}），发表一段【终稿修改指导总结陈词】：\n1. 简要肯定全组答辩表现（1句）；\n2. 把上述修改共识归纳成清晰的修改要点（每条一句，不超过 3 条）；\n3. 提醒全组将修改落实到《${docName}》终稿正文中，完成后点击【🚀 提交${docName}终稿】完成归档。\n纯自然语言输出，总长 120~150 字。`;
+        const prompt = `小组已完成全部答辩质询并全员确认进入终稿修改阶段。\n课题：《${topic}》\n\n已通过的答辩修改共识如下：\n${feedbackSummaryLines || '（全组已通过答辩，无重大修改意见）'}\n\n请作为答辩委员会主席（${chairShort}），按以下结构输出【终稿修改指导总结】：\n第一行：1句话肯定全组答辩表现。\n然后逐条列出修改要点，格式：\n▸ [修改要点标题]：[一句话说清楚要怎么改，15~25字]\n每条独立一行，根据实际修改共识列出 2~4 条，每条不超过 25 字，精准到位不啰嗦。\n最后一行：提醒全组将修改落实到《${docName}》终稿正文中，完成后点击【🚀 提交${docName}终稿】完成归档（1句话）。\n注意：直接输出内容，不要输出"第一行""修改要点"等标签。`;
 
         this.setActiveAgentAnalyzing({
           icon: '🟡',
           title: `【${chairShort}】正在归纳答辩修改要点，起草终稿修改指导总结...`,
-          detail: '正在将答辩共识整合为终稿修改清单陈词...'
+          detail: '正在将答辩共识整合为终稿修改要点清单...'
         });
 
         let fallbackText = `🟡 【${chairShort}·终稿修改指导】：全体${isInst ? '备课教师' : '研究者'}辛苦了！答辩已全部通过，请参考左侧答辩裁决矩阵中的修改共识，将各条修改对策落实到【📝 修改${docName}终稿】正文中，完成后由代表点击【🚀 提交${docName}终稿】完成最终归档！`;
@@ -21380,7 +21380,13 @@
           console.warn('triggerRevisionEntrySummary AI error:', e);
         }
 
-        const speechText = (resp && resp.trim().length > 20) ? `🟡 【${chairShort}·终稿修改指导总结】：${resp.trim()}` : fallbackText;
+        // 把换行转成 <br> 便于聊天气泡渲染分点格式
+        const formattedResp = resp && resp.trim().length > 20
+          ? resp.trim().replace(/\n/g, '<br>')
+          : null;
+        const speechText = formattedResp
+          ? `🟡 【${chairShort}·终稿修改指导总结】：<br>${formattedResp}`
+          : fallbackText;
 
         const msg = {
           sender: 'neutral',
