@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2719";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2719";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2719";
-import { AuthManager } from "./auth.js?v=20260906_v2719";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2719";
-import { renderLoginView } from "./login.js?v=20260906_v2719";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2719";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2719";
+} from "./constants.js?v=20260906_v2721";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2721";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2721";
+import { AuthManager } from "./auth.js?v=20260906_v2721";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2721";
+import { renderLoginView } from "./login.js?v=20260906_v2721";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2721";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2721";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2719";
+} from "./editor.js?v=20260906_v2721";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -435,8 +435,9 @@ export class App {
         this.isViewingPastStage = false;
       }
 
-      // 🛡️ 阶段防越权自愈自净：若小组尚未正式确认签署阶段二初稿，严禁保留提前触发的阶段三答辩数据
-      if (!this.state.isFinalSubmitted && !this.state.stage2?.isDraftConfirmed) {
+      // 🛡️ 阶段防越权自愈自净：若小组尚未推进至阶段三且未正式确认签署阶段二初稿，严禁保留提前触发的阶段三答辩数据
+      const isActuallyStage3 = !!(this.state.isFinalSubmitted || this.state.stage2?.isDraftConfirmed || this.state.groupMaxStage === 'stage3');
+      if (!isActuallyStage3) {
         const correctMax = (this.state.stage1?.contract?.isConfirmed) ? 'stage2' : 'stage1';
         this.state.groupMaxStage = correctMax;
         if (this.state.currentStage === 'stage3') {
@@ -2930,19 +2931,25 @@ export class App {
     const s2 = this.state.stage2 || {};
     const s3 = this.state.stage3 || {};
     const isS1Done = !!(s1.contract?.isConfirmed);
-    const isS2Done = !!(s2.isDraftConfirmed);
+    const isS2HistoricallyLocked = !!(
+      s2.isDraftConfirmed ||
+      this.state.groupMaxStage === 'stage3' ||
+      this.state.currentStage === 'stage3' ||
+      this.state.isFinalSubmitted
+    );
     const isS3Done = !!(this.state.isFinalSubmitted);
-
-    // 当前小组实际最高推进阶段（杜绝越权或被旧状态带偏）
-    let activeStage = this.state.currentStage || 'stage1';
 
     // 3. 按阶段精准解除 Etherpad 只读锁（只解除当前未完成阶段的文档；已提交完成的历史阶段如阶段二初稿严格保持只读锁定）
     const f2 = document.getElementById('stage2-etherpad-frame');
     if (f2) {
-      if (!isS2Done) {
+      if (!isS2HistoricallyLocked) {
         f2._wasPreviouslyReadonly = false;
         f2._isReadonlyEnforced = false;
         liftEtherpadReadonly(f2);
+      } else {
+        f2._wasPreviouslyReadonly = true;
+        f2._isReadonlyEnforced = true;
+        if (typeof enforceEtherpadReadonly === 'function') enforceEtherpadReadonly(f2);
       }
     }
     const f3 = document.getElementById('stage3-etherpad-frame');
@@ -2953,10 +2960,9 @@ export class App {
         liftEtherpadReadonly(f3);
       }
     }
-    // 仅移除因任务截止超时而产生的遮罩与红横幅
+    // 仅移除因任务截止超时而产生的遮罩与红横幅（若阶段二已归档，则严格保留阶段二遮罩）
     document.querySelectorAll('.etherpad-readonly-shield').forEach(s => {
-      // 若阶段二已正式签署归档且在阶段三，则保留阶段二文档的保护遮罩
-      if (s.closest('#stage2-etherpad-container') && isS2Done && activeStage === 'stage3') return;
+      if (s.closest('#stage2-etherpad-frame, #stage-canvas-s2, .word-editor-container') && isS2HistoricallyLocked) return;
       s.remove();
     });
     document.querySelectorAll('#stage2-deadline-expired-banner, #stage3-deadline-expired-banner').forEach(b => b.remove());

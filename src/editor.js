@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2719";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2719";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2719";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2721";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2721";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2721";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -2054,12 +2054,19 @@ function renderStage2Canvas(canvas, state, handlers) {
   const isDraftFullyConfirmed = !!s2.isDraftConfirmed && (confirmedDraftCount >= actualTotalCount && actualTotalCount > 0);
 
   // 🛡️ 阶段二只读状态权威判定：
-  // 1) 任务已截止（isTaskDeadlineExpired）：100% 严格锁定为只读，并自动冻结截止时刻的贡献比快照，杜绝超时加字；
-  // 2) 阶段二初稿已全员签署推进至阶段三（isStage2Archived）：阶段二初稿作为历史底稿锁定为只读；
-  // 3) 组内已最终答辩归档（isFinalSubmitted）或回看历史阶段：保持只读；
-  // 4) 教师若延长时间（延长后未截止）：自动实时解锁恢复可写绿灯！
-  const isStage2Archived = isDraftFullyConfirmed && (state.currentStage === 'stage3');
-  const isEditorReadonly = isTaskDeadlineExpired || isStage2Archived || (state.currentStage !== 'stage2' && !!state.isFinalSubmitted) || !!(window.app && window.app.isViewingPastStage);
+  // 1) 只要组内推进已到达阶段三（无论是 groupMaxStage==='stage3' 还是当前在 stage3，或者已终审提交）：阶段二历史初稿 100% 绝对只读锁定！不可再编辑！
+  // 2) 任务已截止（isTaskDeadlineExpired）：100% 严格锁定为只读，杜绝超时加字；
+  // 3) 组内已签署初稿归档（isDraftFullyConfirmed 或 s2.isDraftConfirmed）：阶段二只读；
+  // 4) 回看历史阶段（isViewingPastStage）：只读；
+  // 5) 仅当：当前确实在阶段二（currentStage === 'stage2'）、组最高阶段也是阶段二（groupMaxStage !== 'stage3'）、初稿未定案（!s2.isDraftConfirmed）、且任务未截止时，才为可编辑！
+  const isStage2HistoricallyLocked = !!(
+    state.groupMaxStage === 'stage3' ||
+    state.currentStage === 'stage3' ||
+    state.isFinalSubmitted ||
+    s2.isDraftConfirmed ||
+    isDraftFullyConfirmed
+  );
+  const isEditorReadonly = isTaskDeadlineExpired || isStage2HistoricallyLocked || !!(window.app && window.app.isViewingPastStage);
 
   if (!userGroupId || userGroupId === 'null' || userGroupId === 'undefined') {
     canvas.innerHTML = showResolutionBlock('未检测到您被分配的具体协作小组，请联系教师在教务空间分配小组后再进入');
@@ -2199,16 +2206,21 @@ function renderStage2Canvas(canvas, state, handlers) {
         }
       }
 
-      // 🛡️ 状态守卫：只要阶段二处于进行中且可编辑，确保阶段二外层遮罩彻底移除
-      if (!isEditorReadonly) {
-        const s2f = document.getElementById('stage2-etherpad-frame');
-        if (s2f) {
+      // 🛡️ 状态守卫：严格只读时不可编辑，可以编辑时别只读
+      const s2f = document.getElementById('stage2-etherpad-frame');
+      if (s2f) {
+        if (!isEditorReadonly) {
           if (s2f.parentElement) {
             s2f.parentElement.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
             s2f.parentElement.style.pointerEvents = 'auto';
           }
           if (s2f._isReadonlyEnforced) {
             liftEtherpadReadonly(s2f);
+          }
+        } else {
+          // 严格只读模式：确保只读生效并维持遮罩防加字
+          if (!s2f._isReadonlyEnforced) {
+            enforceEtherpadReadonly(s2f);
           }
         }
       }

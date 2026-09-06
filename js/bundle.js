@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2719
+ * Version: 20260906_v2721
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2719';
+  const APP_VERSION = '20260906_v2721';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13514,12 +13514,19 @@
     const isDraftFullyConfirmed = !!s2.isDraftConfirmed && (confirmedDraftCount >= actualTotalCount && actualTotalCount > 0);
 
     // 🛡️ 阶段二只读状态权威判定：
-    // 1) 任务已截止（isTaskDeadlineExpired）：100% 严格锁定为只读，并自动冻结截止时刻的贡献比快照，杜绝超时加字；
-    // 2) 阶段二初稿已全员签署推进至阶段三（isStage2Archived）：阶段二初稿作为历史底稿锁定为只读；
-    // 3) 组内已最终答辩归档（isFinalSubmitted）或回看历史阶段：保持只读；
-    // 4) 教师若延长时间（延长后未截止）：自动实时解锁恢复可写绿灯！
-    const isStage2Archived = isDraftFullyConfirmed && (state.currentStage === 'stage3');
-    const isEditorReadonly = isTaskDeadlineExpired || isStage2Archived || (state.currentStage !== 'stage2' && !!state.isFinalSubmitted) || !!(window.app && window.app.isViewingPastStage);
+    // 1) 只要组内推进已到达阶段三（无论是 groupMaxStage==='stage3' 还是当前在 stage3，或者已终审提交）：阶段二历史初稿 100% 绝对只读锁定！不可再编辑！
+    // 2) 任务已截止（isTaskDeadlineExpired）：100% 严格锁定为只读，杜绝超时加字；
+    // 3) 组内已签署初稿归档（isDraftFullyConfirmed 或 s2.isDraftConfirmed）：阶段二只读；
+    // 4) 回看历史阶段（isViewingPastStage）：只读；
+    // 5) 仅当：当前确实在阶段二（currentStage === 'stage2'）、组最高阶段也是阶段二（groupMaxStage !== 'stage3'）、初稿未定案（!s2.isDraftConfirmed）、且任务未截止时，才为可编辑！
+    const isStage2HistoricallyLocked = !!(
+      state.groupMaxStage === 'stage3' ||
+      state.currentStage === 'stage3' ||
+      state.isFinalSubmitted ||
+      s2.isDraftConfirmed ||
+      isDraftFullyConfirmed
+    );
+    const isEditorReadonly = isTaskDeadlineExpired || isStage2HistoricallyLocked || !!(window.app && window.app.isViewingPastStage);
 
     if (!userGroupId || userGroupId === 'null' || userGroupId === 'undefined') {
       canvas.innerHTML = showResolutionBlock('未检测到您被分配的具体协作小组，请联系教师在教务空间分配小组后再进入');
@@ -13659,16 +13666,21 @@
           }
         }
 
-        // 🛡️ 状态守卫：只要阶段二处于进行中且可编辑，确保阶段二外层遮罩彻底移除
-        if (!isEditorReadonly) {
-          const s2f = document.getElementById('stage2-etherpad-frame');
-          if (s2f) {
+        // 🛡️ 状态守卫：严格只读时不可编辑，可以编辑时别只读
+        const s2f = document.getElementById('stage2-etherpad-frame');
+        if (s2f) {
+          if (!isEditorReadonly) {
             if (s2f.parentElement) {
               s2f.parentElement.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
               s2f.parentElement.style.pointerEvents = 'auto';
             }
             if (s2f._isReadonlyEnforced) {
               liftEtherpadReadonly(s2f);
+            }
+          } else {
+            // 严格只读模式：确保只读生效并维持遮罩防加字
+            if (!s2f._isReadonlyEnforced) {
+              enforceEtherpadReadonly(s2f);
             }
           }
         }
@@ -15967,8 +15979,9 @@
           this.isViewingPastStage = false;
         }
 
-        // 🛡️ 阶段防越权自愈自净：若小组尚未正式确认签署阶段二初稿，严禁保留提前触发的阶段三答辩数据
-        if (!this.state.isFinalSubmitted && !this.state.stage2?.isDraftConfirmed) {
+        // 🛡️ 阶段防越权自愈自净：若小组尚未推进至阶段三且未正式确认签署阶段二初稿，严禁保留提前触发的阶段三答辩数据
+        const isActuallyStage3 = !!(this.state.isFinalSubmitted || this.state.stage2?.isDraftConfirmed || this.state.groupMaxStage === 'stage3');
+        if (!isActuallyStage3) {
           const correctMax = (this.state.stage1?.contract?.isConfirmed) ? 'stage2' : 'stage1';
           this.state.groupMaxStage = correctMax;
           if (this.state.currentStage === 'stage3') {
@@ -18462,19 +18475,25 @@
       const s2 = this.state.stage2 || {};
       const s3 = this.state.stage3 || {};
       const isS1Done = !!(s1.contract?.isConfirmed);
-      const isS2Done = !!(s2.isDraftConfirmed);
+      const isS2HistoricallyLocked = !!(
+        s2.isDraftConfirmed ||
+        this.state.groupMaxStage === 'stage3' ||
+        this.state.currentStage === 'stage3' ||
+        this.state.isFinalSubmitted
+      );
       const isS3Done = !!(this.state.isFinalSubmitted);
-
-      // 当前小组实际最高推进阶段（杜绝越权或被旧状态带偏）
-      let activeStage = this.state.currentStage || 'stage1';
 
       // 3. 按阶段精准解除 Etherpad 只读锁（只解除当前未完成阶段的文档；已提交完成的历史阶段如阶段二初稿严格保持只读锁定）
       const f2 = document.getElementById('stage2-etherpad-frame');
       if (f2) {
-        if (!isS2Done) {
+        if (!isS2HistoricallyLocked) {
           f2._wasPreviouslyReadonly = false;
           f2._isReadonlyEnforced = false;
           liftEtherpadReadonly(f2);
+        } else {
+          f2._wasPreviouslyReadonly = true;
+          f2._isReadonlyEnforced = true;
+          if (typeof enforceEtherpadReadonly === 'function') enforceEtherpadReadonly(f2);
         }
       }
       const f3 = document.getElementById('stage3-etherpad-frame');
@@ -18485,10 +18504,9 @@
           liftEtherpadReadonly(f3);
         }
       }
-      // 仅移除因任务截止超时而产生的遮罩与红横幅
+      // 仅移除因任务截止超时而产生的遮罩与红横幅（若阶段二已归档，则严格保留阶段二遮罩）
       document.querySelectorAll('.etherpad-readonly-shield').forEach(s => {
-        // 若阶段二已正式签署归档且在阶段三，则保留阶段二文档的保护遮罩
-        if (s.closest('#stage2-etherpad-container') && isS2Done && activeStage === 'stage3') return;
+        if (s.closest('#stage2-etherpad-frame, #stage-canvas-s2, .word-editor-container') && isS2HistoricallyLocked) return;
         s.remove();
       });
       document.querySelectorAll('#stage2-deadline-expired-banner, #stage3-deadline-expired-banner').forEach(b => b.remove());
