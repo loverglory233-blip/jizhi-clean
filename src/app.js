@@ -2125,12 +2125,13 @@ export class App {
               const guidePrompt = `${genreDesc}
 小组成员已就核心课题《${topic}》完成了上一项答辩${prevLabel ? `【${prevLabel}】` : ''}并已定案回填入左侧矩阵。
 当前正进入【${inqLabel}】答辩研讨：
-【反方针对实质询（${inqLabel}）】: ${inqContent}
+【反方针对实质询（${inqLabel}）具体内容】: ${inqContent}
 
 请作为答辩委员会主席（中间委员），发表 130~160 字的【针对${inqLabel}独立答辩思路引导】：
 ① 开头明确告知：全组已完成${prevLabel ? `【${prevLabel}】答辩并已成功回填左侧矩阵（可在左侧核对修改）` : '答辩清单已入驻左侧矩阵'}，接下来全组聚焦【${inqLabel}】展开研讨；
-② 【针对实质询破局点拨】：必须结合上述【${inqLabel}】的具体质询内容（${inqContent}），给出清晰、具体、可操作的答辩切入思路与论文修改补强建议（如理论补充、数据/测试验证、边界限定等）；
-③ 引导全组在讨论区商定对策，商定差不多后点击上方【💡 ${inqLabel} 讨论差不多了？帮我总结并填入】！纯自然语言输出，130~160字。`;
+② 【必须具体引述反方质询焦点】：严禁给出宽泛空洞的模糊方向！必须直接指出反方在【${inqLabel}】中具体质疑的核心矛盾（原质询焦点：“${inqContent.slice(0, 80)}...”）；
+③ 【针对性破局点拨】：结合该具体焦点，给出 1~2 条清晰、具体、可操作的答辩切入思路与论文修改补强对策（如补充某类权威文献、限定具体适用场景、明确概念测量标准等）；
+④ 引导全组在讨论区商定对策，商定差不多后点击上方【💡 ${inqLabel} 讨论差不多了？帮我总结并填入】！纯自然语言输出，130~160字。`;
 
               (async () => {
                 // 🌟 挂载中间委员正在生成当前质询思路引导动态思考气泡
@@ -6058,10 +6059,17 @@ ${chatSnippet}
       const inqIndex = feedbacks.indexOf(currentInquiry);
       const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
 
+      // 🛡️ 提取组员针对本题的真实讨论记录（严禁漏掉组员发言）
       const s3ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
       const lastChairIdx = s3ChatLogs.map(m => m.sender).lastIndexOf('neutral');
-      const msgsForInquiry = s3ChatLogs.slice(lastChairIdx + 1).filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-      const chatSnippet = msgsForInquiry.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在商讨辩护思路与修改对策';
+      const msgsForInquiry = (lastChairIdx >= 0)
+        ? s3ChatLogs.slice(lastChairIdx + 1).filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system')
+        : s3ChatLogs.filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+      // 若中间委员之后无发言，兜底获取本阶段最近组员发言，杜绝空讨论导致大模型凭空臆测
+      const effectiveMsgs = (msgsForInquiry.length > 0)
+        ? msgsForInquiry
+        : s3ChatLogs.filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system').slice(-6);
+      const chatSnippet = effectiveMsgs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在商讨辩护思路与修改对策';
 
       const remainingOppCount = feedbacks.filter(f => f.role === 'opponent' && f !== currentInquiry && (!f.response || !f.response.trim())).length;
       const nextInquiry = feedbacks.find(f => f.role === 'opponent' && f !== currentInquiry && (!f.response || !f.response.trim()));
@@ -6076,23 +6084,28 @@ ${chatSnippet}
       const chairSenderName = isInst ? '答辩委员会主席' : '答辩委员会主席 · 中间委员';
       const chairShort = isInst ? '答辩主席' : '中间委员';
 
-      const nextInqContent = nextInquiry ? (nextInquiry.comment || nextInquiry.content || nextInquiry.title || '') : '';
+      const nextInqFullContent = nextInquiry ? (nextInquiry.content || nextInquiry.comment || nextInquiry.title || '') : '';
 
       const evalInquiryPrompt = `小组成员已就核心课题《${topic}》针对【反方质询 ${inqLabel}】在研讨区展开了辩护与修改商议。
 【反方原始质询（${inqLabel}）】: ${currentInquiry.comment || currentInquiry.content}
-【小组成员的真实辩护讨论记录】:
+【小组成员在讨论区的真实辩护发言】:
 ${chatSnippet}
-${remainingOppCount > 0 ? `【紧接着的下一项反方质询（${nextLabel}）具体内容】: ${nextInqContent}` : ''}
+${remainingOppCount > 0 ? `【紧接着的下一项反方质询（${nextLabel}）完整具体内容】: ${nextInqFullContent}` : ''}
 
-请作为答辩委员会主席，发表【答辩审阅定案与顺推裁决】：
-1. 【提炼答辩共识与修改承诺】：精准提炼全组成员达成的核心辩护陈述、${isInst ? '教学设计理念/学情考量' : '理论/实证论据'}与终稿具体修改对策（用于回填归档，120~180字）；
-2. 【委员会定案与推进】：
+请作为答辩委员会主席（中间委员），发表【答辩审阅定案与顺推裁决】：
+1. 【提炼答辩共识与修改承诺（回填左侧矩阵）· 核心铁律】：
+   - 【严禁捏造与强制保留】：必须以【小组成员在讨论区的真实辩护发言】为绝对第一基准！组员讨论提到的核心观点（例如明确提到“引用文献”、“补充理论依据”、“调整活动案例”等），必须100%忠实保留并作为答辩陈述的核心，绝对不能改掉或删减！
+   - 【严禁自作主张凭空编造】：严禁脱离组员真实讨论捏造组员从未讨论过的具体技术参数或指标（如严禁自作聪明编造具体的统计公式、量表信效度数值等）；如果组员讨论简略，允许在组员原意基础上做适度学术化润色（如“组员商定：补充引用相关权威文献以佐证……，并于后续结合具体文献标准进一步规范落实”），但骨干要点必须完完全全来自组员发言！
+   - 提取 80~120 字逻辑严密、忠实于组员讨论的正式答辩陈述。
+
+2. 【委员会定案与推进（讨论区发言）】：
     ${remainingOppCount > 0
-      ? `① 宣布【${inqLabel}】辩护方案已采纳并成功定案回填入左侧矩阵（全组可核对修改）；\n② 【针对${nextLabel}的深度破局思路点拨】：顺承引导全组将焦点聚焦于【${nextLabel}（针对质询：${nextInqContent.slice(0, 50)}...）】，结合文体特征与质询具体焦点，给出 1~2 条具体、清晰、有实操性的答辩切入思路与论文修改补强对策支架，并引导商定后点击输入框上方按钮一键总结！`
+      ? `① 宣布【${inqLabel}】辩护方案已采纳并成功定案回填入左侧矩阵（全组可核对修改）；\n② 【针对${nextLabel}的具体问题精准引导】：必须指名道姓引述上述【${nextLabel}】反方质询的真实具体问题与核心矛盾（如反方针对具体样本、具体情境或具体概念界定的质疑原文：“${nextInqFullContent.slice(0, 90)}...”），严禁只给宽泛抽象的方向！紧接着给出清晰、具体、可操作的破局思路点拨与补强建议，并引导组员商定后点击输入框上方按钮一键总结！`
       : `① 宣布全部质询辩护完毕且均获委员会全票认可，已全部定案；\n② 明确提醒全组成员在右上方点击【✍️ 确认答辩完成】，全员确认后将正式解锁并进入【修改${docName}终稿】！`}
-请按以下格式输出：
-答辩陈述：[提取 80~100 字逻辑严密、论据充分的正式答辩词与终稿修改对策，用于回填左侧矩阵]
-主席发言：[100~140 字自然语言点评与顺推裁决]`;
+
+请严格按以下格式输出：
+答辩陈述：[提取 80~120 字严格忠实于组员讨论的正式答辩词与终稿修改对策，用于回填左侧矩阵]
+主席发言：[120~160 字自然语言点评与顺推裁决]`;
 
       const isRetry = !!btnElement;
       // 🌟 挂载中间委员正在提炼共识思考气泡
@@ -6102,14 +6115,14 @@ ${remainingOppCount > 0 ? `【紧接着的下一项反方质询（${nextLabel}�
           ? `【中间委员】正在重新提炼【${inqLabel}】答辩共识...`
           : `【中间委员】正在研读全组讨论并提炼【${inqLabel}】答辩共识...`,
         detail: isRetry
-          ? '正在重新向大模型发起答辩请求，整合组员辩护要点并定案回填...'
-          : '正在整合组员辩护要点，自动定案回填矩阵并推导下一阶段裁决...'
+          ? '正在重新向大模型发起答辩请求，严格忠实整合组员辩护要点并定案回填...'
+          : '正在忠实整合组员辩护要点，自动定案回填矩阵并顺推下一质询...'
       });
 
       const resp = await callCozeAgentAPI('neutral', evalInquiryPrompt, { stage: 'stage3', topic, milestoneKey: `stage3_inquiry_${inqIndex}` });
       let extractedResponse = chatSnippet.slice(0, 150);
       let chairSpeech = (remainingOppCount > 0)
-        ? `🟡 【${chairShort}·答辩定案与顺推】：【${inqLabel}】辩护方案已定案归档！👉 请全组将研讨焦点转向【${nextLabel}】，继续在讨论区商定对策！商定后点击上方【💡 ${nextLabel} 讨论差不多了？帮我总结并填入】！`
+        ? `🟡 【${chairShort}·答辩定案与顺推】：【${inqLabel}】辩护方案已定案归档！👉 请全组将研讨焦点转向【${nextLabel}（反方质询：${nextInqFullContent.slice(0, 45)}...）】，继续在讨论区商定对策！商定后点击上方【💡 ${nextLabel} 讨论差不多了？帮我总结并填入】！`
         : `🟡 【${chairShort}·全部质询定案完毕】：🎉 各位${isInst ? '备课教师' : '研究者'}，全部质询均已辩护定案并获委员会全票认可！👉 请全组成员在右上角点击【✍️ 确认答辩完成】，全员确认后系统将正式解锁并进入【修改${docName}终稿】面板！`;
 
       if (resp && resp.trim().length > 0) {
@@ -6128,7 +6141,7 @@ ${remainingOppCount > 0 ? `【紧接着的下一项反方质询（${nextLabel}�
         // 🛡️ 智能拼接：确保包含“回填成功、可检查修改”与“顺推引导”
         const checkTip = `【${inqLabel}】答辩陈述已成功录入左侧裁决矩阵！请全组成员在左侧核对，如有异议可随时直接在左侧输入框补充修改。`;
         const nextGuide = (remainingOppCount > 0)
-          ? `👉 接下来请全组将研讨焦点转向【${nextLabel}】，继续在讨论区商定对策！商定后点击上方【💡 ${nextLabel} 讨论差不多了？帮我总结并填入】！`
+          ? `👉 接下来请全组将研讨焦点转向【${nextLabel}（反方质询：${nextInqFullContent.slice(0, 45)}...）】，继续在讨论区商定对策！商定后点击上方【💡 ${nextLabel} 讨论差不多了？帮我总结并填入】！`
           : `👉 全部质询均已辩护定案并获委员会全票认可！请全组成员在右上角点击【✍️ 确认答辩完成】，全员确认后将进入【修改${docName}终稿】！`;
 
         const cleanSpeech = chairSpeech.replace(/^🟡\s*【[^】]+】[：:]\s*/, '').trim();
