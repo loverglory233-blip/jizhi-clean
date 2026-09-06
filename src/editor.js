@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2729";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2729";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2729";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2730";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2730";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2730";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -2713,6 +2713,22 @@ function renderStage2Canvas(canvas, state, handlers) {
     });
   }
 
+function renderRevisionSummaryBtnHtml(s3, state) {
+  const s3Logs = (state && state.chatLogs && state.chatLogs.stage3) ? state.chatLogs.stage3 : [];
+  const hasRevSummary = s3Logs.some(m => m && m._revisionSummaryFlag === true);
+  const isRunning = !!(window.app && window.app._isTriggeringRevisionSummary);
+  const isFailed = !!(s3 && s3._revisionSummaryFailed);
+
+  if (isRunning) {
+    return `<button disabled style="background:#fef3c7; color:#d97706; border:1px solid #fde68a; padding:3px 12px; border-radius:14px; font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px; cursor:wait;">⏳ 正在归纳终稿修改指南...</button>`;
+  }
+  if (isFailed) {
+    return `<button onclick="window.app && window.app.triggerRevisionEntrySummary(this, true)" style="background:linear-gradient(135deg, #ea580c, #c2410c); color:#fff; border:none; padding:3px 12px; border-radius:14px; font-size:11.5px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(234,88,12,0.25);">🔄 提炼遇阻，点此重新提炼【终稿修改指南】</button>`;
+  }
+  if (!hasRevSummary) {
+    return `<button onclick="window.app && window.app.triggerRevisionEntrySummary(this, false)" style="background:linear-gradient(135deg, #d97706, #b45309); color:#fff; border:none; padding:3px 12px; border-radius:14px; font-size:11.5px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(217,119,6,0.25);">💡 帮我总结【终稿修改指南】</button>`;
+  }
+  return `<button onclick="window.app && window.app.triggerRevisionEntrySummary(this, true)" title="重新让中间委员归纳并输出最新修改指南" style="background:#f8fafc; color:#475569; border:1px solid #cbd5e1; padding:3px 10px; border-radius:14px; font-size:11px; cursor:pointer; font-weight:600; display:inline-flex; align-items:center; gap:4px;">🔄 重新生成修改指南</button>`;
 }
 
 function renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitted) {
@@ -2885,6 +2901,12 @@ function renderStage3Canvas(canvas, state, handlers) {
         existingFeedbackContainer.innerHTML = renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitted);
         bindStage3FeedbackInputs(existingFeedbackContainer, handlers, isDefenseLocked);
       }
+    }
+
+    // 🛡️ 动态同步终稿修改指南提炼按键状态
+    const existingRevBtnContainer = canvas.querySelector('#stage3-revision-summary-btn-container');
+    if (existingRevBtnContainer) {
+      existingRevBtnContainer.innerHTML = renderRevisionSummaryBtnHtml(s3, state);
     }
 
     const btnTabDef = canvas.querySelector('#tab-btn-defense');
@@ -3190,9 +3212,10 @@ function renderStage3Canvas(canvas, state, handlers) {
           const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans&noColors=true`;
 
           return `
-            <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+            <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
               <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}全篇终稿大正文 ${isEditorReadonly ? '<span style="font-size:11.5px; color:#059669; margin-left:6px; background:#ecfdf5; padding:2px 8px; border-radius:6px; border:1px solid #a7f3d0;">🔒 终稿已归档/截止锁定 · 100% 只读防篡改保护</span>' : '(依据答辩意见实时协同修改终稿 · Etherpad 毫秒级引擎)'}</span>
               <div style="display:flex; align-items:center; gap:8px;">
+                <div id="stage3-revision-summary-btn-container">${renderRevisionSummaryBtnHtml(s3, state)}</div>
                 <span style="font-size:11px; background:${isEditorReadonly ? '#f1f5f9' : '#ecfdf5'}; color:${isEditorReadonly ? '#64748b' : '#059669'}; border:1px solid ${isEditorReadonly ? '#cbd5e1' : '#a7f3d0'}; padding:2px 8px; border-radius:10px; font-weight:700;">${isEditorReadonly ? '🔒 只读归档' : '🟢 Etherpad 协同就绪'}</span>
                 <button onclick="const f=document.getElementById('stage3-etherpad-frame'); if(f) f.src=f.src;" style="background:transparent; color:#2563eb; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600;">🔄 刷新</button>
               </div>

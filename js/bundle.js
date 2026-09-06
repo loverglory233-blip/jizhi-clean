@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2729
+ * Version: 20260907_v2730
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2729';
+  const APP_VERSION = '20260907_v2730';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14173,6 +14173,22 @@
       });
     }
 
+  function renderRevisionSummaryBtnHtml(s3, state) {
+    const s3Logs = (state && state.chatLogs && state.chatLogs.stage3) ? state.chatLogs.stage3 : [];
+    const hasRevSummary = s3Logs.some(m => m && m._revisionSummaryFlag === true);
+    const isRunning = !!(window.app && window.app._isTriggeringRevisionSummary);
+    const isFailed = !!(s3 && s3._revisionSummaryFailed);
+
+    if (isRunning) {
+      return `<button disabled style="background:#fef3c7; color:#d97706; border:1px solid #fde68a; padding:3px 12px; border-radius:14px; font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px; cursor:wait;">⏳ 正在归纳终稿修改指南...</button>`;
+    }
+    if (isFailed) {
+      return `<button onclick="window.app && window.app.triggerRevisionEntrySummary(this, true)" style="background:linear-gradient(135deg, #ea580c, #c2410c); color:#fff; border:none; padding:3px 12px; border-radius:14px; font-size:11.5px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(234,88,12,0.25);">🔄 提炼遇阻，点此重新提炼【终稿修改指南】</button>`;
+    }
+    if (!hasRevSummary) {
+      return `<button onclick="window.app && window.app.triggerRevisionEntrySummary(this, false)" style="background:linear-gradient(135deg, #d97706, #b45309); color:#fff; border:none; padding:3px 12px; border-radius:14px; font-size:11.5px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(217,119,6,0.25);">💡 帮我总结【终稿修改指南】</button>`;
+    }
+    return `<button onclick="window.app && window.app.triggerRevisionEntrySummary(this, true)" title="重新让中间委员归纳并输出最新修改指南" style="background:#f8fafc; color:#475569; border:1px solid #cbd5e1; padding:3px 10px; border-radius:14px; font-size:11px; cursor:pointer; font-weight:600; display:inline-flex; align-items:center; gap:4px;">🔄 重新生成修改指南</button>`;
   }
 
   function renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitted) {
@@ -14345,6 +14361,12 @@
           existingFeedbackContainer.innerHTML = renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitted);
           bindStage3FeedbackInputs(existingFeedbackContainer, handlers, isDefenseLocked);
         }
+      }
+
+      // 🛡️ 动态同步终稿修改指南提炼按键状态
+      const existingRevBtnContainer = canvas.querySelector('#stage3-revision-summary-btn-container');
+      if (existingRevBtnContainer) {
+        existingRevBtnContainer.innerHTML = renderRevisionSummaryBtnHtml(s3, state);
       }
 
       const btnTabDef = canvas.querySelector('#tab-btn-defense');
@@ -14650,9 +14672,10 @@
             const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans&noColors=true`;
 
             return `
-              <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+              <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
                 <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}全篇终稿大正文 ${isEditorReadonly ? '<span style="font-size:11.5px; color:#059669; margin-left:6px; background:#ecfdf5; padding:2px 8px; border-radius:6px; border:1px solid #a7f3d0;">🔒 终稿已归档/截止锁定 · 100% 只读防篡改保护</span>' : '(依据答辩意见实时协同修改终稿 · Etherpad 毫秒级引擎)'}</span>
                 <div style="display:flex; align-items:center; gap:8px;">
+                  <div id="stage3-revision-summary-btn-container">${renderRevisionSummaryBtnHtml(s3, state)}</div>
                   <span style="font-size:11px; background:${isEditorReadonly ? '#f1f5f9' : '#ecfdf5'}; color:${isEditorReadonly ? '#64748b' : '#059669'}; border:1px solid ${isEditorReadonly ? '#cbd5e1' : '#a7f3d0'}; padding:2px 8px; border-radius:10px; font-weight:700;">${isEditorReadonly ? '🔒 只读归档' : '🟢 Etherpad 协同就绪'}</span>
                   <button onclick="const f=document.getElementById('stage3-etherpad-frame'); if(f) f.src=f.src;" style="background:transparent; color:#2563eb; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600;">🔄 刷新</button>
                 </div>
@@ -21385,43 +21408,49 @@
     }
 
     /**
-     * 📋 全员确认答辩后：中间委员生成一段总结性陈词，把主要答辩修改点归纳列出，引导全组落实到终稿
-     * 触发条件：isRevisionConfirmed=true 且聊天记录里尚未有 revision_entry_summary 标记的 neutral 消息
-     * 防重入：_isTriggeringRevisionSummary
+     * 📋 全员确认答辩后 / 终稿面板主动触发：中间委员生成终审裁决与终稿修改指南
+     * 触发方式：1. 切换到终稿面板自动触发；2. 终稿面板顶部按钮主动触发；3. 失败后点击重试按钮触发
      */
-    async triggerRevisionEntrySummary() {
+    async triggerRevisionEntrySummary(btnElement = null, isForceRetry = false) {
       if (this._isTriggeringRevisionSummary) return;
       const s3 = this.state.stage3 || {};
       if (!s3.isRevisionConfirmed) return;
 
-      // 幂等检测：已发过就不再重复
+      // 幂等检测：非强制重试且已成功发过，不再重复
       const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
       const alreadySent = s3Logs.some(m => m && m._revisionSummaryFlag === true);
-      if (alreadySent) return;
+      if (!isForceRetry && alreadySent) return;
+
+      if (btnElement) {
+        this.disableAllRetryButtons(btnElement, `⏳ 正在归纳生成【终稿修改指南】...`);
+      }
 
       this._isTriggeringRevisionSummary = true;
-      try {
-        const taskType = this.getCurrentTaskType();
-        const isInst = (taskType === 'instructional');
-        const topic = (this.state.stage1 && (this.state.stage1.mergedTitle || this.state.stage1.contract?.topic)) || '本课题';
-        const docName = isInst ? '教学设计' : '论文';
-        const chairShort = isInst ? '答辩主席' : '中间委员';
+      if (typeof this.renderStudentWorkspace === 'function') {
+        this.renderStudentWorkspace();
+      }
 
+      const taskType = this.getCurrentTaskType();
+      const isInst = (taskType === 'instructional');
+      const topic = (this.state.stage1 && (this.state.stage1.mergedTitle || this.state.stage1.contract?.topic)) || '本课题';
+      const docName = isInst ? '教学设计' : '论文';
+      const docTarget = isInst ? '修改教案终稿' : '修改论文终稿';
+      const chairShort = isInst ? '答辩主席' : '中间委员';
+
+      this.setActiveAgentAnalyzing({
+        icon: '🟡',
+        title: `【${chairShort}】正在归纳答辩修改要点，起草终审裁决与终稿修改指南...`,
+        detail: '正在将各条答辩共识整合为终稿分点修改要点清单...'
+      });
+
+      try {
         const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
         const adoptedItems = feedbacks.filter(f => f && f.role === 'opponent' && f.response && f.response.trim());
         const feedbackSummaryLines = adoptedItems.map((f, i) =>
-          `【质询 ${i + 1}】${f.title || f.comment || ''}：${f.response || ''}`
+          `【意见 ${i + 1}】原质询：${f.title || f.comment || ''}；组内答辩共识与修改对策：${f.response || ''}`
         ).join('\n');
 
-        const prompt = `小组已完成全部答辩质询并全员确认进入终稿修改阶段。\n课题：《${topic}》\n\n已通过的答辩修改共识如下：\n${feedbackSummaryLines || '（全组已通过答辩，无重大修改意见）'}\n\n请作为答辩委员会主席（${chairShort}），按以下结构输出【终稿修改指导总结】：\n第一行：1句话肯定全组答辩表现。\n然后逐条列出修改要点，格式：\n▸ [修改要点标题]：[一句话说清楚要怎么改，15~25字]\n每条独立一行，根据实际修改共识列出 2~4 条，每条不超过 25 字，精准到位不啰嗦。\n最后一行：提醒全组将修改落实到《${docName}》终稿正文中，完成后点击【🚀 提交${docName}终稿】完成归档（1句话）。\n注意：直接输出内容，不要输出"第一行""修改要点"等标签。`;
-
-        this.setActiveAgentAnalyzing({
-          icon: '🟡',
-          title: `【${chairShort}】正在归纳答辩修改要点，起草终稿修改指导总结...`,
-          detail: '正在将答辩共识整合为终稿修改要点清单...'
-        });
-
-        let fallbackText = `🟡 【${chairShort}·终稿修改指导】：全体${isInst ? '备课教师' : '研究者'}辛苦了！答辩已全部通过，请参考左侧答辩裁决矩阵中的修改共识，将各条修改对策落实到【📝 修改${docName}终稿】正文中，完成后由代表点击【🚀 提交${docName}终稿】完成最终归档！`;
+        const prompt = `小组已完成全部答辩质询并全员确认进入终稿修改阶段。\n课题：《${topic}》\n\n各条意见的答辩共识与修改对策如下：\n${feedbackSummaryLines || '（全组已通过答辩，无重大修改意见）'}\n\n请严格按以下格式输出【答辩终审裁决与终稿修改指南】：\n第一句：祝贺全组圆满通过答辩！委员会已全票通过大家的答辩陈述与修改方案！\n第二行：📝 【终稿修改落实要点】：\n然后逐条用 ① ② ③ 编号列出修改要点，每条格式：\n① 针对意见 1：在相应章节[动词][具体修改内容，15~25字]；\n② 针对意见 2：在相应章节[动词][具体修改内容，15~25字]；\n……（有几条意见就列几条，精准提炼对应修改共识，不超过 25 字/条）\n最后一句：👉 请小组成员对照上述分点要点，在当前【${docTarget}】面板中把修改结论落实到正文终稿中，通读完善后点击【🚀 确认提交终稿】完成归档！\n注意：直接输出内容，不要添加任何额外标签或解释。`;
 
         let resp = null;
         try {
@@ -21430,36 +21459,51 @@
           console.warn('triggerRevisionEntrySummary AI error:', e);
         }
 
-        // 把换行转成 <br> 便于聊天气泡渲染分点格式
-        const formattedResp = resp && resp.trim().length > 20
-          ? resp.trim().replace(/\n/g, '<br>')
-          : null;
-        const speechText = formattedResp
-          ? `🟡 【${chairShort}·终稿修改指导总结】：<br>${formattedResp}`
-          : fallbackText;
-
-        const msg = {
-          sender: 'neutral',
-          text: speechText,
-          _revisionSummaryFlag: true,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now() + 100
-        };
         if (!this.state.chatLogs) this.state.chatLogs = {};
         if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
-        // 再次幂等检测（防并发）
-        if (!this.state.chatLogs.stage3.some(m => m && m._revisionSummaryFlag === true)) {
+
+        // 清理此前残留的失败网络提醒
+        this.state.chatLogs.stage3 = this.state.chatLogs.stage3.filter(m => !m || !(m.sender === 'neutral' && (m.text || '').includes('网络提醒')));
+
+        if (resp && resp.trim().length > 25) {
+          // ✅ 生成成功
+          s3._revisionSummaryFailed = false;
+          const formattedResp = resp.trim().replace(/\n/g, '<br>');
+          const speechText = formattedResp.startsWith('🟡') ? formattedResp : `🟡 【${chairShort}·答辩终审裁决与终稿修改指南】：<br>${formattedResp}`;
+
+          const msg = {
+            sender: 'neutral',
+            text: speechText,
+            _revisionSummaryFlag: true,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now() + 100
+          };
           this.state.chatLogs.stage3.push(msg);
-          this.syncStage3();
-          this.syncChatLogs();
-          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-          renderChat(this.state);
+        } else {
+          // ⚠️ 生成遇阻：给出重试网络提醒气泡，标记失败状态，供用户随时重试
+          s3._revisionSummaryFailed = true;
+          const failMsg = {
+            sender: 'neutral',
+            text: `🟡 【${chairShort}·网络提醒】：📡 正在归纳答辩修改要点，大模型生成稍有延迟未能即时生成总结。<br><button class="btn-retry-ai" onclick="window.app.triggerRevisionEntrySummary(this, true)" style="margin-top:6px; background:#d97706; color:#fff; border:none; padding:5px 14px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新提炼【终审裁决与修改指南】</button>`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now() + 100
+          };
+          this.state.chatLogs.stage3.push(failMsg);
         }
+
+        this.syncStage3();
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        renderChat(this.state);
       } catch (e) {
         console.warn('triggerRevisionEntrySummary error:', e);
+        s3._revisionSummaryFailed = true;
       } finally {
         this._isTriggeringRevisionSummary = false;
         this.clearActiveAgentAnalyzing && this.clearActiveAgentAnalyzing();
+        if (typeof this.renderStudentWorkspace === 'function') {
+          this.renderStudentWorkspace();
+        }
       }
     }
 
