@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2730";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2730";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2730";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2731";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2731";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2731";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -2719,16 +2719,23 @@ function renderRevisionSummaryBtnHtml(s3, state) {
   const isRunning = !!(window.app && window.app._isTriggeringRevisionSummary);
   const isFailed = !!(s3 && s3._revisionSummaryFailed);
 
-  if (isRunning) {
-    return `<button disabled style="background:#fef3c7; color:#d97706; border:1px solid #fde68a; padding:3px 12px; border-radius:14px; font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px; cursor:wait;">⏳ 正在归纳终稿修改指南...</button>`;
+  // 1. 若已经成功生成了终稿修改指南，按键彻底隐藏消失，保持工作台极简纯净
+  if (hasRevSummary) {
+    return '';
   }
+
+  // 2. 若正在自动生成中，仅显示轻量状态胶囊，杜绝用户误点击冲突
+  if (isRunning) {
+    return `<span style="font-size:11px; color:#d97706; background:#fef3c7; border:1px solid #fde68a; padding:2px 8px; border-radius:10px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">⏳ 正在归纳终稿修改指南...</span>`;
+  }
+
+  // 3. 若生成遇阻或失败，显示显眼的重试按键供学生一键重新触发
   if (isFailed) {
     return `<button onclick="window.app && window.app.triggerRevisionEntrySummary(this, true)" style="background:linear-gradient(135deg, #ea580c, #c2410c); color:#fff; border:none; padding:3px 12px; border-radius:14px; font-size:11.5px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(234,88,12,0.25);">🔄 提炼遇阻，点此重新提炼【终稿修改指南】</button>`;
   }
-  if (!hasRevSummary) {
-    return `<button onclick="window.app && window.app.triggerRevisionEntrySummary(this, false)" style="background:linear-gradient(135deg, #d97706, #b45309); color:#fff; border:none; padding:3px 12px; border-radius:14px; font-size:11.5px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(217,119,6,0.25);">💡 帮我总结【终稿修改指南】</button>`;
-  }
-  return `<button onclick="window.app && window.app.triggerRevisionEntrySummary(this, true)" title="重新让中间委员归纳并输出最新修改指南" style="background:#f8fafc; color:#475569; border:1px solid #cbd5e1; padding:3px 10px; border-radius:14px; font-size:11px; cursor:pointer; font-weight:600; display:inline-flex; align-items:center; gap:4px;">🔄 重新生成修改指南</button>`;
+
+  // 4. 异常断点（尚未生成且未在生成）：显示兜底生成按钮
+  return `<button onclick="window.app && window.app.triggerRevisionEntrySummary(this, false)" style="background:linear-gradient(135deg, #d97706, #b45309); color:#fff; border:none; padding:3px 12px; border-radius:14px; font-size:11.5px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(217,119,6,0.25);">💡 帮我生成【终稿修改指南】</button>`;
 }
 
 function renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitted) {
