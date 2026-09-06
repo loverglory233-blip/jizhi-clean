@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2710";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2710";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2710";
-import { AuthManager } from "./auth.js?v=20260906_v2710";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2710";
-import { renderLoginView } from "./login.js?v=20260906_v2710";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2710";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2710";
+} from "./constants.js?v=20260906_v2711";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2711";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2711";
+import { AuthManager } from "./auth.js?v=20260906_v2711";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2711";
+import { renderLoginView } from "./login.js?v=20260906_v2711";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2711";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2711";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2710";
+} from "./editor.js?v=20260906_v2711";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -215,23 +215,37 @@ export class App {
             }
             if (this.state.studentViewMode === 'task_list') {
               this.renderMain();
-            } else if (this.state.studentViewMode === 'workspace' && isSameId(this.state.activeTaskId, extTask.id)) {
+            } else if (this.state.studentViewMode === 'workspace' && (isSameId(this.state.activeTaskId, extTask.id) || (extTask.title && this.state.activeTaskId === extTask.title))) {
               this._isTriggeringFirstReview = false;
               this._isTriggeringSecondReview = false;
               this._isTriggeringFinalReview = false;
               this._isGeneratingManagingSummary = false;
               this._isAgentReplyInProgress = false;
               this._isStage3PipelineRunning = false;
+              this._lastStage3PipelineAttempt = 0;
               this.renderHeader();
               this.renderCanvas();
               renderChat(this.state);
-              if (this.state.stage2?.unifiedContent) {
+              if (this.state.currentStage === 'stage3') {
+                const s3 = this.state.stage3 || {};
+                const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
+                const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
+                const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
+                if (!hasProp || !hasOpp || !s3.feedbackItems || s3.feedbackItems.length === 0) {
+                  setTimeout(() => {
+                    this.runStage3CommitteePipeline();
+                  }, 300);
+                }
+              } else if (this.state.currentStage === 'stage2' && this.state.stage2?.unifiedContent) {
                 setTimeout(() => {
                   this.checkAgentTriggersOnContent(this.state.stage2.unifiedContent);
                 }, 1000);
+              } else if (this.state.currentStage === 'stage1' || !this.state.currentStage) {
+                this.checkAndTriggerAllProposalsGathered();
+                this.checkAndTriggerVoteGuidanceIfNeeded();
               }
               const extDurationStr = extTask.lastExtension?.extendDurationStr || (extTask.lastExtension?.addedMinutes ? `（增加了 ${extTask.lastExtension.addedMinutes} 分钟）` : '');
-              showGlobalBannerNotice('⏳ 任务延期提醒', `本任务截止时间已由任课教师延长至 ${extTask.deadline || '新截止时间'} ${extDurationStr}！`, 'info', 8000);
+              showGlobalBannerNotice('⏳ 任务延期提醒', `本任务截止时间已由任课教师延长至 ${extTask.deadline || '新截止时间'} ${extDurationStr}！协作通道已畅通。`, 'info', 8000);
             }
           }
 
@@ -5972,6 +5986,7 @@ ${chatSnippet}
       if (!hasFeedbackItems) {
         this.state.stage3CommitteeLoading = true;
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
+        if (typeof this.renderCanvas === 'function') this.renderCanvas();
       }
 
       const taskType = this.getCurrentTaskType();
@@ -6013,6 +6028,7 @@ ${chatSnippet}
           title: '【答辩委员会】正反方评审专家正在审阅全篇论文...',
           detail: '正方立论专家正在提炼肯定亮点，反方商榷专家正在研拟针对实质询...'
         });
+        if (typeof this.renderCanvas === 'function') this.renderCanvas();
 
         const propPrompt = `${genreDesc}
 
@@ -6047,7 +6063,7 @@ ${chatSnippet}
 态度客观严谨、温和建设，纯自然语言输出，200~260字。`;
 
         try {
-          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 60000));
+          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 90000));
           const promises = [];
           if (!hasProp) {
             promises.push(Promise.race([
@@ -6166,6 +6182,7 @@ ${chatSnippet}
           title: `【${chairShort}】正在审阅答辩清单并生成第一题破局思路支架...`,
           detail: '正在梳理正反两方专家焦点，为全组定制第一题答辩思路引导...'
         });
+        if (typeof this.renderCanvas === 'function') this.renderCanvas();
 
         const chairPrompt = `${genreDesc}
 
@@ -6180,7 +6197,7 @@ ${chatSnippet}
 
         let chairText = '';
         try {
-          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 45000));
+          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 90000));
           chairText = await Promise.race([
             callCozeAgentAPI('neutral', chairPrompt, { stage: 'stage3', topic, prop: propText, opp: oppText, queryPoint: 1, taskType, milestoneKey: 'stage3_chair' }),
             timeoutPromise
@@ -6234,6 +6251,7 @@ ${chatSnippet}
       this.state.stage3CommitteeLoading = false;
       this._isStage3PipelineRunning = false;
       if (typeof window.renderChat === 'function') window.renderChat(this.state);
+      if (typeof this.renderCanvas === 'function') this.renderCanvas();
     }
   }
 

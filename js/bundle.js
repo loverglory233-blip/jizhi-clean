@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2710
+ * Version: 20260906_v2711
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2710';
+  const APP_VERSION = '20260906_v2711';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4690,6 +4690,8 @@
           }
         }
         // ⏱️ 立即就地刷新顶部倒计时与工作台画布状态（移除过期横幅与只读锁，恢复可操作按钮）
+        this.app._isStage3PipelineRunning = false;
+        this.app._lastStage3PipelineAttempt = 0;
         if (typeof this.app.renderHeader === 'function') {
           this.app.renderHeader();
         }
@@ -11608,6 +11610,18 @@
           detail: `${role}正在综合质询辩驳与各评委观点，下发终审定案裁决...`
         };
       }
+      // 阶段三：正反方答辩委员会通读审阅全篇初稿
+      if (app._isStage3PipelineRunning) {
+        const isInst = (currentTaskType === 'instructional');
+        const docType = isInst ? '教学设计' : '论文';
+        return {
+          icon: '🎓',
+          title: isInst ? '答辩评审委员会' : '答辩委员会专家',
+          isExtracting: true,
+          _ts: getStartTs('s3_pipeline'),
+          detail: `正反两方评审专家正在通读审阅全篇${docType}初稿，提炼立论亮点与针对实质询...`
+        };
+      }
     }
 
     return null;
@@ -14172,7 +14186,8 @@
 
   function renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitted) {
     const isReadOnly = (typeof window.app?.isCurrentTaskReadOnly === 'function') && window.app.isCurrentTaskReadOnly();
-    if (state.stage3CommitteeLoading || !s3.feedbackItems || s3.feedbackItems.length === 0) {
+    const isRunning = !!(state.stage3CommitteeLoading || window.app?._isStage3PipelineRunning);
+    if (isRunning || !s3.feedbackItems || s3.feedbackItems.length === 0) {
       if (isReadOnly) {
         return `
           <div style="background:#fff1f2; border:1.5px solid #fecdd3; border-radius:12px; padding:32px 24px; text-align:center; box-shadow:0 4px 12px rgba(225,29,72,0.06);">
@@ -14182,11 +14197,30 @@
           </div>
         `;
       }
+      const docType = ((window.app && window.app.authManager) ? (window.app.authManager.getTasks().find(t => t.id === state.activeTaskId)?.taskType || 'experiment') : (state.taskType || 'experiment')) === 'instructional' ? '教学设计' : '论文';
+      if (isRunning) {
+        return `
+          <div style="background:#ffffff; border:1.5px solid #bfdbfe; border-radius:12px; padding:36px 24px; text-align:center; box-shadow:0 4px 12px rgba(37,99,235,0.08);">
+            <div style="width:40px; height:40px; border:3.5px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 0.9s linear infinite; margin:0 auto 16px;"></div>
+            <div style="font-size:16px; font-weight:800; color:#1e40af; margin-bottom:6px;">🎓 答辩委员会专家正在审阅全篇${docType}初稿...</div>
+            <div style="font-size:13px; color:#64748b; line-height:1.6; margin-bottom:12px;">正方立论专家正在提取立论亮点，反方商榷专家正在研拟针对实质询。<br>【答辩与终稿修改清单】即将在此生成，并同步呈现在右侧研讨区，请稍候！</div>
+            <div style="display:inline-flex; align-items:center; gap:6px; background:#eff6ff; border:1px solid #bfdbfe; padding:5px 14px; border-radius:12px; font-size:12px; color:#1d4ed8; font-weight:700;">
+              ⏳ 大模型深度审阅中，请耐心等候...
+            </div>
+          </div>
+        `;
+      }
       return `
         <div style="background:#ffffff; border:1px solid #bfdbfe; border-radius:12px; padding:36px 24px; text-align:center; box-shadow:0 4px 12px rgba(37,99,235,0.06);">
-          <div style="font-size:36px; margin-bottom:12px;">⏳</div>
-          <div style="font-size:16px; font-weight:800; color:#1e40af; margin-bottom:6px;">答辩委员会专家正在审阅全篇${((window.app && window.app.authManager) ? (window.app.authManager.getTasks().find(t => t.id === state.activeTaskId)?.taskType || 'experiment') : (state.taskType || 'experiment')) === 'instructional' ? '教学设计' : '论文'}初稿...</div>
-          <div style="font-size:13px; color:#64748b; line-height:1.6;">正方委员正在提取立论亮点，反方委员正在研拟针对实质询。<br>【答辩与终稿修改清单】即将在此生成，并同步呈现在右侧研讨区，请稍候！</div>
+          <div style="font-size:36px; margin-bottom:12px;">⚖️</div>
+          <div style="font-size:16px; font-weight:800; color:#1e40af; margin-bottom:6px;">答辩评审委员会已就绪</div>
+          <div style="font-size:13px; color:#64748b; line-height:1.6; margin-bottom:18px;">
+            全篇${docType}初稿已完成，正反两方评审专家已准备就位！<br>
+            如系统尚未自动开始，可点击下方按钮立即唤醒答辩专家通读审阅并下发修改清单。
+          </div>
+          <button class="btn-trigger-s3-pipeline" onclick="window.app && window.app.runStage3CommitteePipeline(this)" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); color:#ffffff; border:none; padding:10px 24px; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.25); display:inline-flex; align-items:center; gap:8px; transition:transform 0.15s ease;">
+            🚀 立即召唤答辩专家审阅初稿
+          </button>
         </div>
       `;
     }
@@ -15723,23 +15757,37 @@
               }
               if (this.state.studentViewMode === 'task_list') {
                 this.renderMain();
-              } else if (this.state.studentViewMode === 'workspace' && isSameId(this.state.activeTaskId, extTask.id)) {
+              } else if (this.state.studentViewMode === 'workspace' && (isSameId(this.state.activeTaskId, extTask.id) || (extTask.title && this.state.activeTaskId === extTask.title))) {
                 this._isTriggeringFirstReview = false;
                 this._isTriggeringSecondReview = false;
                 this._isTriggeringFinalReview = false;
                 this._isGeneratingManagingSummary = false;
                 this._isAgentReplyInProgress = false;
                 this._isStage3PipelineRunning = false;
+                this._lastStage3PipelineAttempt = 0;
                 this.renderHeader();
                 this.renderCanvas();
                 renderChat(this.state);
-                if (this.state.stage2?.unifiedContent) {
+                if (this.state.currentStage === 'stage3') {
+                  const s3 = this.state.stage3 || {};
+                  const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
+                  const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
+                  const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
+                  if (!hasProp || !hasOpp || !s3.feedbackItems || s3.feedbackItems.length === 0) {
+                    setTimeout(() => {
+                      this.runStage3CommitteePipeline();
+                    }, 300);
+                  }
+                } else if (this.state.currentStage === 'stage2' && this.state.stage2?.unifiedContent) {
                   setTimeout(() => {
                     this.checkAgentTriggersOnContent(this.state.stage2.unifiedContent);
                   }, 1000);
+                } else if (this.state.currentStage === 'stage1' || !this.state.currentStage) {
+                  this.checkAndTriggerAllProposalsGathered();
+                  this.checkAndTriggerVoteGuidanceIfNeeded();
                 }
                 const extDurationStr = extTask.lastExtension?.extendDurationStr || (extTask.lastExtension?.addedMinutes ? `（增加了 ${extTask.lastExtension.addedMinutes} 分钟）` : '');
-                showGlobalBannerNotice('⏳ 任务延期提醒', `本任务截止时间已由任课教师延长至 ${extTask.deadline || '新截止时间'} ${extDurationStr}！`, 'info', 8000);
+                showGlobalBannerNotice('⏳ 任务延期提醒', `本任务截止时间已由任课教师延长至 ${extTask.deadline || '新截止时间'} ${extDurationStr}！协作通道已畅通。`, 'info', 8000);
               }
             }
 
@@ -21480,6 +21528,7 @@
         if (!hasFeedbackItems) {
           this.state.stage3CommitteeLoading = true;
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
+          if (typeof this.renderCanvas === 'function') this.renderCanvas();
         }
 
         const taskType = this.getCurrentTaskType();
@@ -21521,6 +21570,7 @@
             title: '【答辩委员会】正反方评审专家正在审阅全篇论文...',
             detail: '正方立论专家正在提炼肯定亮点，反方商榷专家正在研拟针对实质询...'
           });
+          if (typeof this.renderCanvas === 'function') this.renderCanvas();
 
           const propPrompt = `${genreDesc}
 
@@ -21555,7 +21605,7 @@
   态度客观严谨、温和建设，纯自然语言输出，200~260字。`;
 
           try {
-            const timeoutPromise = new Promise(r => setTimeout(() => r(null), 60000));
+            const timeoutPromise = new Promise(r => setTimeout(() => r(null), 90000));
             const promises = [];
             if (!hasProp) {
               promises.push(Promise.race([
@@ -21674,6 +21724,7 @@
             title: `【${chairShort}】正在审阅答辩清单并生成第一题破局思路支架...`,
             detail: '正在梳理正反两方专家焦点，为全组定制第一题答辩思路引导...'
           });
+          if (typeof this.renderCanvas === 'function') this.renderCanvas();
 
           const chairPrompt = `${genreDesc}
 
@@ -21688,7 +21739,7 @@
 
           let chairText = '';
           try {
-            const timeoutPromise = new Promise(r => setTimeout(() => r(null), 45000));
+            const timeoutPromise = new Promise(r => setTimeout(() => r(null), 90000));
             chairText = await Promise.race([
               callCozeAgentAPI('neutral', chairPrompt, { stage: 'stage3', topic, prop: propText, opp: oppText, queryPoint: 1, taskType, milestoneKey: 'stage3_chair' }),
               timeoutPromise
@@ -21742,6 +21793,7 @@
         this.state.stage3CommitteeLoading = false;
         this._isStage3PipelineRunning = false;
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
+        if (typeof this.renderCanvas === 'function') this.renderCanvas();
       }
     }
 
