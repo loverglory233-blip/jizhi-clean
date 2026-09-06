@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2705
+ * Version: 20260906_v2706
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2705';
+  const APP_VERSION = '20260906_v2706';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -23956,51 +23956,56 @@
   2. 🎯 [诊断问题]：...；[改进建议]：...
   3. 🎯 [诊断问题]：...；[改进建议]：...`;
 
-      let reviewingText = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic: ctx.topic, bottleneck: ctx.bAcademic, actualDoc: fullDoc, priorReview: priorFirstReview, milestoneKey: 'stage2_second_review' });
-      if (!reviewingText || reviewingText.trim().length === 0) {
-        reviewingText = `📝 【${reviewingName}·网络提醒】：📡 正在深度审阅正文草稿，网络连接稍有延迟未能即时生成修正清单。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新下发《${isInst ? '磨课修正清单' : '二审修正清单'}》</button>`;
-      } else {
-        this.state.stage2SecondReviewText = reviewingText;
-        this.state.stage2.reviewMilestone = 'checklist_issued';
-        this.state.stage2PendingReviewing = null;
-        if (this.state.stage2) this.state.stage2.pendingReviewing = null;
+      try {
+        let reviewingText = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic: ctx.topic, bottleneck: ctx.bAcademic, actualDoc: fullDoc, priorReview: priorFirstReview, milestoneKey: 'stage2_second_review' });
+        if (!reviewingText || reviewingText.trim().length === 0) {
+          reviewingText = `📝 【${reviewingName}·网络提醒】：📡 正在深度审阅正文草稿，网络连接稍有延迟未能即时生成修正清单。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新下发《${isInst ? '磨课修正清单' : '二审修正清单'}》</button>`;
+        } else {
+          this.state.stage2SecondReviewText = reviewingText;
+          this.state.stage2.reviewMilestone = 'checklist_issued';
+          this.state.stage2PendingReviewing = null;
+          if (this.state.stage2) this.state.stage2.pendingReviewing = null;
 
-        const lines = reviewingText.split('\n').map(l => l.trim()).filter(Boolean);
-        const parsedItems = [];
-        lines.forEach(l => {
-          const cleanLine = l.replace(/^\d+[\.、\s]*/, '').trim();
-          if (cleanLine.includes('诊断问题') || cleanLine.includes('改进建议') || cleanLine.startsWith('🎯') || cleanLine.includes('【诊断问题】') || cleanLine.includes('[诊断问题]')) {
-            parsedItems.push(cleanLine);
+          const lines = reviewingText.split('\n').map(l => l.trim()).filter(Boolean);
+          const parsedItems = [];
+          lines.forEach(l => {
+            const cleanLine = l.replace(/^\d+[\.、\s]*/, '').trim();
+            if (cleanLine.includes('诊断问题') || cleanLine.includes('改进建议') || cleanLine.startsWith('🎯') || cleanLine.includes('【诊断问题】') || cleanLine.includes('[诊断问题]')) {
+              parsedItems.push(cleanLine);
+            }
+          });
+          if (parsedItems.length > 0) {
+            const finalItems = this.assembleActionPlanItems(parsedItems, this.state.stage2);
+            this.state.stage2.actionPlan = {
+              isGenerated: true,
+              completedMap: {},
+              items: finalItems
+            };
+            this.state.stage2.meetingStep = 'discussing_checklist';
           }
-        });
-        if (parsedItems.length > 0) {
-          const finalItems = this.assembleActionPlanItems(parsedItems, this.state.stage2);
-          this.state.stage2.actionPlan = {
-            isGenerated: true,
-            completedMap: {},
-            items: finalItems
-          };
-          this.state.stage2.meetingStep = 'discussing_checklist';
+          this.state.stage2PendingRevisionDiscussion = true;
+          this.state.stage2ReviewingFinishedTime = Date.now();
         }
-        this.state.stage2PendingRevisionDiscussion = true;
-        this.state.stage2ReviewingFinishedTime = Date.now();
-      }
 
-      const reviewingMsg = {
-        sender: 'reviewingEditor',
-        text: reviewingText,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        _timeMs: Date.now(),
-        stage: 'stage2'
-      };
-      if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-      this.state.chatLogs.stage2.push(reviewingMsg);
-      this.syncStage2();
-      this.syncChatLogs();
-      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-      renderChat(this.state);
-      this.renderStudentWorkspace();
-      this._isTriggeringSecondReview = false;
+        const reviewingMsg = {
+          sender: 'reviewingEditor',
+          text: reviewingText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now(),
+          stage: 'stage2'
+        };
+        if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+        this.state.chatLogs.stage2.push(reviewingMsg);
+        this.syncStage2();
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        renderChat(this.state);
+        this.renderStudentWorkspace();
+      } catch (e) {
+        console.warn('[triggerReviewingEditorAfterDiscussion] error:', e);
+      } finally {
+        this._isTriggeringSecondReview = false;
+      }
     }
 
     /**

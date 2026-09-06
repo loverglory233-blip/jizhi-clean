@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2705";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2705";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2705";
-import { AuthManager } from "./auth.js?v=20260906_v2705";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2705";
-import { renderLoginView } from "./login.js?v=20260906_v2705";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2705";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2705";
+} from "./constants.js?v=20260906_v2706";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2706";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2706";
+import { AuthManager } from "./auth.js?v=20260906_v2706";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2706";
+import { renderLoginView } from "./login.js?v=20260906_v2706";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2706";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2706";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2705";
+} from "./editor.js?v=20260906_v2706";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -8508,51 +8508,56 @@ ${fullDoc}
 2. 🎯 [诊断问题]：...；[改进建议]：...
 3. 🎯 [诊断问题]：...；[改进建议]：...`;
 
-    let reviewingText = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic: ctx.topic, bottleneck: ctx.bAcademic, actualDoc: fullDoc, priorReview: priorFirstReview, milestoneKey: 'stage2_second_review' });
-    if (!reviewingText || reviewingText.trim().length === 0) {
-      reviewingText = `📝 【${reviewingName}·网络提醒】：📡 正在深度审阅正文草稿，网络连接稍有延迟未能即时生成修正清单。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新下发《${isInst ? '磨课修正清单' : '二审修正清单'}》</button>`;
-    } else {
-      this.state.stage2SecondReviewText = reviewingText;
-      this.state.stage2.reviewMilestone = 'checklist_issued';
-      this.state.stage2PendingReviewing = null;
-      if (this.state.stage2) this.state.stage2.pendingReviewing = null;
+    try {
+      let reviewingText = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic: ctx.topic, bottleneck: ctx.bAcademic, actualDoc: fullDoc, priorReview: priorFirstReview, milestoneKey: 'stage2_second_review' });
+      if (!reviewingText || reviewingText.trim().length === 0) {
+        reviewingText = `📝 【${reviewingName}·网络提醒】：📡 正在深度审阅正文草稿，网络连接稍有延迟未能即时生成修正清单。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新下发《${isInst ? '磨课修正清单' : '二审修正清单'}》</button>`;
+      } else {
+        this.state.stage2SecondReviewText = reviewingText;
+        this.state.stage2.reviewMilestone = 'checklist_issued';
+        this.state.stage2PendingReviewing = null;
+        if (this.state.stage2) this.state.stage2.pendingReviewing = null;
 
-      const lines = reviewingText.split('\n').map(l => l.trim()).filter(Boolean);
-      const parsedItems = [];
-      lines.forEach(l => {
-        const cleanLine = l.replace(/^\d+[\.、\s]*/, '').trim();
-        if (cleanLine.includes('诊断问题') || cleanLine.includes('改进建议') || cleanLine.startsWith('🎯') || cleanLine.includes('【诊断问题】') || cleanLine.includes('[诊断问题]')) {
-          parsedItems.push(cleanLine);
+        const lines = reviewingText.split('\n').map(l => l.trim()).filter(Boolean);
+        const parsedItems = [];
+        lines.forEach(l => {
+          const cleanLine = l.replace(/^\d+[\.、\s]*/, '').trim();
+          if (cleanLine.includes('诊断问题') || cleanLine.includes('改进建议') || cleanLine.startsWith('🎯') || cleanLine.includes('【诊断问题】') || cleanLine.includes('[诊断问题]')) {
+            parsedItems.push(cleanLine);
+          }
+        });
+        if (parsedItems.length > 0) {
+          const finalItems = this.assembleActionPlanItems(parsedItems, this.state.stage2);
+          this.state.stage2.actionPlan = {
+            isGenerated: true,
+            completedMap: {},
+            items: finalItems
+          };
+          this.state.stage2.meetingStep = 'discussing_checklist';
         }
-      });
-      if (parsedItems.length > 0) {
-        const finalItems = this.assembleActionPlanItems(parsedItems, this.state.stage2);
-        this.state.stage2.actionPlan = {
-          isGenerated: true,
-          completedMap: {},
-          items: finalItems
-        };
-        this.state.stage2.meetingStep = 'discussing_checklist';
+        this.state.stage2PendingRevisionDiscussion = true;
+        this.state.stage2ReviewingFinishedTime = Date.now();
       }
-      this.state.stage2PendingRevisionDiscussion = true;
-      this.state.stage2ReviewingFinishedTime = Date.now();
-    }
 
-    const reviewingMsg = {
-      sender: 'reviewingEditor',
-      text: reviewingText,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      _timeMs: Date.now(),
-      stage: 'stage2'
-    };
-    if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-    this.state.chatLogs.stage2.push(reviewingMsg);
-    this.syncStage2();
-    this.syncChatLogs();
-    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-    renderChat(this.state);
-    this.renderStudentWorkspace();
-    this._isTriggeringSecondReview = false;
+      const reviewingMsg = {
+        sender: 'reviewingEditor',
+        text: reviewingText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now(),
+        stage: 'stage2'
+      };
+      if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+      this.state.chatLogs.stage2.push(reviewingMsg);
+      this.syncStage2();
+      this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      renderChat(this.state);
+      this.renderStudentWorkspace();
+    } catch (e) {
+      console.warn('[triggerReviewingEditorAfterDiscussion] error:', e);
+    } finally {
+      this._isTriggeringSecondReview = false;
+    }
   }
 
   /**
