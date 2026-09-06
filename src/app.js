@@ -6230,9 +6230,21 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
         currentInquiry.isFinalized = true;
         currentInquiry.status = 'finalized';
 
-        // 规范主席发言格式，确保带有标准前缀
+        // 💡 前端合成完整主席播报：必须明确告知【当前意见已生成录入矩阵，可核对修改】+ 大模型的顺推破局点评 +【顺推指引】
+        const checkTip = `【${inqLabel}】答辩陈述已成功录入左侧裁决矩阵！请全组成员在左侧核对，如有异议可随时直接在左侧输入框补充修改。`;
+        const nextGuide = (remainingOppCount > 0)
+          ? `👉 接下来请全组将研讨焦点转向【${nextLabel}（反方质询：${nextInqFullContent.slice(0, 45)}...）】，继续在讨论区商定对策！商定后点击上方【💡 ${nextLabel} 讨论差不多了？帮我总结并填入】！`
+          : `👉 全部质询均已辩护定案并获委员会全票认可！请全组成员在右上角点击【✍️ 确认答辩完成】，全员确认后将进入【修改${docName}终稿】！`;
+
         const cleanSpeech = extractedChairSpeech.replace(/^🟡\s*【[^】]+】[：:]\s*/, '').trim();
-        chairSpeech = `🟡 【${chairShort}·针对${inqLabel}答辩定案与顺推】：${cleanSpeech}`;
+        if (cleanSpeech.includes('定案归档') || cleanSpeech.includes('定案回填') || cleanSpeech.includes('裁决矩阵') || cleanSpeech.includes('答辩陈述') || cleanSpeech.includes('录入左侧')) {
+          chairSpeech = `🟡 【${chairShort}·答辩定案与顺推】：${checkTip} ${cleanSpeech}`;
+          if (!chairSpeech.includes(nextLabel) && remainingOppCount > 0) {
+            chairSpeech += `\n\n${nextGuide}`;
+          }
+        } else {
+          chairSpeech = `🟡 【${chairShort}·答辩定案与顺推】：${checkTip} ${cleanSpeech}\n\n${nextGuide}`;
+        }
 
         // 清理历史残留的网络提醒错误气泡
         if (this.state.chatLogs.stage3) {
