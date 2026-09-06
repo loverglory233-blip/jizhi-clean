@@ -103,12 +103,48 @@ searchDirs.slice(2).forEach(nm => {
     packages.forEach(pkg => {
       if (pkg.startsWith("ep_")) {
         patchDir(path.join(nm, pkg, "locales"));
+
+        // 🛡️ 核心修复：彻底解决 3 个下拉框插件作者挂错 data-l10n-id 导致的 Unexpected error
+        // 插件在 <select> 标签上挂了 data-l10n-id，导致 Etherpad 尝试向 select 写入纯文本内容
+        // 修复方案：将 <select> 上的 data-l10n-id 移除，并直接固化中文 aria-label，既保全无障碍，又彻底根治控制台报错
+        const pDir = path.join(nm, pkg);
+        function walkAndFix(dir) {
+          if (!fs.existsSync(dir)) return;
+          const list = fs.readdirSync(dir);
+          list.forEach(item => {
+            const full = path.join(dir, item);
+            const stat = fs.statSync(full);
+            if (stat.isDirectory()) {
+              if (item !== "node_modules" && item !== ".git") walkAndFix(full);
+            } else if (/\.(html|ejs|js)$/.test(item)) {
+              let c = fs.readFileSync(full, "utf8");
+              let mod = false;
+              if (c.includes('data-l10n-id="ep_headings.style"')) {
+                c = c.replace(/data-l10n-id="ep_headings\.style"/g, 'aria-label="标题样式"');
+                mod = true;
+              }
+              if (c.includes('data-l10n-id="ep_font_color.color"')) {
+                c = c.replace(/data-l10n-id="ep_font_color\.color"/g, 'aria-label="文字颜色"');
+                mod = true;
+              }
+              if (c.includes('data-l10n-id="ep_font_size.size"')) {
+                c = c.replace(/data-l10n-id="ep_font_size\.size"/g, 'aria-label="字号大小"');
+                mod = true;
+              }
+              if (mod) {
+                fs.writeFileSync(full, c, "utf8");
+                console.log(`   🛠️ 成功根治模板缺陷: ${full}`);
+              }
+            }
+          });
+        }
+        walkAndFix(pDir);
       }
     });
   } catch (e) {}
 });
 
-console.log("   ✅ 中文翻译词条注入完成！");
+console.log("   ✅ 中文翻译词条注入完成，模板语法缺陷已全部校正！");
 ' "$EP_DIR"
 
 echo "🔄 [3/3] 优雅平滑重启 Etherpad 进程使翻译生效..."
