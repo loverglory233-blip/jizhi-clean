@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2733";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2733";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2733";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2734";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2734";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2734";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -2865,7 +2865,18 @@ function renderStage3Canvas(canvas, state, handlers) {
   const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
   
   const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-  const currUserCode = currUser?.id || state.currentUser || 'A';
+  const currUserCode = currUser?.id || currUser?.studentCode || state.currentUser || 'A';
+  let currUserName = currUser?.name || '';
+  if (!currUserName && state.members && (state.members[currUserCode]?.name || state.members[state.currentUser]?.name)) {
+    currUserName = state.members[currUserCode]?.name || state.members[state.currentUser]?.name || '';
+  }
+  if (!currUserName && window.app && window.app.authManager) {
+    const matchedUser = window.app.authManager.findUserByKey ? window.app.authManager.findUserByKey(currUserCode) : window.app.authManager.getUsers().find(u => u && (u.id === currUserCode || u.studentCode === currUserCode));
+    if (matchedUser && matchedUser.name) currUserName = matchedUser.name;
+  }
+  if (!currUserName) currUserName = currUserCode || '组员';
+  const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
+
   const confirmedRevMap = s3.confirmedMembers || {};
   const confirmedRevCount = membersList.filter(m => isMemberDone(confirmedRevMap, m)).length;
   const isUserRevisionConfirmed = isMemberDone(confirmedRevMap, currUser || currUserCode);
@@ -3202,18 +3213,6 @@ function renderStage3Canvas(canvas, state, handlers) {
           }
 
           const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
-          const currUserCode = currUser?.id || currUser?.studentCode || state.currentUser || '';
-          let currUserName = currUser?.name || '';
-          if (!currUserName && state.members && (state.members[currUserCode]?.name || state.members[state.currentUser]?.name)) {
-            currUserName = state.members[currUserCode]?.name || state.members[state.currentUser]?.name || '';
-          }
-          if (!currUserName && window.app && window.app.authManager) {
-            const matchedUser = window.app.authManager.findUserByKey ? window.app.authManager.findUserByKey(currUserCode) : window.app.authManager.getUsers().find(u => u && (u.id === currUserCode || u.studentCode === currUserCode));
-            if (matchedUser && matchedUser.name) currUserName = matchedUser.name;
-          }
-          if (!currUserName) currUserName = currUserCode || '组员';
-          const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
-
           const isEditorReadonly = isTaskDeadlineExpired || isFinalSubmitted || !!(window.app && window.app.isViewingPastStage);
 
           const targetPad = rawPadName;

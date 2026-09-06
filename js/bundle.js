@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2733
+ * Version: 20260907_v2734
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2733';
+  const APP_VERSION = '20260907_v2734';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14325,7 +14325,18 @@
     const totalCount = (membersList && membersList.length > 0) ? membersList.length : 1;
 
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-    const currUserCode = currUser?.id || state.currentUser || 'A';
+    const currUserCode = currUser?.id || currUser?.studentCode || state.currentUser || 'A';
+    let currUserName = currUser?.name || '';
+    if (!currUserName && state.members && (state.members[currUserCode]?.name || state.members[state.currentUser]?.name)) {
+      currUserName = state.members[currUserCode]?.name || state.members[state.currentUser]?.name || '';
+    }
+    if (!currUserName && window.app && window.app.authManager) {
+      const matchedUser = window.app.authManager.findUserByKey ? window.app.authManager.findUserByKey(currUserCode) : window.app.authManager.getUsers().find(u => u && (u.id === currUserCode || u.studentCode === currUserCode));
+      if (matchedUser && matchedUser.name) currUserName = matchedUser.name;
+    }
+    if (!currUserName) currUserName = currUserCode || '组员';
+    const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
+
     const confirmedRevMap = s3.confirmedMembers || {};
     const confirmedRevCount = membersList.filter(m => isMemberDone(confirmedRevMap, m)).length;
     const isUserRevisionConfirmed = isMemberDone(confirmedRevMap, currUser || currUserCode);
@@ -14662,18 +14673,6 @@
             }
 
             const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
-            const currUserCode = currUser?.id || currUser?.studentCode || state.currentUser || '';
-            let currUserName = currUser?.name || '';
-            if (!currUserName && state.members && (state.members[currUserCode]?.name || state.members[state.currentUser]?.name)) {
-              currUserName = state.members[currUserCode]?.name || state.members[state.currentUser]?.name || '';
-            }
-            if (!currUserName && window.app && window.app.authManager) {
-              const matchedUser = window.app.authManager.findUserByKey ? window.app.authManager.findUserByKey(currUserCode) : window.app.authManager.getUsers().find(u => u && (u.id === currUserCode || u.studentCode === currUserCode));
-              if (matchedUser && matchedUser.name) currUserName = matchedUser.name;
-            }
-            if (!currUserName) currUserName = currUserCode || '组员';
-            const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
-
             const isEditorReadonly = isTaskDeadlineExpired || isFinalSubmitted || !!(window.app && window.app.isViewingPastStage);
 
             const targetPad = rawPadName;
