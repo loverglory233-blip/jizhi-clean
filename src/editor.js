@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2709";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2709";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2709";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2710";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2710";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2710";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -2692,7 +2692,17 @@ function renderStage2Canvas(canvas, state, handlers) {
 }
 
 function renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitted) {
+  const isReadOnly = (typeof window.app?.isCurrentTaskReadOnly === 'function') && window.app.isCurrentTaskReadOnly();
   if (state.stage3CommitteeLoading || !s3.feedbackItems || s3.feedbackItems.length === 0) {
+    if (isReadOnly) {
+      return `
+        <div style="background:#fff1f2; border:1.5px solid #fecdd3; border-radius:12px; padding:32px 24px; text-align:center; box-shadow:0 4px 12px rgba(225,29,72,0.06);">
+          <div style="font-size:36px; margin-bottom:12px;">⏰</div>
+          <div style="font-size:16px; font-weight:800; color:#be123c; margin-bottom:6px;">当前写作任务已截止，处于只读模式</div>
+          <div style="font-size:13px; color:#64748b; line-height:1.6;">答辩评审委员会专家需要开放编辑权限方可进行通读审阅。<br>如需继续推进答辩，请任课教师在管理后台点击【⏱️ 调整任务截止时间】顺延任务！</div>
+        </div>
+      `;
+    }
     return `
       <div style="background:#ffffff; border:1px solid #bfdbfe; border-radius:12px; padding:36px 24px; text-align:center; box-shadow:0 4px 12px rgba(37,99,235,0.06);">
         <div style="font-size:36px; margin-bottom:12px;">⏳</div>

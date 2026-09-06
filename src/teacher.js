@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260906_v2709";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260906_v2709";
+} from "./constants.js?v=20260906_v2710";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260906_v2710";
 
 export const getPanoGroupData = (pano, gid) => {
   if (!pano || typeof pano !== 'object' || !gid) return null;
@@ -3432,8 +3432,11 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
             </div>
 
             <div style="display:flex; flex-direction:column; gap:6px;">
-              <label style="font-size:12.5px; font-weight:700; color:#334155;">📅 指定新的截止时间：</label>
-              <input type="datetime-local" id="input-extend-deadline" class="teacher-input fancy" value="${formatLocalDateForInput(new Date(baseDate.getTime() + 60 * 60 * 1000))}" style="width:100%; font-size:13px; padding:9px 12px; border:1.5px solid #cbd5e1; border-radius:8px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:12.5px; font-weight:700; color:#334155;">📅 指定新的截止时间：</label>
+                <span id="extend-delta-badge" style="font-size:11.5px; font-weight:700; color:#64748b; background:#f1f5f9; padding:2px 8px; border-radius:10px;">未做改动</span>
+              </div>
+              <input type="datetime-local" id="input-extend-deadline" class="teacher-input fancy" value="${formatLocalDateForInput(baseDate)}" style="width:100%; font-size:13px; padding:9px 12px; border:1.5px solid #cbd5e1; border-radius:8px;">
             </div>
           </div>
           <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
@@ -3449,12 +3452,50 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
       modal.querySelector('#btn-cancel-extend').addEventListener('click', closeModal);
 
       const dlInput = modal.querySelector('#input-extend-deadline');
+      const deltaBadge = modal.querySelector('#extend-delta-badge');
 
-      let lastAddedMins = 60;
+      const updateDeltaBadge = () => {
+        if (!dlInput || !deltaBadge) return;
+        const curVal = dlInput.value;
+        if (!curVal) {
+          deltaBadge.innerText = '请选择时间';
+          deltaBadge.style.color = '#ef4444';
+          deltaBadge.style.background = '#fee2e2';
+          return;
+        }
+        const curTime = new Date(curVal).getTime();
+        const baseTime = baseDate.getTime();
+        const diffMins = Math.round((curTime - baseTime) / 60000);
+        if (diffMins === 0) {
+          deltaBadge.innerText = '未做改动';
+          deltaBadge.style.color = '#64748b';
+          deltaBadge.style.background = '#f1f5f9';
+        } else if (diffMins > 0) {
+          const hrs = Math.floor(diffMins / 60);
+          const remainMins = diffMins % 60;
+          let diffStr = hrs > 0 ? (remainMins > 0 ? `${hrs}小时${remainMins}分` : `${hrs}小时`) : `${remainMins}分钟`;
+          deltaBadge.innerText = `较当前顺延 +${diffStr}`;
+          deltaBadge.style.color = '#15803d';
+          deltaBadge.style.background = '#dcfce7';
+        } else {
+          const absMins = Math.abs(diffMins);
+          const hrs = Math.floor(absMins / 60);
+          const remainMins = absMins % 60;
+          let diffStr = hrs > 0 ? (remainMins > 0 ? `${hrs}小时${remainMins}分` : `${hrs}小时`) : `${remainMins}分钟`;
+          deltaBadge.innerText = `较当前提前 -${diffStr}`;
+          deltaBadge.style.color = '#be123c';
+          deltaBadge.style.background = '#ffe4e6';
+        }
+      };
+
+      dlInput.addEventListener('input', updateDeltaBadge);
+      dlInput.addEventListener('change', updateDeltaBadge);
+
+      let lastAddedMins = 0;
       modal.querySelectorAll('.btn-quick-extend').forEach(qBtn => {
         qBtn.addEventListener('click', () => {
           const mins = parseInt(qBtn.dataset.mins, 10);
-          lastAddedMins = mins;
+          lastAddedMins += mins;
           // 基于当前输入框中的时间进行加减，实现连加连减
           let curDate = new Date();
           if (dlInput && dlInput.value) {
@@ -3465,6 +3506,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
           }
           const newD = new Date(curDate.getTime() + mins * 60 * 1000);
           dlInput.value = formatLocalDateForInput(newD);
+          updateDeltaBadge();
           dlInput.style.borderColor = mins >= 0 ? '#0284c7' : '#be123c';
           setTimeout(() => { if (dlInput) dlInput.style.borderColor = '#cbd5e1'; }, 400);
         });
