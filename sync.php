@@ -2928,21 +2928,26 @@ if (($action === 'send_chat' || $action === 'send_chat_message') && $_SERVER['RE
             }
 
             // 🛡️ 智能体里程碑与通用连击重复幂等守护：
-            // 如果本组本阶段相同发送者在 60 秒内已经发送过一模一样的内容，坚决拒绝重复入库！
-            $chkDupStmt = $pdo->prepare("SELECT id FROM chat_messages WHERE scope_key = :sk AND stage = :stg AND sender = :snd AND text = :txt AND time_ms >= :since LIMIT 1");
-            $chkDupStmt->execute([':sk' => $scopeKey, ':stg' => $stage, ':snd' => $snd, ':txt' => $txt, ':since' => $tms - 60000]);
-            if ($chkDupStmt->fetch()) {
-                echo json_encode(['success' => true, 'timestamp' => $nowMs, 'dedup' => true]);
-                exit;
-            }
-
-            // 🛡️ 阶段三正反方专家评审全局唯一单例：
-            if ($stage === 'stage3' && in_array($snd, ['proponent', 'opponent'])) {
-                $chkS3Stmt = $pdo->prepare("SELECT id FROM chat_messages WHERE scope_key = :sk AND stage = 'stage3' AND sender = :snd LIMIT 1");
-                $chkS3Stmt->execute([':sk' => $scopeKey, ':snd' => $snd]);
-                if ($chkS3Stmt->fetch()) {
+            // 仅对 AI 智能体开启同内容排重与阶段三单例防护，真实学生自由研讨发言（如连续发"收到"、"好的"、"1"等）绝对不作任何内容拦截！
+            $isAiSender = (
+                in_array($snd, ['auctioneer', 'managingEditor', 'reviewingEditor', 'neutral', 'proponent', 'opponent', 'architect', 'analyst', 'editor', 'challenger', 'chair', 'system'])
+                || strpos($snd, 'agent_') === 0
+            );
+            if ($isAiSender) {
+                $chkDupStmt = $pdo->prepare("SELECT id FROM chat_messages WHERE scope_key = :sk AND stage = :stg AND sender = :snd AND text = :txt AND time_ms >= :since LIMIT 1");
+                $chkDupStmt->execute([':sk' => $scopeKey, ':stg' => $stage, ':snd' => $snd, ':txt' => $txt, ':since' => $tms - 60000]);
+                if ($chkDupStmt->fetch()) {
                     echo json_encode(['success' => true, 'timestamp' => $nowMs, 'dedup' => true]);
                     exit;
+                }
+
+                if ($stage === 'stage3' && in_array($snd, ['proponent', 'opponent'])) {
+                    $chkS3Stmt = $pdo->prepare("SELECT id FROM chat_messages WHERE scope_key = :sk AND stage = 'stage3' AND sender = :snd LIMIT 1");
+                    $chkS3Stmt->execute([':sk' => $scopeKey, ':snd' => $snd]);
+                    if ($chkS3Stmt->fetch()) {
+                        echo json_encode(['success' => true, 'timestamp' => $nowMs, 'dedup' => true]);
+                        exit;
+                    }
                 }
             }
 
