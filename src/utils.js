@@ -572,12 +572,18 @@ export function filterAndDeduplicateChatLogs(messages) {
     const sender = String(m.sender || '');
     const isAgent = (
       sender.startsWith('agent_') || 
-      ['managingEditor', 'reviewingEditor', 'auctioneer', 'architect', 'analyst', 'editor', 'challenger', 'chair', 'system'].includes(sender) ||
+      ['managingEditor', 'reviewingEditor', 'auctioneer', 'architect', 'analyst', 'editor', 'challenger', 'chair', 'system', 'proponent', 'opponent', 'neutral'].includes(sender) ||
       txt.includes('【责任编辑') ||
       txt.includes('【审稿编辑') ||
       txt.includes('【学术拍卖师') ||
       txt.includes('【结构架构师') ||
-      txt.includes('【论证分析师')
+      txt.includes('【论证分析师') ||
+      txt.includes('【正方委员') ||
+      txt.includes('【正方专家') ||
+      txt.includes('【反方委员') ||
+      txt.includes('【反方专家') ||
+      txt.includes('【答辩主席') ||
+      txt.includes('【中间委员')
     );
 
     // 1. 智能体连发防重：智能体若因多端并发/网络重试/定时器连发了同类型的里程碑意见，自动去重仅保留 1 条
@@ -622,7 +628,7 @@ export function filterAndDeduplicateChatLogs(messages) {
         seenAgentOpenings.add('stage1_tasks_done_singleton');
       }
 
-      // 🛡️ 关键里程碑消息单例防护：同一阶段内同类型里程碑全局严格仅保留第一条
+      // 🛡️ 阶段二关键里程碑消息单例防护：同一阶段内同类型里程碑全局严格仅保留第一条
       const isFirstReview = sender === 'reviewingEditor' && (txt.includes('一审破题把脉') || txt.includes('初审破题把脉') || txt.includes('一审破题') || txt.includes('初审质检'));
       if (isFirstReview) {
         if (seenAgentOpenings.has('stage2_first_review_singleton')) continue;
@@ -640,6 +646,31 @@ export function filterAndDeduplicateChatLogs(messages) {
         const greetKey = `stage2_opening_${sender}`;
         if (seenAgentOpenings.has(greetKey)) continue;
         seenAgentOpenings.add(greetKey);
+      }
+
+      // 🛡️ 阶段三关键里程碑消息单例防护：
+      const isStage3Prop = (sender === 'proponent') || (txt.includes('立论支持') || txt.includes('肯定支持') || txt.includes('正方委员') || txt.includes('正方专家'));
+      if (isStage3Prop && (txt.includes('立论支持') || txt.includes('肯定支持') || txt.includes('正方') || txt.includes('通读草稿') || txt.includes('通读全篇'))) {
+        if (seenAgentOpenings.has('stage3_prop_singleton')) continue;
+        seenAgentOpenings.add('stage3_prop_singleton');
+      }
+
+      const isStage3Opp = (sender === 'opponent') || (txt.includes('商讨质询') || txt.includes('针对实质询') || txt.includes('尖锐质询') || txt.includes('反方委员') || txt.includes('反方专家'));
+      if (isStage3Opp && (txt.includes('商讨质询') || txt.includes('针对实质询') || txt.includes('尖锐质询') || txt.includes('反方'))) {
+        if (seenAgentOpenings.has('stage3_opp_singleton')) continue;
+        seenAgentOpenings.add('stage3_opp_singleton');
+      }
+
+      const isStage3NeutralWelcome = (sender === 'neutral') && (txt.includes('开场') || txt.includes('欢迎来到【阶段三') || txt.includes('答辩评审委员会已就位'));
+      if (isStage3NeutralWelcome) {
+        if (seenAgentOpenings.has('stage3_neutral_welcome_singleton')) continue;
+        seenAgentOpenings.add('stage3_neutral_welcome_singleton');
+      }
+
+      const isStage3ChairGuide = (sender === 'neutral') && (txt.includes('答辩思路引导') || txt.includes('主席思路引导'));
+      if (isStage3ChairGuide) {
+        if (seenAgentOpenings.has('stage3_chair_guide_singleton')) continue;
+        seenAgentOpenings.add('stage3_chair_guide_singleton');
       }
 
       // 🛡️ 阶段一防过期投票提示：若已有投票结果或方案研讨指引，任何投票催促提示均视作过期残渣丢弃

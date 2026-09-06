@@ -2927,6 +2927,25 @@ if (($action === 'send_chat' || $action === 'send_chat_message') && $_SERVER['RE
                 }
             }
 
+            // 🛡️ 智能体里程碑与通用连击重复幂等守护：
+            // 如果本组本阶段相同发送者在 60 秒内已经发送过一模一样的内容，坚决拒绝重复入库！
+            $chkDupStmt = $pdo->prepare("SELECT id FROM chat_messages WHERE scope_key = :sk AND stage = :stg AND sender = :snd AND text = :txt AND time_ms >= :since LIMIT 1");
+            $chkDupStmt->execute([':sk' => $scopeKey, ':stg' => $stage, ':snd' => $snd, ':txt' => $txt, ':since' => $tms - 60000]);
+            if ($chkDupStmt->fetch()) {
+                echo json_encode(['success' => true, 'timestamp' => $nowMs, 'dedup' => true]);
+                exit;
+            }
+
+            // 🛡️ 阶段三正反方专家评审全局唯一单例：
+            if ($stage === 'stage3' && in_array($snd, ['proponent', 'opponent'])) {
+                $chkS3Stmt = $pdo->prepare("SELECT id FROM chat_messages WHERE scope_key = :sk AND stage = 'stage3' AND sender = :snd LIMIT 1");
+                $chkS3Stmt->execute([':sk' => $scopeKey, ':snd' => $snd]);
+                if ($chkS3Stmt->fetch()) {
+                    echo json_encode(['success' => true, 'timestamp' => $nowMs, 'dedup' => true]);
+                    exit;
+                }
+            }
+
             // 1. 行级插入 chat_messages 表 (零崩溃兼容 sender_name)
             $sndName = isset($msgItem['senderName']) ? $msgItem['senderName'] : (isset($msgItem['sender_name']) ? $msgItem['sender_name'] : '');
             try {

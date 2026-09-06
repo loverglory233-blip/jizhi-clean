@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2739";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260907_v2739";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2739";
-import { AuthManager } from "./auth.js?v=20260907_v2739";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2739";
-import { renderLoginView } from "./login.js?v=20260907_v2739";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2739";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2739";
+} from "./constants.js?v=20260907_v2740";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260907_v2740";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2740";
+import { AuthManager } from "./auth.js?v=20260907_v2740";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2740";
+import { renderLoginView } from "./login.js?v=20260907_v2740";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2740";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2740";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2739";
+} from "./editor.js?v=20260907_v2740";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -620,6 +620,7 @@ export class App {
     if (!msg.id) msg.id = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
     if (!msg._timeMs) msg._timeMs = Date.now();
     if (!msg.timestamp) msg.timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    msg._hasSentToServer = true;
 
     // 🛡️ 稳健补齐发送者姓名
     let resolvedSenderName = msg.senderName || '';
@@ -6376,16 +6377,16 @@ ${chatSnippet}
       const hasNeutralIntro = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('欢迎来到【阶段三') || m.text?.includes('开场')));
       if (!hasNeutralIntro) {
         const neutralWelcome = {
-          id: `msg_s3_neutral_welcome_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+          id: `msg_s3_neutral_welcome_${this.state.activeGroupId || 'grp'}_${this.state.activeTaskId || 'tsk'}`,
           sender: 'neutral',
           senderName: chairName,
           text: `🟡 【${chairShort}开场】：各位${isInst ? '备课教师' : '研究者'}，欢迎来到【${stage3Title}】！初稿撰写完毕，答辩评审委员会已就位。正反两方评审专家正在通读审阅全篇${docName}，请大家稍候！`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now()
+          _timeMs: Date.now(),
+          _hasSentToServer: true
         };
         logs.unshift(neutralWelcome);
         this.sendSingleChatMessage(neutralWelcome, 'stage3');
-        this.syncChatLogs();
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
       }
 
@@ -6490,11 +6491,13 @@ ${chatSnippet}
 
         if (!hasProp) {
           const propMsg = {
+            id: `msg_s3_prop_${this.state.activeGroupId || 'grp'}_${this.state.activeTaskId || 'tsk'}`,
             sender: 'proponent',
             senderName: isInst ? '肯定支持 · 正方专家' : '立论支持 · 正方委员',
             text: propText,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now()
+            _timeMs: Date.now(),
+            _hasSentToServer: true
           };
           logs.push(propMsg);
           this.sendSingleChatMessage(propMsg, 'stage3');
@@ -6502,17 +6505,18 @@ ${chatSnippet}
 
         if (!hasOpp) {
           const oppMsg = {
+            id: `msg_s3_opp_${this.state.activeGroupId || 'grp'}_${this.state.activeTaskId || 'tsk'}`,
             sender: 'opponent',
             senderName: isInst ? '针对实质询 · 反方专家' : '学术质询 · 反方委员',
             text: oppText,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now() + 500
+            _timeMs: Date.now() + 500,
+            _hasSentToServer: true
           };
           logs.push(oppMsg);
           this.sendSingleChatMessage(oppMsg, 'stage3');
         }
 
-        this.syncChatLogs();
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
       } else {
         const existingProp = logs.find(m => m && m.sender === 'proponent');
