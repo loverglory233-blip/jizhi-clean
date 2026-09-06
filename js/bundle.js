@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2708
+ * Version: 20260906_v2709
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2708';
+  const APP_VERSION = '20260906_v2709';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -15341,19 +15341,27 @@
             }
           });
         } else if (!hasReviewingIssued) {
-          const count = isDoneHelper(confs.s2_managing);
-          const isMe = isMyDoneHelper(confs.s2_managing);
-          const isFull = count >= totalCount && totalCount > 0;
-          actionBar.innerHTML = `
-            <button id="btn-s2-managing-summary" style="background:${isFull ? 'linear-gradient(135deg, #059669, #047857)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)')}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
-              ${isFull ? `⚡ 全员已确认 (${count}/${totalCount}) · 点击让${managingTitle}总结` : (isMe ? `✅ 您已确认总结共识 (${count}/${totalCount} 等待组员)` : `🤝 讨论差不多了？让${managingTitle}总结 (${count}/${totalCount})`)}
-            </button>
-          `;
-          actionBar.querySelector('#btn-s2-managing-summary')?.addEventListener('click', () => {
-            if (window.app && typeof window.app.handleS2ManagingSummary === 'function') {
-              window.app.handleS2ManagingSummary();
-            }
-          });
+          if (s2.hasMeetingDivergence === false) {
+            actionBar.innerHTML = `
+              <div style="background:#f8fafc; border:1px solid #e2e8f0; color:#059669; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(5,150,105,0.08);">
+                ✨ 全组自查高度一致！${reviewingTitle}正在通读草稿下发二审诊断意见与《修正清单》...
+              </div>
+            `;
+          } else {
+            const count = isDoneHelper(confs.s2_managing);
+            const isMe = isMyDoneHelper(confs.s2_managing);
+            const isFull = count >= totalCount && totalCount > 0;
+            actionBar.innerHTML = `
+              <button id="btn-s2-managing-summary" style="background:${isFull ? 'linear-gradient(135deg, #059669, #047857)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)')}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
+                ${isFull ? `⚡ 全员已确认 (${count}/${totalCount}) · 点击让${managingTitle}总结` : (isMe ? `✅ 您已确认总结共识 (${count}/${totalCount} 等待组员)` : `🤝 讨论差不多了？让${managingTitle}总结 (${count}/${totalCount})`)}
+              </button>
+            `;
+            actionBar.querySelector('#btn-s2-managing-summary')?.addEventListener('click', () => {
+              if (window.app && typeof window.app.handleS2ManagingSummary === 'function') {
+                window.app.handleS2ManagingSummary();
+              }
+            });
+          }
         } else {
           const count = isDoneHelper(confs.s2_reviewing);
           const isMe = isMyDoneHelper(confs.s2_reviewing);
@@ -23861,22 +23869,30 @@
   （纯自然语言输出，120~150字，【绝对严禁出现“分工”字眼】）`;
 
         let managingText = '';
-        try {
-          managingText = await callCozeAgentAPI('managingEditor', managingPrompt, {
-            stage: 'stage2',
-            topic,
-            bottleneck: primaryAcademicB,
-            taskType,
-            milestoneKey: 'stage2_meeting_divergence',
-            scopeKey: this.getGroupScopeKey()
-          });
-        } catch (e) {
-          console.warn('managingEditor divergence analysis error:', e);
-        } finally {
+        if (!hasDivergence) {
+          // 🌟 无分歧模式：全员高度协调一致，直接发表肯定与引荐寄语，跳过责任编辑总结
+          managingText = isInst
+            ? `🤝 【备课组长·半程自查研判】：🎉 各位老师，集体备课自查互阅打卡已全员完成！经过数据综合研判，全篇教案在三维教学目标、新知探究活动与语体规范上口径统一、前后贯通，未发现教学环节脱节或目标偏离！全组备课推进非常扎实顺利，无需在讨论区停滞对齐，下面直接有请教研专家通读全篇教学设计，为大家进行深度教研质检，下发磨课诊断意见与《磨课修正清单》！`
+            : `🤝 【责任编辑·半程自查研判】：🎉 各位研究者，全组半程自查互阅打卡已全员完成！经过数据综合研判，全篇各章节在论题立意、论证衔接与学术语体上高度协调一致，未发现明显的前后脱节或构思偏离！全组当前的写作推进非常扎实，无需在讨论区停滞对齐，下面直接有请审稿编辑通读全文草稿，为大家进行深度学术质检，下发二审诊断意见与《二审修正清单》！`;
           this.setActiveAgentAnalyzing(null);
-        }
-        if (!managingText || managingText.trim().length === 0) {
-          managingText = `🤝 【${managingName}·网络提醒】：📡 正在深度分析全组自查打卡与分歧，网络连接稍有延迟未能获取到即时研判。<br><button class="btn-retry-ai" onclick="window.app.showMeetingModal()" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成自查研判与对齐引导</button>`;
+        } else {
+          try {
+            managingText = await callCozeAgentAPI('managingEditor', managingPrompt, {
+              stage: 'stage2',
+              topic,
+              bottleneck: primaryAcademicB,
+              taskType,
+              milestoneKey: 'stage2_meeting_divergence',
+              scopeKey: this.getGroupScopeKey()
+            });
+          } catch (e) {
+            console.warn('managingEditor divergence analysis error:', e);
+          } finally {
+            this.setActiveAgentAnalyzing(null);
+          }
+          if (!managingText || managingText.trim().length === 0) {
+            managingText = `🤝 【${managingName}·网络提醒】：📡 正在深度分析全组自查打卡与分歧，网络连接稍有延迟未能获取到即时研判。<br><button class="btn-retry-ai" onclick="window.app.showMeetingModal()" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成自查研判与对齐引导</button>`;
+          }
         }
 
         const managingMsg = {
@@ -23907,6 +23923,16 @@
         this.state.stage2PendingReviewing = this.state.stage2.pendingReviewing;
         this.syncStage2();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+
+        // 🌟 无分歧时自动无缝交棒给审稿编辑（教研专家）：先出二审问题建议，再装配半程清单卡片，跳过责任编辑总结
+        if (!hasDivergence) {
+          const directHandoverText = isInst
+            ? `🤝 【备课组长·一致性研判】：全组备课目标与活动设计高度契合一致，直接交棒教研专家通读全篇进行深度磨课质检！`
+            : `🤝 【责任编辑·一致性研判】：全篇立意与章节逻辑高度协同连贯，直接交棒审稿专家通读全篇进行深度学术质检！`;
+          setTimeout(() => {
+            this.triggerReviewingEditorAfterDiscussion(directHandoverText);
+          }, 800);
+        }
       });
     }
 

@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2708";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2708";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2708";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260906_v2709";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2709";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260906_v2709";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -3904,19 +3904,27 @@ export function renderChatActionBar(state) {
           }
         });
       } else if (!hasReviewingIssued) {
-        const count = isDoneHelper(confs.s2_managing);
-        const isMe = isMyDoneHelper(confs.s2_managing);
-        const isFull = count >= totalCount && totalCount > 0;
-        actionBar.innerHTML = `
-          <button id="btn-s2-managing-summary" style="background:${isFull ? 'linear-gradient(135deg, #059669, #047857)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)')}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
-            ${isFull ? `⚡ 全员已确认 (${count}/${totalCount}) · 点击让${managingTitle}总结` : (isMe ? `✅ 您已确认总结共识 (${count}/${totalCount} 等待组员)` : `🤝 讨论差不多了？让${managingTitle}总结 (${count}/${totalCount})`)}
-          </button>
-        `;
-        actionBar.querySelector('#btn-s2-managing-summary')?.addEventListener('click', () => {
-          if (window.app && typeof window.app.handleS2ManagingSummary === 'function') {
-            window.app.handleS2ManagingSummary();
-          }
-        });
+        if (s2.hasMeetingDivergence === false) {
+          actionBar.innerHTML = `
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; color:#059669; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(5,150,105,0.08);">
+              ✨ 全组自查高度一致！${reviewingTitle}正在通读草稿下发二审诊断意见与《修正清单》...
+            </div>
+          `;
+        } else {
+          const count = isDoneHelper(confs.s2_managing);
+          const isMe = isMyDoneHelper(confs.s2_managing);
+          const isFull = count >= totalCount && totalCount > 0;
+          actionBar.innerHTML = `
+            <button id="btn-s2-managing-summary" style="background:${isFull ? 'linear-gradient(135deg, #059669, #047857)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)')}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
+              ${isFull ? `⚡ 全员已确认 (${count}/${totalCount}) · 点击让${managingTitle}总结` : (isMe ? `✅ 您已确认总结共识 (${count}/${totalCount} 等待组员)` : `🤝 讨论差不多了？让${managingTitle}总结 (${count}/${totalCount})`)}
+            </button>
+          `;
+          actionBar.querySelector('#btn-s2-managing-summary')?.addEventListener('click', () => {
+            if (window.app && typeof window.app.handleS2ManagingSummary === 'function') {
+              window.app.handleS2ManagingSummary();
+            }
+          });
+        }
       } else {
         const count = isDoneHelper(confs.s2_reviewing);
         const isMe = isMyDoneHelper(confs.s2_reviewing);

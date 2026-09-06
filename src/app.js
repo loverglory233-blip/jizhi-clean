@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2708";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2708";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2708";
-import { AuthManager } from "./auth.js?v=20260906_v2708";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2708";
-import { renderLoginView } from "./login.js?v=20260906_v2708";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2708";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2708";
+} from "./constants.js?v=20260906_v2709";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2709";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2709";
+import { AuthManager } from "./auth.js?v=20260906_v2709";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2709";
+import { renderLoginView } from "./login.js?v=20260906_v2709";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2709";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2709";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2708";
+} from "./editor.js?v=20260906_v2709";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -8413,22 +8413,30 @@ ${contentSnippet}
 （纯自然语言输出，120~150字，【绝对严禁出现“分工”字眼】）`;
 
       let managingText = '';
-      try {
-        managingText = await callCozeAgentAPI('managingEditor', managingPrompt, {
-          stage: 'stage2',
-          topic,
-          bottleneck: primaryAcademicB,
-          taskType,
-          milestoneKey: 'stage2_meeting_divergence',
-          scopeKey: this.getGroupScopeKey()
-        });
-      } catch (e) {
-        console.warn('managingEditor divergence analysis error:', e);
-      } finally {
+      if (!hasDivergence) {
+        // 🌟 无分歧模式：全员高度协调一致，直接发表肯定与引荐寄语，跳过责任编辑总结
+        managingText = isInst
+          ? `🤝 【备课组长·半程自查研判】：🎉 各位老师，集体备课自查互阅打卡已全员完成！经过数据综合研判，全篇教案在三维教学目标、新知探究活动与语体规范上口径统一、前后贯通，未发现教学环节脱节或目标偏离！全组备课推进非常扎实顺利，无需在讨论区停滞对齐，下面直接有请教研专家通读全篇教学设计，为大家进行深度教研质检，下发磨课诊断意见与《磨课修正清单》！`
+          : `🤝 【责任编辑·半程自查研判】：🎉 各位研究者，全组半程自查互阅打卡已全员完成！经过数据综合研判，全篇各章节在论题立意、论证衔接与学术语体上高度协调一致，未发现明显的前后脱节或构思偏离！全组当前的写作推进非常扎实，无需在讨论区停滞对齐，下面直接有请审稿编辑通读全文草稿，为大家进行深度学术质检，下发二审诊断意见与《二审修正清单》！`;
         this.setActiveAgentAnalyzing(null);
-      }
-      if (!managingText || managingText.trim().length === 0) {
-        managingText = `🤝 【${managingName}·网络提醒】：📡 正在深度分析全组自查打卡与分歧，网络连接稍有延迟未能获取到即时研判。<br><button class="btn-retry-ai" onclick="window.app.showMeetingModal()" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成自查研判与对齐引导</button>`;
+      } else {
+        try {
+          managingText = await callCozeAgentAPI('managingEditor', managingPrompt, {
+            stage: 'stage2',
+            topic,
+            bottleneck: primaryAcademicB,
+            taskType,
+            milestoneKey: 'stage2_meeting_divergence',
+            scopeKey: this.getGroupScopeKey()
+          });
+        } catch (e) {
+          console.warn('managingEditor divergence analysis error:', e);
+        } finally {
+          this.setActiveAgentAnalyzing(null);
+        }
+        if (!managingText || managingText.trim().length === 0) {
+          managingText = `🤝 【${managingName}·网络提醒】：📡 正在深度分析全组自查打卡与分歧，网络连接稍有延迟未能获取到即时研判。<br><button class="btn-retry-ai" onclick="window.app.showMeetingModal()" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成自查研判与对齐引导</button>`;
+        }
       }
 
       const managingMsg = {
@@ -8459,6 +8467,16 @@ ${contentSnippet}
       this.state.stage2PendingReviewing = this.state.stage2.pendingReviewing;
       this.syncStage2();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+
+      // 🌟 无分歧时自动无缝交棒给审稿编辑（教研专家）：先出二审问题建议，再装配半程清单卡片，跳过责任编辑总结
+      if (!hasDivergence) {
+        const directHandoverText = isInst
+          ? `🤝 【备课组长·一致性研判】：全组备课目标与活动设计高度契合一致，直接交棒教研专家通读全篇进行深度磨课质检！`
+          : `🤝 【责任编辑·一致性研判】：全篇立意与章节逻辑高度协同连贯，直接交棒审稿专家通读全篇进行深度学术质检！`;
+        setTimeout(() => {
+          this.triggerReviewingEditorAfterDiscussion(directHandoverText);
+        }, 800);
+      }
     });
   }
 
