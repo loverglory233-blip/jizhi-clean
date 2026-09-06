@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2742";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2742";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2742";
-import { AuthManager } from "./auth.js?v=20260907_v2742";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2742";
-import { renderLoginView } from "./login.js?v=20260907_v2742";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2742";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2742";
+} from "./constants.js?v=20260907_v2743";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2743";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2743";
+import { AuthManager } from "./auth.js?v=20260907_v2743";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2743";
+import { renderLoginView } from "./login.js?v=20260907_v2743";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2743";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2743";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2742";
+} from "./editor.js?v=20260907_v2743";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5074,10 +5074,6 @@ ${chatSnippet}
         return;
       }
 
-    if (typeof showGlobalBannerNotice === 'function') {
-      showGlobalBannerNotice('⏳ 正在一键智能生成全套公约草案...', '拍卖师正在分析全组投票后的全部讨论，一一对应提炼课题方案、时间规划与成员分工...', 'info', 4000);
-    }
-
     let members = [];
     if (Array.isArray(this.state.members)) members = this.state.members;
     else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
@@ -5115,10 +5111,6 @@ ${chatSnippet}
       isExtracting: true,
       detail: `${agentRole}正在分析讨论区全量研讨记录，一键智能生成《${contractTitle}草案》...`
     });
-
-    if (typeof showGlobalBannerNotice === 'function') {
-      showGlobalBannerNotice(`⏳ 正在一键智能生成全套${contractTitle}草案...`, `${agentRole}正在分析全组投票后的全部讨论，一一对应提炼课题方案、时间规划与成员分工...`, 'info', 4000);
-    }
 
     const defaultTasks = isInst ? [
       '负责“一、教材与学情分析”及“二、教学目标与重难点”起草',
@@ -5925,9 +5917,6 @@ ${chatSnippet}
           _timeMs: Date.now() + 100
         };
         this.state.chatLogs.stage3.push(msg);
-        if (typeof showGlobalBannerNotice === 'function') {
-          showGlobalBannerNotice('🎯 终稿修改指南已提炼就绪！', '【答辩终审裁决与修改指南】已下发至讨论区，请对照要点完善终稿！', 'success', 6000);
-        }
       } else {
         // ⚠️ 生成遇阻：给出重试网络提醒气泡，标记失败状态，供用户随时重试
         s3._revisionSummaryFailed = true;
