@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260907_v2738';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId } from './utils.js?v=20260907_v2738';
+} from './constants.js?v=20260907_v2739';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260907_v2739';
 
 export class AuthManager {
   constructor() {
@@ -733,7 +733,11 @@ export class AuthManager {
       const found = tasks.find(t => isSameId(t.id, targetId) || (t.title && t.title === targetId));
       if (found) return found;
     }
-    return tasks.find(t => !isTaskExpired(t)) || tasks[0] || null;
+    const checkExpired = (typeof isTaskExpired === 'function') ? isTaskExpired : (t => {
+      if (!t || !t.deadline) return false;
+      return new Date(String(t.deadline).replace(/-/g, '/')).getTime() < Date.now();
+    });
+    return tasks.find(t => !checkExpired(t)) || tasks[0] || null;
   }
   getAnnouncements() {
     let announcements = [];
