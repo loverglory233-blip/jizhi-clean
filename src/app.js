@@ -4471,9 +4471,7 @@ ${votedDetails}
       });
 
       const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-      const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('投票结果出炉') || m.text.includes('全票推选') || m.text.includes('投票已完成') || m.text.includes('投票完成') || m.text.includes('投票揭晓') || m.text.includes('公约草案')));
-      const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs;
-      const validUserLogs = relevantLogs.filter(m => {
+      const validUserLogs = s1ChatLogs.filter(m => {
         if (!m || !m.text) return false;
         if (m.isThinking) return false;
         if (m.sender === 'system' || AgentProfiles[m.sender]) return false;
@@ -4719,9 +4717,7 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
       });
 
       const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-      const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('投票结果出炉') || m.text.includes('全票推选') || m.text.includes('投票已完成') || m.text.includes('投票完成') || m.text.includes('投票揭晓') || m.text.includes('公约草案')));
-      const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs;
-      const validUserLogs = relevantLogs.filter(m => {
+      const validUserLogs = s1ChatLogs.filter(m => {
         if (!m || !m.text) return false;
         if (m.isThinking) return false;
         if (m.sender === 'system' || AgentProfiles[m.sender]) return false;
@@ -4962,10 +4958,8 @@ ${chatSnippet}
       else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
 
       const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-      // 💡 局部精准切片：只截取时间预算确立后关于任务分工认领的研讨记录，严格控制 token 花销
-      const timeNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('时间预算确立') || m.text.includes('时间分配') || m.text.includes('分工')));
-      const relevantLogs = (timeNoticeIdx >= 0) ? s1ChatLogs.slice(timeNoticeIdx) : s1ChatLogs.slice(-15);
-      const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !m.text.startsWith('[IMG_DATA]:'));
+      // 🛡️ 提取阶段一组员全部真实研讨记录，杜绝人为截断或丢弃
+      const userLogs = s1ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !String(m.text || '').startsWith('[IMG_DATA]:'));
       const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(l => l.trim().length > 0).join('\n') || '组员正在商定分工';
 
       const membersInfo = members.map(m => `- ${m.name || m.id}`).join('\n');
@@ -5187,11 +5181,9 @@ ${chatSnippet}
     else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
     const membersList = members.filter(Boolean);
 
-    // 1. 💡 局部精准切片：只截取投票结果出炉之后的研讨记录，严格控制 token 花销
+    // 1. 🛡️ 提取阶段一组员全部真实研讨记录，全量透传无截断
     const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-    const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('投票结果出炉') || m.text.includes('全票推选') || m.text.includes('投票已完成') || m.text.includes('投票完成')));
-    const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs.slice(-20);
-    const allUserLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !m.text.startsWith('[IMG_DATA]:'));
+    const allUserLogs = s1ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !String(m.text || '').startsWith('[IMG_DATA]:'));
     const chatSnippet = allUserLogs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(l => l.trim().length > 0).join('\n');
 
     // 抓取小组成员提交的提案详情（包含标题与方案说明）
@@ -5727,10 +5719,8 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
     this._isGeneratingManagingSummary = true;
     try {
       const s2ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
-      const meetingNoticeIdx = s2ChatLogs.findIndex(m => m && m.text && (m.text.includes('半程会议') || m.text.includes('自查') || m.text.includes('修改思路')));
-      const relevantLogs = (meetingNoticeIdx >= 0) ? s2ChatLogs.slice(meetingNoticeIdx) : s2ChatLogs;
-      const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.sender.includes('Editor'));
-      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在围绕论文前后脱节与论证方法深化讨论修改思路';
+      const userLogs = s2ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.sender.includes('Editor') && !m.isThinking && !String(m.text || '').startsWith('[IMG_DATA]:'));
+      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(Boolean).join('\n') || '组员正在围绕论文前后脱节与论证方法深化讨论修改思路';
 
       const subs = s2.meetingSubmissions || {};
       const subValues = Object.values(subs);
@@ -5882,10 +5872,8 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
     this._isGeneratingReviewSummary = true;
     try {
       const s2ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
-      const checklistIdx = s2ChatLogs.findIndex(m => m && m.text && m.text.includes('二审修正清单'));
-      const relevantLogs = (checklistIdx >= 0) ? s2ChatLogs.slice(checklistIdx) : s2ChatLogs;
-      const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员已商定修改落实对策';
+      const userLogs = s2ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !String(m.text || '').startsWith('[IMG_DATA]:'));
+      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(Boolean).join('\n') || '组员已商定修改落实对策';
 
       const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
       const taskType = this.getCurrentTaskType();
@@ -6155,22 +6143,13 @@ ${chatSnippet}
       const inqIndex = feedbacks.indexOf(currentInquiry);
       const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
 
-      // 🛡️ 提取组员真实讨论记录：全量提取组员讨论，杜绝任何 .slice(-6) 生硬剪裁！
+      // 🛡️ 提取组员真实讨论记录：全量提取阶段三全部组员研讨发言，绝对零剪裁、零丢弃！
       const s3ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
-      const allStudentMsgs = s3ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-      
-      // 定位针对当前质询的引导发言位置
-      const inqGuideIdx = s3ChatLogs.findIndex(m => m && m.sender === 'neutral' && ((m.text || '').includes(inqLabel) || (m.text || '').includes(`针对${inqLabel}`)));
-      let msgsForInquiry = [];
-      if (inqGuideIdx >= 0) {
-        msgsForInquiry = s3ChatLogs.slice(inqGuideIdx + 1).filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-      }
-      // 若当前引导后组员已有发言，使用当前发言；若尚未单独发言，全量提取阶段三全部组员研讨发言，绝不截断丢弃！
-      const effectiveMsgs = (msgsForInquiry && msgsForInquiry.length > 0) ? msgsForInquiry : allStudentMsgs;
-      const chatSnippet = effectiveMsgs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在商讨辩护思路与修改对策';
+      const allStudentMsgs = s3ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !String(m.text || '').startsWith('[IMG_DATA]:'));
+      const chatSnippet = allStudentMsgs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(Boolean).join('\n') || '组员正在商讨辩护思路与修改对策';
 
-      // 🛡️ 提取当前小组完整的正文草稿全文，绝不截断
-      const rawDoc = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '';
+      // 🛡️ 提取当前小组完整的正文草稿全文（若已有终稿草稿则优先终稿，绝不截断）
+      const rawDoc = ((this.state.stage3 && this.state.stage3.finalDraft) || (this.state.stage2 && this.state.stage2.unifiedContent) || '').replace(/<[^>]*>/g, '').trim();
 
       const remainingOppCount = feedbacks.filter(f => f.role === 'opponent' && f !== currentInquiry && (!f.response || !f.response.trim())).length;
       const nextInquiry = feedbacks.find(f => f.role === 'opponent' && f !== currentInquiry && (!f.response || !f.response.trim()));
