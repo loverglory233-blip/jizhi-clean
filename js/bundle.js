@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2721
+ * Version: 20260906_v2722
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2721';
+  const APP_VERSION = '20260906_v2722';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -15487,11 +15487,8 @@
           </button>
         `;
         actionBar.querySelector('#btn-s3-inquiry-summary')?.addEventListener('click', () => {
-          if (window.app && typeof window.app.handleStepConfirmation === 'function') {
-            window.app.handleStepConfirmation(stepKey, () => {
-              window.app.handleS3InquirySummary(null, currentInquiry);
-            }, inqLabel);
-          } else if (window.app && typeof window.app.handleS3InquirySummary === 'function') {
+          // 🔑 答辩意见总结：单人点击即可，不需要全员确认，内部有 _isAnalyzingS3Inquiry 防并发锁
+          if (window.app && typeof window.app.handleS3InquirySummary === 'function') {
             window.app.handleS3InquirySummary(null, currentInquiry);
           }
         });
