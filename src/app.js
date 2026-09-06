@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2751";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2751";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2751";
-import { AuthManager } from "./auth.js?v=20260907_v2751";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2751";
-import { renderLoginView } from "./login.js?v=20260907_v2751";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2751";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2751";
+} from "./constants.js?v=20260907_v2752";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2752";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2752";
+import { AuthManager } from "./auth.js?v=20260907_v2752";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2752";
+import { renderLoginView } from "./login.js?v=20260907_v2752";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2752";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2752";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2751";
+} from "./editor.js?v=20260907_v2752";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5967,8 +5967,12 @@ ${chatSnippet}
 
     this.setActiveAgentAnalyzing({
       icon: '🟡',
-      title: `【${chairShort}】正在归纳答辩修改要点，起草终审裁决与终稿修改指南...`,
-      detail: '正在将各条答辩共识整合为终稿分点修改要点清单...'
+      title: isForceRetry
+        ? `【${chairShort}】正在重新提炼【终审裁决与修改指南】...`
+        : `【${chairShort}】正在归纳答辩修改要点，起草终审裁决与终稿修改指南...`,
+      detail: isForceRetry
+        ? '正在重新评估答辩共识要点，起草成稿与修改寄语...'
+        : '正在将各条答辩共识整合为终稿分点修改要点清单...'
     });
 
     try {
@@ -6090,11 +6094,16 @@ ${remainingOppCount > 0 ? `【紧接着的下一项反方质询（${nextLabel}�
 答辩陈述：[提取 80~100 字逻辑严密、论据充分的正式答辩词与终稿修改对策，用于回填左侧矩阵]
 主席发言：[100~140 字自然语言点评与顺推裁决]`;
 
+      const isRetry = !!btnElement;
       // 🌟 挂载中间委员正在提炼共识思考气泡
       this.setActiveAgentAnalyzing({
         icon: '🟡',
-        title: `【中间委员】正在研读全组讨论并提炼【${inqLabel}】答辩共识...`,
-        detail: '正在整合组员辩护要点，自动定案回填矩阵并推导下一阶段裁决...'
+        title: isRetry
+          ? `【中间委员】正在重新提炼【${inqLabel}】答辩共识...`
+          : `【中间委员】正在研读全组讨论并提炼【${inqLabel}】答辩共识...`,
+        detail: isRetry
+          ? '正在重新向大模型发起答辩请求，整合组员辩护要点并定案回填...'
+          : '正在整合组员辩护要点，自动定案回填矩阵并推导下一阶段裁决...'
       });
 
       const resp = await callCozeAgentAPI('neutral', evalInquiryPrompt, { stage: 'stage3', topic, milestoneKey: `stage3_inquiry_${inqIndex}` });
