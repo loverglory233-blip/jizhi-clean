@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2727
+ * Version: 20260906_v2728
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2727';
+  const APP_VERSION = '20260906_v2728';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -17565,44 +17565,75 @@
 
           const stage3DurationMs = now - (s3.startTime || this.stage3StartTime || now);
           const s3Chats = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
-          const lastStudentMsg = [...s3Chats].reverse().find(m => m.sender && !['neutral', 'proponent', 'opponent', 'system', 'managingEditor', 'reviewingEditor'].includes(m.sender));
-
-          // 🛡️ 以中间委员下发答辩思路引导的时间为静默计时基准，预留充分的通读思考时间
-          const lastChairGuide = [...s3Chats].reverse().find(m => m.sender === 'neutral' && (m.text?.includes('答辩思路引导') || m.text?.includes('答辩思路')));
-          const chairGuideTime = lastChairGuide ? (parseMsgTime(lastChairGuide) || lastChairGuide._timeMs || 0) : (s3.startTime || this.stage3StartTime || now);
-          const guideElapsed = Math.max(0, now - chairGuideTime);
+          const taskType = this.getCurrentTaskType();
+          const isInst = (taskType === 'instructional');
+          const chairShort = isInst ? '答辩主席' : '中间委员';
 
           const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
           const pendingFeedbacks = feedbacks.filter(f => f.role !== 'proponent' && (!f.response || f.response.trim().length === 0));
 
-          // ── 🎓 阶段三静默守护与 6 分钟强兜底：中间委员引导后，3 分钟破冰，6 分钟自动提炼定案顺推
-          if (pendingFeedbacks.length > 0) {
+          // 🛡️ 严格前置排除：
+          // 1. 正反方专家发表内容期间（正反方未齐或反馈列表未生成）：绝不触发破冰；
+          // 2. 终稿修改阶段（已全员确认答辩 isRevisionConfirmed、或当前处于 editor 终稿面板、或终审总结已发）：绝不触发破冰！
+          const hasProp = s3Chats.some(m => m && m.sender === 'proponent');
+          const hasOpp = s3Chats.some(m => m && m.sender === 'opponent');
+          const isProponentOpponentPhase = (!hasProp || !hasOpp || feedbacks.length === 0);
+          const isRevisionOrFinalPhase = !!(s3.isRevisionConfirmed || s3.activeTab === 'editor' || this.state.isFinalSubmitted);
+
+          // ── 🎓 阶段三静默破冰守护：每次中间委员对该意见发出答辩引导后，若讨论区静默满 3 分钟，给出思考启发破冰
+          if (!isProponentOpponentPhase && !isRevisionOrFinalPhase && pendingFeedbacks.length > 0) {
             const currentPending = pendingFeedbacks[0];
             const inqIndex = feedbacks.indexOf(currentPending);
             const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
 
-            // ① 挂机 3 分钟破冰启发（严格从引导消息起算，若学生已在研讨区交流过则不再打扰）
-            const studentMsgAfterGuide = s3Chats.filter(m => m && m.sender && !['neutral', 'proponent', 'opponent', 'system', 'managingEditor', 'reviewingEditor'].includes(m.sender) && parseMsgTime(m) >= chairGuideTime);
-            const count = this._nudgeCounts[`s3_silence_${currentPending.id}`] || 0;
-            const existS3Silence = s3Chats.some(m => m && m.sender === 'neutral' && (m.text?.includes('答辩协同启发') || m.text?.includes('协同破局')));
+            // 寻找针对【当前未答复质询】的最新中间委员引导消息（意见1为思路引导，后续意见为顺推引导）
+            const currentGuideMsg = [...s3Chats].reverse().find(m =>
+              m && m.sender === 'neutral' &&
+              (
+                (m.text && (m.text.includes(inqLabel) || m.text.includes(`意见 ${inqIndex}`))) ||
+                (inqIndex <= 1 && (m.text?.includes('答辩思路引导') || m.text?.includes('答辩思路')))
+              )
+            );
 
-            if (studentMsgAfterGuide.length > 0 || existS3Silence) {
-              this._nudgeCounts[`s3_silence_${currentPending.id}`] = 1; // 已发言交流或历史已发送，解除静默，不再提醒
-            } else if (guideElapsed >= 180000 && count < 1 && !existS3Silence) {
-              this._nudgeCounts[`s3_silence_${currentPending.id}`] = 1;
-              const s3SilenceMsg = {
-                sender: 'neutral',
-                senderName: '答辩委员会主席 · 中间委员',
-                text: `🟡 【中间委员·答辩协同启发】：关于【${inqLabel}】，建议全组成员集思广益、协同破局，在讨论区共同商讨出一条最有说服力的操作化补救与辩护思路；商定好后随时点击上方按钮帮全组一键提炼定案！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now
-              };
-              if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
-              this.state.chatLogs.stage3.push(s3SilenceMsg);
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-              return;
+            if (currentGuideMsg) {
+              const chairGuideTime = parseMsgTime(currentGuideMsg) || currentGuideMsg._timeMs || 0;
+              const guideElapsed = Math.max(0, now - chairGuideTime);
+
+              // 学生在该引导发出后的发言数
+              const studentMsgAfterGuide = s3Chats.filter(m =>
+                m && m.sender &&
+                !['neutral', 'proponent', 'opponent', 'system', 'managingEditor', 'reviewingEditor'].includes(m.sender) &&
+                parseMsgTime(m) >= chairGuideTime
+              );
+
+              // 针对当前这道质询，是否已经发过思考启发破冰
+              const existSilenceForThisInquiry = s3Chats.some(m =>
+                m && m.sender === 'neutral' &&
+                m.text && (m.text.includes(inqLabel) || m.text.includes(`【${inqLabel}】`)) &&
+                (m.text.includes('答辩思考启发') || m.text.includes('答辩协同启发'))
+              );
+
+              const countKey = `s3_silence_${currentPending.id || inqIndex}`;
+              const count = this._nudgeCounts[countKey] || 0;
+
+              if (studentMsgAfterGuide.length > 0 || existSilenceForThisInquiry) {
+                this._nudgeCounts[countKey] = 1; // 已有交流或本题已破冰过，解除静默，不再提醒
+              } else if (guideElapsed >= 180000 && count < 1 && !existSilenceForThisInquiry) {
+                this._nudgeCounts[countKey] = 1;
+                const s3SilenceMsg = {
+                  sender: 'neutral',
+                  senderName: isInst ? '答辩委员会主席' : '答辩委员会主席 · 中间委员',
+                  text: `🟡 【${chairShort}·答辩思考启发】：关于【${inqLabel}】，大家可以从实施情境限制、三维目标达成路径或具体活动补强措施切入辩护；商定好思路后，随时点击上方按钮帮大家一键提炼定案！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: now
+                };
+                if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
+                this.state.chatLogs.stage3.push(s3SilenceMsg);
+                this.syncChatLogs();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                renderChat(this.state);
+                return;
+              }
             }
           }
 
