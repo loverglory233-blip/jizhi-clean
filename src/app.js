@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2749";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2749";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2749";
-import { AuthManager } from "./auth.js?v=20260907_v2749";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2749";
-import { renderLoginView } from "./login.js?v=20260907_v2749";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2749";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2749";
+} from "./constants.js?v=20260907_v2750";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2750";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2750";
+import { AuthManager } from "./auth.js?v=20260907_v2750";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2750";
+import { renderLoginView } from "./login.js?v=20260907_v2750";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2750";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2750";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2749";
+} from "./editor.js?v=20260907_v2750";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2110,32 +2110,65 @@ export class App {
               return;
             }
           } else {
-            // 🛡️ 智能自动自愈：若当前质询由于历史网络或版本遗漏导致讨论区“没有引导发言”，自动实时补发！
+            // 🛡️ 智能自动自愈：若当前质询由于历史网络或版本遗漏导致讨论区“没有引导发言”，调用大模型动态生成与意见1同样详实的答辩破局指引！
             const autoRecoverKey = `s3_guide_autorecover_${currentPending.id || inqIndex}`;
-            if (!this._nudgeCounts[autoRecoverKey]) {
+            if (!this._nudgeCounts[autoRecoverKey] && !this._isRecoveringChairGuide) {
               this._nudgeCounts[autoRecoverKey] = 1;
+              this._isRecoveringChairGuide = true;
+
               const prevIndex = inqIndex - 1;
               const prevLabel = prevIndex >= 1 ? `意见 ${prevIndex}` : '';
-              const recoverText = prevLabel
-                ? `🟡 【${chairShort}·${inqLabel}答辩破局指引】：全组已完成【${prevLabel}】答辩并已成功回填！请在左侧核对，如有异议可随时直接在左侧输入框修改补充。👉 **接下来请全组聚焦【${inqLabel}】展开研讨**，商定差不多后点击输入框上方【💡 ${inqLabel} 讨论差不多了？帮我总结并填入】！`
-                : `🟡 【${chairShort}·${inqLabel}答辩破局指引】：答辩清单已入驻左侧矩阵！👉 **接下来请全组聚焦【${inqLabel}】展开研讨**，商定差不多后点击输入框上方【💡 ${inqLabel} 讨论差不多了？帮我总结并填入】！`;
-              
-              const recoverMsg = {
-                sender: 'neutral',
-                senderName: isInst ? '答辩委员会主席' : '答辩委员会主席 · 中间委员',
-                text: recoverText,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now,
-                stage: 'stage3'
-              };
-              if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
-              this.state.chatLogs.stage3.push(recoverMsg);
-              if (typeof this.sendSingleChatMessage === 'function') {
-                this.sendSingleChatMessage(recoverMsg, 'stage3');
-              }
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
+              const inqContent = currentPending.content || currentPending.comment || currentPending.title || '';
+              const genreDesc = getGenrePromptDescriptor(taskType);
+              const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '论文方案';
+
+              const guidePrompt = `${genreDesc}
+小组成员已就核心课题《${topic}》完成了上一项答辩${prevLabel ? `【${prevLabel}】` : ''}并已定案回填入左侧矩阵。
+当前正进入【${inqLabel}】答辩研讨：
+【反方针对实质询（${inqLabel}）】: ${inqContent}
+
+请作为答辩委员会主席（中间委员），发表 130~160 字的【针对${inqLabel}独立答辩思路引导】：
+① 开头明确告知：全组已完成${prevLabel ? `【${prevLabel}】答辩并已成功回填左侧矩阵（可在左侧核对修改）` : '答辩清单已入驻左侧矩阵'}，接下来全组聚焦【${inqLabel}】展开研讨；
+② 【针对实质询破局点拨】：必须结合上述【${inqLabel}】的具体质询内容（${inqContent}），给出清晰、具体、可操作的答辩切入思路与论文修改补强建议（如理论补充、数据/测试验证、边界限定等）；
+③ 引导全组在讨论区商定对策，商定差不多后点击上方【💡 ${inqLabel} 讨论差不多了？帮我总结并填入】！纯自然语言输出，130~160字。`;
+
+              (async () => {
+                let aiGuideText = '';
+                try {
+                  const resp = await callCozeAgentAPI('neutral', guidePrompt, { stage: 'stage3', topic, queryPoint: inqIndex, milestoneKey: `stage3_chair_guide_${inqIndex}` });
+                  if (resp && resp.trim().length > 0) {
+                    aiGuideText = resp.trim();
+                  }
+                } catch (e) {
+                  console.warn('Auto-recover chair guide AI error:', e);
+                } finally {
+                  this._isRecoveringChairGuide = false;
+                }
+
+                if (!aiGuideText) {
+                  const checkTip = prevLabel ? `全组已完成【${prevLabel}】答辩并已成功回填！请在左侧核对，如有异议可随时直接在左侧修改补充。` : '';
+                  aiGuideText = `🟡 【${chairShort}·针对${inqLabel}答辩思路引导】：${checkTip}👉 本次请全组聚焦【${inqLabel}（${inqContent.slice(0, 40)}...）】展开研讨：建议结合研究设计与实践情境，明确补强措施与操作化定义；商定好思路后，随时点击上方【💡 ${inqLabel} 讨论差不多了？帮我总结并填入】！`;
+                }
+
+                const cleanGuide = aiGuideText.startsWith('🟡') ? aiGuideText : `🟡 【${chairShort}·针对${inqLabel}答辩思路引导】：${aiGuideText}`;
+                const recoverMsg = {
+                  sender: 'neutral',
+                  senderName: isInst ? '答辩委员会主席' : '答辩委员会主席 · 中间委员',
+                  text: cleanGuide,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: Date.now(),
+                  stage: 'stage3'
+                };
+                if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
+                this.state.chatLogs.stage3.push(recoverMsg);
+                if (typeof this.sendSingleChatMessage === 'function') {
+                  this.sendSingleChatMessage(recoverMsg, 'stage3');
+                }
+                this.syncChatLogs();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                renderChat(this.state);
+              })();
+
               return;
             }
           }
@@ -6029,20 +6062,23 @@ ${chatSnippet}
       const chairSenderName = isInst ? '答辩委员会主席' : '答辩委员会主席 · 中间委员';
       const chairShort = isInst ? '答辩主席' : '中间委员';
 
+      const nextInqContent = nextInquiry ? (nextInquiry.comment || nextInquiry.content || nextInquiry.title || '') : '';
+
       const evalInquiryPrompt = `小组成员已就核心课题《${topic}》针对【反方质询 ${inqLabel}】在研讨区展开了辩护与修改商议。
-【反方原始质询】: ${currentInquiry.comment || currentInquiry.content}
+【反方原始质询（${inqLabel}）】: ${currentInquiry.comment || currentInquiry.content}
 【小组成员的真实辩护讨论记录】:
 ${chatSnippet}
+${remainingOppCount > 0 ? `【紧接着的下一项反方质询（${nextLabel}）具体内容】: ${nextInqContent}` : ''}
 
 请作为答辩委员会主席，发表【答辩审阅定案与顺推裁决】：
 1. 【提炼答辩共识与修改承诺】：精准提炼全组成员达成的核心辩护陈述、${isInst ? '教学设计理念/学情考量' : '理论/实证论据'}与终稿具体修改对策（用于回填归档，120~180字）；
 2. 【委员会定案与推进】：
     ${remainingOppCount > 0
-      ? `① 宣布【${inqLabel}】辩护有效并予以采纳，答辩陈述已定案回填入库；\n② 【单题顺推】：顺承引导全组将焦点转向【${nextLabel}】展开深入研讨，并给出 1 条启发性思路点拨！`
+      ? `① 宣布【${inqLabel}】辩护方案已采纳并成功定案回填入左侧矩阵（全组可核对修改）；\n② 【针对${nextLabel}的深度破局思路点拨】：顺承引导全组将焦点聚焦于【${nextLabel}（针对质询：${nextInqContent.slice(0, 50)}...）】，结合文体特征与质询具体焦点，给出 1~2 条具体、清晰、有实操性的答辩切入思路与论文修改补强对策支架，并引导商定后点击输入框上方按钮一键总结！`
       : `① 宣布全部质询辩护完毕且均获委员会全票认可，已全部定案；\n② 明确提醒全组成员在右上方点击【✍️ 确认答辩完成】，全员确认后将正式解锁并进入【修改${docName}终稿】！`}
 请按以下格式输出：
 答辩陈述：[提取 80~100 字逻辑严密、论据充分的正式答辩词与终稿修改对策，用于回填左侧矩阵]
-主席发言：[100~130 字自然语言点评与顺推裁决]`;
+主席发言：[100~140 字自然语言点评与顺推裁决]`;
 
       // 🌟 挂载中间委员正在提炼共识思考气泡
       this.setActiveAgentAnalyzing({
