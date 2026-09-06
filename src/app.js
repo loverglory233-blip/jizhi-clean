@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2723";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2723";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2723";
-import { AuthManager } from "./auth.js?v=20260906_v2723";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2723";
-import { renderLoginView } from "./login.js?v=20260906_v2723";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2723";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2723";
+} from "./constants.js?v=20260906_v2724";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2724";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2724";
+import { AuthManager } from "./auth.js?v=20260906_v2724";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2724";
+import { renderLoginView } from "./login.js?v=20260906_v2724";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2724";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2724";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2723";
+} from "./editor.js?v=20260906_v2724";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2990,7 +2990,7 @@ export class App {
         }
       }
     } else if (activeStage === 'stage2') {
-      if (!isS2Done) {
+      if (!isS2HistoricallyLocked) { // 🛡️ 初稿已提交/已归档则不唤醒；仅当初稿尚未提交时才恢复AI
         const s2Logs = this.state.chatLogs?.stage2 || [];
         const hasManagingIntro = s2Logs.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('阶段二') || m.text?.includes('开场欢迎') || m.text?.includes('开场') || m.text?.includes('公约分工与时间规划') || (m.id && String(m.id).includes('stage2_managing'))));
         const hasReviewingIntro = s2Logs.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('开场寄语') || m.text?.includes('开场') || (m.id && String(m.id).includes('stage2_reviewing'))));

@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2723
+ * Version: 20260906_v2724
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2723';
+  const APP_VERSION = '20260906_v2724';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -18534,7 +18534,7 @@
           }
         }
       } else if (activeStage === 'stage2') {
-        if (!isS2Done) {
+        if (!isS2HistoricallyLocked) { // 🛡️ 初稿已提交/已归档则不唤醒；仅当初稿尚未提交时才恢复AI
           const s2Logs = this.state.chatLogs?.stage2 || [];
           const hasManagingIntro = s2Logs.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('阶段二') || m.text?.includes('开场欢迎') || m.text?.includes('开场') || m.text?.includes('公约分工与时间规划') || (m.id && String(m.id).includes('stage2_managing'))));
           const hasReviewingIntro = s2Logs.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('开场寄语') || m.text?.includes('开场') || (m.id && String(m.id).includes('stage2_reviewing'))));
