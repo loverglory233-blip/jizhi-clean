@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2748";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2748";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2748";
-import { AuthManager } from "./auth.js?v=20260907_v2748";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2748";
-import { renderLoginView } from "./login.js?v=20260907_v2748";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2748";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2748";
+} from "./constants.js?v=20260907_v2749";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2749";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2749";
+import { AuthManager } from "./auth.js?v=20260907_v2749";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2749";
+import { renderLoginView } from "./login.js?v=20260907_v2749";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2749";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2749";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2748";
+} from "./editor.js?v=20260907_v2749";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2104,6 +2104,35 @@ export class App {
               };
               if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
               this.state.chatLogs.stage3.push(s3SilenceMsg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
+            }
+          } else {
+            // 🛡️ 智能自动自愈：若当前质询由于历史网络或版本遗漏导致讨论区“没有引导发言”，自动实时补发！
+            const autoRecoverKey = `s3_guide_autorecover_${currentPending.id || inqIndex}`;
+            if (!this._nudgeCounts[autoRecoverKey]) {
+              this._nudgeCounts[autoRecoverKey] = 1;
+              const prevIndex = inqIndex - 1;
+              const prevLabel = prevIndex >= 1 ? `意见 ${prevIndex}` : '';
+              const recoverText = prevLabel
+                ? `🟡 【${chairShort}·${inqLabel}答辩破局指引】：全组已完成【${prevLabel}】答辩并已成功回填！请在左侧核对，如有异议可随时直接在左侧输入框修改补充。👉 **接下来请全组聚焦【${inqLabel}】展开研讨**，商定差不多后点击输入框上方【💡 ${inqLabel} 讨论差不多了？帮我总结并填入】！`
+                : `🟡 【${chairShort}·${inqLabel}答辩破局指引】：答辩清单已入驻左侧矩阵！👉 **接下来请全组聚焦【${inqLabel}】展开研讨**，商定差不多后点击输入框上方【💡 ${inqLabel} 讨论差不多了？帮我总结并填入】！`;
+              
+              const recoverMsg = {
+                sender: 'neutral',
+                senderName: isInst ? '答辩委员会主席' : '答辩委员会主席 · 中间委员',
+                text: recoverText,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now,
+                stage: 'stage3'
+              };
+              if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
+              this.state.chatLogs.stage3.push(recoverMsg);
+              if (typeof this.sendSingleChatMessage === 'function') {
+                this.sendSingleChatMessage(recoverMsg, 'stage3');
+              }
               this.syncChatLogs();
               if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
               renderChat(this.state);
