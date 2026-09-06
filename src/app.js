@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2746";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2746";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2746";
-import { AuthManager } from "./auth.js?v=20260907_v2746";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2746";
-import { renderLoginView } from "./login.js?v=20260907_v2746";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2746";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2746";
+} from "./constants.js?v=20260907_v2747";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2747";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2747";
+import { AuthManager } from "./auth.js?v=20260907_v2747";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2747";
+import { renderLoginView } from "./login.js?v=20260907_v2747";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2747";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2747";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2746";
+} from "./editor.js?v=20260907_v2747";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -7807,67 +7807,29 @@ ${chatSnippet}
               flashHighlightElement(`.feedback-direct-input[data-id="${item.id}"]`);
             }, 200);
 
-            // 只有反方质询且有未完成项时才顺推
-            const unadoptedOppCount = items.filter(f => f.role === 'opponent' && (!f.response || f.response.trim().length === 0)).length;
-            const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '论文方案';
-            const taskType = this.getCurrentTaskType();
-            const isInst = (taskType === 'instructional');
-            const chairName = isInst ? '答辩主席' : '中间委员';
-            
-            const adoptedSummaries = items.map((f, i) => `• 质询${i + 1}【${f.speaker}】: ${f.response || '待录入'}`).join('\n');
-
-            let queryPrompt = '';
-            let nextIndex = 1;
-            if (unadoptedOppCount > 0) {
-              const nextItem = items.find(f => f.role === 'opponent' && (!f.response || f.response.trim().length === 0));
-              nextIndex = items.indexOf(nextItem);
-              queryPrompt = `小组成员刚对已完成的【${labelTitle}】录入并达成了答辩共识：“${respText}”。
-请作为答辩委员会主席（中间委员），发表 130~150 字的【针对质询 ${nextIndex} 独立答辩思路顺推】：
-① 开头在第一句话明确说明：“本组针对【${labelTitle}】的答辩结论已成功写入左侧裁决矩阵！”；
-② 紧接着在同一句话顺推引导全组将焦点转向下一项【质询 ${nextIndex}（${nextItem.content || nextItem.title}）】，给出针对性的答辩思路支架（如补强措施/量表信度说明/补救预案）；
-③ 引导全组继续在讨论区商定思路，由代表录入矩阵，并同步将修改落实到论文终稿中！纯自然语言输出，130~150字。`;
-            } else {
-              queryPrompt = `恭喜！小组成员已对全部答辩质询完成研讨并录入全部答辩陈述！
-全组答辩共识汇总：\n${adoptedSummaries}
-
-请作为答辩委员会主席（中间委员），发表 130~150 字的【答辩终审总结裁决与交卷指引】：
-① 开头第一句明确说明：“全组各项答辩结论已全部成功写入左侧裁决矩阵！”；
-② 宣布答辩委员会已审阅全组提交的全部答辩陈述与终稿，肯定全组展现出的学术反思与严谨论证逻辑；
-③ 宣布答辩全票顺利通过，祝贺大家圆满完成研究任务，并指引全组成员点击左侧【提交终稿】锁定入库！纯自然语言输出，130~150字。`;
-            }
-
-            let neutralReply = await callCozeAgentAPI('neutral', queryPrompt, { stage: 'stage3', topic, milestoneKey: 'stage3_final_verdict' });
-            if (!neutralReply || neutralReply.trim().length === 0) {
-              if (unadoptedOppCount > 0) {
-                neutralReply = `🟡 【${chairName}·答辩思路引导】：本组针对【${labelTitle}】的答辩结论已成功写入左侧裁决矩阵！请组员在左侧仔细核对，如需完善可随时修改更新。接下来请全组聚焦【质询 ${nextIndex}】，在讨论区充分商定思路后由组员录入左侧矩阵！`;
-              } else {
-                neutralReply = `🟡 【${chairName}·答辩终审总结】：全组各项答辩结论已全部成功写入左侧裁决矩阵！请核对无误后点击左侧【提交终稿】完成归档！`;
+            // 🌟 纯自主手动录入模式：直接在左侧矩阵填写的，不触发中间委员插话打扰
+            // 仅当全部 3 项质询全被填完时，由中间委员提醒全员可以提交终稿了
+            if (unadoptedOppCount === 0) {
+              const allDoneMsg = {
+                sender: 'neutral',
+                senderName: isInst ? '答辩委员会主席' : '答辩委员会主席 · 中间委员',
+                text: `🟡 【${chairName}·全部质询定案完毕】：🎉 各位${isInst ? '老师' : '研究者'}，全组 3 项答辩质询已全部自主填报完成！请全组成员在右上角点击【✍️ 确认答辩完成】，全员确认后将正式解锁【修改${docName}终稿】！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now(),
+                stage: 'stage3'
+              };
+              this.state.chatLogs[currentStage].push(allDoneMsg);
+              if (typeof this.sendSingleChatMessage === 'function') {
+                this.sendSingleChatMessage(allDoneMsg, 'stage3');
               }
-            } else {
-              const cleanReply = neutralReply.replace(/^🟡\s*【[^】]+】[：:]\s*/, '').trim();
-              const saveTip = `本组针对【${labelTitle}】的答辩结论已成功写入左侧裁决矩阵！请全组在左侧核对，如有异议可随时直接修改。`;
-              if (!cleanReply.includes('写入') && !cleanReply.includes('裁决矩阵')) {
-                if (unadoptedOppCount > 0) {
-                  neutralReply = `🟡 【${chairName}·答辩思路引导】：${saveTip} ${cleanReply}`;
-                } else {
-                  neutralReply = `🟡 【${chairName}·答辩终审总结】：全组各项答辩结论已全部成功写入左侧裁决矩阵！${cleanReply}`;
-                }
-              }
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
             }
-
-            const neutralMsgObj = {
-              sender: 'neutral',
-              text: neutralReply,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now()
-            };
-            this.state.chatLogs[currentStage].push(neutralMsgObj);
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
           }
         } finally {
           this._isSavingDirectFeedback = false;
+        }
         }
       },
 
