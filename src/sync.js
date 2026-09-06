@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2703';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2703';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260906_v2704';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId } from './utils.js?v=20260906_v2704';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -589,16 +589,17 @@ export class CloudSyncEngine {
       return;
     }
 
-    // 🛡️ 同步带宽防护：每个 stage 聊天记录最多保留最新 120 条（智能体消息优先保留）
-    const capChatLogs = (logs) => {
-      if (!Array.isArray(logs) || logs.length <= 120) return logs;
-      // 保留所有智能体消息 + 最新用户消息，总计不超过 120 条
-      const agentMsgs = logs.filter(m => m && m.sender && ['auctioneer','managingEditor','reviewingEditor','proponent','opponent','neutral','system'].includes(m.sender));
-      const userMsgs = logs.filter(m => m && m.sender && !['auctioneer','managingEditor','reviewingEditor','proponent','opponent','neutral','system'].includes(m.sender));
-      const keepUser = userMsgs.slice(-Math.max(0, 120 - agentMsgs.length));
-      return [...agentMsgs, ...keepUser].sort((a, b) => (a._timeMs || 0) - (b._timeMs || 0));
-    };
-    const rawChatLogs = this.app.state.chatLogs || {};
+    // 🛡️ 带宽优化：聊天记录全量保留（确保教师导出完整），改为对正文草稿做差量检测：
+    //   正文未变时只传长度摘要，不重复传输数千字；正文变了才完整推送。
+    const rawStage2 = this.app.state.stage2 || {};
+    const currentDocContent = rawStage2.unifiedContent || '';
+    const currentDocHash = currentDocContent.length + '_' + currentDocContent.slice(-32);
+    const docChanged = (currentDocHash !== this._lastPushedDocHash);
+    if (docChanged) this._lastPushedDocHash = currentDocHash;
+
+    const stage2ForSnapshot = docChanged
+      ? rawStage2
+      : { ...rawStage2, unifiedContent: currentDocContent ? `__len:${currentDocContent.length}` : '' };
 
     const snapshot = {
       timestamp: Date.now(),
@@ -606,13 +607,9 @@ export class CloudSyncEngine {
       revisionId: this.lastRevisionId || 0,
       members: this.app.state.members,
       presence: this.app.state.presence || {},
-      chatLogs: {
-        stage1: capChatLogs(rawChatLogs.stage1),
-        stage2: capChatLogs(rawChatLogs.stage2),
-        stage3: capChatLogs(rawChatLogs.stage3),
-      },
+      chatLogs: this.app.state.chatLogs,
       stage1: this.app.state.stage1,
-      stage2: this.app.state.stage2,
+      stage2: stage2ForSnapshot,
       stage3: this.app.state.stage3,
       stepConfirmations: this.app.state.stepConfirmations || {},
       timer: this.app.state.timer,
@@ -1517,10 +1514,13 @@ export class CloudSyncEngine {
 
       if (remoteData.stage2.unifiedContent !== undefined) {
         let remoteHtml = remoteData.stage2.unifiedContent || '';
-        const isLocalPadActive = !!document.getElementById('stage2-etherpad-frame');
-        const localLen = (this.app.state.stage2?.unifiedContent || '').length;
-        if (!isLocalPadActive || remoteHtml.length >= localLen || localLen === 0) {
-          this.app.state.stage2.unifiedContent = remoteHtml;
+        // 🛡️ 跳过占位摘要（带宽优化产生的 __len:xxx 标记），不覆盖本地真实正文
+        if (!remoteHtml.startsWith('__len:')) {
+          const isLocalPadActive = !!document.getElementById('stage2-etherpad-frame');
+          const localLen = (this.app.state.stage2?.unifiedContent || '').length;
+          if (!isLocalPadActive || remoteHtml.length >= localLen || localLen === 0) {
+            this.app.state.stage2.unifiedContent = remoteHtml;
+          }
         }
       }
 
