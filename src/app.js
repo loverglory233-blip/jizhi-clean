@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2741";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2741";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2741";
-import { AuthManager } from "./auth.js?v=20260907_v2741";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2741";
-import { renderLoginView } from "./login.js?v=20260907_v2741";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2741";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2741";
+} from "./constants.js?v=20260907_v2742";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2742";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2742";
+import { AuthManager } from "./auth.js?v=20260907_v2742";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2742";
+import { renderLoginView } from "./login.js?v=20260907_v2742";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2742";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2742";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2741";
+} from "./editor.js?v=20260907_v2742";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4535,9 +4535,6 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
       }
 
       renderChat(this.state);
-      if (typeof showGlobalBannerNotice === 'function') {
-        showGlobalBannerNotice('💡 课题与方案提炼成功！', `《${finalTopic}》与方案概述已成功录入公约看板，请继续讨论【时间分配】！`, 'success', 5000);
-      }
     } catch (e) {
       console.warn('Extract topic & overview error:', e);
       if (!this.state.stage1) this.state.stage1 = {};
@@ -4763,9 +4760,6 @@ ${chatSnippet}
       }
 
       renderChat(this.state);
-      if (typeof showGlobalBannerNotice === 'function') {
-        showGlobalBannerNotice('⏱️ 时间分配提炼成功！', '6 大模块时间规划已成功填入公约看板，请继续讨论【任务分工】！', 'success', 5000);
-      }
     } catch (e) {
       console.warn('Extract time error:', e);
       if (!this.state.stage1) this.state.stage1 = {};
@@ -5006,9 +5000,6 @@ ${chatSnippet}
       }
 
       renderChat(this.state);
-      if (typeof showGlobalBannerNotice === 'function') {
-        showGlobalBannerNotice('👥 组员分工提炼成功！', '公约草案已全部生成就绪，请全组成员核对并在下方签署！', 'success', 6000);
-      }
     } catch (e) {
       console.warn('Extract tasks error:', e);
       if (!this.state.stage1) this.state.stage1 = {};
@@ -5452,9 +5443,9 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
     this.renderStudentWorkspace();
     renderChat(this.state);
 
-    if (typeof showGlobalBannerNotice === 'function') {
-      showGlobalBannerNotice('🎉 公约草案已全部生成就绪！', '请各位组员在左侧公约看板核对分工与时间规划，并在下方签署确认！', 'success', 6000);
-    }
+    setTimeout(() => {
+      flashHighlightElement('#contract-topic-input, #contract-overview-input, .contract-time-input, .task-assignment-input');
+    }, 300);
   } catch (e) {
     console.warn('One click generate contract error:', e);
     if (this.state.stage1) this.state.stage1._contractGenerateFailed = true;
@@ -5763,9 +5754,7 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
         s2.meetingStep = 'discussing_checklist';
         s2.reviewMilestone = 'second_review_received';
 
-        if (typeof showGlobalBannerNotice === 'function') {
-          showGlobalBannerNotice('📋 修正清单已生成送达！', `【${isInst ? '磨课修正清单' : '二审修正清单'}】已下发至讨论区与下方工作台，请全组聚焦诊断问题开展研讨！`, 'success', 6000);
-        }
+        reviewingText += `\n\n👉 《${isInst ? '磨课修正清单' : '二审修正清单'}》已同步生成至左侧工作台！请全组围绕上述诊断问题充分交流修改对策，商定差不多后点击下方【📝 讨论差不多了？让${reviewingName}总结】！`;
         setTimeout(() => {
           flashHighlightElement('#stage2-action-plan-card, .action-plan-container');
         }, 300);
@@ -6523,11 +6512,12 @@ ${chatSnippet}
         }
 
         if (!hasOpp) {
+          const oppSpeechWithNotice = oppText + `\n\n👉 上述正反方专家立论支持与学术质询已即刻同步写入左侧【答辩裁决矩阵】，请全组成员在左侧针对质询开展答辩与补充辩护！`;
           const oppMsg = {
             id: `msg_s3_opp_${this.state.activeGroupId || 'grp'}_${this.state.activeTaskId || 'tsk'}`,
             sender: 'opponent',
             senderName: isInst ? '针对实质询 · 反方专家' : '学术质询 · 反方委员',
-            text: oppText,
+            text: oppSpeechWithNotice,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now() + 500,
             _hasSentToServer: true
@@ -6571,9 +6561,6 @@ ${chatSnippet}
       if (typeof window.renderChat === 'function') window.renderChat(this.state);
       this.renderStudentWorkspace();
 
-      if (typeof showGlobalBannerNotice === 'function') {
-        showGlobalBannerNotice('🎓 专家质询已提炼就绪！', '正反方专家质询已录入左侧【答辩裁决矩阵】，请全组聚焦质询开展答辩！', 'success', 6000);
-      }
       setTimeout(() => {
         flashHighlightElement('.feedback-item-card, .feedback-direct-input');
       }, 300);
@@ -7792,9 +7779,6 @@ ${chatSnippet}
             this.renderStudentWorkspace();
             renderChat(this.state);
 
-            if (typeof showGlobalBannerNotice === 'function') {
-              showGlobalBannerNotice('✅ 答辩结论已保存！', `已成功录入【${labelTitle}】答辩共识并同步至全组裁决矩阵！`, 'success', 4000);
-            }
             setTimeout(() => {
               flashHighlightElement(`.feedback-direct-input[data-id="${item.id}"]`);
             }, 200);
@@ -7802,31 +7786,48 @@ ${chatSnippet}
             // 只有反方质询且有未完成项时才顺推
             const unadoptedOppCount = items.filter(f => f.role === 'opponent' && (!f.response || f.response.trim().length === 0)).length;
             const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '论文方案';
+            const taskType = this.getCurrentTaskType();
+            const isInst = (taskType === 'instructional');
+            const chairName = isInst ? '答辩主席' : '中间委员';
             
             const adoptedSummaries = items.map((f, i) => `• 质询${i + 1}【${f.speaker}】: ${f.response || '待录入'}`).join('\n');
 
             let queryPrompt = '';
+            let nextIndex = 1;
             if (unadoptedOppCount > 0) {
               const nextItem = items.find(f => f.role === 'opponent' && (!f.response || f.response.trim().length === 0));
-              const nextIndex = items.indexOf(nextItem);
-              queryPrompt = `小组成员刚对已完成的质询录入并达成了答辩共识：“${respText}”。
+              nextIndex = items.indexOf(nextItem);
+              queryPrompt = `小组成员刚对已完成的【${labelTitle}】录入并达成了答辩共识：“${respText}”。
 请作为答辩委员会主席（中间委员），发表 130~150 字的【针对质询 ${nextIndex} 独立答辩思路顺推】：
-① 肯定前序答辩词已成功录入；
-② 【单题独立顺推·核心铁律】：独立引导全组将焦点转向下一项【质询 ${nextIndex}（${nextItem.content || nextItem.title}）】，结合其具体内容给出针对性的答辩思路支架（如补强措施/量表信度说明/补救预案）；
+① 开头在第一句话明确说明：“本组针对【${labelTitle}】的答辩结论已成功写入左侧裁决矩阵！”；
+② 紧接着在同一句话顺推引导全组将焦点转向下一项【质询 ${nextIndex}（${nextItem.content || nextItem.title}）】，给出针对性的答辩思路支架（如补强措施/量表信度说明/补救预案）；
 ③ 引导全组继续在讨论区商定思路，由代表录入矩阵，并同步将修改落实到论文终稿中！纯自然语言输出，130~150字。`;
             } else {
               queryPrompt = `恭喜！小组成员已对全部答辩质询完成研讨并录入全部答辩陈述！
 全组答辩共识汇总：\n${adoptedSummaries}
 
 请作为答辩委员会主席（中间委员），发表 130~150 字的【答辩终审总结裁决与交卷指引】：
-① 宣布答辩委员会已审阅全组提交的全部答辩陈述与终稿，肯定全组面对质询展现出的学术反思与严谨论证逻辑；
-② 隆重宣布答辩全票顺利通过，祝贺大家圆满完成研究任务；
-③ 明确指引全组成员点击左侧【提交终稿】锁定入库！纯自然语言输出，130~150字。`;
+① 开头第一句明确说明：“全组各项答辩结论已全部成功写入左侧裁决矩阵！”；
+② 宣布答辩委员会已审阅全组提交的全部答辩陈述与终稿，肯定全组展现出的学术反思与严谨论证逻辑；
+③ 宣布答辩全票顺利通过，祝贺大家圆满完成研究任务，并指引全组成员点击左侧【提交终稿】锁定入库！纯自然语言输出，130~150字。`;
             }
 
             let neutralReply = await callCozeAgentAPI('neutral', queryPrompt, { stage: 'stage3', topic, milestoneKey: 'stage3_final_verdict' });
             if (!neutralReply || neutralReply.trim().length === 0) {
-              neutralReply = `🟡 【中间委员·网络提醒】：📡 答辩委员会评审网络连接稍有延迟，未能即时生成答辩指引。<br><span style="color:#64748b; font-size:12px;">建议在讨论区 @中间委员 重新获取答辩思路指引。</span>`;
+              if (unadoptedOppCount > 0) {
+                neutralReply = `🟡 【${chairName}·答辩思路引导】：本组针对【${labelTitle}】的答辩结论已成功写入左侧裁决矩阵！接下来请全组聚焦【质询 ${nextIndex}】，在讨论区充分商定思路后由组员录入左侧矩阵！`;
+              } else {
+                neutralReply = `🟡 【${chairName}·答辩终审总结】：全组各项答辩结论已全部成功写入左侧裁决矩阵！祝贺全组成员圆满通过答辩，请点击左侧【提交终稿】完成归档！`;
+              }
+            } else {
+              const cleanReply = neutralReply.replace(/^🟡\s*【[^】]+】[：:]\s*/, '').trim();
+              if (!cleanReply.includes('写入') && !cleanReply.includes('裁决矩阵')) {
+                if (unadoptedOppCount > 0) {
+                  neutralReply = `🟡 【${chairName}·答辩思路引导】：本组针对【${labelTitle}】的答辩结论已成功写入左侧裁决矩阵！${cleanReply}`;
+                } else {
+                  neutralReply = `🟡 【${chairName}·答辩终审总结】：全组各项答辩结论已全部成功写入左侧裁决矩阵！${cleanReply}`;
+                }
+              }
             }
 
             const neutralMsgObj = {
@@ -9098,6 +9099,10 @@ ${fullDoc}
             items: finalItems
           };
           this.state.stage2.meetingStep = 'discussing_checklist';
+          reviewingText += `\n\n👉 《${isInst ? '磨课修正清单' : '二审修正清单'}》已同步生成至左侧工作台！请全组围绕上述诊断问题充分交流修改对策，商定差不多后点击下方【📝 讨论差不多了？让${reviewingName}总结】！`;
+          setTimeout(() => {
+            flashHighlightElement('#stage2-action-plan-card, .action-plan-container');
+          }, 300);
         }
         this.state.stage2PendingRevisionDiscussion = true;
         this.state.stage2ReviewingFinishedTime = Date.now();
@@ -9117,15 +9122,6 @@ ${fullDoc}
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
       this.renderStudentWorkspace();
-
-      if (this.state.stage2?.actionPlan?.isGenerated) {
-        if (typeof showGlobalBannerNotice === 'function') {
-          showGlobalBannerNotice('📋 修正清单已生成送达！', `【${isInst ? '磨课修正清单' : '二审修正清单'}】已下发至讨论区与下方工作台，请全组聚焦诊断问题开展研讨！`, 'success', 6000);
-        }
-        setTimeout(() => {
-          flashHighlightElement('#stage2-action-plan-card, .action-plan-container');
-        }, 300);
-      }
     } catch (e) {
       console.warn('[triggerReviewingEditorAfterDiscussion] error:', e);
     } finally {

@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2741';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2741';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2742';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2742';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1309,9 +1309,6 @@ export class CloudSyncEngine {
         const wasDraftGenerated = !!this.app.state.stage1?.contract?.isDraftGenerated;
         if (remoteS1.contract.isDraftGenerated !== undefined) this.app.state.stage1.contract.isDraftGenerated = remoteS1.contract.isDraftGenerated;
         if (remoteS1.contract.isDraftGenerated && !wasDraftGenerated) {
-          if (typeof showGlobalBannerNotice === 'function') {
-            showGlobalBannerNotice('🎉 公约草案已就绪', '组内已提炼生成全套公约草案，请在左侧核对并在下方签署！', 'info', 5000);
-          }
           setTimeout(() => {
             flashHighlightElement('#contract-topic-input, #contract-overview-input, .contract-time-input, .task-assignment-input');
           }, 300);
@@ -1561,10 +1558,6 @@ export class CloudSyncEngine {
         if (remoteData.stage2.actionPlan.isGenerated && !this.app.state.stage2.actionPlan?.isGenerated) {
           this.app.state.stage2.actionPlan = remoteData.stage2.actionPlan;
           needWorkspaceRender = true;
-          const isInst = (this.app.getCurrentTaskType && this.app.getCurrentTaskType() === 'instructional');
-          if (typeof showGlobalBannerNotice === 'function') {
-            showGlobalBannerNotice('📋 收到修正清单', `小组已成功生成【${isInst ? '磨课修正清单' : '二审修正清单'}】，已更新至工作台！`, 'info', 5000);
-          }
           setTimeout(() => {
             flashHighlightElement('#stage2-action-plan-card, .action-plan-container');
           }, 300);
@@ -1620,9 +1613,6 @@ export class CloudSyncEngine {
         if (remoteItems.length > 0 && localItems.length === 0) {
           this.app.state.stage3.feedbackItems = remoteItems;
           needWorkspaceRender = true;
-          if (typeof showGlobalBannerNotice === 'function') {
-            showGlobalBannerNotice('🎓 收到专家质询清单', '答辩委员会专家意见已更新至左侧【答辩裁决矩阵】！', 'info', 5000);
-          }
           setTimeout(() => {
             flashHighlightElement('.feedback-item-card, .feedback-direct-input');
           }, 300);
