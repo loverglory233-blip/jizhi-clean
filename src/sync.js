@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2752';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2752';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2767';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2767';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1621,7 +1621,13 @@ export class CloudSyncEngine {
           remoteItems.forEach(item => {
             const textarea = document.querySelector(`.feedback-direct-input[data-id="${item.id}"]`);
             if (textarea && document.activeElement !== textarea) {
-              if (textarea.value !== (item.response || '')) textarea.value = item.response || '';
+              if (textarea.value !== (item.response || '')) {
+                textarea.value = item.response || '';
+                try {
+                  textarea.style.height = 'auto';
+                  textarea.style.height = Math.max(68, textarea.scrollHeight + 4) + 'px';
+                } catch (e) {}
+              }
               textarea.style.borderColor = item.response ? '#a7f3d0' : '#cbd5e1';
               textarea.style.background = this.app.state.isFinalSubmitted ? '#f8fafc' : (item.response ? '#f0fdf4' : '#ffffff');
             }

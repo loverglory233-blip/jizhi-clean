@@ -1490,3 +1490,44 @@ body.modal-open #modal-task-extended-unlock {
   animation: modalFadeIn 0.25s ease-out;
 }
 
+/* 🎓 阶段三答辩输入框与卡片极致顺滑滚动优化 */
+.feedback-direct-input {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+}
+
+.feedback-direct-input::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.feedback-direct-input::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.feedback-direct-input::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.feedback-direct-input::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+#stage3-defense-card {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+#stage3-defense-card::-webkit-scrollbar {
+  width: 7px;
+}
+
+#stage3-defense-card::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+

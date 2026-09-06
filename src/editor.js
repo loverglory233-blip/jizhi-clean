@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2752";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2752";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2752";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2767";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2767";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2767";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -2807,7 +2807,7 @@ function renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitt
               <span>✍️ 本组补充说明 / 强化论据 (选填)：</span>
               ${hasResponse ? '<span style="color:#059669; font-size:11.5px; font-weight:700;">✅ 已保存补充论据' + (isDefenseLocked ? ' (已锁定归档)' : '') + '</span>' : '<span style="color:#2563eb; font-size:11.5px;">(立论支持默认通过，如无补充可直接留空)</span>'}
             </div>
-            <textarea class="feedback-direct-input" data-id="${item.id}" ${isDefenseLocked ? 'disabled readonly' : ''} oninput="this.style.height='auto'; this.style.height=Math.max(58, this.scrollHeight)+'px';" placeholder="正方已给予高度肯定！如本组有进一步想要补充强化的论据可在此记录，无补充可直接留空..." style="width:100%; min-height:58px; max-height:220px; overflow-y:auto; padding:8px 12px; font-size:13px; line-height:1.5; border:1px solid ${hasResponse ? '#a7f3d0' : '#bbf7d0'}; background:${isDefenseLocked ? '#f8fafc' : (hasResponse ? '#f0fdf4' : '#ffffff')}; border-radius:8px; resize:vertical; box-sizing:border-box; color:#0f172a; font-family:inherit;">${escapeHtml(item.response || '')}</textarea>
+            <textarea class="feedback-direct-input" data-id="${item.id}" ${isDefenseLocked ? 'disabled readonly' : ''} oninput="this.style.height='auto'; this.style.height=Math.max(68, this.scrollHeight + 4)+'px';" placeholder="正方已给予高度肯定！如本组有进一步想要补充强化的论据可在此记录，无补充可直接留空..." style="width:100%; min-height:68px; overflow-y:auto; padding:10px 14px; font-size:13px; line-height:1.6; border:1.5px solid ${hasResponse ? '#a7f3d0' : '#bbf7d0'}; background:${isDefenseLocked ? '#f8fafc' : (hasResponse ? '#f0fdf4' : '#ffffff')}; border-radius:8px; resize:vertical; box-sizing:border-box; color:#0f172a; font-family:inherit; word-break:break-word; overscroll-behavior:contain;">${escapeHtml(item.response || '')}</textarea>
             ${!isDefenseLocked ? `
               <div style="display:flex; justify-content:flex-end; margin-top:8px;">
                 <button class="btn-save-feedback-direct" data-id="${item.id}" style="background:linear-gradient(135deg, #059669, #047857); border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.12);">
@@ -2822,7 +2822,7 @@ function renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitt
               <span>✍️ 本组答辩回复与修改结论：</span>
               ${hasResponse ? '<span style="color:#059669; font-size:11.5px; font-weight:700;">✅ 已保存生效' + (isDefenseLocked ? ' (已锁定归档)' : ' (可随时二次修改)') + '</span>' : '<span style="color:#64748b; font-size:11.5px;">(商定后点击上方按钮提炼定案，或直接在下方输入)</span>'}
             </div>
-            <textarea class="feedback-direct-input" data-id="${item.id}" ${isDefenseLocked ? 'disabled readonly' : ''} oninput="this.style.height='auto'; this.style.height=Math.max(64, this.scrollHeight)+'px';" placeholder="商讨后，在此直接输入本组针对该条意见的简要答复与修改结论..." style="width:100%; min-height:64px; max-height:260px; overflow-y:auto; padding:8px 12px; font-size:13px; line-height:1.5; border:1px solid ${hasResponse ? '#a7f3d0' : '#cbd5e1'}; background:${isDefenseLocked ? '#f8fafc' : (hasResponse ? '#f0fdf4' : '#ffffff')}; border-radius:8px; resize:vertical; box-sizing:border-box; color:#0f172a; font-family:inherit;">${escapeHtml(item.response || '')}</textarea>
+            <textarea class="feedback-direct-input" data-id="${item.id}" ${isDefenseLocked ? 'disabled readonly' : ''} oninput="this.style.height='auto'; this.style.height=Math.max(68, this.scrollHeight + 4)+'px';" placeholder="商讨后，在此直接输入本组针对该条意见的简要答复与修改结论..." style="width:100%; min-height:68px; overflow-y:auto; padding:10px 14px; font-size:13px; line-height:1.6; border:1.5px solid ${hasResponse ? '#a7f3d0' : '#cbd5e1'}; background:${isDefenseLocked ? '#f8fafc' : (hasResponse ? '#f0fdf4' : '#ffffff')}; border-radius:8px; resize:vertical; box-sizing:border-box; color:#0f172a; font-family:inherit; word-break:break-word; overscroll-behavior:contain;">${escapeHtml(item.response || '')}</textarea>
             ${!isDefenseLocked ? `
               <div style="display:flex; justify-content:flex-end; margin-top:8px;">
                 <button class="btn-save-feedback-direct" data-id="${item.id}" style="background:${hasResponse ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.12);">
@@ -2837,6 +2837,18 @@ function renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitt
   }).join('');
 }
 
+export function autoResizeFeedbackInputs(container = document) {
+  if (!container) return;
+  const list = container.querySelectorAll('.feedback-direct-input');
+  list.forEach(textarea => {
+    try {
+      textarea.style.height = 'auto';
+      const targetH = Math.max(68, textarea.scrollHeight + 4);
+      textarea.style.height = `${targetH}px`;
+    } catch (e) {}
+  });
+}
+
 function bindStage3FeedbackInputs(container, handlers, isDefenseLocked) {
   container.querySelectorAll('.btn-trigger-s3-pipeline').forEach(btn => {
     btn.onclick = (e) => {
@@ -2847,6 +2859,28 @@ function bindStage3FeedbackInputs(container, handlers, isDefenseLocked) {
       }
     };
   });
+
+  // 立即自适应高度撑开所有输入框，彻底告别文字截断与滑不动
+  container.querySelectorAll('.feedback-direct-input').forEach(textarea => {
+    try {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.max(68, textarea.scrollHeight + 4) + 'px';
+    } catch (e) {}
+
+    // 绑定滚轮保护：支持内部独立平滑滚动
+    textarea.addEventListener('wheel', (e) => {
+      if (textarea.scrollHeight > textarea.clientHeight) {
+        const isUp = e.deltaY < 0;
+        const isDown = e.deltaY > 0;
+        const atTop = textarea.scrollTop <= 0;
+        const atBottom = textarea.scrollTop + textarea.clientHeight >= textarea.scrollHeight - 1;
+        if ((isUp && !atTop) || (isDown && !atBottom)) {
+          e.stopPropagation();
+        }
+      }
+    }, { passive: true });
+  });
+
   if (isDefenseLocked) return;
   container.querySelectorAll('.btn-save-feedback-direct').forEach(btn => {
     btn.onclick = () => {
@@ -2920,6 +2954,7 @@ function renderStage3Canvas(canvas, state, handlers) {
         existingFeedbackContainer.innerHTML = renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitted);
         bindStage3FeedbackInputs(existingFeedbackContainer, handlers, isDefenseLocked);
       }
+      autoResizeFeedbackInputs(existingFeedbackContainer);
     }
 
     // 🛡️ 动态同步终稿修改指南提炼按键状态
@@ -3166,7 +3201,7 @@ function renderStage3Canvas(canvas, state, handlers) {
       ` : ''}
 
       <!-- 🎓 视图 1：答辩委员会意见与裁决矩阵 -->
-      <div class="card" id="stage3-defense-card" style="display:${activeTab === 'defense' ? 'block' : 'none'}; flex:1; overflow-y:auto; padding:20px; overscroll-behavior-y:contain; -webkit-overflow-scrolling:touch;">
+      <div class="card" id="stage3-defense-card" style="display:${activeTab === 'defense' ? 'block' : 'none'}; flex:1; overflow-y:auto; padding:20px; overscroll-behavior-y:auto; scroll-behavior:smooth; -webkit-overflow-scrolling:touch;">
         ${isRevisionFullyConfirmed && !isFinalSubmitted ? `
           <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:8px 14px; margin-bottom:12px; font-size:12.5px; color:#065f46; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
             <span>🎉 本组全员已确认进入终稿修改！答辩质询已正式锁定。请点击上方【📝 修改${taskGenreKey === 'instructional' ? '教学设计' : '论文'}终稿】完成正文完善！</span>
@@ -3434,6 +3469,9 @@ function renderStage3Canvas(canvas, state, handlers) {
 
   const surveyBtn = canvas.querySelector('#btn-open-survey-page');
   if (surveyBtn) surveyBtn.addEventListener('click', () => handlers.onOpenSurveyModal());
+
+  // 确保所有答辩输入框完整撑开自适应，绝不截断任何字迹
+  autoResizeFeedbackInputs(canvas);
 }
 
 export function renderChat(state) {

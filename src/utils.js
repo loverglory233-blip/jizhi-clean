@@ -1449,10 +1449,20 @@ function initModalScrollBarrier() {
   if (typeof window === 'undefined' || _modalBarrierInitialized) return;
   _modalBarrierInitialized = true;
 
-  const getActiveModal = () => document.querySelector('.modal-overlay, .modal-mask, .table-config-modal-overlay, #modal-change-password, #modal-task-extended-unlock, .modal-task-deleted-overlay, .modal-announcement-popup, [id*="modal-"]');
+  const getActiveModal = () => {
+    if (!_isBodyLocked) return null;
+    const modals = document.querySelectorAll('.modal-overlay, .modal-mask, .table-config-modal-overlay, .modal-task-deleted-overlay, .modal-announcement-popup');
+    for (const m of modals) {
+      if (m && m.offsetParent !== null && window.getComputedStyle(m).display !== 'none') {
+        return m;
+      }
+    }
+    return null;
+  };
 
   // 1. 滚轮物理拦截
   const handleWheel = (e) => {
+    if (!_isBodyLocked) return;
     const modal = getActiveModal();
     if (!modal) return;
 
@@ -1491,6 +1501,7 @@ function initModalScrollBarrier() {
 
   // 2. 触摸物理拦截
   const handleTouch = (e) => {
+    if (!_isBodyLocked) return;
     const modal = getActiveModal();
     if (!modal) return;
     if (!modal.contains(e.target)) {
@@ -1500,6 +1511,7 @@ function initModalScrollBarrier() {
 
   // 3. 键盘按键（空格、PageDown、方向键）滚动拦截
   const handleKeydown = (e) => {
+    if (!_isBodyLocked) return;
     const modal = getActiveModal();
     if (!modal) return;
     const isKeyNav = ['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Space', 'Home', 'End'].includes(e.code || e.key);
