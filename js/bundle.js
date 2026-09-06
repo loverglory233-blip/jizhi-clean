@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260906_v2717
+ * Version: 20260906_v2719
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260906_v2717';
+  const APP_VERSION = '20260906_v2719';
   const APP_BUILD_DATE = '2026-09-06';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14165,7 +14165,8 @@
 
   function renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitted) {
     const isReadOnly = (typeof window.app?.isCurrentTaskReadOnly === 'function') && window.app.isCurrentTaskReadOnly();
-    const isRunning = !!(state.stage3CommitteeLoading || window.app?._isStage3PipelineRunning);
+    const isCallingActive = !!(s3._pipelineCallingTimestamp && (Date.now() - Number(s3._pipelineCallingTimestamp) < 60000));
+    const isRunning = !!(state.stage3CommitteeLoading || window.app?._isStage3PipelineRunning || isCallingActive);
     if (isRunning || !s3.feedbackItems || s3.feedbackItems.length === 0) {
       if (isReadOnly) {
         return `
@@ -14178,13 +14179,14 @@
       }
       const docType = ((window.app && window.app.authManager) ? (window.app.authManager.getTasks().find(t => t.id === state.activeTaskId)?.taskType || 'experiment') : (state.taskType || 'experiment')) === 'instructional' ? '教学设计' : '论文';
       if (isRunning) {
+        const callerName = s3._pipelineCallerName ? `（组员【${escapeHtml(s3._pipelineCallerName)}】已发起）` : '';
         return `
           <div style="background:#ffffff; border:1.5px solid #bfdbfe; border-radius:12px; padding:36px 24px; text-align:center; box-shadow:0 4px 12px rgba(37,99,235,0.08);">
             <div style="width:40px; height:40px; border:3.5px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 0.9s linear infinite; margin:0 auto 16px;"></div>
             <div style="font-size:16px; font-weight:800; color:#1e40af; margin-bottom:6px;">🎓 答辩委员会专家正在审阅全篇${docType}初稿...</div>
             <div style="font-size:13px; color:#64748b; line-height:1.6; margin-bottom:12px;">正方立论专家正在提取立论亮点，反方商榷专家正在研拟针对实质询。<br>【答辩与终稿修改清单】即将在此生成，并同步呈现在右侧研讨区，请稍候！</div>
             <div style="display:inline-flex; align-items:center; gap:6px; background:#eff6ff; border:1px solid #bfdbfe; padding:5px 14px; border-radius:12px; font-size:12px; color:#1d4ed8; font-weight:700;">
-              ⏳ 大模型深度审阅中，请耐心等候...
+              ⏳ 大模型深度审阅中，请耐心等候... ${callerName}
             </div>
           </div>
         `;
@@ -14260,6 +14262,15 @@
   }
 
   function bindStage3FeedbackInputs(container, handlers, isDefenseLocked) {
+    container.querySelectorAll('.btn-trigger-s3-pipeline').forEach(btn => {
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (window.app && typeof window.app.runStage3CommitteePipeline === 'function') {
+          window.app.runStage3CommitteePipeline(btn);
+        }
+      };
+    });
     if (isDefenseLocked) return;
     container.querySelectorAll('.btn-save-feedback-direct').forEach(btn => {
       btn.onclick = () => {
@@ -18439,6 +18450,11 @@
       this._isHandlingAgentNudge = false;
       this._isStage3PipelineRunning = false;
       this._lastStage3PipelineAttempt = 0;
+      if (this.state.stage3) {
+        this.state.stage3._pipelineCallingTimestamp = 0;
+        this.state.stage3._pipelineCallerId = '';
+        this.state.stage3._pipelineCallerName = '';
+      }
       if (typeof window !== 'undefined') window._firstPadScanTriggered = false;
 
       // 2. 判定各阶段完成与归档状态（已确认提交的历史阶段绝对不可篡改，不可重新解锁为可写！）
@@ -21624,20 +21640,72 @@
     }
 
     async runStage3CommitteePipeline(btnElement = null) {
+      // 🛡️ 状态前置检查与明确提示
+      if (this.state.isFinalSubmitted) {
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('🔒 阶段已封稿', '本阶段终稿已提交定案，答辩委员会专家审阅已归档。', 'info', 4000);
+        }
+        return;
+      }
+      const curTask = (this.authManager) ? this.authManager.getActiveTask() : null;
+      if (curTask && isTaskExpired(curTask)) {
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('⏳ 任务已截止', '当前任务已截止锁定。若需继续审阅，请任课教师顺延截止时间。', 'warning', 4000);
+        }
+        this.state.stage3CommitteeLoading = false;
+        this._isStage3PipelineRunning = false;
+        return;
+      }
       if (this.isCurrentTaskReadOnly()) {
         this.state.stage3CommitteeLoading = false;
         this._isStage3PipelineRunning = false;
         return;
       }
+
+      if (!this.state.stage3) this.state.stage3 = {};
+      const s3 = this.state.stage3;
+      const now = Date.now();
+
+      // 🔒 组内跨端分布式并发锁检查：如果同一小组有其他组员已在召唤且在 60 秒有效期内，提示并阻止重复发起
+      if (s3._pipelineCallingTimestamp && (now - Number(s3._pipelineCallingTimestamp) < 60000)) {
+        const caller = s3._pipelineCallerName || '组员';
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('⏳ 专家审阅中', `组员【${caller}】已发起答辩委员会评审，正反方专家正在通读生成中，请耐心等候！`, 'info', 4500);
+        }
+        this.state.stage3CommitteeLoading = true;
+        if (typeof this.renderCanvas === 'function') this.renderCanvas();
+        return;
+      }
+
+      // 本地内存并发防重入（超时 45 秒自愈，防止任何异常永久挂死）
+      if (this._isStage3PipelineRunning && (now - (this._lastStage3PipelineAttempt || 0) < 45000)) {
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('⏳ 正在通读审阅', '正反方专家正在通读草稿撰写评审意见，请稍候...', 'info', 3000);
+        }
+        return;
+      }
+
+      // 🚀 加锁并广播全组：一人点击，全组锁定，即刻呈现加载状态
+      this._isStage3PipelineRunning = true;
+      this._lastStage3PipelineAttempt = now;
+      this.state.stage3CommitteeLoading = true;
+
+      const currUser = (this.authManager) ? this.authManager.getCurrentUser() : null;
+      s3._pipelineCallingTimestamp = now;
+      s3._pipelineCallerId = currUser?.id || '';
+      s3._pipelineCallerName = currUser?.name || '组员';
+
+      // 立即广播同步至云端与画布
+      this.syncStage3();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      if (typeof this.renderCanvas === 'function') this.renderCanvas();
+
       if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
         btnElement.disabled = true;
         btnElement.style.opacity = '0.6';
         btnElement.style.cursor = 'not-allowed';
-        btnElement.innerHTML = `⏳ 正在重新生成专家评审...`;
+        btnElement.innerHTML = `⏳ 正在召唤专家审阅初稿...`;
       }
-      if (this._isStage3PipelineRunning) return;
-      this._isStage3PipelineRunning = true;
-      this._lastStage3PipelineAttempt = Date.now();
 
       try {
         if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
@@ -21916,6 +21984,13 @@
         this.setActiveAgentAnalyzing(null);
         this.state.stage3CommitteeLoading = false;
         this._isStage3PipelineRunning = false;
+        if (this.state.stage3) {
+          this.state.stage3._pipelineCallingTimestamp = 0;
+          this.state.stage3._pipelineCallerId = '';
+          this.state.stage3._pipelineCallerName = '';
+        }
+        this.syncStage3();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
         if (typeof this.renderCanvas === 'function') this.renderCanvas();
       }

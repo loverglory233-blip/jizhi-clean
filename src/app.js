@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2717";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2717";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2717";
-import { AuthManager } from "./auth.js?v=20260906_v2717";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2717";
-import { renderLoginView } from "./login.js?v=20260906_v2717";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2717";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2717";
+} from "./constants.js?v=20260906_v2719";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2719";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2719";
+import { AuthManager } from "./auth.js?v=20260906_v2719";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2719";
+import { renderLoginView } from "./login.js?v=20260906_v2719";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2719";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2719";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2717";
+} from "./editor.js?v=20260906_v2719";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2918,6 +2918,11 @@ export class App {
     this._isHandlingAgentNudge = false;
     this._isStage3PipelineRunning = false;
     this._lastStage3PipelineAttempt = 0;
+    if (this.state.stage3) {
+      this.state.stage3._pipelineCallingTimestamp = 0;
+      this.state.stage3._pipelineCallerId = '';
+      this.state.stage3._pipelineCallerName = '';
+    }
     if (typeof window !== 'undefined') window._firstPadScanTriggered = false;
 
     // 2. 判定各阶段完成与归档状态（已确认提交的历史阶段绝对不可篡改，不可重新解锁为可写！）
@@ -6103,20 +6108,72 @@ ${chatSnippet}
   }
 
   async runStage3CommitteePipeline(btnElement = null) {
+    // 🛡️ 状态前置检查与明确提示
+    if (this.state.isFinalSubmitted) {
+      if (typeof showGlobalBannerNotice === 'function') {
+        showGlobalBannerNotice('🔒 阶段已封稿', '本阶段终稿已提交定案，答辩委员会专家审阅已归档。', 'info', 4000);
+      }
+      return;
+    }
+    const curTask = (this.authManager) ? this.authManager.getActiveTask() : null;
+    if (curTask && isTaskExpired(curTask)) {
+      if (typeof showGlobalBannerNotice === 'function') {
+        showGlobalBannerNotice('⏳ 任务已截止', '当前任务已截止锁定。若需继续审阅，请任课教师顺延截止时间。', 'warning', 4000);
+      }
+      this.state.stage3CommitteeLoading = false;
+      this._isStage3PipelineRunning = false;
+      return;
+    }
     if (this.isCurrentTaskReadOnly()) {
       this.state.stage3CommitteeLoading = false;
       this._isStage3PipelineRunning = false;
       return;
     }
+
+    if (!this.state.stage3) this.state.stage3 = {};
+    const s3 = this.state.stage3;
+    const now = Date.now();
+
+    // 🔒 组内跨端分布式并发锁检查：如果同一小组有其他组员已在召唤且在 60 秒有效期内，提示并阻止重复发起
+    if (s3._pipelineCallingTimestamp && (now - Number(s3._pipelineCallingTimestamp) < 60000)) {
+      const caller = s3._pipelineCallerName || '组员';
+      if (typeof showGlobalBannerNotice === 'function') {
+        showGlobalBannerNotice('⏳ 专家审阅中', `组员【${caller}】已发起答辩委员会评审，正反方专家正在通读生成中，请耐心等候！`, 'info', 4500);
+      }
+      this.state.stage3CommitteeLoading = true;
+      if (typeof this.renderCanvas === 'function') this.renderCanvas();
+      return;
+    }
+
+    // 本地内存并发防重入（超时 45 秒自愈，防止任何异常永久挂死）
+    if (this._isStage3PipelineRunning && (now - (this._lastStage3PipelineAttempt || 0) < 45000)) {
+      if (typeof showGlobalBannerNotice === 'function') {
+        showGlobalBannerNotice('⏳ 正在通读审阅', '正反方专家正在通读草稿撰写评审意见，请稍候...', 'info', 3000);
+      }
+      return;
+    }
+
+    // 🚀 加锁并广播全组：一人点击，全组锁定，即刻呈现加载状态
+    this._isStage3PipelineRunning = true;
+    this._lastStage3PipelineAttempt = now;
+    this.state.stage3CommitteeLoading = true;
+
+    const currUser = (this.authManager) ? this.authManager.getCurrentUser() : null;
+    s3._pipelineCallingTimestamp = now;
+    s3._pipelineCallerId = currUser?.id || '';
+    s3._pipelineCallerName = currUser?.name || '组员';
+
+    // 立即广播同步至云端与画布
+    this.syncStage3();
+    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+    if (typeof this.renderCanvas === 'function') this.renderCanvas();
+
     if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
       btnElement.disabled = true;
       btnElement.style.opacity = '0.6';
       btnElement.style.cursor = 'not-allowed';
-      btnElement.innerHTML = `⏳ 正在重新生成专家评审...`;
+      btnElement.innerHTML = `⏳ 正在召唤专家审阅初稿...`;
     }
-    if (this._isStage3PipelineRunning) return;
-    this._isStage3PipelineRunning = true;
-    this._lastStage3PipelineAttempt = Date.now();
 
     try {
       if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
@@ -6395,6 +6452,13 @@ ${chatSnippet}
       this.setActiveAgentAnalyzing(null);
       this.state.stage3CommitteeLoading = false;
       this._isStage3PipelineRunning = false;
+      if (this.state.stage3) {
+        this.state.stage3._pipelineCallingTimestamp = 0;
+        this.state.stage3._pipelineCallerId = '';
+        this.state.stage3._pipelineCallerName = '';
+      }
+      this.syncStage3();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       if (typeof window.renderChat === 'function') window.renderChat(this.state);
       if (typeof this.renderCanvas === 'function') this.renderCanvas();
     }
