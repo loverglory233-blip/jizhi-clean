@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2744";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2744";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2744";
-import { AuthManager } from "./auth.js?v=20260907_v2744";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2744";
-import { renderLoginView } from "./login.js?v=20260907_v2744";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2744";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2744";
+} from "./constants.js?v=20260907_v2745";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2745";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2745";
+import { AuthManager } from "./auth.js?v=20260907_v2745";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2745";
+import { renderLoginView } from "./login.js?v=20260907_v2745";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2745";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2745";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2744";
+} from "./editor.js?v=20260907_v2745";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4519,7 +4519,7 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
       this.renderStudentWorkspace();
 
       guideSpeech = guideSpeech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师|备课引导师|引导师)[·\s]*(?:方案确立|主题与方案确立|方案提炼)?】[：:]\s*/g, '');
-      const noticeText = `🏛️ 【${agentRole}·主题与方案确立】：全组${isInst ? '教学论题' : '研究论题'}《${finalTopic}》与方案概述已成功提炼并录入公约看板！👉 接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定完成后点击左侧【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！`;
+      const noticeText = `🏛️ 【${agentRole}·主题与方案确立】：全组${isInst ? '教学论题' : '研究论题'}《${finalTopic}》与方案概述已成功提炼并录入公约看板！请全组在左侧核对，如有异议可直接在左侧输入框修改补充。👉 接下来请在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定完成后点击左侧【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！`;
 
       const noticeMsg = {
         id: 'msg_topic_done_' + Date.now(),
@@ -6023,16 +6023,28 @@ ${chatSnippet}
         currentInquiry.isFinalized = true;
         currentInquiry.status = 'finalized';
 
+        // 🛡️ 智能拼接：确保包含“回填成功、可检查修改”与“顺推引导”
+        const checkTip = `【${inqLabel}】答辩陈述已成功录入左侧裁决矩阵！请全组成员在左侧核对，如有异议可随时直接在左侧输入框补充修改。`;
+        const nextGuide = (remainingOppCount > 0)
+          ? `👉 接下来请全组将研讨焦点转向【${nextLabel}】，继续在讨论区商定对策！商定后点击上方【💡 ${nextLabel} 讨论差不多了？帮我总结并填入】！`
+          : `👉 全部质询均已辩护定案并获委员会全票认可！请全组成员在右上角点击【✍️ 确认答辩完成】，全员确认后将进入【修改${docName}终稿】！`;
+
+        const cleanSpeech = chairSpeech.replace(/^🟡\s*【[^】]+】[：:]\s*/, '').trim();
+        if (cleanSpeech.includes('定案归档') || cleanSpeech.includes('定案回填') || cleanSpeech.includes('裁决矩阵') || cleanSpeech.includes('答辩陈述')) {
+          chairSpeech = `🟡 【${chairShort}·答辩定案与顺推】：${checkTip} ${cleanSpeech}`;
+          if (!chairSpeech.includes(nextLabel) && remainingOppCount > 0) {
+            chairSpeech += `\n\n${nextGuide}`;
+          }
+        } else {
+          chairSpeech = `🟡 【${chairShort}·答辩定案与顺推】：${checkTip} ${cleanSpeech}\n\n${nextGuide}`;
+        }
+
         // 🛡️ 清理历史残留的网络提醒错误气泡
         if (this.state.chatLogs.stage3) {
           this.state.chatLogs.stage3 = this.state.chatLogs.stage3.filter(m => !m || !(m.sender === 'neutral' && (m.text || '').includes('网络提醒')));
         }
       } else {
         chairSpeech = `🟡 【${chairShort}·网络提醒】：📡 答辩审阅网络连接稍有延迟，未能获取到针对【${inqLabel}】的定案。<br><button class="btn-retry-ai" onclick="window.app.handleS3InquirySummary(this)" style="margin-top:6px; background:#d97706; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成【${inqLabel}】答辩定案</button>`;
-      }
-
-      if (!chairSpeech.startsWith('🟡')) {
-        chairSpeech = `🟡 【中间委员·答辩定案与顺推】：${chairSpeech}`;
       }
 
       const chairMsgObj = {
@@ -7804,15 +7816,16 @@ ${chatSnippet}
             let neutralReply = await callCozeAgentAPI('neutral', queryPrompt, { stage: 'stage3', topic, milestoneKey: 'stage3_final_verdict' });
             if (!neutralReply || neutralReply.trim().length === 0) {
               if (unadoptedOppCount > 0) {
-                neutralReply = `🟡 【${chairName}·答辩思路引导】：本组针对【${labelTitle}】的答辩结论已成功写入左侧裁决矩阵！接下来请全组聚焦【质询 ${nextIndex}】，在讨论区充分商定思路后由组员录入左侧矩阵！`;
+                neutralReply = `🟡 【${chairName}·答辩思路引导】：本组针对【${labelTitle}】的答辩结论已成功写入左侧裁决矩阵！请组员在左侧仔细核对，如需完善可随时修改更新。接下来请全组聚焦【质询 ${nextIndex}】，在讨论区充分商定思路后由组员录入左侧矩阵！`;
               } else {
-                neutralReply = `🟡 【${chairName}·答辩终审总结】：全组各项答辩结论已全部成功写入左侧裁决矩阵！祝贺全组成员圆满通过答辩，请点击左侧【提交终稿】完成归档！`;
+                neutralReply = `🟡 【${chairName}·答辩终审总结】：全组各项答辩结论已全部成功写入左侧裁决矩阵！请核对无误后点击左侧【提交终稿】完成归档！`;
               }
             } else {
               const cleanReply = neutralReply.replace(/^🟡\s*【[^】]+】[：:]\s*/, '').trim();
+              const saveTip = `本组针对【${labelTitle}】的答辩结论已成功写入左侧裁决矩阵！请全组在左侧核对，如有异议可随时直接修改。`;
               if (!cleanReply.includes('写入') && !cleanReply.includes('裁决矩阵')) {
                 if (unadoptedOppCount > 0) {
-                  neutralReply = `🟡 【${chairName}·答辩思路引导】：本组针对【${labelTitle}】的答辩结论已成功写入左侧裁决矩阵！${cleanReply}`;
+                  neutralReply = `🟡 【${chairName}·答辩思路引导】：${saveTip} ${cleanReply}`;
                 } else {
                   neutralReply = `🟡 【${chairName}·答辩终审总结】：全组各项答辩结论已全部成功写入左侧裁决矩阵！${cleanReply}`;
                 }
