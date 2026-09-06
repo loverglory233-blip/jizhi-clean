@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2726";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2726";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2726";
-import { AuthManager } from "./auth.js?v=20260906_v2726";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2726";
-import { renderLoginView } from "./login.js?v=20260906_v2726";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2726";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2726";
+} from "./constants.js?v=20260906_v2727";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2727";
+import { callCozeAgentAPI } from "./agents.js?v=20260906_v2727";
+import { AuthManager } from "./auth.js?v=20260906_v2727";
+import { CloudSyncEngine } from "./sync.js?v=20260906_v2727";
+import { renderLoginView } from "./login.js?v=20260906_v2727";
+import { renderTeacherPortal } from "./teacher.js?v=20260906_v2727";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2727";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2726";
+} from "./editor.js?v=20260906_v2727";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5914,9 +5914,9 @@ ${chatSnippet}
 请作为答辩委员会主席，发表【答辩审阅定案与顺推裁决】：
 1. 【提炼答辩共识与修改承诺】：精准提炼全组成员达成的核心辩护陈述、${isInst ? '教学设计理念/学情考量' : '理论/实证论据'}与终稿具体修改对策（用于回填归档，120~180字）；
 2. 【委员会定案与推进】：
-   ${remainingOppCount > 0
-     ? `① 宣布【${inqLabel}】辩护有效并予以采纳，答辩陈述已定案回填入库；\n② 【单题顺推】：顺承引导全组将焦点转向【${nextLabel}】展开深入研讨，并给出 1 条启发性思路点拨！`
-     : `① 宣布全部质询辩护完毕且均获委员会全票认可，已全部定案；\n② 发表答辩终审裁决总结，祝贺团队圆满通过答辩，提醒全组点击左侧【修改${docName}终稿】面板，将答辩修改落实到正文中准备最终归档！`}
+    ${remainingOppCount > 0
+      ? `① 宣布【${inqLabel}】辩护有效并予以采纳，答辩陈述已定案回填入库；\n② 【单题顺推】：顺承引导全组将焦点转向【${nextLabel}】展开深入研讨，并给出 1 条启发性思路点拨！`
+      : `① 宣布全部质询辩护完毕且均获委员会全票认可，已全部定案；\n② 明确提醒全组成员在右上方点击【✍️ 确认答辩完成】，全员确认后将正式解锁并进入【修改${docName}终稿】！`}
 请按以下格式输出：
 答辩陈述：[提取 80~100 字逻辑严密、论据充分的正式答辩词与终稿修改对策，用于回填左侧矩阵]
 主席发言：[100~130 字自然语言点评与顺推裁决]`;
@@ -5932,7 +5932,7 @@ ${chatSnippet}
       let extractedResponse = chatSnippet.slice(0, 150);
       let chairSpeech = (remainingOppCount > 0)
         ? `🟡 【${chairShort}·答辩定案与顺推】：【${inqLabel}】辩护方案已定案归档！👉 请全组将研讨焦点转向【${nextLabel}】，继续在讨论区商定对策！商定后点击上方【💡 ${nextLabel} 讨论差不多了？帮我总结并填入】！`
-        : `🟡 【${chairShort}·答辩终审总结与裁决】：🎉 各位${isInst ? '备课教师' : '研究者'}，全部质询均已辩护定案并获委员会全票认可！答辩圆满顺利通过！👉 请全组成员点击左侧【修改${docName}终稿】面板，将答辩中的修改共识落实到${docName}终稿正文中，准备最终归档！`;
+        : `🟡 【${chairShort}·全部质询定案完毕】：🎉 各位${isInst ? '备课教师' : '研究者'}，全部质询均已辩护定案并获委员会全票认可！👉 请全组成员在右上角点击【✍️ 确认答辩完成】，全员确认后系统将正式解锁并进入【修改${docName}终稿】面板！`;
 
       if (resp && resp.trim().length > 0) {
         const lines = resp.trim().split('\n');
