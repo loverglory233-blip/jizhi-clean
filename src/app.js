@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2745";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2745";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2745";
-import { AuthManager } from "./auth.js?v=20260907_v2745";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2745";
-import { renderLoginView } from "./login.js?v=20260907_v2745";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2745";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2745";
+} from "./constants.js?v=20260907_v2746";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2746";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2746";
+import { AuthManager } from "./auth.js?v=20260907_v2746";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2746";
+import { renderLoginView } from "./login.js?v=20260907_v2746";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2746";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2746";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2745";
+} from "./editor.js?v=20260907_v2746";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1874,6 +1874,24 @@ export class App {
             this.syncStage2();
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             renderChat(this.state);
+            return;
+          }
+
+          // 🌟 13 分钟兜底机制：若一致性研讨下发已达 13 分钟（780,000ms），学生未点击【让责任编辑总结】，系统自动平滑推进至审稿编辑下发修正清单！
+          if (divergenceElapsed >= 13 * 60 * 1000 && !this._isTriggeringSecondReview && !this._isAutoAdvancingToSecondReview) {
+            this._isAutoAdvancingToSecondReview = true;
+            console.log('⏰ [Stage2 Workflow] 一致性研讨已达 13 分钟，学生未手动点击总结，平台自动交棒审稿编辑...');
+            const taskType = this.getCurrentTaskType();
+            const isInst = (taskType === 'instructional');
+            const managingName = isInst ? '备课组长' : '责任编辑';
+            const reviewingName = isInst ? '教研专家' : '审稿编辑';
+            const autoSummarySpeech = `🤝 【${managingName}·研讨小结与自动交棒】：全组半程一致性研讨时间已充裕，为保障整体研讨进度，现自动将大家研讨要点与当前草稿移交给${reviewingName}，通读全篇下发《${isInst ? '磨课修正清单' : '二审修正清单'}》！`;
+            setTimeout(() => {
+              if (typeof this.triggerReviewingEditorAfterDiscussion === 'function') {
+                this.triggerReviewingEditorAfterDiscussion(autoSummarySpeech);
+              }
+              this._isAutoAdvancingToSecondReview = false;
+            }, 600);
             return;
           }
         }
@@ -6052,13 +6070,18 @@ ${chatSnippet}
         senderName: '答辩委员会主席 · 中间委员',
         text: chairSpeech,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        _timeMs: Date.now()
+        _timeMs: Date.now(),
+        stage: 'stage3'
       };
       s3ChatLogs.push(chairMsgObj);
+      if (typeof this.sendSingleChatMessage === 'function') {
+        this.sendSingleChatMessage(chairMsgObj, 'stage3');
+      }
 
       this.syncStage3();
       this.syncChatLogs();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      if (typeof window.renderChat === 'function') window.renderChat(this.state);
     } catch (e) {
       console.warn('handleS3InquirySummary error:', e);
       const errChairMsg = {
