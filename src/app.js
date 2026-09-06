@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260906_v2728";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260906_v2728";
-import { callCozeAgentAPI } from "./agents.js?v=20260906_v2728";
-import { AuthManager } from "./auth.js?v=20260906_v2728";
-import { CloudSyncEngine } from "./sync.js?v=20260906_v2728";
-import { renderLoginView } from "./login.js?v=20260906_v2728";
-import { renderTeacherPortal } from "./teacher.js?v=20260906_v2728";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260906_v2728";
+} from "./constants.js?v=20260907_v2729";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId } from "./utils.js?v=20260907_v2729";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2729";
+import { AuthManager } from "./auth.js?v=20260907_v2729";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2729";
+import { renderLoginView } from "./login.js?v=20260907_v2729";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2729";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2729";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260906_v2728";
+} from "./editor.js?v=20260907_v2729";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1137,10 +1137,10 @@ export class App {
             const firstS3SignTime = this.state._firstS3SignTimeMs || s3._firstSignTimeMs || nowMs;
             const timeSinceFirstS3Sign = nowMs - firstS3SignTime;
             const existS3SignNudge = s3Chats.some(m => m && (m.text?.includes('答辩确认提示') || m.text?.includes('尚未确认')));
-            if (existS3SignNudge || s3UnconfMembers.length === 0 || s3.isDefenseConfirmed || s3.defenseConfirmed || this.state.isFinalSubmitted) {
+            if (existS3SignNudge || s3UnconfMembers.length === 0 || s3.isRevisionConfirmed || this.state.isFinalSubmitted) {
               this.state.s3_signNudgeSent = true;
             }
-            if (!this.state.s3_signNudgeSent && !existS3SignNudge && !s3.isDefenseConfirmed && !s3.defenseConfirmed && !this.state.isFinalSubmitted && s3ConfCount > 0 && s3UnconfMembers.length > 0 && s3ConfCount < membersList.length && timeSinceFirstS3Sign >= 180000) {
+            if (!this.state.s3_signNudgeSent && !existS3SignNudge && !s3.isRevisionConfirmed && !this.state.isFinalSubmitted && s3ConfCount > 0 && s3UnconfMembers.length > 0 && s3ConfCount < membersList.length && timeSinceFirstS3Sign >= 180000) {
               this.state.s3_signNudgeSent = true;
               const s3UnconfNames = s3UnconfMembers.map(m => m.name || m.id).join('、');
               const msgS3SignNudge = {
@@ -5584,9 +5584,28 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
         this.switchStage('stage2', true);
       }
     } else {
+      const taskType = this.getCurrentTaskType();
+      const isInst = (taskType === 'instructional');
+      const agentRole = isInst ? '备课引导师' : '学术拍卖师';
+      const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
+      const contractTitle = isInst ? '备课合作公约' : '学术合作公约';
+      const stage2Title = isInst ? '阶段二：集体备课室' : '阶段二：学术编辑部';
+
+      const s1ProgMsg = {
+        id: 'msg_contract_prog_' + Date.now(),
+        sender: 'auctioneer',
+        senderName: agentSenderName,
+        text: `🏛️ 【${agentRole}·公约签署动态】：组员【${memberName}】已签署确认${contractTitle}！当前全组签署进度：【${confirmedCount}/${totalMembersCount} 人】。请尚未签署的同学尽快在左侧公约下方核对并点击【✍️ 确认签署】，全员签署后将正式解锁${stage2Title}！`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now()
+      };
+      if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+      this.state.chatLogs.stage1.push(s1ProgMsg);
+
       this.syncStage1();
       this.syncChatLogs();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      renderChat(this.state);
       if (typeof showGlobalBannerNotice === 'function') {
         showGlobalBannerNotice(`✅ 签署成功！您 (${memberName}) 已完成公约确认`, `当前全组签署进度：${confirmedCount}/${totalMembersCount} 人已签署。需全员签署后开启阶段二。`);
       }
@@ -7481,6 +7500,18 @@ ${chatSnippet}
         const stage3Title = isInst ? '阶段三：答辩评审会' : '阶段三：答辩擂台';
         if (confirmedCount < totalMembersCount) {
           s2.isDraftConfirmed = false;
+          const managingName = isInst ? '备课组长' : '责任编辑';
+          const s2ProgMsg = {
+            id: 'msg_s2_draft_prog_' + Date.now(),
+            sender: 'managingEditor',
+            senderName: `协同调度 · ${managingName}`,
+            text: `🤝 【${managingName}·初稿签署进度】：组员【${memberName}】已确认初稿！当前全组初稿确认进度：【${confirmedCount}/${totalMembersCount} 人】。请尚未确认的同学尽快在正文上方核对初稿并点击【✍️ 确认初稿】，全员确认后将正式解锁【${stage3Title}】！`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          };
+          if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+          this.state.chatLogs.stage2.push(s2ProgMsg);
+
           this.syncStage2();
           this.syncChatLogs();
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -7622,6 +7653,17 @@ ${chatSnippet}
             }
           }
         } else {
+          const revProgMsg = {
+            id: 'msg_s3_rev_prog_' + Date.now(),
+            sender: 'neutral',
+            senderName: chairSenderTitle,
+            text: `🎓 【${chairSenderTitle}·答辩确认动态】：组员【${memberName}】已确认答辩与修改方案！当前全组进度：【${confirmedCount}/${totalMembersCount} 人】。请尚未确认的同学核对后在右上角点击【✍️ 确认答辩完成】，全员确认后将正式解锁并进入【修改${docName}终稿】！`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          };
+          if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
+          this.state.chatLogs.stage3.push(revProgMsg);
+
           this.syncStage3();
           this.syncChatLogs();
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -7821,6 +7863,17 @@ ${chatSnippet}
             this.showQuestionnaireModal();
           }, 300);
         } else {
+          const finalProgMsg = {
+            id: 'msg_s3_final_prog_' + Date.now(),
+            sender: 'neutral',
+            senderName: chairSenderTitle,
+            text: `🎓 【${chairSenderTitle}·终稿提交动态】：组员【${memberName}】已确认提交终稿！当前全组提交确认进度：【${finalSubmittedCount}/${totalMembersCount} 人】。需全组所有成员均确认提交后正式归档入库，请尚未确认提交的同学尽快在上方核对并点击【🚀 确认提交终稿】！`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now() + 50
+          };
+          if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
+          this.state.chatLogs[currentStage].push(finalProgMsg);
+
           this.syncStage3();
           this.syncChatLogs();
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
