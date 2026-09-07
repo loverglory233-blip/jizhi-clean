@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260908_v2884';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260908_v2884';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260908_v2886';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260908_v2886';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -637,15 +637,19 @@ export class CloudSyncEngine {
     if (!remoteChatLogs || typeof remoteChatLogs !== 'object') return;
     if (!this.app.state.chatLogs) this.app.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
     let hasUpdated = false;
+    const currentTaskId = this.taskId || this.app?.state?.activeTaskId || null;
     ['stage1', 'stage2', 'stage3'].forEach(stg => {
       let remoteLogs = Array.isArray(remoteChatLogs[stg]) ? remoteChatLogs[stg] : [];
       const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
       
-      // 🛡️ 智能单向追加与并集免死权：无论是本地刚生成的智能体真实发言还是本地组员发言，绝不允许被旧快照丢弃（Append-Only）
+      // 🛡️ 严格任务物理隔离：仅保留明确属于当前任务的未上传本地发言，非当前任务一律丢弃
       const localCompleted = localLogs.filter(m => {
         if (!m) return false;
         if (m.isThinking || String(m.id || '').startsWith('thinking_') || String(m.id || '').startsWith('temp_analyzing_')) {
           return false; // 过滤临时思考占位
+        }
+        if (m.taskId && currentTaskId && !isSameId(m.taskId, currentTaskId)) {
+          return false; // 绝不允许跨任务继承历史消息！
         }
         const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs && m._timeMs && Math.abs(rm._timeMs - m._timeMs) < 2500 && rm.text === m.text) || (rm.text && m.text && rm.text === m.text && rm.sender === m.sender));
         return !existsInRemote;
@@ -1285,7 +1289,48 @@ export class CloudSyncEngine {
 
     let needWorkspaceRender = !this._hasRenderedInitialWorkspace;
 
-    if (remoteData.stage1) {
+    // 🛡️ 新任务纯净初始化守卫：若当前任务尚未产生协作记录（revisionId === 0），彻底清空残留数据
+    const isBrandNewTask = (remoteData.revisionId === 0 || remoteData.timestamp === 0);
+    if (isBrandNewTask) {
+      this.app.state.currentStage = 'stage1';
+      this.app.state.groupMaxStage = 'stage1';
+      this.app.state.isFinalSubmitted = false;
+      this.app.state.stepConfirmations = {};
+      this.app.state.fieldLocks = {};
+      this.app.state.stage2PendingReviewing = null;
+      this.app.state.stage2FirstReviewText = null;
+      this.app.state.stage2SecondReviewText = null;
+      if (this.app.state.stage1) {
+        this.app.state.stage1.proposals = [];
+        this.app.state.stage1.votes = {};
+        this.app.state.stage1.hasVoted = {};
+        this.app.state.stage1.mergedTitle = '';
+        this.app.state.stage1.researchOverview = '';
+        this.app.state.stage1.contractStep = '';
+        this.app.state.stage1.contract = {
+          topic: '', overview: '', isDraftGenerated: false, isConfirmed: false,
+          taskAssignments: {}, timeAllocations: {}, confirmedMembers: {}, contractRules: {}
+        };
+      }
+      if (this.app.state.stage2) {
+        this.app.state.stage2.unifiedContent = '';
+        this.app.state.stage2.memberContributions = {};
+        this.app.state.stage2.confirmedMembers = {};
+        this.app.state.stage2.meetingSubmissions = {};
+        this.app.state.stage2.meetingStep = '';
+        this.app.state.stage2.reviewMilestone = 'none';
+        this.app.state.stage2.actionPlan = null;
+        this.app.state.stage2.isDraftConfirmed = false;
+      }
+      if (this.app.state.stage3) {
+        this.app.state.stage3.feedbackItems = [];
+        this.app.state.stage3.finalSubmittedMembers = {};
+        this.app.state.stage3.revisionPlan = null;
+      }
+      needWorkspaceRender = true;
+    }
+
+    if (remoteData.stage1 && !isBrandNewTask) {
       const localS1 = this.app.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
       const prevConfirmedMembersStr = JSON.stringify(this.app.state.stage1?.contract?.confirmedMembers || {});
       const prevIsConfirmed = this.app.state.stage1?.contract?.isConfirmed;
@@ -1476,7 +1521,7 @@ export class CloudSyncEngine {
       }
     }
 
-    if (remoteData.stage2) {
+    if (remoteData.stage2 && !isBrandNewTask) {
       if (Array.isArray(remoteData.stage2)) {
         remoteData.stage2 = { unifiedContent: '', memberContributions: {}, confirmedMembers: {}, meetingSubmissions: {} };
       }
@@ -1632,7 +1677,7 @@ export class CloudSyncEngine {
       }
     }
 
-    if (remoteData.stage3) {
+    if (remoteData.stage3 && !isBrandNewTask) {
       const localS3 = this.app.state.stage3;
       const remoteS3 = remoteData.stage3;
       if (remoteS3) {

@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260908_v2884";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260908_v2884";
+} from "./constants.js?v=20260908_v2886";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260908_v2886";
 
 export const getPanoGroupData = (pano, gid) => {
   if (!pano || typeof pano !== 'object' || !gid) return null;
@@ -3953,6 +3953,16 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
           const newTask = authManager.createTask(title, classId, desc, [], startTime, deadline, calculatedDuration, taskType, words);
           if (newTask && newTask.id) {
             state.activeTaskId = newTask.id;
+            state._lastMonitorHash = '';
+            state._lastEpHash = '';
+            if (window.app) {
+              window.app.state.activeTaskId = newTask.id;
+              if (window.app.cloudSyncEngine) {
+                window.app.cloudSyncEngine.taskId = newTask.id;
+                window.app.cloudSyncEngine.updateScopeKeys();
+              }
+              window.app.loadGroupState(state.activeMonitorGroupId || (activeClass?.groups?.[0]?.id) || null);
+            }
           }
           closeModal();
           const targetClassName = newTask?.className || (activeClass ? activeClass.name : '班级');
@@ -4486,8 +4496,14 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
     selSwitchTask.addEventListener('change', async (e) => {
       const targetTId = e.target.value;
       state.activeTaskId = targetTId;
+      state._lastMonitorHash = '';
+      state._lastEpHash = '';
       if (window.app) {
         window.app.state.activeTaskId = targetTId;
+        if (window.app.cloudSyncEngine) {
+          window.app.cloudSyncEngine.taskId = targetTId;
+          window.app.cloudSyncEngine.updateScopeKeys();
+        }
         window.app.loadGroupState(state.activeMonitorGroupId || (activeClass?.groups?.[0]?.id) || null);
       }
       renderTeacherPortal(container, authManager, state, onLogout);

@@ -162,16 +162,21 @@ if (empty($taskId) && isset($REQ_DATA['message']['taskId'])) {
 }
 $passedScopeKey = isset($_GET['scopeKey']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['scopeKey']) : (isset($REQ_DATA['scopeKey']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $REQ_DATA['scopeKey']) : '');
 if (!empty($passedScopeKey)) {
-    if (preg_match('/^(class_[a-zA-Z0-9_-]+)_(task_[a-zA-Z0-9_-]+)_(group_[a-zA-Z0-9_-]+)$/', $passedScopeKey, $sm)) {
-        if (empty($classId) || $classId === 'class_101') $classId = $sm[1];
-        if (empty($taskId)) $taskId = $sm[2];
-        if (empty($groupId) || $groupId === 'group_1') $groupId = $sm[3];
-    } elseif (preg_match('/^(task_[a-zA-Z0-9_-]+)_(group_[a-zA-Z0-9_-]+)$/', $passedScopeKey, $sm)) {
-        if (empty($taskId)) $taskId = $sm[1];
-        if (empty($groupId) || $groupId === 'group_1') $groupId = $sm[2];
+    $parts = explode('_', $passedScopeKey);
+    if (count($parts) >= 3) {
+        if (preg_match('/^([a-zA-Z0-9-]+)_([a-zA-Z0-9-]+)_([a-zA-Z0-9-]+)$/', $passedScopeKey, $sm)) {
+            if (empty($classId) || $classId === 'class_101') $classId = $sm[1];
+            if (empty($taskId)) $taskId = $sm[2];
+            if (empty($groupId) || $groupId === 'group_1') $groupId = $sm[3];
+        }
+    } elseif (count($parts) === 2) {
+        if (empty($taskId)) $taskId = $parts[0];
+        if (empty($groupId) || $groupId === 'group_1') $groupId = $parts[1];
     }
 }
-$scopeKey = (!empty($taskId) && !empty($groupId)) ? ($taskId . '_' . $groupId) : ($passedScopeKey ?: 'task_1_group_1');
+// 🛡️ 严格三位一体物理隔离 ScopeKey：班级 + 任务 + 小组，绝不混淆
+$scopeKey = (!empty($taskId) && !empty($groupId)) ? ($classId . '_' . $taskId . '_' . $groupId) : ($passedScopeKey ?: ($classId . '_task_1_group_1'));
+$legacyScopeKey = (!empty($taskId) && !empty($groupId)) ? ($taskId . '_' . $groupId) : '';
 $action = isset($_GET['action']) ? $_GET['action'] : (isset($REQ_DATA['action']) ? $REQ_DATA['action'] : '');
 
 /**
