@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2824";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2824";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2824";
-import { AuthManager } from "./auth.js?v=20260907_v2824";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2824";
-import { renderLoginView } from "./login.js?v=20260907_v2824";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2824";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2824";
+} from "./constants.js?v=20260907_v2825";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2825";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2825";
+import { AuthManager } from "./auth.js?v=20260907_v2825";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2825";
+import { renderLoginView } from "./login.js?v=20260907_v2825";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2825";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2825";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2824";
+} from "./editor.js?v=20260907_v2825";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
