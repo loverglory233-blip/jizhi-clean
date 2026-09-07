@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260908_v2892';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260908_v2892';
+} from './constants.js?v=20260908_v2893';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260908_v2893';
 
 export class AuthManager {
   constructor() {
@@ -755,6 +755,8 @@ export class AuthManager {
       if (stored) tasks = JSON.parse(stored);
     } catch (e) { tasks = []; }
     if (!Array.isArray(tasks)) tasks = [];
+    // 确保任务列表始终按创建时间倒序排列（最新任务排在前面）
+    tasks.sort((a, b) => (b.createdMs || new Date(b.createdAt || b.startTime || 0).getTime() || 0) - (a.createdMs || new Date(a.createdAt || a.startTime || 0).getTime() || 0));
     return tasks;
   }
   getActiveTask(taskId = null) {

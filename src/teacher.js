@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260908_v2892";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260908_v2892";
+} from "./constants.js?v=20260908_v2893";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260908_v2893";
 
 export const getPanoGroupData = (pano, gid) => {
   if (!pano || typeof pano !== 'object' || !gid) return null;
@@ -1126,7 +1126,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
               </div>
             `;
           }
-          const currentClassTasks = tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.includes(activeClass.id))));
+          const currentClassTasks = tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.includes(activeClass.id)))).sort((a, b) => (b.createdMs || new Date(b.createdAt || b.startTime || 0).getTime() || 0) - (a.createdMs || new Date(a.createdAt || a.startTime || 0).getTime() || 0));
           const currentClassAnnouncements = announcements.filter(a => (!a.classId || a.classId === 'all' || a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(activeClass.id)))) && !a.isSystemAction && !a.isExtension && !a.title?.includes('延期') && !a.title?.includes('延长至'));
           const currentClassPapers = refPapers.filter(p => (!p.classId || p.classId === 'all' || p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (Array.isArray(p.targetClassIds) && (p.targetClassIds.includes('all') || p.targetClassIds.includes(activeClass.id)))));
 

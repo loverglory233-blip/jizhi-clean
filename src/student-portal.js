@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   TASK_GENRE_CONFIGS,
   APP_VERSION
-} from "./constants.js?v=20260908_v2892";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch, isSameId } from "./utils.js?v=20260908_v2892";
+} from "./constants.js?v=20260908_v2893";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch, isSameId } from "./utils.js?v=20260908_v2893";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -266,7 +266,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
     return isSameId(t.classId, userClass.id) || 
            (t.className && t.className === userClass.name) ||
            (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.some(cid => isSameId(cid, userClass.id))));
-  });
+  }).sort((a, b) => (b.createdMs || new Date(b.createdAt || b.startTime || 0).getTime() || 0) - (a.createdMs || new Date(a.createdAt || a.startTime || 0).getTime() || 0));
   const isAnnRead = (a) => {
     if (!a) return false;
     const uId = currentUser ? (currentUser.id || currentUser.studentCode || currentUser.userCode || '') : '';

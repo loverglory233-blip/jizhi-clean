@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260908_v2892
+ * Version: 20260908_v2893
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260908_v2892';
+  const APP_VERSION = '20260908_v2893';
   const APP_BUILD_DATE = '2026-09-08';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2828,6 +2828,8 @@
         if (stored) tasks = JSON.parse(stored);
       } catch (e) { tasks = []; }
       if (!Array.isArray(tasks)) tasks = [];
+      // 确保任务列表始终按创建时间倒序排列（最新任务排在前面）
+      tasks.sort((a, b) => (b.createdMs || new Date(b.createdAt || b.startTime || 0).getTime() || 0) - (a.createdMs || new Date(a.createdAt || a.startTime || 0).getTime() || 0));
       return tasks;
     }
     getActiveTask(taskId = null) {
@@ -7918,7 +7920,7 @@
                 </div>
               `;
             }
-            const currentClassTasks = tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.includes(activeClass.id))));
+            const currentClassTasks = tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.includes(activeClass.id)))).sort((a, b) => (b.createdMs || new Date(b.createdAt || b.startTime || 0).getTime() || 0) - (a.createdMs || new Date(a.createdAt || a.startTime || 0).getTime() || 0));
             const currentClassAnnouncements = announcements.filter(a => (!a.classId || a.classId === 'all' || a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(activeClass.id)))) && !a.isSystemAction && !a.isExtension && !a.title?.includes('延期') && !a.title?.includes('延长至'));
             const currentClassPapers = refPapers.filter(p => (!p.classId || p.classId === 'all' || p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (Array.isArray(p.targetClassIds) && (p.targetClassIds.includes('all') || p.targetClassIds.includes(activeClass.id)))));
 
@@ -11738,7 +11740,7 @@
       return isSameId(t.classId, userClass.id) || 
              (t.className && t.className === userClass.name) ||
              (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.some(cid => isSameId(cid, userClass.id))));
-    });
+    }).sort((a, b) => (b.createdMs || new Date(b.createdAt || b.startTime || 0).getTime() || 0) - (a.createdMs || new Date(a.createdAt || a.startTime || 0).getTime() || 0));
     const isAnnRead = (a) => {
       if (!a) return false;
       const uId = currentUser ? (currentUser.id || currentUser.studentCode || currentUser.userCode || '') : '';
