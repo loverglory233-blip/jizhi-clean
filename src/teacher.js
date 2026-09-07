@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260908_v2876";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260908_v2876";
+} from "./constants.js?v=20260908_v2879";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260908_v2879";
 
 export const getPanoGroupData = (pano, gid) => {
   if (!pano || typeof pano !== 'object' || !gid) return null;
@@ -466,6 +466,23 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
       };
     } catch (e) {}
   }
+
+  // ⚡ 教师控制台轻量心跳巡检（跨设备秒级同步，弹窗开启或切后台时静默，0 开销 20 字节版本比对）
+  if (window._teacherPortalPollTimer) {
+    clearInterval(window._teacherPortalPollTimer);
+    window._teacherPortalPollTimer = null;
+  }
+  window._teacherPortalPollTimer = setInterval(async () => {
+    if (document.hidden || document.querySelector('.modal-overlay')) return;
+    if (authManager && typeof authManager.pullGlobalMeta === 'function') {
+      try {
+        const res = await authManager.pullGlobalMeta(false);
+        if (res && res.changed) {
+          renderTeacherPortal(container, authManager, state, onLogout);
+        }
+      } catch (err) {}
+    }
+  }, 4000);
 
   if (authManager && authManager.sanitizeAndDeduplicateGroups) {
     authManager.sanitizeAndDeduplicateGroups();

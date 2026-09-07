@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260908_v2876
+ * Version: 20260908_v2879
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260908_v2876';
+  const APP_VERSION = '20260908_v2879';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -7214,6 +7214,23 @@
       } catch (e) {}
     }
 
+    // ⚡ 教师控制台轻量心跳巡检（跨设备秒级同步，弹窗开启或切后台时静默，0 开销 20 字节版本比对）
+    if (window._teacherPortalPollTimer) {
+      clearInterval(window._teacherPortalPollTimer);
+      window._teacherPortalPollTimer = null;
+    }
+    window._teacherPortalPollTimer = setInterval(async () => {
+      if (document.hidden || document.querySelector('.modal-overlay')) return;
+      if (authManager && typeof authManager.pullGlobalMeta === 'function') {
+        try {
+          const res = await authManager.pullGlobalMeta(false);
+          if (res && res.changed) {
+            renderTeacherPortal(container, authManager, state, onLogout);
+          }
+        } catch (err) {}
+      }
+    }, 4000);
+
     if (authManager && authManager.sanitizeAndDeduplicateGroups) {
       authManager.sanitizeAndDeduplicateGroups();
     }
@@ -11494,7 +11511,27 @@
       } catch (e) {}
     }
 
-
+    // ⚡ 工业级多端轻量全局心跳巡检（跨设备/跨浏览器秒级免刷新对齐，0 开销 20 字节版本探测）
+    if (window._studentPortalPollTimer) {
+      clearInterval(window._studentPortalPollTimer);
+      window._studentPortalPollTimer = null;
+    }
+    window._studentPortalPollTimer = setInterval(async () => {
+      if (state.studentViewMode !== 'task_list') {
+        clearInterval(window._studentPortalPollTimer);
+        window._studentPortalPollTimer = null;
+        return;
+      }
+      if (document.hidden) return;
+      if (authManager && typeof authManager.pullGlobalMeta === 'function') {
+        try {
+          const res = await authManager.pullGlobalMeta(false);
+          if (res && res.changed) {
+            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
+          }
+        } catch (err) {}
+      }
+    }, 3500);
 
     const currentUser = authManager.getCurrentUser();
     const classes = authManager.getClasses();
@@ -11832,12 +11869,18 @@
       });
     }
 
-    container.querySelector('#btn-portal-logout')?.addEventListener('click', () => onLogout());
+    container.querySelector('#btn-portal-logout')?.addEventListener('click', () => {
+      if (window._studentPortalPollTimer) { clearInterval(window._studentPortalPollTimer); window._studentPortalPollTimer = null; }
+      onLogout();
+    });
     container.querySelector('#btn-portal-change-pwd')?.addEventListener('click', () => {
       authManager.openChangePasswordModal();
     });
     container.querySelectorAll('.btn-enter-task-workspace').forEach(btn => {
-      btn.addEventListener('click', () => onSelectTask(btn.dataset.taskId));
+      btn.addEventListener('click', () => {
+        if (window._studentPortalPollTimer) { clearInterval(window._studentPortalPollTimer); window._studentPortalPollTimer = null; }
+        onSelectTask(btn.dataset.taskId);
+      });
     });
 
     // 🎯 精准保持滚动条位置（恢复 window 与容器滚动条位置，彻底杜绝跳回最顶部）

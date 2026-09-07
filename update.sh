@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260908_v2876"
+TARGET_VERSION="20260908_v2879"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -142,6 +142,16 @@ dirs.forEach(d => {
 
     const proxyBlock = `
     # ETHERPAD_PROXY_START
+    location = /index.html {
+        add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0" always;
+        add_header Pragma "no-cache" always;
+        expires -1;
+    }
+    location = / {
+        add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0" always;
+        add_header Pragma "no-cache" always;
+        expires -1;
+    }
     location ^~ /p/ {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host $http_host;
