@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260907_v2835";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260907_v2835";
+} from "./constants.js?v=20260907_v2836";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260907_v2836";
 
 export const getPanoGroupData = (pano, gid) => {
   if (!pano || typeof pano !== 'object' || !gid) return null;
@@ -2954,21 +2954,28 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
 
   const btnSaveSurveyUrl = container.querySelector('#btn-save-survey-url');
   if (btnSaveSurveyUrl) {
-    btnSaveSurveyUrl.addEventListener('click', () => {
+    btnSaveSurveyUrl.addEventListener('click', async () => {
       const urlInput = container.querySelector('#input-survey-url') || container.querySelector('#survey-url-input');
       const targetClassId = selSurveyClass ? selSurveyClass.value : activeClass.id;
       const targetTaskId = selSurveyTask ? selSurveyTask.value : (currentClassTasks[0] ? currentClassTasks[0].id : '');
       const url = urlInput ? urlInput.value.trim() : '';
       if (!url) { alert('⚠️ 请先填入有效的问卷链接！'); return; }
       
-      authManager.saveSurvey(targetClassId, targetTaskId, url);
-      
-      if (window.app && window.app.cloudSyncEngine) {
-        window.app.cloudSyncEngine.pushSnapshot();
+      btnSaveSurveyUrl.disabled = true;
+      btnSaveSurveyUrl.innerText = '⏳ 保存中...';
+      try {
+        await authManager.saveSurvey(targetClassId, targetTaskId, url);
+        if (window.app && window.app.cloudSyncEngine) {
+          window.app.cloudSyncEngine.pushSnapshot();
+        }
+        alert('✅ 问卷链接已成功保存并永久同步！');
+      } catch (err) {
+        alert('❌ 保存失败: ' + (err?.message || err));
+      } finally {
+        btnSaveSurveyUrl.disabled = false;
+        btnSaveSurveyUrl.innerText = '💾 保存问卷链接';
+        renderTeacherPortal(container, authManager, state, onLogout);
       }
-
-      alert('✅ 问卷链接已成功保存并永久同步！');
-      renderTeacherPortal(container, authManager, state, onLogout);
     });
   }
 

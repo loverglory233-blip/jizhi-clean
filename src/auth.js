@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260907_v2835';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260907_v2835';
+} from './constants.js?v=20260907_v2836';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260907_v2836';
 
 export class AuthManager {
   constructor() {
@@ -522,25 +522,30 @@ export class AuthManager {
     } catch (e) { list = []; }
     return Array.isArray(list) ? list : [];
   }
-  saveSurvey(classId, taskId, url, existingId = null) {
+  async saveSurvey(classId, taskId, url, existingId = null) {
     if (!url || !url.trim()) return null;
     let list = this.getSurveysList();
     const classes = this.getClasses();
     const tasks = this.getTasks();
-    const cObj = classes.find(c => c.id === classId);
-    const tObj = tasks.find(t => t.id === taskId);
+    const cObj = classes.find(c => isSameId(c.id, classId));
+    const tObj = tasks.find(t => isSameId(t.id, taskId));
     const cleanUrl = url.trim();
 
+    let existingItem = null;
     if (existingId) {
-      const item = list.find(s => s.id === existingId);
-      if (item) {
-        item.classId = classId;
-        item.className = cObj ? cObj.name : '全校班级';
-        item.taskId = taskId;
-        item.taskTitle = tObj ? tObj.title : '写作任务';
-        item.url = cleanUrl;
-        item.updatedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      }
+      existingItem = list.find(s => s.id === existingId);
+    }
+    if (!existingItem) {
+      existingItem = list.find(s => isSameId(s.classId, classId) && isSameId(s.taskId, taskId));
+    }
+
+    if (existingItem) {
+      existingItem.classId = classId;
+      existingItem.className = cObj ? cObj.name : '全校班级';
+      existingItem.taskId = taskId;
+      existingItem.taskTitle = tObj ? tObj.title : (existingItem.taskTitle || '写作任务');
+      existingItem.url = cleanUrl;
+      existingItem.updatedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } else {
       const newSurvey = {
         id: 'survey_' + Date.now(),
@@ -554,7 +559,6 @@ export class AuthManager {
       list.unshift(newSurvey);
     }
     localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(list));
-    this.pushGlobalMeta();
 
     if ('BroadcastChannel' in window) {
       try {
@@ -564,6 +568,8 @@ export class AuthManager {
         window._jizhiGlobalBc.postMessage({ type: 'survey_updated', classId, taskId, url: cleanUrl });
       } catch (e) {}
     }
+
+    return await this.pushGlobalMeta();
   }
   deleteSurvey(surveyId) {
     let list = this.getSurveysList();
@@ -587,7 +593,7 @@ export class AuthManager {
     // 1. 最高优先级：精准匹配 班级 + 任务
     const exactMatch = list.find(s => {
       const matchCls = !s.classId || s.classId === 'all' || isSameId(s.classId, classId);
-      const matchTsk = isSameId(s.taskId, taskId);
+      const matchTsk = isSameId(s.taskId, taskId) || (s.taskTitle && taskId && (s.taskTitle === taskId || s.taskId === taskId));
       return matchCls && matchTsk && s.url && s.url.startsWith('http');
     });
     if (exactMatch) return exactMatch.url;
@@ -2059,24 +2065,13 @@ export class AuthManager {
   getReferencePapers(groupId = null, classId = null, taskId = null) {
     const papers = this.getAllReferencePapers();
     if (!groupId && !classId && !taskId) return papers;
-    const matched = papers.filter(p => {
+    return papers.filter(p => {
       return isScopeMatch(p, {
         userClassId: classId,
         userGroupId: groupId,
         currentTaskId: taskId
       });
     });
-    // 🛡️ 智能防呆优雅降级：若按特定 taskId 匹配为 0 篇，但当前班级与小组存在本课程的学术参考范文，自动展示本班/本组可用范文（杜绝跨任务排他导致学生端误显 0 篇）
-    if (matched.length === 0 && (classId || groupId)) {
-      return papers.filter(p => {
-        return isScopeMatch(p, {
-          userClassId: classId,
-          userGroupId: groupId,
-          currentTaskId: null // 忽略任务隔离，展示本班/本组全部可用范文
-        });
-      });
-    }
-    return matched;
   }
 
   async uploadReferencePaper(paper) {

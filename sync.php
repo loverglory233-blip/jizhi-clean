@@ -2505,18 +2505,17 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                             unset($annIn);
                         }
 
-                        // 🛡️ 关键修复：合并保留服务器端任务的「最新延期截止时间 lastExtension」，杜绝教师端其他旧快照反向冲刷延期
+                        // 🛡️ 关键修复：合并保留服务器端任务的「最新延期截止时间 lastExtension」，杜绝教师端其他旧快照反向冲刷延期（严格按 task ID 唯一标识匹配，绝不按 title 混淆）
                         if (is_array($exAnnMeta) && isset($exAnnMeta['tasks']) && is_array($exAnnMeta['tasks'])) {
                             $exTasksMap = [];
                             foreach ($exAnnMeta['tasks'] as $et) {
-                                if (is_array($et) && isset($et['id'])) $exTasksMap[$et['id']] = $et;
-                                if (is_array($et) && isset($et['title'])) $exTasksMap[$et['title']] = $et;
+                                if (is_array($et) && !empty($et['id'])) $exTasksMap[strval($et['id'])] = $et;
                             }
                             if (!empty($exTasksMap) && isset($cleanDecoded['tasks']) && is_array($cleanDecoded['tasks'])) {
                                 foreach ($cleanDecoded['tasks'] as &$tskIn) {
-                                    if (!is_array($tskIn)) continue;
-                                    $tid = $tskIn['id'] ?? ($tskIn['title'] ?? '');
-                                    if (!$tid || !isset($exTasksMap[$tid])) continue;
+                                    if (!is_array($tskIn) || empty($tskIn['id'])) continue;
+                                    $tid = strval($tskIn['id']);
+                                    if (!isset($exTasksMap[$tid])) continue;
                                     $et = $exTasksMap[$tid];
                                     $serverExtAt = isset($et['lastExtension']['extendedAt']) ? intval($et['lastExtension']['extendedAt']) : 0;
                                     $inExtAt = isset($tskIn['lastExtension']['extendedAt']) ? intval($tskIn['lastExtension']['extendedAt']) : 0;
