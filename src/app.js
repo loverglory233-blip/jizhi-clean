@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2868";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2868";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2868";
-import { AuthManager } from "./auth.js?v=20260907_v2868";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2868";
-import { renderLoginView } from "./login.js?v=20260907_v2868";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2868";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2868";
+} from "./constants.js?v=20260907_v2869";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2869";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2869";
+import { AuthManager } from "./auth.js?v=20260907_v2869";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2869";
+import { renderLoginView } from "./login.js?v=20260907_v2869";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2869";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2869";
 import {
   renderEditor,
   renderChat,
@@ -31,7 +31,7 @@ import {
   enforceEtherpadWorkspaceGuard,
   getEtherpadAuthorStats,
   renderPresenceCursors
-} from "./editor.js?v=20260907_v2868";
+} from "./editor.js?v=20260907_v2869";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6134,7 +6134,7 @@ ${isInst ? '【教研深度审查要求】：绝严禁只泛泛评价目标和�
 【${isInst ? '磨课修正清单' : '二审修正清单'}】：
 1. 🎯 诊断问题：说明具体哪部分（如探究活动设计/师生提问/板书等）存在脱节或单薄；改进建议：给出具体的充实修改方案。
 2. 🎯 诊断问题：...；改进建议：...
-3. 🎯 诊断问题：...；改进建议：...`;
+3. 🎯 诊断问题：...；改进建议：...
 
 （纯自然语言输出，【绝对严禁出现“分工”字眼”】）`;
 

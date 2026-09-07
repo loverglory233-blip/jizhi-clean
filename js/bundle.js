@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2868
+ * Version: 20260907_v2869
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2868';
+  const APP_VERSION = '20260907_v2869';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -22408,7 +22408,7 @@
   【${isInst ? '磨课修正清单' : '二审修正清单'}】：
   1. 🎯 诊断问题：说明具体哪部分（如探究活动设计/师生提问/板书等）存在脱节或单薄；改进建议：给出具体的充实修改方案。
   2. 🎯 诊断问题：...；改进建议：...
-  3. 🎯 诊断问题：...；改进建议：...`;
+  3. 🎯 诊断问题：...；改进建议：...
 
   （纯自然语言输出，【绝对严禁出现“分工”字眼”】）`;
 
