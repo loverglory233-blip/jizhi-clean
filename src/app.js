@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2863";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2863";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2863";
-import { AuthManager } from "./auth.js?v=20260907_v2863";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2863";
-import { renderLoginView } from "./login.js?v=20260907_v2863";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2863";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2863";
+} from "./constants.js?v=20260907_v2864";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2864";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2864";
+import { AuthManager } from "./auth.js?v=20260907_v2864";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2864";
+import { renderLoginView } from "./login.js?v=20260907_v2864";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2864";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2864";
 import {
   renderEditor,
   renderChat,
@@ -31,7 +31,7 @@ import {
   enforceEtherpadWorkspaceGuard,
   getEtherpadAuthorStats,
   renderPresenceCursors
-} from "./editor.js?v=20260907_v2863";
+} from "./editor.js?v=20260907_v2864";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1941,24 +1941,6 @@ export class App {
             renderChat(this.state);
             return;
           }
-
-          // 🌟 8 分钟兜底机制：若一致性研讨下发已达 8 分钟（480,000ms），学生未点击【让责任编辑总结】，系统自动平滑推进至审稿编辑下发修正清单！
-          if (divergenceElapsed >= 8 * 60 * 1000 && !this._isTriggeringSecondReview && !this._isAutoAdvancingToSecondReview) {
-            this._isAutoAdvancingToSecondReview = true;
-            console.log('⏰ [Stage2 Workflow] 一致性研讨已达 8 分钟，学生未手动点击总结，平台自动交棒审稿编辑...');
-            const taskType = this.getCurrentTaskType();
-            const isInst = (taskType === 'instructional');
-            const managingName = isInst ? '备课组长' : '责任编辑';
-            const reviewingName = isInst ? '教研专家' : '审稿编辑';
-            const autoSummarySpeech = `🤝 【${managingName}·研讨小结与自动交棒】：全组半程一致性研讨时间已充裕，为保障整体研讨进度，现自动将大家研讨要点与当前草稿移交给${reviewingName}，通读全篇下发《${isInst ? '磨课修正清单' : '二审修正清单'}》！`;
-            setTimeout(() => {
-              if (typeof this.triggerReviewingEditorAfterDiscussion === 'function') {
-                this.triggerReviewingEditorAfterDiscussion(autoSummarySpeech);
-              }
-              this._isAutoAdvancingToSecondReview = false;
-            }, 600);
-            return;
-          }
         }
 
         // ======================================================================
@@ -3332,16 +3314,8 @@ export class App {
       }
     } else if (activeStage === 'stage3') {
       if (!isS3Done) {
-        // 阶段三未最终提交：检查答辩委员会专家发言与修改清单
-        const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
-        const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
-        const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
-        const hasItems = s3.feedbackItems && s3.feedbackItems.length > 0;
-        if (!hasProp || !hasOpp || !hasItems) {
-          setTimeout(() => {
-            this.runStage3CommitteePipeline();
-          }, 300);
-        }
+        // 阶段三未最终提交：就绪状态呈现，由学生点击或开题显式唤起
+        if (typeof this.renderCanvas === 'function') this.renderCanvas();
       }
     }
 
@@ -4113,17 +4087,24 @@ export class App {
       }
 
       // 🛡️ 智能兜底：若网络延迟未返回大模型结果，自动根据正文实际完成度生成学术初审把脉建议，绝不阻断学生
+      // 🛡️ 纯粹大模型真实生成：若未生成完成则提示重试，绝不注入假保底内容
       if (!firstReviewText || !firstReviewText.trim()) {
-        const isDocShort = rawDoc.length < 150;
-        if (isInstTask) {
-          firstReviewText = isDocShort
-            ? `· 诊断问题：当前教学设计正文起草字数较少，第一部分学情分析与第二部分三维教学目标尚未完整展开；\n· 改进建议：请对照《${topic}》尽快明确教学重难点与学情基础，将“过程与方法”目标细化为具体的学生活动探究链。`
-            : `· 诊断问题：教学目标与学情分析已有初步雏形，但教学活动链与教学重难点的对应度需进一步强化；\n· 改进建议：请对照三维教学目标，逐一细化导入、新授、探究、评价各环节教师与学生活动设计。`;
-        } else {
-          firstReviewText = isDocShort
-            ? `· 诊断问题：当前论文正文起草字数较少，引言与核心科学问题界定尚未充分展开；\n· 改进建议：请紧扣《${topic}》开篇聚焦核心研究问题与研究意义，尽快展开第一章节实质性写作。`
-            : `· 诊断问题：论文开篇立意基本明确，但在文献述评与本研究视角的承接过渡上需强化逻辑闭环；\n· 改进建议：请对照文献综述进一步明晰研究假设与实证框架，避免泛化叙述。`;
-        }
+        this.setActiveAgentAnalyzing(null);
+        this._isTriggeringFirstReview = false;
+        const errFirstReviewMsg = {
+          id: 'err_first_review_' + Date.now(),
+          sender: 'reviewingEditor',
+          senderName: `学术质量 · ${reviewerRoleName}`,
+          text: `📝 【${reviewerRoleName}·提醒】：📡 通读草稿一审破题把脉大模型生成未完成或网络异常。<br><button class="btn-retry-ai" onclick="window.app.triggerStage2FirstReview(this)" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:5px 14px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新调用大模型把脉草稿</button>`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+        this.state.chatLogs.stage2.push(errFirstReviewMsg);
+        this.sendSingleChatMessage(errFirstReviewMsg, 'stage2');
+        this.syncChatLogs();
+        if (typeof renderChat === 'function') renderChat(this.state);
+        return;
       }
 
       // 🛡️ 移除正在生成中的思考消息与残留网络提醒/重试按键
@@ -4132,7 +4113,7 @@ export class App {
         if (m.isThinking || String(m.id || '').startsWith('thinking_first_review_') || String(m.id || '').startsWith('err_first_review_')) return false;
         const txt = m.text || '';
         if (txt.includes('btn-retry-ai') && (txt.includes('triggerStage2FirstReview') || txt.includes('一审破题把脉'))) return false;
-        if (m.sender === 'reviewingEditor' && txt.includes('网络提醒')) return false;
+        if (m.sender === 'reviewingEditor' && (txt.includes('网络提醒') || txt.includes('大模型生成未完成'))) return false;
         return true;
       });
 
@@ -4148,6 +4129,7 @@ export class App {
       this.state.chatLogs.stage2.push(firstReviewMsg);
       s2.firstReviewText = firstReviewText;
       s2.reviewMilestone = 'first_review_done';
+      this.sendSingleChatMessage(firstReviewMsg, 'stage2');
       this.syncChatLogs();
       this.syncStage2();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -6954,6 +6936,10 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
         if (!propText || !oppText) {
           this.setActiveAgentAnalyzing(null);
           this._isStage3PipelineRunning = false;
+          this.state.stage3CommitteeLoading = false;
+          if (this.state.stage3) {
+            this.state.stage3._pipelineCallingTimestamp = 0;
+          }
           const errPipelineMsg = {
             id: 'msg_s3_pipeline_err_' + Date.now(),
             sender: 'neutral',
@@ -6966,6 +6952,7 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
           this.sendSingleChatMessage(errPipelineMsg, 'stage3');
           this.syncChatLogs();
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
+          if (typeof this.renderCanvas === 'function') this.renderCanvas();
           return;
         }
 
@@ -7015,18 +7002,34 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
       const oppQueries = (oppMatches && oppMatches.length > 0)
         ? oppMatches.map(s => s.trim()).filter(s => s.length > 0)
         : [oppBody];
+
+      const existingResponses = new Map();
+      (this.state.stage3.feedbackItems || []).forEach(it => {
+        if (it && it.id && it.response) existingResponses.set(it.id, it.response);
+      });
+      const propResp = existingResponses.get('fb_prop') || '';
       this.state.stage3.feedbackItems = [
-        { id: 'fb_prop', role: 'proponent', speaker: isInst ? '正方专家 (肯定支持)' : '正方委员 Agent (肯定支持)', title: '立论支持', content: propText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, ''), response: '', status: 'pending' }
+        {
+          id: 'fb_prop',
+          role: 'proponent',
+          speaker: isInst ? '正方专家 (肯定支持)' : '正方委员 Agent (肯定支持)',
+          title: '立论支持',
+          content: propText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, ''),
+          response: propResp,
+          status: propResp ? 'resolved' : 'pending'
+        }
       ];
       oppQueries.forEach((q, i) => {
+        const qId = 'fb_opp_' + (i + 1);
+        const qResp = existingResponses.get(qId) || '';
         this.state.stage3.feedbackItems.push({
-          id: 'fb_opp_' + (i + 1),
+          id: qId,
           role: 'opponent',
           speaker: isInst ? '反方专家 (针对实质询)' : '反方委员 Agent (尖锐质询)',
           title: '质询 ' + (i + 1),
           content: q,
-          response: '',
-          status: 'pending'
+          response: qResp,
+          status: qResp ? 'resolved' : 'pending'
         });
       });
       this.state.stage3CommitteeLoading = false;
@@ -7286,20 +7289,6 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
       if (!this.state.stage3.startTime) this.state.stage3.startTime = Date.now();
       if (!this.state.stage3.stageStartTime) this.state.stage3.stageStartTime = this.state.stage3.startTime;
       if (!this.stage3StartTime) this.stage3StartTime = this.state.stage3.startTime;
-      const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
-      const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
-      const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
-      if (!this.isCurrentTaskReadOnly()) {
-        if (!this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) {
-          this.state.stage3CommitteeLoading = true;
-        }
-        const canAutoRun = (!hasProp || !hasOpp || !this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) &&
-          !this._isStage3PipelineRunning &&
-          (Date.now() - (this._lastStage3PipelineAttempt || 0) > 30000);
-        if (canAutoRun) {
-          this.runStage3CommitteePipeline();
-        }
-      }
     }
     this.syncStageChange(newStage);
     if (!this.isCurrentTaskReadOnly()) {
@@ -7467,17 +7456,10 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
       // 🎓 阶段三自愈守护：仅在处于阶段三且尚未终审提交归档时自愈
       else if (curStage === 'stage3') {
         if (!isS3Done) {
-          const s3 = this.state.stage3 || {};
           const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
-          const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
-          const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
-          const hasItems = s3.feedbackItems && s3.feedbackItems.length > 0;
-          const canAutoRun = (!hasProp || !hasOpp || !hasItems) &&
-            !this._isStage3PipelineRunning &&
-            (Date.now() - (this._lastStage3PipelineAttempt || 0) > 30000);
-          if (canAutoRun) {
+          const hasNeutralIntro = s3Logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('欢迎来到【阶段三') || m.text?.includes('开场')));
+          if (!hasNeutralIntro) {
             this.triggerStageWelcomeSpeech('stage3');
-            this.runStage3CommitteePipeline();
           }
         }
       }
@@ -8632,25 +8614,29 @@ ${contentSnippet}
           } catch (apiErr) {
             console.warn('[FirstReview] Coze API error:', apiErr);
           }
-          // 🛡️ 智能兜底：若网络延迟未返回大模型结果，自动根据正文实际完成度生成学术初审把脉建议，绝不阻断学生
+          // 🛡️ 纯粹大模型真实生成：若未生成完成则提示重试，绝不注入假保底内容
           if (!firstReviewText || !firstReviewText.trim()) {
-            // 🛡️ 若已存在有效一审，直接退出，绝不覆盖
+            this.setActiveAgentAnalyzing(null);
+            this._isTriggeringFirstReview = false;
+            // 若历史已存在有效一审则直接退出
             const alreadyHasReview = (this.state.chatLogs?.stage2 || []).some(isRealFirstReviewMsg) || (s2.firstReviewText && s2.reviewMilestone === 'first_review_done');
             if (alreadyHasReview) {
-              this.setActiveAgentAnalyzing(null);
-              this._isTriggeringFirstReview = false;
               return;
             }
-            const isDocShort = contentSnippet.length < 150;
-            if (isInstTask) {
-              firstReviewText = isDocShort
-                ? `· 诊断问题：当前教学设计正文起草字数较少，第一部分学情分析与第二部分三维教学目标尚未完整展开；\n· 改进建议：请对照《${topic}》尽快明确教学重难点与学情基础，将“过程与方法”目标细化为具体的学生活动探究链。`
-                : `· 诊断问题：教学目标与学情分析已有初步雏形，但教学活动链与教学重难点的对应度需进一步强化；\n· 改进建议：请对照三维教学目标，逐一细化导入、新授、探究、评价各环节教师与学生活动设计。`;
-            } else {
-              firstReviewText = isDocShort
-                ? `· 诊断问题：当前论文正文起草字数较少，引言与核心科学问题界定尚未充分展开；\n· 改进建议：请紧扣《${topic}》开篇聚焦核心研究问题与研究意义，尽快展开第一章节实质性写作。`
-                : `· 诊断问题：论文开篇立意基本明确，但在文献述评与本研究视角的承接过渡上需强化逻辑闭环；\n· 改进建议：请对照文献综述进一步明晰研究假设与实证框架，避免泛化叙述。`;
-            }
+            const errFirstReviewMsg = {
+              id: 'err_first_review_' + Date.now(),
+              sender: 'reviewingEditor',
+              senderName: `学术质量 · ${reviewerRoleName}`,
+              text: `📝 【${reviewerRoleName}·提醒】：📡 通读草稿一审破题把脉大模型生成未完成或网络异常。<br><button class="btn-retry-ai" onclick="window.app.triggerStage2FirstReview(this)" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:5px 14px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新调用大模型把脉草稿</button>`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now()
+            };
+            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+            this.state.chatLogs.stage2.push(errFirstReviewMsg);
+            this.sendSingleChatMessage(errFirstReviewMsg, 'stage2');
+            this.syncChatLogs();
+            if (typeof renderChat === 'function') renderChat(this.state);
+            return;
           }
 
           // 🛡️ 移除正在生成中的思考消息与残留网络提醒/重试按键
@@ -8659,7 +8645,7 @@ ${contentSnippet}
             if (m.isThinking || String(m.id || '').startsWith('thinking_first_review_') || String(m.id || '').startsWith('err_first_review_')) return false;
             const txt = m.text || '';
             if (txt.includes('btn-retry-ai') && (txt.includes('triggerStage2FirstReview') || txt.includes('一审破题把脉'))) return false;
-            if (m.sender === 'reviewingEditor' && txt.includes('网络提醒')) return false;
+            if (m.sender === 'reviewingEditor' && (txt.includes('网络提醒') || txt.includes('大模型生成未完成'))) return false;
             return true;
           });
 
@@ -8680,6 +8666,7 @@ ${contentSnippet}
             this.state.chatLogs.stage2.push(firstReviewMsg);
           }
           this.state.chatLogs.stage2 = filterAndDeduplicateChatLogs(this.state.chatLogs.stage2);
+          this.sendSingleChatMessage(firstReviewMsg, 'stage2');
           this.syncChatLogs();
           this.syncStage2();
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();

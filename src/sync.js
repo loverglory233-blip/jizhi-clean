@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2863';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2863';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2864';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2864';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1492,12 +1492,35 @@ export class CloudSyncEngine {
         this.app.state.stage2PendingReviewing = remoteData.stage2.pendingReviewing;
       }
       if (remoteData.stage2.reviewMilestone) {
-        this.app.state.stage2.reviewMilestone = remoteData.stage2.reviewMilestone;
+        const MILESTONE_ORDER = {
+          'none': 0,
+          'first_review_in_progress': 1,
+          'first_review_done': 2,
+          'meeting_called': 3,
+          'second_review_received': 4,
+          'second_review_done': 5,
+          'checklist_issued': 5
+        };
+        const localRank = MILESTONE_ORDER[this.app.state.stage2.reviewMilestone] || 0;
+        const remoteRank = MILESTONE_ORDER[remoteData.stage2.reviewMilestone] || 0;
+        if (remoteRank >= localRank) {
+          this.app.state.stage2.reviewMilestone = remoteData.stage2.reviewMilestone;
+        }
       }
       if (remoteData.stage2.meetingStep !== undefined) {
-        if (this.app.state.stage2.meetingStep !== remoteData.stage2.meetingStep) {
-          this.app.state.stage2.meetingStep = remoteData.stage2.meetingStep;
-          needWorkspaceRender = true;
+        const STEP_ORDER = {
+          '': 0,
+          'discussing_divergence': 1,
+          'discussing_checklist': 2,
+          'completed': 3
+        };
+        const localStepRank = STEP_ORDER[this.app.state.stage2.meetingStep || ''] || 0;
+        const remoteStepRank = STEP_ORDER[remoteData.stage2.meetingStep || ''] || 0;
+        if (remoteStepRank >= localStepRank) {
+          if (this.app.state.stage2.meetingStep !== remoteData.stage2.meetingStep) {
+            this.app.state.stage2.meetingStep = remoteData.stage2.meetingStep;
+            needWorkspaceRender = true;
+          }
         }
       }
       if (remoteData.stage2.divergenceDetails) {
@@ -1626,29 +1649,49 @@ export class CloudSyncEngine {
           setTimeout(() => {
             flashHighlightElement('.feedback-item-card, .feedback-direct-input');
           }, 300);
-        } else if (JSON.stringify(remoteItems) !== JSON.stringify(localItems)) {
-          this.app.state.stage3.feedbackItems = remoteItems;
-          remoteItems.forEach(item => {
-            const textarea = document.querySelector(`.feedback-direct-input[data-id="${item.id}"]`);
-            if (textarea && document.activeElement !== textarea) {
-              if (textarea.value !== (item.response || '')) {
-                textarea.value = item.response || '';
-                try {
-                  textarea.style.height = 'auto';
-                  textarea.style.height = Math.max(68, textarea.scrollHeight + 4) + 'px';
-                } catch (e) {}
-              }
-              textarea.style.borderColor = item.response ? '#a7f3d0' : '#cbd5e1';
-              textarea.style.background = this.app.state.isFinalSubmitted ? '#f8fafc' : (item.response ? '#f0fdf4' : '#ffffff');
-            }
-            const saveBtn = document.querySelector(`.btn-save-feedback-direct[data-id="${item.id}"]`);
-            if (saveBtn) {
-              saveBtn.innerHTML = item.response ? '🔄 更新并保存本条修改' : '💾 确认并保存本条答复';
-              saveBtn.style.background = item.response ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)';
-            }
+        } else if (remoteItems.length > 0 && localItems.length > 0) {
+          let itemsChanged = false;
+          const mergedItems = remoteItems.map(rItem => {
+            const lItem = localItems.find(li => li.id === rItem.id);
+            if (!lItem) return rItem;
+            const rResp = rItem.response || '';
+            const lResp = lItem.response || '';
+            const finalResp = (rResp.length >= lResp.length && rResp) ? rResp : (lResp || rResp);
+            if (finalResp !== lResp || finalResp !== rResp) itemsChanged = true;
+            return {
+              ...rItem,
+              ...lItem,
+              content: rItem.content || lItem.content,
+              speaker: rItem.speaker || lItem.speaker,
+              title: rItem.title || lItem.title,
+              response: finalResp,
+              status: finalResp ? 'resolved' : (rItem.status || lItem.status)
+            };
           });
-          const anyCardInDom = document.querySelector('.feedback-direct-input');
-          if (!anyCardInDom && this.app.state.currentStage === 'stage3') needWorkspaceRender = true;
+          if (itemsChanged || JSON.stringify(mergedItems) !== JSON.stringify(localItems)) {
+            this.app.state.stage3.feedbackItems = mergedItems;
+            mergedItems.forEach(item => {
+              const textarea = document.querySelector(`.feedback-direct-input[data-id="${item.id}"]`);
+              if (textarea && document.activeElement !== textarea) {
+                if (textarea.value !== (item.response || '')) {
+                  textarea.value = item.response || '';
+                  try {
+                    textarea.style.height = 'auto';
+                    textarea.style.height = Math.max(68, textarea.scrollHeight + 4) + 'px';
+                  } catch (e) {}
+                }
+                textarea.style.borderColor = item.response ? '#a7f3d0' : '#cbd5e1';
+                textarea.style.background = this.app.state.isFinalSubmitted ? '#f8fafc' : (item.response ? '#f0fdf4' : '#ffffff');
+              }
+              const saveBtn = document.querySelector(`.btn-save-feedback-direct[data-id="${item.id}"]`);
+              if (saveBtn) {
+                saveBtn.innerHTML = item.response ? '🔄 更新并保存本条修改' : '💾 确认并保存本条答复';
+                saveBtn.style.background = item.response ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)';
+              }
+            });
+            const anyCardInDom = document.querySelector('.feedback-direct-input');
+            if (!anyCardInDom && this.app.state.currentStage === 'stage3') needWorkspaceRender = true;
+          }
         }
 
         if (remoteS3.revisionPlan) {
