@@ -291,7 +291,7 @@ if ($isMilestone) {
                 'success' => false,
                 'in_progress' => true,
                 'error_code' => 429,
-                'message' => '组内已有成员正在发起大模型生成，请稍候同步结果，无需重复请求！'
+                'message' => '大模型正在生成中，请稍候同步结果...'
             ]);
             exit;
         }

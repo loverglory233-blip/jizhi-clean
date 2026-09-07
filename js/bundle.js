@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2774
+ * Version: 20260907_v2775
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2774';
+  const APP_VERSION = '20260907_v2775';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14467,14 +14467,13 @@
       }
       const docType = ((window.app && window.app.authManager) ? (window.app.authManager.getTasks().find(t => t.id === state.activeTaskId)?.taskType || 'experiment') : (state.taskType || 'experiment')) === 'instructional' ? '教学设计' : '论文';
       if (isRunning) {
-        const callerName = s3._pipelineCallerName ? `（组员【${escapeHtml(s3._pipelineCallerName)}】已发起）` : '';
         return `
           <div style="background:#ffffff; border:1.5px solid #bfdbfe; border-radius:12px; padding:36px 24px; text-align:center; box-shadow:0 4px 12px rgba(37,99,235,0.08);">
             <div style="width:40px; height:40px; border:3.5px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 0.9s linear infinite; margin:0 auto 16px;"></div>
             <div style="font-size:16px; font-weight:800; color:#1e40af; margin-bottom:6px;">🎓 答辩委员会专家正在审阅全篇${docType}初稿...</div>
             <div style="font-size:13px; color:#64748b; line-height:1.6; margin-bottom:12px;">正方立论专家正在提取立论亮点，反方商榷专家正在研拟针对实质询。<br>【答辩与终稿修改清单】即将在此生成，并同步呈现在右侧研讨区，请稍候！</div>
             <div style="display:inline-flex; align-items:center; gap:6px; background:#eff6ff; border:1px solid #bfdbfe; padding:5px 14px; border-radius:12px; font-size:12px; color:#1d4ed8; font-weight:700;">
-              ⏳ 大模型深度审阅中，请耐心等候... ${callerName}
+              ⏳ 大模型深度审阅中，请耐心等候...
             </div>
           </div>
         `;
@@ -22447,9 +22446,8 @@
 
       // 🔒 组内跨端分布式并发锁检查：如果同一小组有其他组员已在召唤且在 60 秒有效期内，提示并阻止重复发起
       if (s3._pipelineCallingTimestamp && (now - Number(s3._pipelineCallingTimestamp) < 60000)) {
-        const caller = s3._pipelineCallerName || '组员';
         if (typeof showGlobalBannerNotice === 'function') {
-          showGlobalBannerNotice('⏳ 专家审阅中', `组员【${caller}】已发起答辩委员会评审，正反方专家正在通读生成中，请耐心等候！`, 'info', 4500);
+          showGlobalBannerNotice('⏳ 专家审阅中', '正反方专家正在通读草稿审阅生成中，请耐心等候！', 'info', 4500);
         }
         this.state.stage3CommitteeLoading = true;
         if (typeof this.renderCanvas === 'function') this.renderCanvas();

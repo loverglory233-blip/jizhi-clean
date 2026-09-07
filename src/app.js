@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2774";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2774";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2774";
-import { AuthManager } from "./auth.js?v=20260907_v2774";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2774";
-import { renderLoginView } from "./login.js?v=20260907_v2774";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2774";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2774";
+} from "./constants.js?v=20260907_v2775";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2775";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2775";
+import { AuthManager } from "./auth.js?v=20260907_v2775";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2775";
+import { renderLoginView } from "./login.js?v=20260907_v2775";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2775";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2775";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2774";
+} from "./editor.js?v=20260907_v2775";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6563,9 +6563,8 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
 
     // 🔒 组内跨端分布式并发锁检查：如果同一小组有其他组员已在召唤且在 60 秒有效期内，提示并阻止重复发起
     if (s3._pipelineCallingTimestamp && (now - Number(s3._pipelineCallingTimestamp) < 60000)) {
-      const caller = s3._pipelineCallerName || '组员';
       if (typeof showGlobalBannerNotice === 'function') {
-        showGlobalBannerNotice('⏳ 专家审阅中', `组员【${caller}】已发起答辩委员会评审，正反方专家正在通读生成中，请耐心等候！`, 'info', 4500);
+        showGlobalBannerNotice('⏳ 专家审阅中', '正反方专家正在通读草稿审阅生成中，请耐心等候！', 'info', 4500);
       }
       this.state.stage3CommitteeLoading = true;
       if (typeof this.renderCanvas === 'function') this.renderCanvas();
