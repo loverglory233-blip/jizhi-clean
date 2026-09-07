@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260908_v2875
+ * Version: 20260908_v2876
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260908_v2875';
+  const APP_VERSION = '20260908_v2876';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4835,7 +4835,7 @@
                 try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
               }
               this.handleTaskDeadlineChange(t, e.data.prevDeadline);
-            } else if (e.data.type === 'announcement_created' || e.data.type === 'announcement_deleted' || e.data.type === 'paper_uploaded' || e.data.type === 'paper_deleted' || e.data.type === 'survey_updated' || e.data.type === 'survey_deleted') {
+            } else if (e.data.type === 'task_created' || e.data.type === 'task_updated' || e.data.type === 'task_deleted' || e.data.type === 'announcement_created' || e.data.type === 'announcement_deleted' || e.data.type === 'paper_uploaded' || e.data.type === 'paper_deleted' || e.data.type === 'survey_updated' || e.data.type === 'survey_deleted') {
               if (this.app && this.app.authManager && this.app.authManager.pullGlobalMeta) {
                 this.app.authManager.pullGlobalMeta(true).then(() => {
                   if (this.app.state && this.app.state.studentViewMode === 'workspace') {

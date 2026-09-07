@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260908_v2875';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260908_v2875';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260908_v2876';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260908_v2876';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -135,7 +135,7 @@ export class CloudSyncEngine {
               try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
             }
             this.handleTaskDeadlineChange(t, e.data.prevDeadline);
-          } else if (e.data.type === 'announcement_created' || e.data.type === 'announcement_deleted' || e.data.type === 'paper_uploaded' || e.data.type === 'paper_deleted' || e.data.type === 'survey_updated' || e.data.type === 'survey_deleted') {
+          } else if (e.data.type === 'task_created' || e.data.type === 'task_updated' || e.data.type === 'task_deleted' || e.data.type === 'announcement_created' || e.data.type === 'announcement_deleted' || e.data.type === 'paper_uploaded' || e.data.type === 'paper_deleted' || e.data.type === 'survey_updated' || e.data.type === 'survey_deleted') {
             if (this.app && this.app.authManager && this.app.authManager.pullGlobalMeta) {
               this.app.authManager.pullGlobalMeta(true).then(() => {
                 if (this.app.state && this.app.state.studentViewMode === 'workspace') {
