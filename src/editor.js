@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2870";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2870";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2870";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2871";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2871";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2871";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -4392,7 +4392,14 @@ export function renderChatActionBar(state) {
   }
 }
 if (typeof window !== 'undefined') {
+  window.renderChat = renderChat;
   window.renderChatActionBar = renderChatActionBar;
+  window.renderHeader = renderHeader;
+  window.renderCanvas = renderCanvas;
+  window.renderPresencePills = renderPresencePills;
+  window.renderRemoteCursors = renderRemoteCursors;
+  window.getEffectiveAgentAnalyzing = getEffectiveAgentAnalyzing;
+  window.getEtherpadAuthorStats = getEtherpadAuthorStats;
 }
 
 // 🛡️ Fail-safe compatibility exports

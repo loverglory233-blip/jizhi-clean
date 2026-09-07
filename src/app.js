@@ -13,25 +13,30 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2870";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2870";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2870";
-import { AuthManager } from "./auth.js?v=20260907_v2870";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2870";
-import { renderLoginView } from "./login.js?v=20260907_v2870";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2870";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2870";
+} from "./constants.js?v=20260907_v2871";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2871";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2871";
+import { AuthManager } from "./auth.js?v=20260907_v2871";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2871";
+import { renderLoginView } from "./login.js?v=20260907_v2871";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2871";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2871";
 import {
   renderEditor,
   renderChat,
   renderChatActionBar,
+  renderHeader,
+  renderCanvas,
+  renderPresencePills,
+  renderRemoteCursors,
   renderAnalysisProgress,
   bindToolbarActions,
   initEtherpadIntegration,
   enforceEtherpadWorkspaceGuard,
   getEtherpadAuthorStats,
-  renderPresenceCursors
-} from "./editor.js?v=20260907_v2870";
+  renderPresenceCursors,
+  getEffectiveAgentAnalyzing
+} from "./editor.js?v=20260907_v2871";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
