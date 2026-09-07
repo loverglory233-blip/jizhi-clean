@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2851";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2851";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2851";
-import { AuthManager } from "./auth.js?v=20260907_v2851";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2851";
-import { renderLoginView } from "./login.js?v=20260907_v2851";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2851";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2851";
+} from "./constants.js?v=20260907_v2852";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2852";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2852";
+import { AuthManager } from "./auth.js?v=20260907_v2852";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2852";
+import { renderLoginView } from "./login.js?v=20260907_v2852";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2852";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2852";
 import {
   renderChat,
   renderOutline,
@@ -32,7 +32,7 @@ import {
   renderRemoteCursors,
   renderStudentWorkspace,
   renderReferencePapersModal
-} from "./editor.js?v=20260907_v2851";
+} from "./editor.js?v=20260907_v2852";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -7337,6 +7337,20 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
 
     if (typeof this.checkUnreadAnnouncements === 'function') {
       this.checkUnreadAnnouncements();
+    }
+
+    const allTasks = this.authManager ? this.authManager.getTasks() : [];
+    const curTask = (this.authManager && typeof this.authManager.getActiveTask === 'function')
+      ? this.authManager.getActiveTask()
+      : (allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId)) || null);
+    const isTaskDeadlineExpired = curTask ? isTaskExpired(curTask) : false;
+
+    if (isTaskDeadlineExpired && curTask) {
+      const modalKey = `jizhi_expired_modal_${curTask.id || this.state.activeTaskId}_${curTask.deadline || ''}`;
+      if (!sessionStorage.getItem(modalKey)) {
+        sessionStorage.setItem(modalKey, '1');
+        showTaskDeadlineExpiredModal(curTask);
+      }
     }
 
 

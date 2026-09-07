@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2851";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2851";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2851";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2852";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2852";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2852";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -779,15 +779,15 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
         <span style="color:#1e40af; background:#ffffff; padding:1.5px 8px; border-radius:10px; border:1px solid #bfdbfe; font-weight:800;">📌 ${escapeHtml(currentTaskTitle)}</span>
         <span style="color:${taskGenreKey === 'instructional' ? '#15803d' : '#1e40af'}; background:#ffffff; padding:1.5px 8px; border-radius:10px; border:1px solid ${taskGenreKey === 'instructional' ? '#86efac' : '#bfdbfe'}; font-weight:800;">${genreCfg.icon} ${genreCfg.label}</span>
         <span style="color:#6366f1; background:#ffffff; padding:1.5px 8px; border-radius:10px; border:1px solid #c7d2fe; font-weight:800;" title="本任务建议目标撰写字数">🎯 目标 ${(currentTask && currentTask.targetWordCount) ? Number(currentTask.targetWordCount) : 3000}字</span>
-        ${isFinalSubmitted ? '<span style="color:#059669; margin-left:3px;">(🔒已归档)</span>' : ''}
+        ${isTaskDeadlineExpired ? '<span style="color:#dc2626; background:#fef2f2; border:1px solid #fca5a5; padding:1.5px 8px; border-radius:10px; font-weight:800;">🛑 任务已截止 (只读模式)</span>' : (isFinalSubmitted ? '<span style="color:#059669; margin-left:3px;">(🔒已归档)</span>' : '')}
       </div>
       <button id="btn-header-back-tasks" style="background:#f8fafc; border:1px solid #cbd5e1; color:#334155; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:3px;" title="返回我的写作任务大厅">
         📋 任务大厅
       </button>
     </div>
     <nav class="stage-nav">
-      <button class="stage-btn ${state.currentStage === 'stage1' ? 'active' : ''}" data-stage="stage1" title="${genreCfg.stage1Title}">🎪 阶段一: ${taskGenreKey === 'instructional' ? '工作坊' : '拍卖会'}</button>
-      <button class="stage-btn ${state.currentStage === 'stage2' ? 'active' : ''} ${isS2Locked ? 'stage-locked' : ''}" data-stage="stage2" style="${isS2Locked ? 'opacity:0.65;' : ''}" title="${isS2Locked ? `🔒 待阶段一${taskGenreKey === 'instructional' ? '备课' : ''}公约签署完成后解锁` : genreCfg.stage2Title}">${isS2Locked ? '🔒 ' : ''}📰 阶段二: ${taskGenreKey === 'instructional' ? '备课室' : '编辑部'}</button>
+      <button class="stage-btn ${state.currentStage === 'stage1' ? 'active' : ''}" data-stage="stage1" title="${genreCfg.stage1Title}">${taskGenreKey === 'instructional' ? '📐' : '🎪'} 阶段一: ${taskGenreKey === 'instructional' ? '工作坊' : '拍卖会'}</button>
+      <button class="stage-btn ${state.currentStage === 'stage2' ? 'active' : ''} ${isS2Locked ? 'stage-locked' : ''}" data-stage="stage2" style="${isS2Locked ? 'opacity:0.65;' : ''}" title="${isS2Locked ? `🔒 待阶段一${taskGenreKey === 'instructional' ? '备课' : ''}公约签署完成后解锁` : genreCfg.stage2Title}">${isS2Locked ? '🔒 ' : ''}${taskGenreKey === 'instructional' ? '🤝' : '📰'} 阶段二: ${taskGenreKey === 'instructional' ? '备课室' : '编辑部'}</button>
       <button class="stage-btn ${state.currentStage === 'stage3' ? 'active' : ''} ${isS3Locked ? 'stage-locked' : ''}" data-stage="stage3" style="${isS3Locked ? 'opacity:0.65;' : ''}" title="${isS3Locked ? `🔒 待阶段二${taskGenreKey === 'instructional' ? '磨课会议' : '编辑会议'}与正文完成后解锁` : genreCfg.stage3Title}">${isS3Locked ? '🔒 ' : ''}🎓 阶段三: ${taskGenreKey === 'instructional' ? '评审会' : '答辩擂台'}</button>
     </nav>
     <div class="header-controls">
@@ -797,8 +797,8 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
       <button class="nav-ann-bell-btn ${unreadAnnCount > 0 ? 'has-unread' : ''}" id="btn-header-ann-bell" title="课堂教学通知与延期" style="padding:3px 10px; border-radius:14px; font-size:11.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;">
         <span>📢 教学通知</span>${unreadAnnCount > 0 ? `<span style="background:#ef4444; color:#ffffff; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:10px; box-shadow:0 1px 4px rgba(239,68,68,0.4);">${unreadAnnCount}</span>` : ''}
       </button>
-      <div class="timer-box" style="padding:2px 10px; border-radius:14px; font-size:11.5px; font-weight:700; white-space:nowrap; background:${isTaskDeadlineExpired ? '#fef2f2' : '#eff6ff'}; color:${isTaskDeadlineExpired ? '#dc2626' : '#1d4ed8'}; border:1px solid ${isTaskDeadlineExpired ? '#fecaca' : '#bfdbfe'};">
-        ${isTaskDeadlineExpired ? '🛑 已截止' : `⏱️ 剩余 ${formatDurationHuman(remainingMin, true)}`}
+      <div class="timer-box" style="padding:3px 12px; border-radius:14px; font-size:11.5px; font-weight:700; white-space:nowrap; background:${isTaskDeadlineExpired ? '#fef2f2' : '#eff6ff'}; color:${isTaskDeadlineExpired ? '#dc2626' : '#1d4ed8'}; border:1px solid ${isTaskDeadlineExpired ? '#fecaca' : '#bfdbfe'}; display:inline-flex; align-items:center; gap:4px;">
+        ${isTaskDeadlineExpired ? `🛑 任务已截止 · 只读模式 (${currentTask?.deadline || '已到期'})` : `⏱️ 截止: ${currentTask?.deadline || '未设'} · 剩余 ${formatDurationHuman(remainingMin, true)}`}
       </div>
       <button id="btn-user-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;" title="退出登录">🚪 退出</button>
     </div>
@@ -3897,13 +3897,22 @@ export function renderChat(state) {
     let color = '#2563eb';
 
     if (isAgent) {
-      const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-      const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId));
-      const taskGenreKey = currentTask?.taskType || 'experiment';
+      const taskGenreKey = (window.app && typeof window.app.getCurrentTaskType === 'function')
+        ? window.app.getCurrentTaskType()
+        : 'experiment';
+      const isInst = (taskGenreKey === 'instructional');
       name = getAgentDisplayName(msg.sender, taskGenreKey);
-      const profile = AgentProfiles[msg.sender];
-      avatar = profile?.avatar || '🤖';
-      color = profile?.color || '#7c3aed';
+      if (msg.sender === 'auctioneer') { avatar = isInst ? '📐' : '🎪'; color = isInst ? '#059669' : '#8b5cf6'; }
+      else if (msg.sender === 'managingEditor') { avatar = isInst ? '🤝' : '📰'; color = isInst ? '#059669' : '#2563eb'; }
+      else if (msg.sender === 'reviewingEditor') { avatar = isInst ? '🔍' : '📑'; color = '#0284c7'; }
+      else if (msg.sender === 'proponent') { avatar = '🟢'; color = '#16a34a'; }
+      else if (msg.sender === 'opponent') { avatar = '🔴'; color = '#dc2626'; }
+      else if (msg.sender === 'neutral') { avatar = '⚖️'; color = '#d97706'; }
+      else {
+        const profile = AgentProfiles[msg.sender];
+        avatar = profile?.avatar || '🤖';
+        color = profile?.color || '#7c3aed';
+      }
     } else {
       if (msg.senderName && msg.senderName !== '组员') {
         name = msg.senderName;
@@ -4169,7 +4178,7 @@ export function renderChatActionBar(state) {
       if (isGeneratingContract) {
         actionBar.innerHTML = `
           <button id="btn-s1-auto-generate-contract" style="background:#94a3b8; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; opacity:0.9; display:inline-flex; align-items:center; gap:6px;">
-            ⏳ 拍卖师正在通读研讨并提炼公约草案...
+            ⏳ ${taskGenreKey === 'instructional' ? '备课引导师' : '学术拍卖师'}正在通读研讨并提炼公约草案...
           </button>
         `;
       } else if (isExtractingAny) {
