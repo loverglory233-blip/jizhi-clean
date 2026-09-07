@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2840";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2840";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2840";
-import { AuthManager } from "./auth.js?v=20260907_v2840";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2840";
-import { renderLoginView } from "./login.js?v=20260907_v2840";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2840";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2840";
+} from "./constants.js?v=20260907_v2841";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2841";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2841";
+import { AuthManager } from "./auth.js?v=20260907_v2841";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2841";
+import { renderLoginView } from "./login.js?v=20260907_v2841";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2841";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2841";
 import {
   renderChat,
   renderOutline,
@@ -28,7 +28,7 @@ import {
   renderActionBar,
   renderStudentWorkspace,
   renderReferencePapersModal
-} from "./editor.js?v=20260907_v2840";
+} from "./editor.js?v=20260907_v2841";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1938,10 +1938,10 @@ export class App {
             return;
           }
 
-          // 🌟 13 分钟兜底机制：若一致性研讨下发已达 13 分钟（780,000ms），学生未点击【让责任编辑总结】，系统自动平滑推进至审稿编辑下发修正清单！
-          if (divergenceElapsed >= 13 * 60 * 1000 && !this._isTriggeringSecondReview && !this._isAutoAdvancingToSecondReview) {
+          // 🌟 8 分钟兜底机制：若一致性研讨下发已达 8 分钟（480,000ms），学生未点击【让责任编辑总结】，系统自动平滑推进至审稿编辑下发修正清单！
+          if (divergenceElapsed >= 8 * 60 * 1000 && !this._isTriggeringSecondReview && !this._isAutoAdvancingToSecondReview) {
             this._isAutoAdvancingToSecondReview = true;
-            console.log('⏰ [Stage2 Workflow] 一致性研讨已达 13 分钟，学生未手动点击总结，平台自动交棒审稿编辑...');
+            console.log('⏰ [Stage2 Workflow] 一致性研讨已达 8 分钟，学生未手动点击总结，平台自动交棒审稿编辑...');
             const taskType = this.getCurrentTaskType();
             const isInst = (taskType === 'instructional');
             const managingName = isInst ? '备课组长' : '责任编辑';
