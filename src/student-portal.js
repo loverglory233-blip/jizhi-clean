@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   TASK_GENRE_CONFIGS,
   APP_VERSION
-} from "./constants.js?v=20260908_v2890";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch, isSameId } from "./utils.js?v=20260908_v2890";
+} from "./constants.js?v=20260908_v2891";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch, isSameId } from "./utils.js?v=20260908_v2891";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -319,12 +319,6 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
           </div>
         </div>
         <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
-          <button id="btn-portal-ann-bell" style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:6px; position:relative;" title="查看教师课堂通知">
-            <span>📢 课堂通知</span>
-            ${unreadAnnCount > 0 ? `<span style="background:#dc2626; color:white; font-size:10px; font-weight:800; padding:1px 6px; border-radius:10px; min-width:14px; text-align:center;">${unreadAnnCount}</span>` : ''}
-          </button>
-          <button id="btn-portal-ref-papers" style="background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="查看参考范文库">📚 参考范文库</button>
-          <button id="btn-portal-survey" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="查看课程问卷">📋 课程问卷</button>
           <button id="btn-portal-change-pwd" style="background:#f8fafc; color:#475569; border:1px solid #e2e8f0; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="修改登录密码">🔑 修改密码</button>
           <button id="btn-portal-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
         </div>
@@ -519,15 +513,6 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
     });
   }
 
-  container.querySelector('#btn-portal-ann-bell')?.addEventListener('click', () => {
-    if (typeof onOpenAnnModal === 'function') onOpenAnnModal();
-  });
-  container.querySelector('#btn-portal-ref-papers')?.addEventListener('click', () => {
-    if (typeof onOpenRefPapersModal === 'function') onOpenRefPapersModal();
-  });
-  container.querySelector('#btn-portal-survey')?.addEventListener('click', () => {
-    if (typeof onOpenSurveyModal === 'function') onOpenSurveyModal();
-  });
   container.querySelector('#btn-portal-logout')?.addEventListener('click', () => {
     if (window._studentPortalPollTimer) { clearInterval(window._studentPortalPollTimer); window._studentPortalPollTimer = null; }
     onLogout();
