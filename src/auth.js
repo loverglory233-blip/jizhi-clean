@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260907_v2827';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260907_v2827';
+} from './constants.js?v=20260907_v2828';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260907_v2828';
 
 export class AuthManager {
   constructor() {
@@ -432,6 +432,15 @@ export class AuthManager {
             localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
             localStorage.setItem('jizhi_announcements_db', JSON.stringify(mergedAnns));
             localStorage.setItem('jizhi_pure_v10_ann_db', JSON.stringify(mergedAnns));
+
+            if (window.app && currUser && (currUser.role === 'student' || currUser.isStudent)) {
+              if (typeof window.app.renderHeader === 'function') {
+                window.app.renderHeader();
+              }
+              if (typeof window.app.checkUnreadAnnouncements === 'function') {
+                window.app.checkUnreadAnnouncements();
+              }
+            }
           }
 
           // 5. 学术文献与范文：云端权威，保留教师本地在途

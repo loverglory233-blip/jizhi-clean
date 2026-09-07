@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2827";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2827";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2827";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2828";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2828";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2828";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -712,6 +712,7 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
     return isScopeMatch(a, {
       userClassId: activeClassId,
       userGroupId: groupId,
+      userGroupName: groupName,
       currentTaskId: activeTaskId,
       currentTaskTitle: currentTaskTitle,
       userClassName: currentClassObj ? currentClassObj.name : ''
@@ -769,7 +770,7 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
 
   const newHeaderHtml = `
     <div class="brand-section">
-      <div class="brand-logo" style="display:flex; align-items:baseline; gap:6px;">集智 JIZHI <span style="font-size:10px; font-weight:700; color:#94a3b8; font-family:monospace;" title="系统版本号">${APP_VERSION}</span></div>
+      <div class="brand-logo" style="display:flex; align-items:baseline; gap:6px;">集智 JIZHI</div>
       <div class="brand-badge" style="background:#eff6ff; color:#1d4ed8; padding:3px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid #bfdbfe; display:inline-flex; align-items:center; gap:6px;">
         <span>🎓 ${escapeHtml(currentUser ? currentUser.name : '学生')}</span>
         <span style="opacity:0.35;">·</span>

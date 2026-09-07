@@ -13,21 +13,22 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2827";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2827";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2827";
-import { AuthManager } from "./auth.js?v=20260907_v2827";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2827";
-import { renderLoginView } from "./login.js?v=20260907_v2827";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2827";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2827";
-import {
-  renderChat,
-  renderHeader,
+} from "./constants.js?v=20260907_v2828";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2828";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2828";
+import { AuthManager } from "./auth.js?v=20260907_v2828";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2828";
+import { renderLoginView } from "./login.js?v=20260907_v2828";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2828";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2828";
+import { 
+  renderHeader, 
+  renderStudentWorkspace, 
   renderCanvas,
-  renderPresencePills,
-  renderRemoteCursors
-} from "./editor.js?v=20260907_v2827";
+  renderChat,
+  renderChatActionBar,
+  renderEditorToolbar
+} from "./editor.js?v=20260907_v2828";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2377,13 +2378,10 @@ export class App {
       // 过滤出严格属于【当前班级 + 当前任务 + 当前小组】的全部通知
       const myAnns = allAnns.filter(a => {
         if (!a || a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长')) return false;
-        if (a.taskId && a.taskId !== 'task_all' && a.taskId !== 'all' && activeTaskId) {
-          const tObj = allTasks.find(t => isSameId(t.id, a.taskId) || t.title === a.taskId);
-          if (tObj && isTaskExpired(tObj)) return false;
-        }
         return isScopeMatch(a, {
           userClassId: effectiveClassId || currentUser?.classId,
           userGroupId: groupId,
+          userGroupName: activeGroupObj ? activeGroupObj.name : '',
           currentTaskId: activeTaskId,
           currentTaskTitle: currentTaskTitle,
           userClassName: effectiveClassName
@@ -2476,6 +2474,7 @@ export class App {
         return isScopeMatch(a, {
           userClassId: effectiveClassId || currentUser?.classId,
           userGroupId: groupId,
+          userGroupName: activeGroupObj ? activeGroupObj.name : '',
           currentTaskId: activeTaskId,
           currentTaskTitle: currentTaskTitle,
           userClassName: effectiveClassName

@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2827';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2827';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2828';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2828';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -771,12 +771,23 @@ export class CloudSyncEngine {
     const isTeacher = user && (user.isTeacher || user.role === 'teacher');
     const myGroupId = this.getEffectiveGroupId();
 
-    if (remoteData.groupId && remoteData.groupId !== myGroupId && user?.role === 'student') return;
-
+    const prevMetaVer = this._lastKnownMetaVer;
     if (remoteData.metaVer !== undefined) {
       this._lastKnownMetaVer = remoteData.metaVer;
       if (this.app?.authManager) {
         this.app.authManager.globalMetaVersion = remoteData.metaVer;
+      }
+      // 🛡️ 核心防漏补丁：若服务端版本递增，但本次协同响应未包含完整 announcements（如高频协作 Delta），
+      // 必须立刻主动触发 pullGlobalMeta 补拉全局最新通知并弹窗，杜绝多端通知丢失
+      if (prevMetaVer !== undefined && remoteData.metaVer !== prevMetaVer && !Array.isArray(remoteData.announcements)) {
+        if (this.app && this.app.authManager && typeof this.app.authManager.pullGlobalMeta === 'function') {
+          this.app.authManager.pullGlobalMeta(true).then(() => {
+            if (this.app) {
+              if (typeof this.app.renderHeader === 'function') this.app.renderHeader();
+              if (typeof this.app.checkUnreadAnnouncements === 'function') this.app.checkUnreadAnnouncements();
+            }
+          }).catch(() => {});
+        }
       }
     }
 
@@ -784,15 +795,9 @@ export class CloudSyncEngine {
       this._hasPulledGlobal = true;
     }
 
-    // 更新本地已知的服务端 revisionId 和 metaVer（每次拉到数据都对齐，彻底打通 Delta 差量通道）
+    // 更新本地已知的服务端 revisionId（每次拉到数据都对齐，彻底打通 Delta 差量通道）
     if (remoteData.revisionId !== undefined) {
       this._lastKnownRevisionId = remoteData.revisionId;
-    }
-    if (remoteData.metaVer !== undefined) {
-      this._lastKnownMetaVer = remoteData.metaVer;
-      if (this.app?.authManager) {
-        this.app.authManager.globalMetaVersion = remoteData.metaVer;
-      }
     }
     this._hasPulledGlobal = true;
 

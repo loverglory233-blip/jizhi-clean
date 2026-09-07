@@ -1438,7 +1438,7 @@ export function isScopeMatch(target = {}, context = {}) {
     }
   }
 
-  // 2. 小组范围匹配 (仅在明确指定全班广播 all/group_all/* 时放行，否则校验小组ID)
+  // 2. 小组范围匹配 (仅在明确指定全班广播 all/group_all/* 时放行，否则严格校验小组ID)
   const cleanTargetGroup = String(targetGroupId || '').trim();
   const isGroupBroadcast = !cleanTargetGroup || cleanTargetGroup.toLowerCase() === 'all' || cleanTargetGroup.toLowerCase() === 'group_all' || cleanTargetGroup === '*' || (target.targetGroupName && String(target.targetGroupName).includes('全班'));
 
@@ -1447,6 +1447,8 @@ export function isScopeMatch(target = {}, context = {}) {
     matchGroup = true;
   } else {
     const cleanUserGroup = String(userGroupId || '').trim();
+
+    // 严格按小组 ID 比对（支持单个指定与多选数组指定）
     if (cleanUserGroup && isSameId(cleanTargetGroup, cleanUserGroup)) {
       matchGroup = true;
     } else if (Array.isArray(tGroupIds) && tGroupIds.some(gid => {
