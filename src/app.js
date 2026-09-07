@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2821";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2821";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2821";
-import { AuthManager } from "./auth.js?v=20260907_v2821";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2821";
-import { renderLoginView } from "./login.js?v=20260907_v2821";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2821";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2821";
+} from "./constants.js?v=20260907_v2822";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2822";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2822";
+import { AuthManager } from "./auth.js?v=20260907_v2822";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2822";
+import { renderLoginView } from "./login.js?v=20260907_v2822";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2822";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2822";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2821";
+} from "./editor.js?v=20260907_v2822";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -189,14 +189,13 @@ export class App {
               localTasks = localTasks.filter(lt => lt && !isSameId(lt.id, delTaskId));
               try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
             }
-            // 1) 若学生刚好在被删除的任务工作台中：全屏模态弹窗强阻断，引导安全返回大厅
-            if (this.state.studentViewMode === 'workspace' && isSameId(this.state.activeTaskId, delTaskId)) {
+            // 1) 若学生刚好在被删除的任务工作台中（按 ID 或 标题匹配）：全屏模态弹窗强阻断，引导安全返回大厅
+            if (this.state.studentViewMode === 'workspace' && (isSameId(this.state.activeTaskId, delTaskId) || (this.state.activeTaskTitle && isSameId(this.state.activeTaskTitle, delTaskTitle)))) {
               this.showTaskRevokedModal(delTaskTitle);
             } else if (this.state.studentViewMode === 'task_list') {
               // 2) 若学生在任务大厅中：仅静默无感实时刷新大厅卡片列表，无弹窗打扰
               this.renderMain();
             }
-            // 3) 若在另一个任务工作台中：做减法，静默不打扰当前写作
           }
 
           // 2.5 教师更新任务 / 任务延期广播（秒级同步并即时刷新倒计时与编辑器权限）
@@ -1336,15 +1335,19 @@ export class App {
             this._isHandlingTaskRevoked = false;
             const actualTaskId = taskId || null;
             const allTasks = this.authManager ? this.authManager.getTasks() : [];
-            const targetTaskObj = allTasks.find(t => isSameId(t.id, actualTaskId) || t.title === actualTaskId);
+            const targetTaskObj = allTasks.find(t => isSameId(t.id, actualTaskId) || (t.title && t.title === actualTaskId));
+            const strictTaskId = targetTaskObj ? targetTaskObj.id : (actualTaskId || null);
+            const strictTaskTitle = targetTaskObj ? targetTaskObj.title : '';
             const isUniversalClass = (cid) => !cid || cid === 'all' || cid === 'class_all' || cid === 'task_class_all';
             const rawTaskClassId = (targetTaskObj && !isUniversalClass(targetTaskObj.classId)) ? targetTaskObj.classId : null;
-            const taskClassId = rawTaskClassId || (this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, actualTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null));
+            const taskClassId = rawTaskClassId || (this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, strictTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null));
             this.state.activeStudentClassId = taskClassId;
+            this.state.activeTaskId = strictTaskId;
+            this.state.activeTaskTitle = strictTaskTitle;
 
             try {
-              sessionStorage.setItem('jizhi_active_task_id', actualTaskId);
-              localStorage.setItem('jizhi_active_task_id', actualTaskId);
+              sessionStorage.setItem('jizhi_active_task_id', strictTaskId);
+              localStorage.setItem('jizhi_active_task_id', strictTaskId);
               sessionStorage.setItem('jizhi_active_student_class_id', taskClassId);
               localStorage.setItem('jizhi_active_student_class_id', taskClassId);
             } catch (e) {}
@@ -2421,7 +2424,7 @@ export class App {
     if (isSequentialFlow && document.querySelector('.modal-announcement-popup')) {
       return;
     }
-    document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+    document.querySelectorAll('.modal-overlay:not(.modal-task-deleted-barrier)').forEach(el => el.remove());
     const currentUser = this.authManager.getCurrentUser();
     const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null);
     const classes = this.authManager.getClasses();
@@ -2779,7 +2782,7 @@ export class App {
   }
 
   showQuestionnaireModal() {
-    document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+    document.querySelectorAll('.modal-overlay:not(.modal-task-deleted-barrier)').forEach(el => el.remove());
     const currentUser = this.authManager.getCurrentUser();
     const currentClassId = this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) || currentUser?.classId || null;
     const currentTaskId = this.state.activeTaskId || null;
@@ -2866,7 +2869,7 @@ export class App {
   }
 
   showReferencePapersModal() {
-    document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+    document.querySelectorAll('.modal-overlay:not(.modal-task-deleted-barrier)').forEach(el => el.remove());
     const user = this.authManager.getCurrentUser();
     const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : null;
     const classId = this.authManager.getEffectiveStudentClassId(user, activeTaskId) || (this.state && this.state.activeStudentClassId) || user?.classId || null;
@@ -3020,21 +3023,23 @@ export class App {
     this.state.studentViewMode = 'task_list';
     this.state.activeTaskId = null;
     this.state.activeTaskTitle = null;
-    sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
-    sessionStorage.removeItem('jizhi_active_task_id');
-    localStorage.setItem('jizhi_student_view_mode', 'task_list');
-    localStorage.removeItem('jizhi_active_task_id');
+    try {
+      sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
+      sessionStorage.removeItem('jizhi_active_task_id');
+      localStorage.setItem('jizhi_student_view_mode', 'task_list');
+      localStorage.removeItem('jizhi_active_task_id');
+    } catch (e) {}
 
     // 立即切回大厅底层视图
     this.renderMain();
 
     // 确保弹窗在最顶层且全场仅保留 1 个
-    document.querySelectorAll('.modal-task-deleted-overlay').forEach(el => el.remove());
+    document.querySelectorAll('.modal-task-deleted-barrier').forEach(el => el.remove());
     const modal = document.createElement('div');
-    modal.className = 'modal-overlay modal-task-deleted-overlay';
-    modal.style.cssText = 'z-index:999999; display:flex; align-items:center; justify-content:center; position:fixed; inset:0; background:rgba(15,23,42,0.75); backdrop-filter:blur(6px);';
+    modal.className = 'modal-task-deleted-overlay modal-task-deleted-barrier';
+    modal.style.cssText = 'z-index:9999999; display:flex; align-items:center; justify-content:center; position:fixed; inset:0; background:rgba(15,23,42,0.85); backdrop-filter:blur(8px);';
     modal.innerHTML = `
-      <div class="modal-card" style="background:#ffffff; border-radius:16px; max-width:440px; width:92%; padding:32px 26px; box-shadow:0 25px 60px -12px rgba(0,0,0,0.35); text-align:center; animation:modalPop 0.25s cubic-bezier(0.16,1,0.3,1); border:1.5px solid #fee2e2;">
+      <div class="modal-card" style="background:#ffffff; border-radius:16px; max-width:440px; width:92%; padding:32px 26px; box-shadow:0 25px 60px -12px rgba(0,0,0,0.45); text-align:center; animation:modalPop 0.25s cubic-bezier(0.16,1,0.3,1); border:1.5px solid #fee2e2;">
         <div style="width:60px; height:60px; border-radius:50%; background:#fee2e2; color:#ef4444; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:30px; box-shadow:0 4px 12px rgba(239,68,68,0.2);">🗑️</div>
         <h3 style="margin:0 0 10px; font-size:20px; color:#0f172a; font-weight:800;">写作任务已被教师删除</h3>
         <p style="margin:0 0 24px; font-size:14.5px; color:#475569; line-height:1.65;">
