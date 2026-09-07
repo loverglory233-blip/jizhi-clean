@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2829';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2829';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2830';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2830';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -46,6 +46,13 @@ export class CloudSyncEngine {
     }
     if (isStudent && this.app.state.studentViewMode !== 'workspace') {
       taskId = null;
+    }
+
+    if (!isSameId(this.taskId, taskId) || !isSameId(this.groupId, groupId) || !isSameId(this.effectiveClassId, effectiveClassId)) {
+      this._lastKnownRevisionId = 0;
+      this._lastKnownMetaVer = 0;
+      this._hasInitialPullCompleted = false;
+      this._hasRenderedInitialWorkspace = false;
     }
 
     this.groupId = groupId;
@@ -1093,6 +1100,13 @@ export class CloudSyncEngine {
       }
     }
 
+    // 🛡️ 严格任务物理隔离守卫：若响应中携带的 taskId 与当前工作台 activeTaskId 不一致，坚决拒绝合并阶段数据
+    const currentActiveTaskId = this.app?.state?.activeTaskId || this.taskId;
+    const isTaskMatch = !remoteData.taskId || !currentActiveTaskId || isSameId(remoteData.taskId, currentActiveTaskId);
+    if (!isTaskMatch && user?.role === 'student') {
+      return;
+    }
+
     // 🛡️ 教师重置功能已废除，纯净同步阶段协作数据，绝对不误踢正在协作的学生
     this._hasInitialPullCompleted = true;
     this.isInitialPullDone = true;
@@ -1703,6 +1717,9 @@ export class CloudSyncEngine {
 
     if (remoteData.currentStage) {
       this.app.state.groupMaxStage = remoteData.currentStage;
+      if (!this.app.isViewingPastStage) {
+        this.app.state.currentStage = remoteData.currentStage;
+      }
     }
 
     // 🌟 全员里程碑协同弹窗：远端阶段流转达成时，确保所有正在等待的组员均能收到弹窗并点击推进

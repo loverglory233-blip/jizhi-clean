@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2829";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2829";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2829";
-import { AuthManager } from "./auth.js?v=20260907_v2829";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2829";
-import { renderLoginView } from "./login.js?v=20260907_v2829";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2829";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2829";
+} from "./constants.js?v=20260907_v2830";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2830";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2830";
+import { AuthManager } from "./auth.js?v=20260907_v2830";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2830";
+import { renderLoginView } from "./login.js?v=20260907_v2830";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2830";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2830";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2829";
+} from "./editor.js?v=20260907_v2830";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -381,7 +381,7 @@ export class App {
       const raw = sessionStorage.getItem('jizhi_active_workspace_snap') || localStorage.getItem('jizhi_active_workspace_snap');
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed && parsed.classId === effectiveClassId && parsed.taskId === taskId && parsed.groupId === groupId) {
+        if (parsed && isSameId(parsed.classId, effectiveClassId) && parsed.taskId && taskId && isSameId(parsed.taskId, taskId) && isSameId(parsed.groupId, groupId)) {
           cached = parsed;
         }
       }
@@ -1341,6 +1341,28 @@ export class App {
             const isUniversalClass = (cid) => !cid || cid === 'all' || cid === 'class_all' || cid === 'task_class_all';
             const rawTaskClassId = (targetTaskObj && !isUniversalClass(targetTaskObj.classId)) ? targetTaskObj.classId : null;
             const taskClassId = rawTaskClassId || (this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, strictTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null));
+            
+            // 🛡️ 严格任务物理隔离：无论是从任务大厅进入、还是切换不同任务，进入指定任务时彻底重置为干净状态或该任务专属状态
+            const isNewOrSwitchedTask = (!this.state.activeTaskId || !isSameId(this.state.activeTaskId, strictTaskId));
+            if (isNewOrSwitchedTask) {
+              sessionStorage.removeItem('jizhi_active_workspace_snap');
+              localStorage.removeItem('jizhi_active_workspace_snap');
+              this.state.isFinalSubmitted = false;
+              this.state.currentStage = 'stage1';
+              this.state.groupMaxStage = 'stage1';
+              this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+              this.state.stage1 = JSON.parse(JSON.stringify(InitialState.stage1));
+              this.state.stage2 = JSON.parse(JSON.stringify(InitialState.stage2));
+              this.state.stage3 = JSON.parse(JSON.stringify(InitialState.stage3));
+              this.state.timer = JSON.parse(JSON.stringify(InitialState.timer));
+              this.state.stepConfirmations = {};
+              this.state.fieldLocks = {};
+              this.state.activeAgentAnalyzing = null;
+              this.stage2StartTime = null;
+              this.stage3StartTime = null;
+              this.isViewingPastStage = false;
+            }
+
             this.state.activeStudentClassId = taskClassId;
             this.state.activeTaskId = strictTaskId;
             this.state.activeTaskTitle = strictTaskTitle;
@@ -3024,10 +3046,28 @@ export class App {
     this.state.studentViewMode = 'task_list';
     this.state.activeTaskId = null;
     this.state.activeTaskTitle = null;
-    sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
-    sessionStorage.removeItem('jizhi_active_task_id');
-    localStorage.setItem('jizhi_student_view_mode', 'task_list');
-    localStorage.removeItem('jizhi_active_task_id');
+    this.state.currentStage = 'stage1';
+    this.state.groupMaxStage = 'stage1';
+    this.state.isFinalSubmitted = false;
+    this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+    this.state.stage1 = JSON.parse(JSON.stringify(InitialState.stage1));
+    this.state.stage2 = JSON.parse(JSON.stringify(InitialState.stage2));
+    this.state.stage3 = JSON.parse(JSON.stringify(InitialState.stage3));
+    this.state.timer = JSON.parse(JSON.stringify(InitialState.timer));
+    this.state.stepConfirmations = {};
+    this.state.fieldLocks = {};
+    this.state.activeAgentAnalyzing = null;
+    this.stage2StartTime = null;
+    this.stage3StartTime = null;
+    this.isViewingPastStage = false;
+    try {
+      sessionStorage.removeItem('jizhi_active_workspace_snap');
+      localStorage.removeItem('jizhi_active_workspace_snap');
+      sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
+      sessionStorage.removeItem('jizhi_active_task_id');
+      localStorage.setItem('jizhi_student_view_mode', 'task_list');
+      localStorage.removeItem('jizhi_active_task_id');
+    } catch (e) {}
     this.renderMain();
   }
 
@@ -3042,7 +3082,19 @@ export class App {
     this.state.studentViewMode = 'task_list';
     this.state.activeTaskId = null;
     this.state.activeTaskTitle = null;
+    this.state.currentStage = 'stage1';
+    this.state.groupMaxStage = 'stage1';
+    this.state.isFinalSubmitted = false;
+    this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+    this.state.stage1 = JSON.parse(JSON.stringify(InitialState.stage1));
+    this.state.stage2 = JSON.parse(JSON.stringify(InitialState.stage2));
+    this.state.stage3 = JSON.parse(JSON.stringify(InitialState.stage3));
+    this.state.stepConfirmations = {};
+    this.state.fieldLocks = {};
+    this.state.activeAgentAnalyzing = null;
     try {
+      sessionStorage.removeItem('jizhi_active_workspace_snap');
+      localStorage.removeItem('jizhi_active_workspace_snap');
       sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
       sessionStorage.removeItem('jizhi_active_task_id');
       localStorage.setItem('jizhi_student_view_mode', 'task_list');
