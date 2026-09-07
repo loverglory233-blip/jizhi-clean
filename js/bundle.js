@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2782
+ * Version: 20260907_v2783
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2782';
+  const APP_VERSION = '20260907_v2783';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1101,6 +1101,72 @@
     if (btn) btn.addEventListener('click', closeModal);
 
     const btnX = modal.querySelector('#btn-close-task-unlock-x');
+    if (btnX) btnX.addEventListener('click', closeModal);
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+  }
+
+  /**
+   * 🛑 任务到期截止专属弹窗：当学生在任务工作台中且任务到达截止时间时弹出
+   * 明确告知任务已截止，随后在顶栏显示“🛑 已截止”胶囊，文稿区显示只读提示横幅
+   */
+  function showTaskDeadlineExpiredModal(task) {
+    if (typeof document === 'undefined') return;
+    const existing = document.getElementById('modal-task-deadline-expired');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'modal-task-deadline-expired';
+    modal.className = 'modal-overlay';
+    modal.style.cssText = 'position:fixed; inset:0; z-index:9999999; background:rgba(15,23,42,0.68); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; animation:fadeIn 0.25s ease; overscroll-behavior:contain;';
+
+    const taskTitle = (task && task.title) ? task.title : '写作任务';
+    const deadlineStr = (task && task.deadline) ? task.deadline : '截止时间';
+
+    modal.innerHTML = `
+      <div style="background:#ffffff; border-radius:16px; width:90%; max-width:440px; padding:28px 24px; box-shadow:0 20px 40px rgba(15,23,42,0.25); text-align:center; border:2px solid #ef4444; display:flex; flex-direction:column; gap:16px; animation:scaleUp 0.25s ease; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; position:relative; overscroll-behavior:contain;">
+        <button id="btn-close-task-expired-x" style="position:absolute; top:12px; right:12px; border:none; background:#f1f5f9; color:#64748b; font-size:18px; width:28px; height:28px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:800;" title="关闭">✕</button>
+        <div style="width:60px; height:60px; border-radius:50%; background:#fef2f2; border:2px solid #fecaca; display:flex; align-items:center; justify-content:center; font-size:30px; margin:0 auto;">
+          🛑
+        </div>
+        <div>
+          <div style="font-size:18px; font-weight:800; color:#991b1b;">任务已截止！</div>
+          <div style="font-size:13.5px; color:#475569; margin-top:8px; line-height:1.6;">
+            写作任务《<b>${escapeHtml(taskTitle)}</b>》已到达设定的截止时间：
+          </div>
+          <div style="font-size:15px; font-weight:800; color:#dc2626; background:#fef2f2; padding:8px 14px; border-radius:8px; margin:10px auto 0; border:1px dashed #fca5a5; display:inline-block;">
+            📅 ${escapeHtml(deadlineStr)}
+          </div>
+        </div>
+        <div style="background:#fef2f2; border:1px solid #fca5a5; border-radius:8px; padding:10px 12px; color:#991b1b; font-size:12.5px; font-weight:600; line-height:1.5;">
+          <span>🔒 工作台所有阶段已自动转为<b>【只读查阅模式】</b>。文稿已安全保全，如需继续编辑修改请联系指导教师延长任务时间。</span>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:4px;">
+          <button id="btn-confirm-task-expired" style="flex:1; background:linear-gradient(135deg, #dc2626, #b91c1c); color:#ffffff; border:none; padding:12px 18px; border-radius:10px; font-size:15px; font-weight:800; cursor:pointer; box-shadow:0 4px 12px rgba(220,38,38,0.28); transition:all 0.2s;">
+            我知道了
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const onEsc = (e) => {
+      if (e.key === 'Escape') closeModal();
+    };
+    document.addEventListener('keydown', onEsc);
+
+    const closeModal = () => {
+      document.removeEventListener('keydown', onEsc);
+      if (modal && modal.parentElement) modal.remove();
+    };
+
+    const btn = modal.querySelector('#btn-confirm-task-expired');
+    if (btn) btn.addEventListener('click', closeModal);
+
+    const btnX = modal.querySelector('#btn-close-task-expired-x');
     if (btnX) btnX.addEventListener('click', closeModal);
 
     modal.addEventListener('click', (e) => {
@@ -17110,6 +17176,34 @@
                     this.checkUnreadAnnouncements();
                   }
                 }).catch(() => {});
+              }
+            }
+
+            // 🛑 任务截止实时巡检：当学生在当前任务工作台内且任务到达截止时间时
+            if (curTask) {
+              const isCurrentlyExpired = isTaskExpired(curTask);
+              const expiredEventKey = `jizhi_expired_notified_${curTask.id}_${curTask.deadline || ''}`;
+              const hasNotifiedThisDeadline = !!this._expiredNotifiedDeadlines?.[expiredEventKey];
+
+              if (isCurrentlyExpired) {
+                if (!this._expiredNotifiedDeadlines) this._expiredNotifiedDeadlines = {};
+                if (!hasNotifiedThisDeadline) {
+                  this._expiredNotifiedDeadlines[expiredEventKey] = true;
+                  try {
+                    localStorage.setItem(expiredEventKey, 'true');
+                  } catch(e) {}
+
+                  // 1. 先弹出任务已截止专属提示弹窗
+                  showTaskDeadlineExpiredModal(curTask);
+
+                  // 2. 立即刷新工作台转为只读查阅模式并呈现顶栏“已截止”与正文红横幅
+                  this.renderStudentWorkspace(true);
+                }
+              } else {
+                // 若时间被延长，重置已通知标志
+                if (this._expiredNotifiedDeadlines && this._expiredNotifiedDeadlines[expiredEventKey]) {
+                  delete this._expiredNotifiedDeadlines[expiredEventKey];
+                }
               }
             }
 

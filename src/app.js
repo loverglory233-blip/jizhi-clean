@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2782";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2782";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2782";
-import { AuthManager } from "./auth.js?v=20260907_v2782";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2782";
-import { renderLoginView } from "./login.js?v=20260907_v2782";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2782";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2782";
+} from "./constants.js?v=20260907_v2783";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2783";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2783";
+import { AuthManager } from "./auth.js?v=20260907_v2783";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2783";
+import { renderLoginView } from "./login.js?v=20260907_v2783";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2783";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2783";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2782";
+} from "./editor.js?v=20260907_v2783";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1224,6 +1224,34 @@ export class App {
                   this.checkUnreadAnnouncements();
                 }
               }).catch(() => {});
+            }
+          }
+
+          // 🛑 任务截止实时巡检：当学生在当前任务工作台内且任务到达截止时间时
+          if (curTask) {
+            const isCurrentlyExpired = isTaskExpired(curTask);
+            const expiredEventKey = `jizhi_expired_notified_${curTask.id}_${curTask.deadline || ''}`;
+            const hasNotifiedThisDeadline = !!this._expiredNotifiedDeadlines?.[expiredEventKey];
+
+            if (isCurrentlyExpired) {
+              if (!this._expiredNotifiedDeadlines) this._expiredNotifiedDeadlines = {};
+              if (!hasNotifiedThisDeadline) {
+                this._expiredNotifiedDeadlines[expiredEventKey] = true;
+                try {
+                  localStorage.setItem(expiredEventKey, 'true');
+                } catch(e) {}
+
+                // 1. 先弹出任务已截止专属提示弹窗
+                showTaskDeadlineExpiredModal(curTask);
+
+                // 2. 立即刷新工作台转为只读查阅模式并呈现顶栏“已截止”与正文红横幅
+                this.renderStudentWorkspace(true);
+              }
+            } else {
+              // 若时间被延长，重置已通知标志
+              if (this._expiredNotifiedDeadlines && this._expiredNotifiedDeadlines[expiredEventKey]) {
+                delete this._expiredNotifiedDeadlines[expiredEventKey];
+              }
             }
           }
 
