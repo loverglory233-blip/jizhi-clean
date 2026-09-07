@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2860
+ * Version: 20260907_v2861
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2860';
+  const APP_VERSION = '20260907_v2861';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2036,8 +2036,9 @@
               milestone_key: currentContext.milestoneKey || currentContext.milestone_key || '',
               scope_key: currentContext.scopeKey || currentContext.scope_key || (typeof window !== 'undefined' && window.app && typeof window.app.getGroupScopeKey === 'function' ? window.app.getGroupScopeKey() : '')
             };
-            for (let p = 0; p < 70; p++) {
-              await new Promise(r => setTimeout(r, 1500));
+            for (let p = 0; p < 80; p++) {
+              const pollInterval = p < 5 ? 400 : (p < 20 ? 800 : 1200);
+              await new Promise(r => setTimeout(r, pollInterval));
               try {
                 const pollResp = await fetch('sync.php?action=coze_chat', {
                   method: 'POST',
@@ -12369,7 +12370,11 @@
           matched = selfMem;
         }
 
-        // 🛡️ 严禁将无法识别的作者硬塞给某一个队友（杜绝以前在这里误将所有字判给 otherMembers[0] 变成 100% vs 0% 的重大 Bug）
+        // 🛡️ 智能双人/组员绑定：若当前小组仅有2位组员，且此 authorClass 明确不是当前登录用户 selfMem，则 100% 归属于另一位组员
+        if (!matched && rawId && rawId !== rawLocalId && otherMembers.length === 1) {
+          matched = otherMembers[0];
+        }
+
         if (matched) {
           assignedAuthors.set(aKey, matched);
           if (rawId) cachedAuthorMap[rawId] = matched.id;
@@ -12396,7 +12401,7 @@
           if (targetMember.name) memberCounts[targetMember.name] = (memberCounts[targetMember.name] || 0) + count;
           totalAssignedChars += count;
         } else {
-          // 未能确定作者的字数，绝不乱安插给单个人，放入未识别待分摊池
+          // 未能确定作者的字数，放入待分摊池
           unassignedUnknownAuthorChars += count;
         }
       });
@@ -12415,28 +12420,17 @@
             if (m.name) memberCounts[m.name] = (memberCounts[m.name] || 0) + extra;
           });
         } else {
-          // 全篇都还没能识别出独立作者（例如页面初次载入、Etherpad 数据尚未就绪，或全篇由单次粘贴生成）
+          // 全篇都还没能识别出独立作者（例如页面初次载入、Etherpad 数据尚未就绪）
           const existingContribs = currState?.stage2?.memberContributions || {};
           let existingTotal = 0;
           targetMembersList.forEach(m => { existingTotal += getMemberContribVal(existingContribs, m); });
 
           if (existingTotal > 0) {
-            // 优先继承云端/本地已有的历史贡献比字数，防止刚刷新页面就突变
+            // 优先继承已有的真实贡献比字数，防止刚刷新页面就突变
             targetMembersList.forEach(m => {
               const val = getMemberContribVal(existingContribs, m);
               memberCounts[m.id] = val;
               if (m.name) memberCounts[m.name] = val;
-            });
-          } else if (selfMem && (Date.now() - (window._lastLocalPadInputTime || 0) < 20000)) {
-            // 仅当当前登录用户在过去20秒内有本地键盘输入时，将未标记字数算作本地输入
-            memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + totalPendingChars;
-            if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + totalPendingChars;
-          } else if (targetMembersList.length > 0) {
-            // 初始白板情况下均分
-            const splitCount = Math.floor(totalPendingChars / targetMembersList.length);
-            targetMembersList.forEach(m => {
-              memberCounts[m.id] = (memberCounts[m.id] || 0) + splitCount;
-              if (m.name) memberCounts[m.name] = (memberCounts[m.name] || 0) + splitCount;
             });
           }
         }
@@ -12444,6 +12438,7 @@
 
       const resObj = {
         total: totalLen,
+        totalAssignedChars,
         memberCounts,
         cleanText: rawText
       };
@@ -14057,7 +14052,7 @@
         }
 
         // 2. 实时更新各成员贡献比
-        if (authorStats && authorStats.memberCounts) {
+        if (authorStats && authorStats.memberCounts && (authorStats.totalAssignedChars > 0 || (cleanTxt !== null && cleanTxt.length === 0))) {
           // 🛡️ 防闪烁/防误上报保护：如果之前已有多个组员有贡献，而当前瞬时扫描只有一个组员有字（其他全为0），先进行5秒缓冲确认
           const prevContribs = state.stage2.memberContributions || {};
           const prevMultiMember = membersList.filter(m => getMemberContribVal(prevContribs, m) > 0).length > 1;

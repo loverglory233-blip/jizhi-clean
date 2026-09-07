@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260907_v2860';
-import { showGlobalBannerNotice } from './utils.js?v=20260907_v2860';
+import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260907_v2861';
+import { showGlobalBannerNotice } from './utils.js?v=20260907_v2861';
 
 export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
   // 🛡️ 终极只读熔断器：一旦任务截止进入只读模式或已终稿归档，底层彻底熔断任何大模型调用与智能体生成
@@ -117,8 +117,9 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
             milestone_key: currentContext.milestoneKey || currentContext.milestone_key || '',
             scope_key: currentContext.scopeKey || currentContext.scope_key || (typeof window !== 'undefined' && window.app && typeof window.app.getGroupScopeKey === 'function' ? window.app.getGroupScopeKey() : '')
           };
-          for (let p = 0; p < 70; p++) {
-            await new Promise(r => setTimeout(r, 1500));
+          for (let p = 0; p < 80; p++) {
+            const pollInterval = p < 5 ? 400 : (p < 20 ? 800 : 1200);
+            await new Promise(r => setTimeout(r, pollInterval));
             try {
               const pollResp = await fetch('sync.php?action=coze_chat', {
                 method: 'POST',
