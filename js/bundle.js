@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2781
+ * Version: 20260907_v2782
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2781';
+  const APP_VERSION = '20260907_v2782';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5652,45 +5652,8 @@
 
         if (oldLockState !== newLockState) {
           this.app.state.isFinalSubmitted = newLockState;
-          const currUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
-          const isStudent = currUser && (currUser.role === 'student' || currUser.isStudent);
-
-          // 仅在已完成冷启动拉取、且处于工作台时，当教师在后台主动变更锁定时才弹出提醒
-          if (this._hasInitialPullCompleted && isStudent && this.app.state.studentViewMode === 'workspace') {
-            document.querySelectorAll('.lock-notify-modal').forEach(el => el.remove());
-            const lockModal = document.createElement('div');
-            lockModal.className = 'modal-overlay lock-notify-modal';
-            lockModal.innerHTML = `
-              <div style="width:460px; max-width:92vw; background:#ffffff; border-radius:14px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.25); border:1px solid #e2e8f0; overflow:hidden; animation:modalFadeIn 0.25s ease;">
-                <div style="background:${newLockState ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'linear-gradient(135deg, #059669, #047857)'}; color:white; padding:16px 20px; font-size:16px; font-weight:800; display:flex; align-items:center; gap:8px;">
-                  <span>${newLockState ? '🔒 写作任务已全局锁定' : '🔓 写作任务已恢复编辑权限'}</span>
-                </div>
-                <div style="padding:20px; font-size:13.5px; color:#334155; line-height:1.6;">
-                  ${newLockState
-                    ? '指导教师已将本组整个写作任务设为【全局归档锁定】！当前工作台所有阶段（阶段一公约、阶段二正文撰写、阶段三答辩矩阵）已全盘转为<b>只读模式</b>（不能继续修改编辑），如需继续修改请联系指导教师解锁。'
-                    : '指导教师已【恢复本组写作任务编辑权限】！当前工作台所有阶段已重新开放，小组可以继续协作撰写与修改文稿。'}
-                </div>
-                <div style="padding:12px 20px; background:#f8fafc; border-top:1px solid #e2e8f0; text-align:right;">
-                  <button id="btn-close-lock-modal" style="background:${newLockState ? '#dc2626' : '#059669'}; color:white; border:none; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
-                    我知道了
-                  </button>
-                </div>
-              </div>
-            `;
-            document.body.appendChild(lockModal);
-            const closeLockModal = () => {
-              document.removeEventListener('keydown', onEscLock);
-              lockModal.remove();
-            };
-            const onEscLock = (e) => {
-              if (e.key === 'Escape') closeLockModal();
-            };
-            document.addEventListener('keydown', onEscLock);
-            lockModal.querySelector('#btn-close-lock-modal')?.addEventListener('click', closeLockModal);
-            lockModal.addEventListener('click', (e) => {
-              if (e.target === lockModal) closeLockModal();
-            });
-
+          // 静默平滑刷新工作台状态（顶部状态栏与横幅已包含已截止/只读指示，不再弹阻断式强扰弹窗）
+          if (this.app.state.studentViewMode === 'workspace' && typeof this.app.renderStudentWorkspace === 'function') {
             this.app.renderStudentWorkspace(true);
           }
         }
