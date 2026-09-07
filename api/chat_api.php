@@ -260,25 +260,20 @@ if ($isMilestone) {
         }
     }
 
-    // 2. 获取文件排他锁，防止同组多学生同时请求大模型
+    // 2. 获取文件排他锁：严格非阻塞（LOCK_NB），一次仅允许同组 1 人请求 Coze！
+    // 未抢到锁直接退出，坚决不运行 while 死等，彻底释放 PHP-FPM 进程池，严禁锁穿透！
     $lockFp = @fopen($lockFile . '.lock', 'c+');
     if ($lockFp) {
-        $acquired = false;
-        $waitStart = microtime(true);
-        // 最多非阻塞重试等待 15 秒（等待同组首个同学的大模型返回）
-        while ((microtime(true) - $waitStart) < 15.0) {
-            if (@flock($lockFp, LOCK_EX | LOCK_NB)) {
-                $acquired = true;
-                break;
-            }
-            // 未拿到锁：说明同组有其他同学正在请求生成中，休眠 300ms 后探测缓存
-            usleep(300000);
+        if (!@flock($lockFp, LOCK_EX | LOCK_NB)) {
+            // 🚫 未拿到锁：同组已有同学在请求生成中！
+            @fclose($lockFp);
+
+            // 再次复查是否有刚写完的缓存
             if (file_exists($lockFile)) {
                 $checkRaw = @file_get_contents($lockFile);
                 if (!empty($checkRaw)) {
                     $checkData = @json_decode($checkRaw, true);
                     if ($checkData && isset($checkData['status']) && $checkData['status'] === 'completed' && !empty($checkData['reply'])) {
-                        @fclose($lockFp);
                         echo json_encode([
                             'success' => true,
                             'completed' => true,
@@ -290,36 +285,44 @@ if ($isMilestone) {
                     }
                 }
             }
+
+            // 💥 拿不到锁且暂无结果：立即返回处理中并直接 exit，绝不跑 while 等待，更绝不允许顺流而下穿透去调 Coze！
+            echo json_encode([
+                'success' => false,
+                'in_progress' => true,
+                'error_code' => 429,
+                'message' => '组内已有成员正在发起大模型生成，请稍候同步结果，无需重复请求！'
+            ]);
+            exit;
         }
 
-        if ($acquired) {
-            // 再次复检缓存，避免拿到锁前一瞬间首个同学刚写完
-            if (file_exists($lockFile)) {
-                $postAcquireRaw = @file_get_contents($lockFile);
-                if (!empty($postAcquireRaw)) {
-                    $postAcquireData = @json_decode($postAcquireRaw, true);
-                    if ($postAcquireData && isset($postAcquireData['status']) && $postAcquireData['status'] === 'completed' && !empty($postAcquireData['reply'])) {
-                        if (time() - intval($postAcquireData['completed_at'] ?? 0) < 600) {
-                            @flock($lockFp, LOCK_UN);
-                            @fclose($lockFp);
-                            echo json_encode([
-                                'success' => true,
-                                'completed' => true,
-                                'reply' => $postAcquireData['reply'],
-                                'bot_id' => $botId,
-                                'cached' => true
-                            ]);
-                            exit;
-                        }
+        // 拿到锁：再次复检缓存，避免拿到锁前一瞬间首个同学刚写完
+        if (file_exists($lockFile)) {
+            $postAcquireRaw = @file_get_contents($lockFile);
+            if (!empty($postAcquireRaw)) {
+                $postAcquireData = @json_decode($postAcquireRaw, true);
+                if ($postAcquireData && isset($postAcquireData['status']) && $postAcquireData['status'] === 'completed' && !empty($postAcquireData['reply'])) {
+                    if (time() - intval($postAcquireData['completed_at'] ?? 0) < 600) {
+                        @flock($lockFp, LOCK_UN);
+                        @fclose($lockFp);
+                        echo json_encode([
+                            'success' => true,
+                            'completed' => true,
+                            'reply' => $postAcquireData['reply'],
+                            'bot_id' => $botId,
+                            'cached' => true
+                        ]);
+                        exit;
                     }
                 }
             }
-            // 标记生成中
-            @file_put_contents($lockFile, json_encode([
-                'status' => 'in_progress',
-                'started_at' => time()
-            ]));
         }
+
+        // 标记生成中
+        @file_put_contents($lockFile, json_encode([
+            'status' => 'in_progress',
+            'started_at' => time()
+        ]));
     }
 }
 
