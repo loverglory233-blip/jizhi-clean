@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260907_v2828';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260907_v2828';
+} from './constants.js?v=20260907_v2829';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260907_v2829';
 
 export class AuthManager {
   constructor() {
@@ -220,7 +220,11 @@ export class AuthManager {
   }
 
   async pullGlobalMeta(force = false) {
-    if (this._isPullingMeta) return { success: false, inFlight: true };
+    if (this._isPullingMeta) {
+      this._queuedPull = true;
+      if (force) this._queuedForce = true;
+      return { success: false, inFlight: true };
+    }
     // 🛡️ 教师推送在途时挂起本次拉取，避免用过期云端数据反向覆盖本地刚写入的新数据（导入学生/建组后被清空的根因）
     if (this._pushInFlight) {
       this._pendingPull = true;
@@ -503,6 +507,12 @@ export class AuthManager {
       return { success: false, error: e };
     } finally {
       this._isPullingMeta = false;
+      if (this._queuedPull) {
+        const nextForce = !!this._queuedForce;
+        this._queuedPull = false;
+        this._queuedForce = false;
+        setTimeout(() => this.pullGlobalMeta(nextForce), 50);
+      }
     }
   }
   getSurveysList() {
@@ -1902,6 +1912,8 @@ export class AuthManager {
     }
 
     localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
+    localStorage.setItem('jizhi_announcements_db', JSON.stringify(announcements));
+    localStorage.setItem('jizhi_pure_v10_ann_db', JSON.stringify(announcements));
     this.pushGlobalMeta();
 
     if ('BroadcastChannel' in window) {
@@ -1919,6 +1931,8 @@ export class AuthManager {
     let announcements = this.getAnnouncements();
     announcements = announcements.filter(a => a.id !== annId);
     localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
+    localStorage.setItem('jizhi_announcements_db', JSON.stringify(announcements));
+    localStorage.setItem('jizhi_pure_v10_ann_db', JSON.stringify(announcements));
     this.pushGlobalMeta();
 
     if ('BroadcastChannel' in window) {

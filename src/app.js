@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2828";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2828";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2828";
-import { AuthManager } from "./auth.js?v=20260907_v2828";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2828";
-import { renderLoginView } from "./login.js?v=20260907_v2828";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2828";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2828";
+} from "./constants.js?v=20260907_v2829";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2829";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2829";
+import { AuthManager } from "./auth.js?v=20260907_v2829";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2829";
+import { renderLoginView } from "./login.js?v=20260907_v2829";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2829";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2829";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2828";
+} from "./editor.js?v=20260907_v2829";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2413,6 +2413,14 @@ export class App {
         const currentOpenModal = document.querySelector('.modal-announcement-popup');
         if (!currentOpenModal) {
           this.showAnnouncementModal(unreadList[0], true);
+        } else {
+          // 若当前正处于通知弹窗中，记录最新未读通知并在当前弹窗关闭后自动顺滑带出
+          const openAnnId = currentOpenModal.dataset.annId;
+          if (openAnnId === 'list') {
+            this.showAnnouncementModal(null, true);
+          } else if (openAnnId !== unreadList[0].id) {
+            currentOpenModal._hasNextPendingAnn = unreadList[0];
+          }
         }
       }
     };
@@ -2669,6 +2677,7 @@ export class App {
     };
 
     const closeModal = () => {
+      const nextPending = modal._hasNextPendingAnn;
       modal.remove();
       document.removeEventListener('keydown', onEsc);
       // ⚡ 0 延迟即时刷新右上角【教学通知】红点角标
@@ -2700,6 +2709,15 @@ export class App {
       }
       if (this.state.studentViewMode === 'task_list') {
         this.renderMain();
+      }
+
+      // 📢 连续通知顺滑接力：若在展示期间收到了教师最新发布的未读通知，关闭后自动弹出最新通知
+      if (nextPending && !isAnnRead(nextPending)) {
+        setTimeout(() => {
+          if (!document.querySelector('.modal-announcement-popup')) {
+            this.showAnnouncementModal(nextPending, true);
+          }
+        }, 150);
       }
     };
 
