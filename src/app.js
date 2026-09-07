@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2848";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2848";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2848";
-import { AuthManager } from "./auth.js?v=20260907_v2848";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2848";
-import { renderLoginView } from "./login.js?v=20260907_v2848";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2848";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2848";
+} from "./constants.js?v=20260907_v2849";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2849";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2849";
+import { AuthManager } from "./auth.js?v=20260907_v2849";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2849";
+import { renderLoginView } from "./login.js?v=20260907_v2849";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2849";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2849";
 import {
   renderChat,
   renderOutline,
@@ -32,7 +32,7 @@ import {
   renderRemoteCursors,
   renderStudentWorkspace,
   renderReferencePapersModal
-} from "./editor.js?v=20260907_v2848";
+} from "./editor.js?v=20260907_v2849";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
