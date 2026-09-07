@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260907_v2858';
-import { showGlobalBannerNotice } from './utils.js?v=20260907_v2858';
+import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260907_v2859';
+import { showGlobalBannerNotice } from './utils.js?v=20260907_v2859';
 
 export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
   // 🛡️ 终极只读熔断器：一旦任务截止进入只读模式或已终稿归档，底层彻底熔断任何大模型调用与智能体生成
@@ -73,8 +73,74 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
         return data.reply.trim();
       }
 
-      // 🛡️ 明确捕获大模型配额耗尽与错误状态，弹窗提示，绝不静默无声转圈
-      if (data && (!data.success || data.error_code === 4028 || (data.message && data.message.includes('quota')))) {
+      // 🔄 1. 如果大模型或同组协同正在生成中，进入稳健轮询，绝不当做错误截断或报错！
+      if (data && data.in_progress) {
+        if (data.chat_id && data.conversation_id) {
+          // 扣子异步会话轮询
+          const chatId = data.chat_id;
+          const convId = data.conversation_id;
+          const targetBotId = data.bot_id || botId;
+          const isLongDoc = (currentContext.stage === 'stage2' || currentContext.stage === 'stage3' || (currentContext.actualDoc && currentContext.actualDoc.length > 500) || (currentContext.actual_doc && currentContext.actual_doc.length > 500) || (userQuery && userQuery.length > 1000));
+          const maxRetries = isLongDoc ? 120 : 80;
+          for (let p = 0; p < maxRetries; p++) {
+            const pollInterval = p < 10 ? 200 : (p < 50 ? 500 : 1000);
+            await new Promise(r => setTimeout(r, pollInterval));
+            try {
+              const pollRes = await fetch(`sync.php?action=coze_poll&chat_id=${encodeURIComponent(chatId)}&conversation_id=${encodeURIComponent(convId)}&bot_id=${encodeURIComponent(targetBotId)}&userId=${encodeURIComponent(sessionUserId)}&token=${encodeURIComponent(sessionToken)}&nocache=${Date.now()}`);
+              if (pollRes.ok) {
+                const pollData = await pollRes.json();
+                if (pollData && pollData.completed) {
+                  if (pollData.reply && pollData.reply.trim().length > 0) {
+                    return pollData.reply.trim();
+                  }
+                  break;
+                }
+              }
+            } catch (err) {
+              console.warn('[Coze Poll] 轮询偶发抖动 (可自愈):', err.message);
+            }
+          }
+        } else {
+          // 里程碑同组并发锁轮询：同组已有同学在调用 Coze，其他同学安全轮询等待服务端结果
+          const pollPayload = {
+            bot_key: botKey,
+            bot_id: botId,
+            user_id: sessionUserId || 'student_user',
+            userId: sessionUserId,
+            token: sessionToken,
+            query: enrichedQuery,
+            stage: currentContext.stage || '',
+            topic: currentContext.topic || '',
+            actual_doc: currentContext.actualDoc || currentContext.actual_doc || '',
+            prior_review: currentContext.priorReview || currentContext.prior_review || '',
+            task_type: currentContext.taskType || currentContext.task_type || '',
+            milestone_key: currentContext.milestoneKey || currentContext.milestone_key || '',
+            scope_key: currentContext.scopeKey || currentContext.scope_key || (typeof window !== 'undefined' && window.app && typeof window.app.getGroupScopeKey === 'function' ? window.app.getGroupScopeKey() : '')
+          };
+          for (let p = 0; p < 70; p++) {
+            await new Promise(r => setTimeout(r, 1500));
+            try {
+              const pollResp = await fetch('sync.php?action=coze_chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(pollPayload)
+              });
+              if (pollResp.ok) {
+                const pollData = await pollResp.json();
+                if (pollData && pollData.success && pollData.reply && pollData.reply.trim().length > 0) {
+                  return pollData.reply.trim();
+                }
+                if (!pollData || !pollData.in_progress) {
+                  break;
+                }
+              }
+            } catch (pollErr) {}
+          }
+        }
+      }
+
+      // 🛡️ 2. 明确捕获大模型配额耗尽与真正错误状态
+      if (data && !data.in_progress && (!data.success || data.error_code === 4028 || (data.message && data.message.includes('quota')))) {
         const errorMsg = (data.error_code === 4028 || (data.message && data.message.includes('quota')))
           ? '⚠️ 扣子大模型调用额度已用尽（错误码 4028）。请开通或续费个人进阶版配额！'
           : (data.message || '智能体生成服务暂时无响应');
@@ -85,33 +151,6 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
           window.app.showGlobalBannerNotice('大模型配额提示', errorMsg, 'error', 8000);
         }
         return '';
-      }
-
-      // 如果后端处于生成中，采用阶梯式敏捷轮询：前 10 次 100ms 极速响应，后续 300ms/500ms 稳健等待 (最长支持 45 秒超长生成)
-      if (data && data.in_progress && data.chat_id && data.conversation_id) {
-        const chatId = data.chat_id;
-        const convId = data.conversation_id;
-        const targetBotId = data.bot_id || botId;
-        const isLongDoc = (currentContext.stage === 'stage2' || currentContext.stage === 'stage3' || (currentContext.actualDoc && currentContext.actualDoc.length > 500) || (currentContext.actual_doc && currentContext.actual_doc.length > 500) || (userQuery && userQuery.length > 1000));
-        const maxRetries = isLongDoc ? 100 : 60; // 长文: 最长38s; 短文: 最长23s (Coze实测14s已足够)
-        for (let p = 0; p < maxRetries; p++) {
-          const pollInterval = p < 10 ? 100 : (p < 50 ? 300 : 500);
-          await new Promise(r => setTimeout(r, pollInterval));
-          try {
-            const pollRes = await fetch(`sync.php?action=coze_poll&chat_id=${encodeURIComponent(chatId)}&conversation_id=${encodeURIComponent(convId)}&bot_id=${encodeURIComponent(targetBotId)}&userId=${encodeURIComponent(sessionUserId)}&token=${encodeURIComponent(sessionToken)}&nocache=${Date.now()}`);
-            if (pollRes.ok) {
-              const pollData = await pollRes.json();
-              if (pollData && pollData.completed) {
-                if (pollData.reply && pollData.reply.trim().length > 0) {
-                  return pollData.reply.trim();
-                }
-                break;
-              }
-            }
-          } catch (err) {
-            console.warn('[Coze Poll] 轮询偶发抖动 (可自愈):', err.message);
-          }
-        }
       }
     }
   } catch (e) {

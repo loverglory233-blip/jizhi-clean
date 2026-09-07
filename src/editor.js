@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2858";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2858";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2858";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2859";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2859";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2859";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -4228,11 +4228,18 @@ export function renderChatActionBar(state) {
       }
 
       actionBar.querySelector('#btn-s1-auto-generate-contract')?.addEventListener('click', () => {
+        if (isFailed && window.app && typeof window.app._doOneClickGenerateContract === 'function') {
+          window.app._contractGenerateFailed = false;
+          window.app._isGeneratingContract = false;
+          if (window.app.state && window.app.state.stage1) window.app.state.stage1._contractGenerateFailed = false;
+          window.app._doOneClickGenerateContract();
+          return;
+        }
         if (isExtractingAny || isGeneratingContract) {
           let isStale = false;
           if (state && state.activeAgentAnalyzing) {
             const ts = state.activeAgentAnalyzing._ts || state.activeAgentAnalyzing.timestamp || 0;
-            if (ts && (Date.now() - ts > 30000)) isStale = true;
+            if (ts && (Date.now() - ts > 120000)) isStale = true;
           }
           if (isStale && window.app) {
             window.app.setActiveAgentAnalyzing(null);
@@ -4245,10 +4252,7 @@ export function renderChatActionBar(state) {
             return;
           }
         }
-        if (isFailed && window.app && typeof window.app._doOneClickGenerateContract === 'function') {
-          window.app._contractGenerateFailed = false;
-          window.app._doOneClickGenerateContract();
-        } else if (window.app && typeof window.app.handleOneClickGenerateContract === 'function') {
+        if (window.app && typeof window.app.handleOneClickGenerateContract === 'function') {
           window.app.handleOneClickGenerateContract();
         }
       });

@@ -239,14 +239,14 @@ if ($isMilestone) {
     $safeMilestone = preg_replace('/[^a-zA-Z0-9_-]/', '_', $milestoneKey);
     $lockFile = $lockDir . "/ms_{$safeScope}_{$safeMilestone}.json";
 
-    // 1. 检查是否存在 8 秒内的即时并发缓存（仅用于同组多人几乎同秒点击时的突发去重，绝不缓存 10 分钟导致研讨后重新提炼无效）
+    // 1. 检查是否存在 60 秒内的即时并发缓存（供同组多人几乎同秒点击或轮询时获取已生成的结果）
     if (file_exists($lockFile)) {
         $existingRaw = @file_get_contents($lockFile);
         if (!empty($existingRaw)) {
             $existingData = @json_decode($existingRaw, true);
             if ($existingData && isset($existingData['status']) && $existingData['status'] === 'completed' && !empty($existingData['reply'])) {
                 $completedAt = isset($existingData['completed_at']) ? intval($existingData['completed_at']) : 0;
-                if (time() - $completedAt < 8) {
+                if (time() - $completedAt < 60) {
                     echo json_encode([
                         'success' => true,
                         'completed' => true,
@@ -256,12 +256,17 @@ if ($isMilestone) {
                     ]);
                     exit;
                 }
+            } else if ($existingData && isset($existingData['status']) && $existingData['status'] === 'in_progress') {
+                $startedAt = isset($existingData['started_at']) ? intval($existingData['started_at']) : 0;
+                if (time() - $startedAt > 120) {
+                    @unlink($lockFile);
+                    @unlink($lockFile . '.lock');
+                }
             }
         }
     }
 
     // 2. 获取文件排他锁：严格非阻塞（LOCK_NB），一次仅允许同组 1 人请求 Coze！
-    // 未抢到锁直接退出，坚决不运行 while 死等，彻底释放 PHP-FPM 进程池，严禁锁穿透！
     $lockFp = @fopen($lockFile . '.lock', 'c+');
     if ($lockFp) {
         if (!@flock($lockFp, LOCK_EX | LOCK_NB)) {
@@ -286,7 +291,7 @@ if ($isMilestone) {
                 }
             }
 
-            // 💥 拿不到锁且暂无结果：立即返回处理中并直接 exit，绝不跑 while 等待，更绝不允许顺流而下穿透去调 Coze！
+            // 💥 拿不到锁且暂无结果：立即返回处理中，前端将安全轮询等待结果，绝不报错
             echo json_encode([
                 'success' => false,
                 'in_progress' => true,
@@ -302,7 +307,7 @@ if ($isMilestone) {
             if (!empty($postAcquireRaw)) {
                 $postAcquireData = @json_decode($postAcquireRaw, true);
                 if ($postAcquireData && isset($postAcquireData['status']) && $postAcquireData['status'] === 'completed' && !empty($postAcquireData['reply'])) {
-                    if (time() - intval($postAcquireData['completed_at'] ?? 0) < 8) {
+                    if (time() - intval($postAcquireData['completed_at'] ?? 0) < 60) {
                         @flock($lockFp, LOCK_UN);
                         @fclose($lockFp);
                         echo json_encode([
