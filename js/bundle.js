@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2872
+ * Version: 20260908_v2875
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2872';
+  const APP_VERSION = '20260908_v2875';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4095,15 +4095,23 @@
       return this.markAnnouncementRead(annId, groupId);
     }
 
-    // 🧹 存储配额守护清理器：当浏览器 5MB 配额紧张时，自动修剪冗余的历史 Base64 快照
+    // 🧹 存储配额守护清理器：自动静默修剪冗余的历史旧快照，保持轻量
     _pruneStorageQuota() {
       try {
-        for (let i = 0; i < localStorage.length; i++) {
+        const currentSnapKey = this.app?.syncEngine?.storageKey;
+        const keysToRemove = [];
+        const len = localStorage.length;
+        for (let i = 0; i < len; i++) {
           const k = localStorage.key(i);
-          if (k && (k.startsWith('jizhi_cloud_snapshot_') || k.includes('_backup_'))) {
-            localStorage.removeItem(k);
+          if (k && (k.startsWith('jizhi_cloud_snapshot_') || k.includes('_backup_') || k.startsWith('jizhi_active_workspace_snap_old_'))) {
+            if (!currentSnapKey || k !== currentSnapKey) {
+              keysToRemove.push(k);
+            }
           }
         }
+        keysToRemove.forEach(k => {
+          try { localStorage.removeItem(k); } catch (err) {}
+        });
       } catch (e) {}
     }
 
@@ -5331,18 +5339,18 @@
         let remoteLogs = Array.isArray(remoteChatLogs[stg]) ? remoteChatLogs[stg] : [];
         const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
 
-        // 🛡️ 智能并集保留：无论是本地刚生成的智能体消息还是本地发言，绝不允许被旧快照丢弃（真实并集）
+        // 🛡️ 智能单向追加与并集免死权：无论是本地刚生成的智能体真实发言还是本地组员发言，绝不允许被旧快照丢弃（Append-Only）
         const localCompleted = localLogs.filter(m => {
           if (!m) return false;
-          if (m.isThinking || String(m.id || '').startsWith('thinking_')) {
+          if (m.isThinking || String(m.id || '').startsWith('thinking_') || String(m.id || '').startsWith('temp_analyzing_')) {
             return false; // 过滤临时思考占位
           }
-          const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs === m._timeMs && rm.text === m.text));
+          const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs && m._timeMs && Math.abs(rm._timeMs - m._timeMs) < 2500 && rm.text === m.text) || (rm.text && m.text && rm.text === m.text && rm.sender === m.sender));
           return !existsInRemote;
         });
 
         // 🛡️ 全局过滤掉临时占位思考气泡，杜绝残留
-        remoteLogs = remoteLogs.filter(m => !m || (!String(m.id || '').startsWith('thinking_') && !m.isThinking));
+        remoteLogs = remoteLogs.filter(m => !m || (!String(m.id || '').startsWith('thinking_') && !String(m.id || '').startsWith('temp_analyzing_') && !m.isThinking));
 
         // 合并 remoteLogs 与 localCompleted（确保本地已完成的发言绝不丢失）
         const mergedList = [...remoteLogs, ...localCompleted];
@@ -5368,8 +5376,11 @@
         });
 
         mergedList.sort((a, b) => (a._timeMs || 0) - (b._timeMs || 0));
-        this.app.state.chatLogs[stg] = filterAndDeduplicateChatLogs(mergedList);
-        hasUpdated = true;
+        const cleanList = filterAndDeduplicateChatLogs(mergedList);
+        if (JSON.stringify(cleanList) !== JSON.stringify(localLogs)) {
+          this.app.state.chatLogs[stg] = cleanList;
+          hasUpdated = true;
+        }
       });
 
       if (hasUpdated) {
@@ -12348,16 +12359,11 @@
       }
       const rawLocalId = localUserId ? localUserId.replace(/^(author[-_]|a[._-])/i, '').toLowerCase() : '';
 
-      // 0. 先载入 localStorage 历史映射记忆 (确保刷新后 authorId 不变时 0 秒瞬间相认)
+      // 0. 先载入持久化历史映射记忆 (以学号为核心主键，跨刷新永久保留所有会话 ID 归属)
       Object.entries(cachedAuthorMap).forEach(([cachedRawId, memberIdentifier]) => {
         if (!cachedRawId || !memberIdentifier) return;
-        const memObj = targetMembersList.find(m => isSameId(m.id, memberIdentifier) || m.name === memberIdentifier);
+        const memObj = targetMembersList.find(m => isSameId(m.id, memberIdentifier) || m.name === memberIdentifier || (m.studentCode && isSameId(m.studentCode, memberIdentifier)));
         if (memObj) {
-          // 🛡️ 若当前客户端为 selfMem，且此历史映射指向 selfMem 但 cachedRawId 并非当前 localUserId，则清除该过期历史，杜绝将同伴的 authorId 误认给自己
-          if (isSameUser(memObj, selfMem) && rawLocalId && cachedRawId !== rawLocalId) {
-            delete cachedAuthorMap[cachedRawId];
-            return;
-          }
           authorMap.set(cachedRawId, memObj);
           authorMap.set('a.' + cachedRawId, memObj);
           authorMap.set('a-' + cachedRawId, memObj);
@@ -12366,90 +12372,93 @@
         }
       });
 
-      // 1. 权威依据 Etherpad authorData (历史与当前全量作者数据) 进行姓名与颜色绑定
+      // 1. 权威依据 Etherpad authorData (历史与当前全量作者数据) 进行学号、姓名与颜色双重精准锚定
       Object.entries(authorData).forEach(([aKey, aObj]) => {
         if (!aKey || !aObj) return;
         const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
         if (!rawId) return;
 
         const aName = (aObj.name && !isPlaceholderName(aObj.name)) ? String(aObj.name).trim() : '';
+        const aUserId = (aObj.userId || aObj.id || aObj.studentCode || aObj.userCode) ? String(aObj.userId || aObj.id || aObj.studentCode || aObj.userCode).trim() : '';
         const aColor = aObj.colorId !== undefined ? aObj.colorId : aObj.color;
 
-        if (aName) {
+        let nameMatched = null;
+
+        // 优先：学号/用户唯一标识精确匹配
+        if (aUserId) {
+          const cleanUserId = aUserId.toLowerCase();
+          nameMatched = targetMembersList.find(m => {
+            if (!m) return false;
+            const mKeys = getUserAllKeys(m);
+            return mKeys.some(k => k.toLowerCase() === cleanUserId);
+          });
+        }
+
+        // 其次：真实姓名精确/全维度匹配
+        if (!nameMatched && aName) {
           const cleanAName = aName.toLowerCase();
-          const nameMatched = targetMembersList.find(m => {
+          nameMatched = targetMembersList.find(m => {
             if (!m) return false;
             const mKeys = getUserAllKeys(m);
             return mKeys.some(k => k.toLowerCase() === cleanAName || cleanAName.includes(k.toLowerCase()) || k.toLowerCase().includes(cleanAName));
           });
-          if (nameMatched) {
-            authorMap.set(rawId, nameMatched);
-            authorMap.set('a.' + rawId, nameMatched);
-            authorMap.set('a-' + rawId, nameMatched);
-            authorMap.set('a_' + rawId, nameMatched);
-            authorMap.set(aKey, nameMatched);
-            cachedAuthorMap[rawId] = nameMatched.id;
-            return;
-          }
         }
 
-        if (aColor) {
-          const colorMatched = targetMembersList.find(m => m.color && areColorsEqual(m.color, aColor));
-          if (colorMatched) {
-            authorMap.set(rawId, colorMatched);
-            authorMap.set('a.' + rawId, colorMatched);
-            authorMap.set('a-' + rawId, colorMatched);
-            authorMap.set('a_' + rawId, colorMatched);
-            authorMap.set(aKey, colorMatched);
-            cachedAuthorMap[rawId] = colorMatched.id;
-            return;
-          }
+        // 再次：专属颜色匹配
+        if (!nameMatched && aColor) {
+          nameMatched = targetMembersList.find(m => m.color && areColorsEqual(m.color, aColor));
+        }
+
+        if (nameMatched) {
+          authorMap.set(rawId, nameMatched);
+          authorMap.set('a.' + rawId, nameMatched);
+          authorMap.set('a-' + rawId, nameMatched);
+          authorMap.set('a_' + rawId, nameMatched);
+          authorMap.set(aKey, nameMatched);
+          cachedAuthorMap[rawId] = nameMatched.id || nameMatched.studentCode || nameMatched.name;
         }
       });
 
-      // 2. 当前客户端 localUserId 绝对权威绑定为当前登录用户 selfMem
+      // 2. 当前客户端 localUserId 绝对权威绑定为当前登录用户 selfMem (绑定到学号)
       if (rawLocalId && selfMem) {
         authorMap.set(rawLocalId, selfMem);
         authorMap.set('a.' + rawLocalId, selfMem);
         authorMap.set('a-' + rawLocalId, selfMem);
         authorMap.set('a_' + rawLocalId, selfMem);
         authorMap.set(localUserId, selfMem);
-        cachedAuthorMap[rawLocalId] = selfMem.id;
+        cachedAuthorMap[rawLocalId] = selfMem.id || selfMem.studentCode || selfMem.name;
       }
 
       const assignedAuthors = new Map();
 
-      // 3. 权威分配 DOM 中的每一个 authorClass
+      // 3. 权威分配 DOM 中的每一个 authorClass (严格基于学号/作者真实映射，绝不臆测转扣他人)
       Object.keys(rawCounts).forEach(aKey => {
         if (aKey === 'unassigned') return;
         const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
-
-        // 🛡️ 智能双人组绑定：若当前小组仅有2位组员，规则清晰绝对：
-        // - 若 rawId 等于当前登录用户的 localId，100% 归属于 selfMem
-        // - 若 rawId 不等于当前登录用户的 localId，100% 归属于 otherMembers[0]，绝不产生 100/0 畸变
-        if (otherMembers.length === 1 && rawId) {
-          if (rawLocalId && rawId === rawLocalId) {
-            assignedAuthors.set(aKey, selfMem);
-            cachedAuthorMap[rawId] = selfMem.id;
-            return;
-          } else if (rawLocalId && rawId !== rawLocalId) {
-            assignedAuthors.set(aKey, otherMembers[0]);
-            cachedAuthorMap[rawId] = otherMembers[0].id;
-            return;
-          }
-        }
 
         let matched = authorMap.get(aKey) || authorMap.get(rawId) || authorMap.get('a.' + rawId) || authorMap.get('a-' + rawId) || authorMap.get('a_' + rawId);
 
         if (!matched) {
           let authorName = '';
+          let authorUserId = '';
           let authorColor = null;
           let foundAuthorObj = authorData[aKey] || authorData[rawId] || authorData['a.' + rawId];
           if (foundAuthorObj) {
             if (foundAuthorObj.name && !isPlaceholderName(foundAuthorObj.name)) authorName = String(foundAuthorObj.name).trim();
+            if (foundAuthorObj.userId || foundAuthorObj.id || foundAuthorObj.studentCode) authorUserId = String(foundAuthorObj.userId || foundAuthorObj.id || foundAuthorObj.studentCode).trim();
             authorColor = foundAuthorObj.colorId !== undefined ? foundAuthorObj.colorId : foundAuthorObj.color;
           }
-          if (authorName && !isPlaceholderName(authorName)) {
+
+          if (authorUserId) {
+            const cleanUid = authorUserId.toLowerCase();
+            matched = targetMembersList.find(m => {
+              if (!m) return false;
+              const mKeys = getUserAllKeys(m);
+              return mKeys.some(k => k.toLowerCase() === cleanUid);
+            });
+          }
+
+          if (!matched && authorName && !isPlaceholderName(authorName)) {
             const cleanAuthorName = authorName.trim().toLowerCase();
             matched = targetMembersList.find(m => {
               if (!m) return false;
@@ -12468,14 +12477,9 @@
           matched = selfMem;
         }
 
-        // 🛡️ 智能双人/组员绑定：若当前小组仅有2位组员，且此 authorClass 明确不是当前登录用户 selfMem，则 100% 归属于另一位组员
-        if (!matched && rawId && rawId !== rawLocalId && otherMembers.length === 1) {
-          matched = otherMembers[0];
-        }
-
         if (matched) {
           assignedAuthors.set(aKey, matched);
-          if (rawId) cachedAuthorMap[rawId] = matched.id;
+          if (rawId) cachedAuthorMap[rawId] = matched.id || matched.studentCode || matched.name;
         }
       });
 
@@ -16670,6 +16674,9 @@
       this.state.activeTaskId = taskId;
       this.state.activeGroupId = groupId;
       this.state.members = this.authManager.getGroupMembersForWorkspace(groupId, effectiveClassId);
+      if (this.authManager && typeof this.authManager._pruneStorageQuota === 'function') {
+        try { this.authManager._pruneStorageQuota(); } catch (e) {}
+      }
 
       // 🛡️ 优先从单一轻量工作台快照恢复（仅记录当前组，0ms秒开上屏且绝不超5MB配额）
       let cached = null;

@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2872";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2872";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2872";
-import { AuthManager } from "./auth.js?v=20260907_v2872";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2872";
-import { renderLoginView } from "./login.js?v=20260907_v2872";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2872";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2872";
+} from "./constants.js?v=20260908_v2875";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2875";
+import { callCozeAgentAPI } from "./agents.js?v=20260908_v2875";
+import { AuthManager } from "./auth.js?v=20260908_v2875";
+import { CloudSyncEngine } from "./sync.js?v=20260908_v2875";
+import { renderLoginView } from "./login.js?v=20260908_v2875";
+import { renderTeacherPortal } from "./teacher.js?v=20260908_v2875";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2875";
 import {
   renderEditor,
   renderChat,
@@ -36,7 +36,7 @@ import {
   getEtherpadAuthorStats,
   renderPresenceCursors,
   getEffectiveAgentAnalyzing
-} from "./editor.js?v=20260907_v2872";
+} from "./editor.js?v=20260908_v2875";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -383,6 +383,9 @@ export class App {
     this.state.activeTaskId = taskId;
     this.state.activeGroupId = groupId;
     this.state.members = this.authManager.getGroupMembersForWorkspace(groupId, effectiveClassId);
+    if (this.authManager && typeof this.authManager._pruneStorageQuota === 'function') {
+      try { this.authManager._pruneStorageQuota(); } catch (e) {}
+    }
 
     // 🛡️ 优先从单一轻量工作台快照恢复（仅记录当前组，0ms秒开上屏且绝不超5MB配额）
     let cached = null;

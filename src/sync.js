@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2872';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2872';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260908_v2875';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260908_v2875';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -639,18 +639,18 @@ export class CloudSyncEngine {
       let remoteLogs = Array.isArray(remoteChatLogs[stg]) ? remoteChatLogs[stg] : [];
       const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
       
-      // 🛡️ 智能并集保留：无论是本地刚生成的智能体消息还是本地发言，绝不允许被旧快照丢弃（真实并集）
+      // 🛡️ 智能单向追加与并集免死权：无论是本地刚生成的智能体真实发言还是本地组员发言，绝不允许被旧快照丢弃（Append-Only）
       const localCompleted = localLogs.filter(m => {
         if (!m) return false;
-        if (m.isThinking || String(m.id || '').startsWith('thinking_')) {
+        if (m.isThinking || String(m.id || '').startsWith('thinking_') || String(m.id || '').startsWith('temp_analyzing_')) {
           return false; // 过滤临时思考占位
         }
-        const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs === m._timeMs && rm.text === m.text));
+        const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs && m._timeMs && Math.abs(rm._timeMs - m._timeMs) < 2500 && rm.text === m.text) || (rm.text && m.text && rm.text === m.text && rm.sender === m.sender));
         return !existsInRemote;
       });
 
       // 🛡️ 全局过滤掉临时占位思考气泡，杜绝残留
-      remoteLogs = remoteLogs.filter(m => !m || (!String(m.id || '').startsWith('thinking_') && !m.isThinking));
+      remoteLogs = remoteLogs.filter(m => !m || (!String(m.id || '').startsWith('thinking_') && !String(m.id || '').startsWith('temp_analyzing_') && !m.isThinking));
 
       // 合并 remoteLogs 与 localCompleted（确保本地已完成的发言绝不丢失）
       const mergedList = [...remoteLogs, ...localCompleted];
@@ -676,8 +676,11 @@ export class CloudSyncEngine {
       });
 
       mergedList.sort((a, b) => (a._timeMs || 0) - (b._timeMs || 0));
-      this.app.state.chatLogs[stg] = filterAndDeduplicateChatLogs(mergedList);
-      hasUpdated = true;
+      const cleanList = filterAndDeduplicateChatLogs(mergedList);
+      if (JSON.stringify(cleanList) !== JSON.stringify(localLogs)) {
+        this.app.state.chatLogs[stg] = cleanList;
+        hasUpdated = true;
+      }
     });
 
     if (hasUpdated) {

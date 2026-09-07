@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260907_v2872';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260907_v2872';
+} from './constants.js?v=20260908_v2875';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260908_v2875';
 
 export class AuthManager {
   constructor() {
@@ -2022,15 +2022,23 @@ export class AuthManager {
     return this.markAnnouncementRead(annId, groupId);
   }
 
-  // 🧹 存储配额守护清理器：当浏览器 5MB 配额紧张时，自动修剪冗余的历史 Base64 快照
+  // 🧹 存储配额守护清理器：自动静默修剪冗余的历史旧快照，保持轻量
   _pruneStorageQuota() {
     try {
-      for (let i = 0; i < localStorage.length; i++) {
+      const currentSnapKey = this.app?.syncEngine?.storageKey;
+      const keysToRemove = [];
+      const len = localStorage.length;
+      for (let i = 0; i < len; i++) {
         const k = localStorage.key(i);
-        if (k && (k.startsWith('jizhi_cloud_snapshot_') || k.includes('_backup_'))) {
-          localStorage.removeItem(k);
+        if (k && (k.startsWith('jizhi_cloud_snapshot_') || k.includes('_backup_') || k.startsWith('jizhi_active_workspace_snap_old_'))) {
+          if (!currentSnapKey || k !== currentSnapKey) {
+            keysToRemove.push(k);
+          }
         }
       }
+      keysToRemove.forEach(k => {
+        try { localStorage.removeItem(k); } catch (err) {}
+      });
     } catch (e) {}
   }
 
