@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2845";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2845";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2845";
-import { AuthManager } from "./auth.js?v=20260907_v2845";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2845";
-import { renderLoginView } from "./login.js?v=20260907_v2845";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2845";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2845";
+} from "./constants.js?v=20260907_v2846";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2846";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2846";
+import { AuthManager } from "./auth.js?v=20260907_v2846";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2846";
+import { renderLoginView } from "./login.js?v=20260907_v2846";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2846";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2846";
 import {
   renderChat,
   renderOutline,
@@ -32,7 +32,7 @@ import {
   renderRemoteCursors,
   renderStudentWorkspace,
   renderReferencePapersModal
-} from "./editor.js?v=20260907_v2845";
+} from "./editor.js?v=20260907_v2846";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3979,9 +3979,8 @@ export class App {
         if (s1._voteTallyAndGuidanceTriggered) return;
         s1._voteTallyAndGuidanceTriggered = true;
 
-        // 🛡️ 严格学术铁律：只有【全票一致】才自动确立课题；只要不是全票一致（无论 2:1 还是平票），一律算【存在分歧】，留由组员在讨论区协商确定！
+        // 🛡️ 严格学术铁律：投票完成后进入研讨细化/分歧融合阶段，课题槽位保持由 AI 智能体一键提炼填入
         if (isUnanimous && winningProposal) {
-          s1.mergedTitle = winningProposal.title;
           s1.flowStep = 'refining';
           this.state.stage1PendingRefinement = true;
         } else {
@@ -4208,8 +4207,26 @@ export class App {
       const prefixTag = isInst ? '备课引导师·方案研讨' : '学术拍卖师·落槌与方案研讨';
       const docThemeNoun = isInst ? '教学主题与备课方案' : '主题与研究方案';
 
-      const tally = s1.votes || {};
+      const s1Votes = s1.votes || {};
       const proposals = s1.proposals || [];
+      const tally = {};
+      const actualGroupMembers = (this.authManager && this.authManager.getGroupMembersForWorkspace)
+        ? this.authManager.getGroupMembersForWorkspace(this.state.activeGroupId || this.state.groupId, this.state.activeStudentClassId || this.state.classId)
+        : [];
+      const membersList = actualGroupMembers.length > 0 ? actualGroupMembers : (Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {}));
+      
+      membersList.forEach(m => {
+        const pId = getUserFromMap(s1Votes, m) || (s1Votes && s1Votes[m.id]) || (m.name && s1Votes && s1Votes[m.name]);
+        if (pId) tally[pId] = (tally[pId] || 0) + 1;
+      });
+      if (s1Votes) {
+        Object.values(s1Votes).forEach(pId => {
+          if (pId && !proposals.some(p => (tally[p.id] || 0) > 0)) {
+            tally[pId] = (tally[pId] || 0) + 1;
+          }
+        });
+      }
+
       let maxVotes = 0;
       let winningProposal = null;
       proposals.forEach(p => {
@@ -4249,14 +4266,7 @@ export class App {
       let guideText = '';
 
       if (isUnanimous && winningProposal) {
-        // 情境 A：投票全票一致
-        s1.mergedTitle = winningProposal.title;
-        if (!s1.contract) s1.contract = {};
-        s1.contract.topic = winningProposal.title;
-        if (winningProposal.description && !s1.contract.overview) {
-          s1.contract.overview = winningProposal.description.replace(/<[^>]+>/g, ' ').trim();
-          s1.researchOverview = s1.contract.overview;
-        }
+        // 情境 A：投票全票一致（肯定共识并引导细化维度，留由学生点击一键提炼写入）
         guideMsgId = 'vote_unanimous_' + Date.now();
 
         const unanimousPrompt = `${genreDesc}
@@ -7318,6 +7328,10 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
       () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
       () => this.backToTaskList()
     );
+
+    if (typeof this.checkUnreadAnnouncements === 'function') {
+      this.checkUnreadAnnouncements();
+    }
 
 
 
