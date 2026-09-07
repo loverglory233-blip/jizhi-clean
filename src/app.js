@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260908_v2880";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2880";
-import { callCozeAgentAPI } from "./agents.js?v=20260908_v2880";
-import { AuthManager } from "./auth.js?v=20260908_v2880";
-import { CloudSyncEngine } from "./sync.js?v=20260908_v2880";
-import { renderLoginView } from "./login.js?v=20260908_v2880";
-import { renderTeacherPortal } from "./teacher.js?v=20260908_v2880";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2880";
+} from "./constants.js?v=20260908_v2881";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2881";
+import { callCozeAgentAPI } from "./agents.js?v=20260908_v2881";
+import { AuthManager } from "./auth.js?v=20260908_v2881";
+import { CloudSyncEngine } from "./sync.js?v=20260908_v2881";
+import { renderLoginView } from "./login.js?v=20260908_v2881";
+import { renderTeacherPortal } from "./teacher.js?v=20260908_v2881";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2881";
 import {
   renderEditor,
   renderChat,
@@ -36,7 +36,7 @@ import {
   getEtherpadAuthorStats,
   renderPresenceCursors,
   getEffectiveAgentAnalyzing
-} from "./editor.js?v=20260908_v2880";
+} from "./editor.js?v=20260908_v2881";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -104,6 +104,18 @@ export class App {
     this.cloudSyncEngine = new CloudSyncEngine(this);
     this.initGlobalBroadcastListener();
     this.initTimer();
+    
+    // 🎯 响应云端全局元数据对齐：秒级更新工作台顶部通知、参考范文与任务状态
+    window.addEventListener('jizhi_meta_updated', () => {
+      const u = this.authManager ? this.authManager.getCurrentUser() : null;
+      if (u && (u.role === 'student' || u.isStudent)) {
+        if (this.state.studentViewMode === 'workspace') {
+          if (typeof this.renderHeader === 'function') this.renderHeader();
+          if (typeof this.checkUnreadAnnouncements === 'function') this.checkUnreadAnnouncements();
+        }
+      }
+    });
+
     this.renderMain();
 
     // 🛡️ 全局最高优先级事件委托：确保无论顶部导航与工作区如何刷新，阶段切换、通知、大厅、问卷与退出 100% 极速响应
@@ -803,10 +815,23 @@ export class App {
     doPing();
     if (this._presencePingInterval) clearInterval(this._presencePingInterval);
     this._presencePingInterval = setInterval(doPing, 8000);
+  initGlobalMetaHeartbeat() {
+    if (this._globalMetaHeartbeat) clearInterval(this._globalMetaHeartbeat);
+    this._globalMetaHeartbeat = setInterval(async () => {
+      if (document.hidden) return;
+      const user = this.authManager ? this.authManager.getCurrentUser() : null;
+      if (!user) return;
+      if (this.authManager && typeof this.authManager.pullGlobalMeta === 'function') {
+        try {
+          await this.authManager.pullGlobalMeta(false);
+        } catch (err) {}
+      }
+    }, 3000);
   }
 
   initTimer() {
     this.initGlobalPresenceHeartbeat();
+    this.initGlobalMetaHeartbeat();
     if (this._mainTimerInterval) clearInterval(this._mainTimerInterval);
     this._mainTimerInterval = setInterval(() => {
       // 🎧 静默期情绪安抚定时巡检（即便无人发言也按周期触发，见审查 #45）

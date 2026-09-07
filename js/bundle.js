@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260908_v2880
+ * Version: 20260908_v2881
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260908_v2880';
+  const APP_VERSION = '20260908_v2881';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2570,6 +2570,12 @@
               }
 
               localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(Array.from(surveyMap.values())));
+            }
+
+            if (typeof window !== 'undefined') {
+              try {
+                window.dispatchEvent(new CustomEvent('jizhi_meta_updated', { detail: data }));
+              } catch (evErr) {}
             }
 
             return { success: true, changed: true, version: this.globalMetaVersion, data };
@@ -7214,6 +7220,17 @@
       } catch (e) {}
     }
 
+    // 🎯 全局事件驱动响应：一旦底层数据发生变化立即平滑更新教师控制台（模态弹窗打开时跳过）
+    if (window._metaUpdateTeacherHandler) {
+      window.removeEventListener('jizhi_meta_updated', window._metaUpdateTeacherHandler);
+    }
+    window._metaUpdateTeacherHandler = () => {
+      if (!document.querySelector('.modal-overlay') && document.querySelector('.teacher-portal-layout')) {
+        renderTeacherPortal(container, authManager, state, onLogout);
+      }
+    };
+    window.addEventListener('jizhi_meta_updated', window._metaUpdateTeacherHandler);
+
     // ⚡ 教师控制台轻量心跳巡检（跨设备秒级同步，弹窗开启或切后台时静默，0 开销 20 字节版本比对）
     if (window._teacherPortalPollTimer) {
       clearInterval(window._teacherPortalPollTimer);
@@ -7223,10 +7240,7 @@
       if (document.hidden || document.querySelector('.modal-overlay')) return;
       if (authManager && typeof authManager.pullGlobalMeta === 'function') {
         try {
-          const res = await authManager.pullGlobalMeta(false);
-          if (res && res.changed) {
-            renderTeacherPortal(container, authManager, state, onLogout);
-          }
+          await authManager.pullGlobalMeta(false);
         } catch (err) {}
       }
     }, 4000);
@@ -11511,6 +11525,17 @@
       } catch (e) {}
     }
 
+    // 🎯 全局事件驱动响应：一旦底层数据发生变化立即原地平滑重绘大厅
+    if (window._metaUpdatePortalHandler) {
+      window.removeEventListener('jizhi_meta_updated', window._metaUpdatePortalHandler);
+    }
+    window._metaUpdatePortalHandler = () => {
+      if (state.studentViewMode === 'task_list') {
+        renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
+      }
+    };
+    window.addEventListener('jizhi_meta_updated', window._metaUpdatePortalHandler);
+
     // ⚡ 工业级多端轻量全局心跳巡检（跨设备/跨浏览器秒级免刷新对齐，0 开销 20 字节版本探测）
     if (window._studentPortalPollTimer) {
       clearInterval(window._studentPortalPollTimer);
@@ -11525,10 +11550,7 @@
       if (document.hidden) return;
       if (authManager && typeof authManager.pullGlobalMeta === 'function') {
         try {
-          const res = await authManager.pullGlobalMeta(false);
-          if (res && res.changed) {
-            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
-          }
+          await authManager.pullGlobalMeta(false);
         } catch (err) {}
       }
     }, 3500);
@@ -16438,6 +16460,18 @@
       this.cloudSyncEngine = new CloudSyncEngine(this);
       this.initGlobalBroadcastListener();
       this.initTimer();
+
+      // 🎯 响应云端全局元数据对齐：秒级更新工作台顶部通知、参考范文与任务状态
+      window.addEventListener('jizhi_meta_updated', () => {
+        const u = this.authManager ? this.authManager.getCurrentUser() : null;
+        if (u && (u.role === 'student' || u.isStudent)) {
+          if (this.state.studentViewMode === 'workspace') {
+            if (typeof this.renderHeader === 'function') this.renderHeader();
+            if (typeof this.checkUnreadAnnouncements === 'function') this.checkUnreadAnnouncements();
+          }
+        }
+      });
+
       this.renderMain();
 
       // 🛡️ 全局最高优先级事件委托：确保无论顶部导航与工作区如何刷新，阶段切换、通知、大厅、问卷与退出 100% 极速响应
@@ -17137,10 +17171,23 @@
       doPing();
       if (this._presencePingInterval) clearInterval(this._presencePingInterval);
       this._presencePingInterval = setInterval(doPing, 8000);
+    initGlobalMetaHeartbeat() {
+      if (this._globalMetaHeartbeat) clearInterval(this._globalMetaHeartbeat);
+      this._globalMetaHeartbeat = setInterval(async () => {
+        if (document.hidden) return;
+        const user = this.authManager ? this.authManager.getCurrentUser() : null;
+        if (!user) return;
+        if (this.authManager && typeof this.authManager.pullGlobalMeta === 'function') {
+          try {
+            await this.authManager.pullGlobalMeta(false);
+          } catch (err) {}
+        }
+      }, 3000);
     }
 
     initTimer() {
       this.initGlobalPresenceHeartbeat();
+      this.initGlobalMetaHeartbeat();
       if (this._mainTimerInterval) clearInterval(this._mainTimerInterval);
       this._mainTimerInterval = setInterval(() => {
         // 🎧 静默期情绪安抚定时巡检（即便无人发言也按周期触发，见审查 #45）

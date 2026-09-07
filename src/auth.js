@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260908_v2880';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260908_v2880';
+} from './constants.js?v=20260908_v2881';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260908_v2881';
 
 export class AuthManager {
   constructor() {
@@ -497,6 +497,12 @@ export class AuthManager {
             }
 
             localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(Array.from(surveyMap.values())));
+          }
+
+          if (typeof window !== 'undefined') {
+            try {
+              window.dispatchEvent(new CustomEvent('jizhi_meta_updated', { detail: data }));
+            } catch (evErr) {}
           }
 
           return { success: true, changed: true, version: this.globalMetaVersion, data };
