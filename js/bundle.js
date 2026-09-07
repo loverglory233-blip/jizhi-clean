@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2846
+ * Version: 20260907_v2847
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2846';
+  const APP_VERSION = '20260907_v2847';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -20814,25 +20814,26 @@
         const defaultCandidateFallback = isInst ? '优质课教学设计方案' : '学术协同研究课题';
         const currentCandidate = s1.mergedTitle || s1.contract?.topic || (propList[0] ? propList[0].title : defaultCandidateFallback);
         const allPropTitles = propList.map(p => `《${p.title}》`).join('、');
+        const hasUserDiscussion = validUserLogs.length > 0 && chatSnippet.trim().length > 0;
 
-        const extractPrompt = `【任务指令：请根据讨论区研讨记录，为小组成员同时提炼出【槽位1 课题名称】与 120~200 字【槽位2 方案概述】】
+        const extractPrompt = `【任务指令：请根据讨论区研讨记录，为小组成员同时提炼出【槽位1 课题名称】与【槽位2 方案概述】】
 
-  【小组成员在讨论区的全部真实研讨发言（从引导后至点击前的研讨切片，学生发言完全是日常口语交流、随性沟通、碎片化构想）】:
-  ${chatSnippet || '（小组成员在讨论区暂无更多方案研讨发言）'}
+  【小组成员在讨论区的全部真实研讨发言（从引导后至点击前的研讨切片）】:
+  ${hasUserDiscussion ? chatSnippet : '（小组成员在讨论区暂无任何方案研讨发言）'}
 
   【小组成员提交的提案参考】:
   ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员主要通过讨论区直接交流）')}
 
-  【提炼核心规则（最高红线：精准区分【随性口头设想】与【无意义灌水/乱码】）】：
-  1. 敏锐捕捉口语化设想：学生使用的是日常口语随性交流（如“我想搞个...”、“我们可以弄个...情境”、“主要探究...”、“重点在活动”等）。只要发言中包含哪怕一句切入点或构思线索，智能体必须发挥大模型强大的语义联想与意图理解能力，敏锐捕捉并在输出中【代为提炼、升华为学术规范与逻辑严谨的 120~200 字结构化【方案概述】(overview)】！
-  2. 严格过滤无意义内容：若讨论区的发言完全是无实质意义的数字打卡（如“111”、“收到”）、乱码符号、纯表情、无关闲聊（如“吃了吗”），或讨论区完全空白且提案未提供任何内容，方案概述 (overview) 必须严格诚实输出“暂无”，绝对不凭空编造假大空套话！
-  3. 规范提炼【${isInst ? '教学课题' : '论文题目'}】(topic)：以《${currentCandidate}》为基础规范润色或沿用；
+  【提炼核心规则（最高红线：精准区分【随性口头设想】与【无发言/无意义灌水】，严禁凭空杜撰）】：
+  1. 规范提炼【${isInst ? '教学课题' : '论文题目'}】(topic)：以《${currentCandidate}》为基础规范润色或沿用；
+  2. 方案概述 (overview) 提炼铁律：
+     - ${hasUserDiscussion ? '若讨论区发言中包含切入点、学情、目标或活动构想，敏锐捕捉并在输出中代为提炼、升华为学术规范与逻辑严谨的 120~200 字结构化【方案概述】(overview)；若发言完全是无意义打卡（如“111”、“收到”）、乱码符号或闲聊，则 overview 必须严格诚实输出 "暂无"！' : '【特别注意：当前小组成员在讨论区没有任何方案研讨发言记录！】因此 overview 字段必须且只能输出 "暂无"，绝对严禁根据课题名称自行虚构、杜撰或展开任何三维目标、活动链、教学情境等内容！'}
 
   请务必按以下 JSON 格式输出：
   {
     "topic": "${currentCandidate}",
-    "overview": "根据上述组员真实讨论尽力提炼并学术升华的 120~200 字${isInst ? '教学方案概述（涵盖学情情境、三维教学目标【知识与技能/过程与方法/情感态度价值观】与新知探究活动链）' : '研究方案概述（涵盖情境案例、核心科学问题与实证方法）'}，若确实无相关讨论或纯无意义内容则直接明确输出'暂无'",
-    "guideText": "${isInst ? '教学课题与教学方案概述' : '论文主题与研究方案概述'}已成功生成并录入公约看板！接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定后点击【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！"
+    "overview": "${hasUserDiscussion ? '根据上述组员真实讨论尽力提炼的方案概述，若无实质研讨内容则输出\"暂无\"' : '暂无'}",
+    "guideText": "${isInst ? '教学课题与教学方案概述' : '论文主题与研究方案概述'}已成功确立并录入公约看板！接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定后点击【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！"
   }`;
 
         const resp = await callCozeAgentAPI('auctioneer', extractPrompt, { stage: 'stage1', topic: currentCandidate, taskType, milestoneKey: 'stage1_extract_topic' });
@@ -20901,10 +20902,18 @@
           }
         }
 
-        // 🛡️ 严格遵循用户真实研讨：若确实没有提取出方案，优先匹配当前课题的提案说明，或显示“暂无”，绝不添加任何假大空套话！
+        // 🛡️ 严格遵循用户真实研讨：若小组成员在讨论区无任何方案研讨发言，必须严格诚实输出“暂无”，绝对不杜撰任何方案！
         const matchedProp = propList.find(p => p && (p.title === finalTopic || p.title === currentCandidate)) || propList[0];
-        if (!finalOverview || !finalOverview.trim() || finalOverview === '暂无') {
-          finalOverview = (matchedProp?.description) ? matchedProp.description.replace(/<[^>]+>/g, ' ').trim() : '暂无';
+        const propDesc = (matchedProp?.description && matchedProp.description.trim().length > 0) ? matchedProp.description.replace(/<[^>]+>/g, ' ').trim() : '';
+
+        if (!hasUserDiscussion) {
+          finalOverview = propDesc || '暂无';
+        } else if (!finalOverview || !finalOverview.trim() || finalOverview === '暂无') {
+          finalOverview = propDesc || '暂无';
+        }
+
+        if (finalOverview === '暂无') {
+          guideSpeech = `🏛️ 【${agentRole}·方案确立】：全组${isInst ? '教学课题' : '研究主题'}《${finalTopic}》已确立！由于小组成员暂未在讨论区展开方案概述与活动链研讨，方案概述目前标记为【暂无】（小组成员可直接在左侧输入框补充，或在讨论区商讨后重新提炼）。👉 接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配！`;
         }
 
         // 🛡️ 移除正在提炼中的思考消息与残留网络提醒/重试按键
