@@ -104,6 +104,19 @@ function initDatabaseTables() {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
         @$pdo->exec($sql6);
 
+        // 6b. 课程问卷配置表 (surveys)
+        $sql6b = "CREATE TABLE IF NOT EXISTS `surveys` (
+            `id` VARCHAR(64) PRIMARY KEY,
+            `class_id` VARCHAR(64) DEFAULT 'all',
+            `class_name` VARCHAR(255) DEFAULT '',
+            `task_id` VARCHAR(64) DEFAULT 'task_all',
+            `task_title` VARCHAR(255) DEFAULT '',
+            `url` LONGTEXT NOT NULL,
+            `created_at` VARCHAR(64) DEFAULT '',
+            `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
+        @$pdo->exec($sql6b);
+
         // 7. 小组实时协作快照与阶段状态表 (group_states)
         $sql7 = "CREATE TABLE IF NOT EXISTS `group_states` (
             `scope_key` VARCHAR(128) PRIMARY KEY,

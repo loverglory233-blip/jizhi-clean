@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260908_v2888";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2888";
-import { callCozeAgentAPI } from "./agents.js?v=20260908_v2888";
-import { AuthManager } from "./auth.js?v=20260908_v2888";
-import { CloudSyncEngine } from "./sync.js?v=20260908_v2888";
-import { renderLoginView } from "./login.js?v=20260908_v2888";
-import { renderTeacherPortal } from "./teacher.js?v=20260908_v2888";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2888";
+} from "./constants.js?v=20260908_v2890";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2890";
+import { callCozeAgentAPI } from "./agents.js?v=20260908_v2890";
+import { AuthManager } from "./auth.js?v=20260908_v2890";
+import { CloudSyncEngine } from "./sync.js?v=20260908_v2890";
+import { renderLoginView } from "./login.js?v=20260908_v2890";
+import { renderTeacherPortal } from "./teacher.js?v=20260908_v2890";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2890";
 import {
   renderEditor,
   renderChat,
@@ -36,7 +36,7 @@ import {
   getEtherpadAuthorStats,
   renderPresenceCursors,
   getEffectiveAgentAnalyzing
-} from "./editor.js?v=20260908_v2888";
+} from "./editor.js?v=20260908_v2890";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1474,7 +1474,8 @@ export class App {
           },
           () => this.handleLogout(),
           () => this.showAnnouncementModal(),
-          () => this.showQuestionnaireModal()
+          () => this.showQuestionnaireModal(),
+          () => this.showReferencePapersModal()
         );
         return;
       }
@@ -2883,16 +2884,23 @@ export class App {
     const currentTaskId = this.state.activeTaskId || null;
     const tasks = this.authManager.getTasks();
     const currTaskObj = tasks.find(t => isSameId(t.id, currentTaskId));
-    const taskTitle = currTaskObj ? currTaskObj.title : (currentTaskId || '指定写作任务');
-    const surveyUrl = this.authManager.getSurveyUrl(currentClassId, currentTaskId) || (currTaskObj ? this.authManager.getSurveyUrl(currentClassId, currTaskObj.id) : '');
+    const taskTitle = currTaskObj ? currTaskObj.title : (currentTaskId || '写作任务');
+
+    const allSurveys = this.authManager.getSurveysList() || [];
+    const classSurveys = allSurveys.filter(s => !s.classId || s.classId === 'all' || s.classId === 'class_all' || isSameId(s.classId, currentClassId));
+
+    const surveyUrl = currentTaskId
+      ? (this.authManager.getSurveyUrl(currentClassId, currentTaskId) || (currTaskObj ? this.authManager.getSurveyUrl(currentClassId, currTaskObj.id) : ''))
+      : (classSurveys.length === 1 ? classSurveys[0].url : this.authManager.getSurveyUrl(currentClassId, null));
+    
     const isConfigured = surveyUrl && surveyUrl.startsWith('http');
-    const surveyDoneKey = `jizhi_survey_completed_${currentClassId}_${currentTaskId}`;
+    const isPortalMode = this.state.studentViewMode === 'task_list' || !currentTaskId;
 
     // ⚡ 异步触发 pullGlobalMeta 刷新问卷
-    if ((!isConfigured) && this.authManager && typeof this.authManager.pullGlobalMeta === 'function') {
+    if (this.authManager && typeof this.authManager.pullGlobalMeta === 'function') {
       this.authManager.pullGlobalMeta(true).then(() => {
-        const freshUrl = this.authManager.getSurveyUrl(currentClassId, currentTaskId) || (currTaskObj ? this.authManager.getSurveyUrl(currentClassId, currTaskObj.id) : '');
-        if (freshUrl && freshUrl.startsWith('http')) {
+        const freshList = this.authManager.getSurveysList() || [];
+        if (freshList.length !== allSurveys.length) {
           const curModal = document.querySelector('.modal-overlay');
           if (curModal && curModal.querySelector('h3')?.innerText?.includes('问卷')) {
             this.showQuestionnaireModal();
@@ -2904,7 +2912,7 @@ export class App {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
-      <div style="width:520px; max-width:92vw; background:#ffffff; border-radius:16px; box-shadow:0 20px 45px rgba(15,23,42,0.18); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
+      <div style="width:560px; max-width:92vw; background:#ffffff; border-radius:16px; box-shadow:0 20px 45px rgba(15,23,42,0.18); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
         
         <!-- 优雅明亮头部 -->
         <div style="padding:22px 24px 18px 24px; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center; background:#ffffff;">
@@ -2914,49 +2922,74 @@ export class App {
             </div>
             <div>
               <h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">课程协作学习与体验问卷</h3>
-              <div style="font-size:12px; color:#64748b; margin-top:2px;">📌 当前任务: <b style="color:#2563eb;">${taskTitle}</b></div>
+              <div style="font-size:12px; color:#64748b; margin-top:2px;">
+                ${currentTaskId ? `📌 当前任务: <b style="color:#2563eb;">${taskTitle}</b>` : `🏫 班级专属问卷 (${classSurveys.length} 项)`}
+              </div>
             </div>
           </div>
           <button id="btn-close-survey-modal" style="background:#f8fafc; border:1px solid #e2e8f0; width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#64748b; font-size:14px; transition:all 0.15s ease;">✕</button>
         </div>
 
         <!-- 内容主体 -->
-        <div style="padding:24px; display:flex; flex-direction:column; gap:18px;">
+        <div style="padding:24px; display:flex; flex-direction:column; gap:18px; max-height:65vh; overflow-y:auto;">
           
           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px 16px; font-size:13px; color:#334155; line-height:1.6;">
-            为评估本任务（<b>${taskTitle}</b>）的协作效果，请同学们点击下方按钮前往填写匿名问卷。
+            为评估教学与人机协作写作效果，请同学们点击下方按钮前往填写匿名问卷。感谢您的支持！
           </div>
 
-          <!-- 跳转按钮区域 -->
-          <div style="background:#ffffff; border:1.5px dashed #bfdbfe; border-radius:12px; padding:22px 18px; text-align:center;">
-            ${isConfigured ? `
-              <a href="${surveyUrl}" target="_blank" id="btn-go-survey" style="display:inline-flex; align-items:center; justify-content:center; gap:8px; background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:12px 32px; border-radius:10px; font-size:14px; font-weight:700; text-decoration:none; box-shadow:0 4px 12px rgba(37,99,235,0.25); transition:transform 0.15s ease;">
-                🚀 打开本任务问卷页面 ↗
-              </a>
-              <div style="font-size:11.5px; color:#94a3b8; margin-top:10px; word-break:break-all;">
-                问卷地址: <span style="color:#2563eb;">${surveyUrl}</span>
-              </div>
-            ` : `
-              <div style="color:#d97706; font-size:13px; font-weight:600;">
-                ⚠️ 任课教师暂未为【${taskTitle}】配置独立问卷链接。
-              </div>
-            `}
-          </div>
+          ${(!isPortalMode || classSurveys.length <= 1) ? `
+            <!-- 单个问卷卡片 -->
+            <div style="background:#ffffff; border:1.5px dashed #bfdbfe; border-radius:12px; padding:22px 18px; text-align:center;">
+              ${isConfigured ? `
+                <a href="${surveyUrl}" target="_blank" id="btn-go-survey" style="display:inline-flex; align-items:center; justify-content:center; gap:8px; background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:12px 32px; border-radius:10px; font-size:14px; font-weight:700; text-decoration:none; box-shadow:0 4px 12px rgba(37,99,235,0.25); transition:transform 0.15s ease;">
+                  🚀 打开问卷填写页面 ↗
+                </a>
+                <div style="font-size:11.5px; color:#94a3b8; margin-top:10px; word-break:break-all;">
+                  问卷地址: <span style="color:#2563eb;">${surveyUrl}</span>
+                </div>
+              ` : `
+                <div style="color:#d97706; font-size:13px; font-weight:600;">
+                  ⚠️ 任课教师暂未配置课程问卷链接。
+                </div>
+              `}
+            </div>
 
-          <!-- 勾选确认 -->
-          <div style="display:flex; align-items:center; gap:10px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px 16px;">
-            <input type="checkbox" id="chk-survey-done" style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;" ${localStorage.getItem(surveyDoneKey) === 'true' ? 'checked' : ''}>
-            <label for="chk-survey-done" style="font-size:13px; font-weight:700; color:#1e40af; cursor:pointer; user-select:none;">
-              我已完成【${taskTitle}】的问卷填写并提交
-            </label>
-          </div>
+            <!-- 勾选确认 -->
+            <div style="display:flex; align-items:center; gap:10px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px 16px;">
+              <input type="checkbox" id="chk-survey-done" style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;" ${localStorage.getItem(`jizhi_survey_completed_${currentClassId}_${currentTaskId || 'general'}`) === 'true' ? 'checked' : ''}>
+              <label for="chk-survey-done" style="font-size:13px; font-weight:700; color:#1e40af; cursor:pointer; user-select:none;">
+                我已完成问卷填写并提交
+              </label>
+            </div>
+          ` : `
+            <!-- 大厅多问卷清单 -->
+            <div style="display:flex; flex-direction:column; gap:12px;">
+              ${classSurveys.map(s => {
+                const sKey = `jizhi_survey_completed_${s.classId}_${s.taskId || 'general'}`;
+                const isDone = localStorage.getItem(sKey) === 'true';
+                return `
+                  <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:16px; box-shadow:0 2px 6px rgba(15,23,42,0.03); display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                    <div>
+                      <div style="font-size:14.5px; font-weight:800; color:#0f172a;">📋 ${escapeHtml(s.taskTitle || '课程协作问卷')}</div>
+                      <div style="font-size:11.5px; color:#64748b; margin-top:2px;">适用班级: ${escapeHtml(s.className || '全校班级')} · ${s.updatedAt || s.createdAt || '最新'}</div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <a href="${s.url}" target="_blank" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:7px 16px; border-radius:8px; font-size:12px; font-weight:700; text-decoration:none; white-space:nowrap; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
+                        🚀 填写 ↗
+                      </a>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `}
 
         </div>
 
         <!-- 底部确认关闭 -->
         <div style="padding:16px 24px; background:#f8fafc; border-top:1px solid #f1f5f9; display:flex; justify-content:flex-end;">
           <button id="btn-finish-survey" style="width:100%; background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; border:none; padding:11px 24px; border-radius:10px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.2);">
-            完成并返回工作台
+            ${isPortalMode ? '关闭' : '完成并返回工作台'}
           </button>
         </div>
 
@@ -2967,12 +3000,14 @@ export class App {
     const closeModal = () => modal.remove();
     modal.querySelector('#btn-close-survey-modal').addEventListener('click', closeModal);
     modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
-    modal.querySelector('#chk-survey-done').addEventListener('change', (e) => {
-      localStorage.setItem(surveyDoneKey, e.target.checked ? 'true' : 'false');
+    modal.querySelector('#chk-survey-done')?.addEventListener('change', (e) => {
+      localStorage.setItem(`jizhi_survey_completed_${currentClassId}_${currentTaskId || 'general'}`, e.target.checked ? 'true' : 'false');
     });
     modal.querySelector('#btn-finish-survey').addEventListener('click', () => {
       closeModal();
-      this.renderStudentWorkspace();
+      if (!isPortalMode) {
+        this.renderStudentWorkspace();
+      }
     });
   }
 
@@ -3222,7 +3257,8 @@ export class App {
       (s) => this.switchStage(s),
       () => this.handleLogout(),
       () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
-      () => this.backToTaskList()
+      () => this.backToTaskList(),
+      () => this.showReferencePapersModal()
     );
   }
 

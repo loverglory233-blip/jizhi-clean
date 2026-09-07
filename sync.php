@@ -388,6 +388,32 @@ function autoSyncAllUsersFromMeta($pdo) {
                     $stmtCleanPapers->execute($validPids);
                 }
             }
+
+            // 6. 自动同步 surveys 问卷配置实体表
+            if (isset($gm['surveys']) && is_array($gm['surveys'])) {
+                $validSids = [];
+                $stmtSurvUpsert = $pdo->prepare("INSERT INTO `surveys` (`id`, `class_id`, `class_name`, `task_id`, `task_title`, `url`, `created_at`)
+                    VALUES (:id, :cid, :cname, :tid, :ttitle, :url, :created_at)
+                    ON DUPLICATE KEY UPDATE `class_id`=VALUES(`class_id`), `class_name`=VALUES(`class_name`), `task_id`=VALUES(`task_id`), `task_title`=VALUES(`task_title`), `url`=VALUES(`url`), `created_at`=VALUES(`created_at`)");
+                foreach ($gm['surveys'] as $surv) {
+                    $sid = $surv['id'] ?? ('survey_' . uniqid());
+                    $validSids[] = $sid;
+                    $stmtSurvUpsert->execute([
+                        ':id' => $sid,
+                        ':cid' => $surv['classId'] ?? 'all',
+                        ':cname' => $surv['className'] ?? '全校班级',
+                        ':tid' => $surv['taskId'] ?? 'task_all',
+                        ':ttitle' => $surv['taskTitle'] ?? '写作任务',
+                        ':url' => $surv['url'] ?? '',
+                        ':created_at' => $surv['createdAt'] ?? date('Y-m-d H:i:s')
+                    ]);
+                }
+                if (!empty($validSids)) {
+                    $inClause = implode(',', array_fill(0, count($validSids), '?'));
+                    $stmtCleanSurvs = $pdo->prepare("DELETE FROM `surveys` WHERE `id` NOT IN ($inClause)");
+                    $stmtCleanSurvs->execute($validSids);
+                }
+            }
         } catch (Exception $e) {}
     }
 
@@ -2051,6 +2077,37 @@ if ($action === 'get_global_meta') {
             }
         } catch (Exception $e) {}
 
+        // 🛡️ 实体表权威对齐：无论 main_meta 是否存在，始终从 surveys 实体表补全/合并最新问卷数据
+        try {
+            $aggregatedSurveys = [];
+            $stmtS = $pdo->query("SELECT * FROM surveys");
+            if ($stmtS) {
+                while ($sr = $stmtS->fetch(PDO::FETCH_ASSOC)) {
+                    $aggregatedSurveys[] = [
+                        'id' => $sr['id'],
+                        'classId' => $sr['class_id'] ?? 'all',
+                        'className' => $sr['class_name'] ?? '全校班级',
+                        'taskId' => $sr['task_id'] ?? 'task_all',
+                        'taskTitle' => $sr['task_title'] ?? '写作任务',
+                        'url' => $sr['url'] ?? '',
+                        'createdAt' => $sr['created_at'] ?? ''
+                    ];
+                }
+            }
+            if ($foundMeta) {
+                $sMap = [];
+                if (isset($foundMeta['surveys']) && is_array($foundMeta['surveys'])) {
+                    foreach ($foundMeta['surveys'] as $s) {
+                        if (isset($s['id'])) $sMap[$s['id']] = $s;
+                    }
+                }
+                foreach ($aggregatedSurveys as $s) {
+                    $sMap[$s['id']] = isset($sMap[$s['id']]) ? array_merge($sMap[$s['id']], $s) : $s;
+                }
+                $foundMeta['surveys'] = array_values($sMap);
+            }
+        } catch (Exception $e) {}
+
         // 2. 🛡️ 仅在 main_meta 彻底为空的极端冷启动情况下，才从独立关系表聚合还原兜底
         if (!$foundMeta) {
             try {
@@ -2123,7 +2180,7 @@ if ($action === 'get_global_meta') {
                     'tasks' => $aggregatedTasks,
                     'announcements' => $aggregatedAnnouncements,
                     'referencePapers' => $aggregatedPapers,
-                    'surveys' => []
+                    'surveys' => $aggregatedSurveys
                 ];
             } catch (Exception $e) {}
         }
@@ -2705,6 +2762,34 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         $stmtCleanPapers->execute($validPids);
                     } else {
                         $pdo->exec("DELETE FROM `reference_papers`");
+                    }
+                }
+
+                // 🛡️ 实体表实时入库：将所有问卷 surveys 100% 同步 upsert 至 surveys 实体表
+                if (isset($decoded['surveys']) && is_array($decoded['surveys'])) {
+                    $stmtSurvUpsert = $pdo->prepare("INSERT INTO `surveys` (`id`, `class_id`, `class_name`, `task_id`, `task_title`, `url`, `created_at`)
+                        VALUES (:id, :cid, :cname, :tid, :ttitle, :url, :created_at)
+                        ON DUPLICATE KEY UPDATE `class_id`=VALUES(`class_id`), `class_name`=VALUES(`class_name`), `task_id`=VALUES(`task_id`), `task_title`=VALUES(`task_title`), `url`=VALUES(`url`), `created_at`=VALUES(`created_at`)");
+                    $validSids = [];
+                    foreach ($decoded['surveys'] as $sv) {
+                        $sid = $sv['id'] ?? ('survey_' . uniqid());
+                        $validSids[] = $sid;
+                        $stmtSurvUpsert->execute([
+                            ':id' => $sid,
+                            ':cid' => $sv['classId'] ?? 'all',
+                            ':cname' => $sv['className'] ?? '全校班级',
+                            ':tid' => $sv['taskId'] ?? 'task_all',
+                            ':ttitle' => $sv['taskTitle'] ?? '写作任务',
+                            ':url' => $sv['url'] ?? '',
+                            ':created_at' => $sv['createdAt'] ?? date('Y-m-d H:i:s')
+                        ]);
+                    }
+                    if (!empty($validSids)) {
+                        $inClause = implode(',', array_fill(0, count($validSids), '?'));
+                        $stmtCleanSurvs = $pdo->prepare("DELETE FROM `surveys` WHERE `id` NOT IN ($inClause)");
+                        $stmtCleanSurvs->execute($validSids);
+                    } else {
+                        $pdo->exec("DELETE FROM `surveys`");
                     }
                 }
 
@@ -4020,6 +4105,35 @@ if ($pdo) {
                     $pMap[$p['id']] = isset($pMap[$p['id']]) ? array_merge($pMap[$p['id']], $p) : $p;
                 }
                 $globalMeta['referencePapers'] = array_values($pMap);
+            } catch (Exception $e) {}
+
+            // 🛡️ 实体表权威对齐：始终从 surveys 实体表补全最新问卷
+            try {
+                $stmtS = $pdo->query("SELECT * FROM surveys");
+                $sList = [];
+                if ($stmtS) {
+                    while ($sr = $stmtS->fetch(PDO::FETCH_ASSOC)) {
+                        $sList[] = [
+                            'id' => $sr['id'],
+                            'classId' => $sr['class_id'] ?? 'all',
+                            'className' => $sr['class_name'] ?? '全校班级',
+                            'taskId' => $sr['task_id'] ?? 'task_all',
+                            'taskTitle' => $sr['task_title'] ?? '写作任务',
+                            'url' => $sr['url'] ?? '',
+                            'createdAt' => $sr['created_at'] ?? ''
+                        ];
+                    }
+                }
+                $sMap = [];
+                if (isset($globalMeta['surveys']) && is_array($globalMeta['surveys'])) {
+                    foreach ($globalMeta['surveys'] as $s) {
+                        if (isset($s['id'])) $sMap[$s['id']] = $s;
+                    }
+                }
+                foreach ($sList as $s) {
+                    $sMap[$s['id']] = isset($sMap[$s['id']]) ? array_merge($sMap[$s['id']], $s) : $s;
+                }
+                $globalMeta['surveys'] = array_values($sMap);
             } catch (Exception $e) {}
 
             if (isset($globalMeta['users']) && is_array($globalMeta['users'])) {

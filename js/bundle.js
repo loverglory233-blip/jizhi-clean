@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260908_v2888
+ * Version: 20260908_v2890
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260908_v2888';
+  const APP_VERSION = '20260908_v2890';
   const APP_BUILD_DATE = '2026-09-08';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11487,7 +11487,7 @@
   /* ==========================================================================
      10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
      ========================================================================== */
-  function renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal) {
+  function renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal, onOpenRefPapersModal) {
     const savedWinY = window.scrollY || window.pageYOffset || (document.documentElement && document.documentElement.scrollTop) || 0;
     const oldPortal = container.querySelector('.student-task-portal') || document.querySelector('.student-task-portal');
     const savedPortalY = oldPortal ? oldPortal.scrollTop : 0;
@@ -11507,7 +11507,7 @@
                 try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
               }
             }
-            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
+            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal, onOpenRefPapersModal);
             return;
           }
 
@@ -11518,7 +11518,7 @@
               localTasks = localTasks.filter(lt => lt && lt.id !== e.data.taskId);
               try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
             }
-            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
+            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal, onOpenRefPapersModal);
             return;
           }
 
@@ -11532,7 +11532,7 @@
                 try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
               }
             }
-            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
+            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal, onOpenRefPapersModal);
             return;
           }
 
@@ -11549,7 +11549,7 @@
               }
               try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
             }
-            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
+            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal, onOpenRefPapersModal);
 
             let shownEvents = {};
             try { shownEvents = JSON.parse(sessionStorage.getItem('jizhi_shown_deadline_events') || '{}'); } catch (err) {}
@@ -11567,12 +11567,12 @@
           if (e.data && (e.data.type === 'announcement_created' || e.data.type === 'announcement_deleted' || e.data.type === 'announcement_updated' || e.data.type === 'paper_uploaded' || e.data.type === 'paper_deleted' || e.data.type === 'survey_updated' || e.data.type === 'survey_deleted')) {
             if (authManager && authManager.pullGlobalMeta) {
               authManager.pullGlobalMeta(true).then(() => {
-                renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
+                renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal, onOpenRefPapersModal);
               }).catch(() => {
-                renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
+                renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal, onOpenRefPapersModal);
               });
             } else {
-              renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
+              renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal, onOpenRefPapersModal);
             }
             return;
           }
@@ -11586,7 +11586,7 @@
     }
     window._metaUpdatePortalHandler = () => {
       if (state.studentViewMode === 'task_list') {
-        renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
+        renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal, onOpenRefPapersModal);
       }
     };
     window.addEventListener('jizhi_meta_updated', window._metaUpdatePortalHandler);
@@ -11775,6 +11775,12 @@
     });
     const unreadAnnCount = portalRelevantAnns.filter(a => !isAnnRead(a)).length;
 
+    // 👥 3. 严格获取当前学生在当前班级与小组下的同组组员清单
+    const membersObj = (authManager && typeof authManager.getGroupMembersForWorkspace === 'function')
+      ? authManager.getGroupMembersForWorkspace(groupId, userClass.id)
+      : {};
+    const groupMembersList = Object.values(membersObj || {});
+
     container.innerHTML = `
       <div class="student-task-portal" style="min-height:100vh; background:#f0f4f9; display:flex; flex-direction:column;">
         <header class="app-header" style="height:60px; background:#ffffff; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; padding:0 24px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
@@ -11785,7 +11791,13 @@
             </div>
           </div>
           <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
-            <button id="btn-portal-change-pwd" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="修改登录密码">🔑 修改密码</button>
+            <button id="btn-portal-ann-bell" style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:6px; position:relative;" title="查看教师课堂通知">
+              <span>📢 课堂通知</span>
+              ${unreadAnnCount > 0 ? `<span style="background:#dc2626; color:white; font-size:10px; font-weight:800; padding:1px 6px; border-radius:10px; min-width:14px; text-align:center;">${unreadAnnCount}</span>` : ''}
+            </button>
+            <button id="btn-portal-ref-papers" style="background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="查看参考范文库">📚 参考范文库</button>
+            <button id="btn-portal-survey" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="查看课程问卷">📋 课程问卷</button>
+            <button id="btn-portal-change-pwd" style="background:#f8fafc; color:#475569; border:1px solid #e2e8f0; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="修改登录密码">🔑 修改密码</button>
             <button id="btn-portal-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
           </div>
         </header>
@@ -11815,6 +11827,39 @@
                   ${groupName} (${currentUser ? currentUser.name : '学生'})
                 </span>
               </div>
+            </div>
+          </div>
+
+          <!-- 👥 班级协作小组成员展示卡片 (严格限定当前班级与小组) -->
+          <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:20px 24px; box-shadow:0 2px 10px rgba(15,23,42,0.04); display:flex; flex-direction:column; gap:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:15px; font-weight:800; color:#0f172a;">👥 我的协作小组成员清单</span>
+                <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; font-size:12px; font-weight:800; padding:2px 10px; border-radius:12px;">
+                  ${escapeHtml(groupName)} · 共 ${groupMembersList.length} 位组员
+                </span>
+              </div>
+              <div style="font-size:12px; color:#64748b;">
+                修读班级: <b style="color:#1e293b;">${escapeHtml(userClass.name)}</b>
+              </div>
+            </div>
+
+            <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+              ${groupMembersList.length === 0 ? `
+                <div style="font-size:12.5px; color:#94a3b8; font-style:italic; padding:6px 0;">
+                  ⚠️ 当前小组暂无成员记录，请联系任课教师在教师端配置小组成员。
+                </div>
+              ` : groupMembersList.map((m) => {
+                const isSelf = isSameId(m.id, currentUser?.id) || (m.name && currentUser?.name && m.name === currentUser.name);
+                return `
+                  <div style="display:inline-flex; align-items:center; gap:8px; background:${isSelf ? '#eff6ff' : '#f8fafc'}; border:1.5px solid ${isSelf ? '#3b82f6' : '#e2e8f0'}; padding:8px 16px; border-radius:24px; font-size:13px; font-weight:700; color:${isSelf ? '#1d4ed8' : '#334155'}; box-shadow:0 1px 3px rgba(0,0,0,0.03);">
+                    <span style="font-size:16px;">${m.avatar || '🎓'}</span>
+                    <span>${escapeHtml(m.name || '组员')}</span>
+                    ${isSelf ? '<span style="background:#2563eb; color:white; font-size:10px; padding:1px 7px; border-radius:10px; font-weight:800;">我</span>' : ''}
+                    <span style="font-size:11.5px; color:${isSelf ? '#3b82f6' : '#64748b'}; font-weight:500;">(${escapeHtml(m.roleTitle || '组员')})</span>
+                  </div>
+                `;
+              }).join('')}
             </div>
           </div>
 
@@ -11942,10 +11987,19 @@
         if (window.app && newGroupObj && newGroupObj.id) {
           window.app.loadGroupState(newGroupObj.id);
         }
-        renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
+        renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal, onOpenRefPapersModal);
       });
     }
 
+    container.querySelector('#btn-portal-ann-bell')?.addEventListener('click', () => {
+      if (typeof onOpenAnnModal === 'function') onOpenAnnModal();
+    });
+    container.querySelector('#btn-portal-ref-papers')?.addEventListener('click', () => {
+      if (typeof onOpenRefPapersModal === 'function') onOpenRefPapersModal();
+    });
+    container.querySelector('#btn-portal-survey')?.addEventListener('click', () => {
+      if (typeof onOpenSurveyModal === 'function') onOpenSurveyModal();
+    });
     container.querySelector('#btn-portal-logout')?.addEventListener('click', () => {
       if (window._studentPortalPollTimer) { clearInterval(window._studentPortalPollTimer); window._studentPortalPollTimer = null; }
       onLogout();
@@ -12680,7 +12734,7 @@
   /* ==========================================================================
      8. UI RENDERER (STUDENT CANVAS & HEADER)
      ========================================================================== */
-  function renderHeader(state, currentUser, announcements, onStageChange, onLogout, onOpenAnnModal, onOpenSurveyModal, onBackToTaskList) {
+  function renderHeader(state, currentUser, announcements, onStageChange, onLogout, onOpenAnnModal, onOpenSurveyModal, onBackToTaskList, onOpenRefPapersModal) {
     const header = document.getElementById('app-header');
     if (!header) return;
     const activeTaskId = (state && state.activeTaskId) ? state.activeTaskId : null;
@@ -12800,8 +12854,11 @@
         <button class="stage-btn ${state.currentStage === 'stage3' ? 'active' : ''} ${isS3Locked ? 'stage-locked' : ''}" data-stage="stage3" style="${isS3Locked ? 'opacity:0.65;' : ''}" title="${isS3Locked ? `🔒 待阶段二${taskGenreKey === 'instructional' ? '磨课会议' : '编辑会议'}与正文完成后解锁` : genreCfg.stage3Title}">${isS3Locked ? '🔒 ' : ''}🎓 阶段三: ${taskGenreKey === 'instructional' ? '评审会' : '答辩擂台'}</button>
       </nav>
       <div class="header-controls">
-        <button id="btn-header-survey-link" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;" title="课程评估问卷">
-          📋 问卷
+        <button id="btn-header-ref-papers" style="background:#f5f3ff; border:1px solid #ddd6fe; color:#7c3aed; padding:3px 10px; border-radius:14px; font-size:11.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px;" title="查阅课程学术参考范文库">
+          <span>📚 参考范文</span>
+        </button>
+        <button id="btn-header-survey-link" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 10px; border-radius:14px; font-size:11.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px;" title="课程评估问卷">
+          <span>📋 问卷</span>
         </button>
         <button class="nav-ann-bell-btn ${unreadAnnCount > 0 ? 'has-unread' : ''}" id="btn-header-ann-bell" title="课堂教学通知与延期" style="padding:3px 10px; border-radius:14px; font-size:11.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;">
           <span>📢 教学通知</span>${unreadAnnCount > 0 ? `<span style="background:#ef4444; color:#ffffff; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:10px; box-shadow:0 1px 4px rgba(239,68,68,0.4);">${unreadAnnCount}</span>` : ''}
@@ -12824,6 +12881,11 @@
         const logoutBtn = e.target.closest('#btn-user-logout');
         if (logoutBtn && typeof header._onLogout === 'function') {
           header._onLogout();
+          return;
+        }
+        const refPapersBtn = e.target.closest('#btn-header-ref-papers');
+        if (refPapersBtn && typeof header._onOpenRefPapersModal === 'function') {
+          header._onOpenRefPapersModal();
           return;
         }
         const annBellBtn = e.target.closest('#btn-header-ann-bell, .nav-ann-bell-btn');
@@ -12849,6 +12911,7 @@
     header._onOpenAnnModal = onOpenAnnModal;
     header._onBackToTaskList = onBackToTaskList;
     header._onOpenSurveyModal = onOpenSurveyModal;
+    header._onOpenRefPapersModal = onOpenRefPapersModal || (() => { if (window.app && typeof window.app.showReferencePapersModal === 'function') window.app.showReferencePapersModal(); });
 
     if (header.innerHTML !== newHeaderHtml) {
       header.innerHTML = newHeaderHtml;
@@ -17885,7 +17948,8 @@
             },
             () => this.handleLogout(),
             () => this.showAnnouncementModal(),
-            () => this.showQuestionnaireModal()
+            () => this.showQuestionnaireModal(),
+            () => this.showReferencePapersModal()
           );
           return;
         }
@@ -19294,16 +19358,23 @@
       const currentTaskId = this.state.activeTaskId || null;
       const tasks = this.authManager.getTasks();
       const currTaskObj = tasks.find(t => isSameId(t.id, currentTaskId));
-      const taskTitle = currTaskObj ? currTaskObj.title : (currentTaskId || '指定写作任务');
-      const surveyUrl = this.authManager.getSurveyUrl(currentClassId, currentTaskId) || (currTaskObj ? this.authManager.getSurveyUrl(currentClassId, currTaskObj.id) : '');
+      const taskTitle = currTaskObj ? currTaskObj.title : (currentTaskId || '写作任务');
+
+      const allSurveys = this.authManager.getSurveysList() || [];
+      const classSurveys = allSurveys.filter(s => !s.classId || s.classId === 'all' || s.classId === 'class_all' || isSameId(s.classId, currentClassId));
+
+      const surveyUrl = currentTaskId
+        ? (this.authManager.getSurveyUrl(currentClassId, currentTaskId) || (currTaskObj ? this.authManager.getSurveyUrl(currentClassId, currTaskObj.id) : ''))
+        : (classSurveys.length === 1 ? classSurveys[0].url : this.authManager.getSurveyUrl(currentClassId, null));
+
       const isConfigured = surveyUrl && surveyUrl.startsWith('http');
-      const surveyDoneKey = `jizhi_survey_completed_${currentClassId}_${currentTaskId}`;
+      const isPortalMode = this.state.studentViewMode === 'task_list' || !currentTaskId;
 
       // ⚡ 异步触发 pullGlobalMeta 刷新问卷
-      if ((!isConfigured) && this.authManager && typeof this.authManager.pullGlobalMeta === 'function') {
+      if (this.authManager && typeof this.authManager.pullGlobalMeta === 'function') {
         this.authManager.pullGlobalMeta(true).then(() => {
-          const freshUrl = this.authManager.getSurveyUrl(currentClassId, currentTaskId) || (currTaskObj ? this.authManager.getSurveyUrl(currentClassId, currTaskObj.id) : '');
-          if (freshUrl && freshUrl.startsWith('http')) {
+          const freshList = this.authManager.getSurveysList() || [];
+          if (freshList.length !== allSurveys.length) {
             const curModal = document.querySelector('.modal-overlay');
             if (curModal && curModal.querySelector('h3')?.innerText?.includes('问卷')) {
               this.showQuestionnaireModal();
@@ -19315,7 +19386,7 @@
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
       modal.innerHTML = `
-        <div style="width:520px; max-width:92vw; background:#ffffff; border-radius:16px; box-shadow:0 20px 45px rgba(15,23,42,0.18); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
+        <div style="width:560px; max-width:92vw; background:#ffffff; border-radius:16px; box-shadow:0 20px 45px rgba(15,23,42,0.18); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
 
           <!-- 优雅明亮头部 -->
           <div style="padding:22px 24px 18px 24px; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center; background:#ffffff;">
@@ -19325,49 +19396,74 @@
               </div>
               <div>
                 <h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">课程协作学习与体验问卷</h3>
-                <div style="font-size:12px; color:#64748b; margin-top:2px;">📌 当前任务: <b style="color:#2563eb;">${taskTitle}</b></div>
+                <div style="font-size:12px; color:#64748b; margin-top:2px;">
+                  ${currentTaskId ? `📌 当前任务: <b style="color:#2563eb;">${taskTitle}</b>` : `🏫 班级专属问卷 (${classSurveys.length} 项)`}
+                </div>
               </div>
             </div>
             <button id="btn-close-survey-modal" style="background:#f8fafc; border:1px solid #e2e8f0; width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#64748b; font-size:14px; transition:all 0.15s ease;">✕</button>
           </div>
 
           <!-- 内容主体 -->
-          <div style="padding:24px; display:flex; flex-direction:column; gap:18px;">
+          <div style="padding:24px; display:flex; flex-direction:column; gap:18px; max-height:65vh; overflow-y:auto;">
 
             <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px 16px; font-size:13px; color:#334155; line-height:1.6;">
-              为评估本任务（<b>${taskTitle}</b>）的协作效果，请同学们点击下方按钮前往填写匿名问卷。
+              为评估教学与人机协作写作效果，请同学们点击下方按钮前往填写匿名问卷。感谢您的支持！
             </div>
 
-            <!-- 跳转按钮区域 -->
-            <div style="background:#ffffff; border:1.5px dashed #bfdbfe; border-radius:12px; padding:22px 18px; text-align:center;">
-              ${isConfigured ? `
-                <a href="${surveyUrl}" target="_blank" id="btn-go-survey" style="display:inline-flex; align-items:center; justify-content:center; gap:8px; background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:12px 32px; border-radius:10px; font-size:14px; font-weight:700; text-decoration:none; box-shadow:0 4px 12px rgba(37,99,235,0.25); transition:transform 0.15s ease;">
-                  🚀 打开本任务问卷页面 ↗
-                </a>
-                <div style="font-size:11.5px; color:#94a3b8; margin-top:10px; word-break:break-all;">
-                  问卷地址: <span style="color:#2563eb;">${surveyUrl}</span>
-                </div>
-              ` : `
-                <div style="color:#d97706; font-size:13px; font-weight:600;">
-                  ⚠️ 任课教师暂未为【${taskTitle}】配置独立问卷链接。
-                </div>
-              `}
-            </div>
+            ${(!isPortalMode || classSurveys.length <= 1) ? `
+              <!-- 单个问卷卡片 -->
+              <div style="background:#ffffff; border:1.5px dashed #bfdbfe; border-radius:12px; padding:22px 18px; text-align:center;">
+                ${isConfigured ? `
+                  <a href="${surveyUrl}" target="_blank" id="btn-go-survey" style="display:inline-flex; align-items:center; justify-content:center; gap:8px; background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:12px 32px; border-radius:10px; font-size:14px; font-weight:700; text-decoration:none; box-shadow:0 4px 12px rgba(37,99,235,0.25); transition:transform 0.15s ease;">
+                    🚀 打开问卷填写页面 ↗
+                  </a>
+                  <div style="font-size:11.5px; color:#94a3b8; margin-top:10px; word-break:break-all;">
+                    问卷地址: <span style="color:#2563eb;">${surveyUrl}</span>
+                  </div>
+                ` : `
+                  <div style="color:#d97706; font-size:13px; font-weight:600;">
+                    ⚠️ 任课教师暂未配置课程问卷链接。
+                  </div>
+                `}
+              </div>
 
-            <!-- 勾选确认 -->
-            <div style="display:flex; align-items:center; gap:10px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px 16px;">
-              <input type="checkbox" id="chk-survey-done" style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;" ${localStorage.getItem(surveyDoneKey) === 'true' ? 'checked' : ''}>
-              <label for="chk-survey-done" style="font-size:13px; font-weight:700; color:#1e40af; cursor:pointer; user-select:none;">
-                我已完成【${taskTitle}】的问卷填写并提交
-              </label>
-            </div>
+              <!-- 勾选确认 -->
+              <div style="display:flex; align-items:center; gap:10px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px 16px;">
+                <input type="checkbox" id="chk-survey-done" style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;" ${localStorage.getItem(`jizhi_survey_completed_${currentClassId}_${currentTaskId || 'general'}`) === 'true' ? 'checked' : ''}>
+                <label for="chk-survey-done" style="font-size:13px; font-weight:700; color:#1e40af; cursor:pointer; user-select:none;">
+                  我已完成问卷填写并提交
+                </label>
+              </div>
+            ` : `
+              <!-- 大厅多问卷清单 -->
+              <div style="display:flex; flex-direction:column; gap:12px;">
+                ${classSurveys.map(s => {
+                  const sKey = `jizhi_survey_completed_${s.classId}_${s.taskId || 'general'}`;
+                  const isDone = localStorage.getItem(sKey) === 'true';
+                  return `
+                    <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:16px; box-shadow:0 2px 6px rgba(15,23,42,0.03); display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                      <div>
+                        <div style="font-size:14.5px; font-weight:800; color:#0f172a;">📋 ${escapeHtml(s.taskTitle || '课程协作问卷')}</div>
+                        <div style="font-size:11.5px; color:#64748b; margin-top:2px;">适用班级: ${escapeHtml(s.className || '全校班级')} · ${s.updatedAt || s.createdAt || '最新'}</div>
+                      </div>
+                      <div style="display:flex; align-items:center; gap:8px;">
+                        <a href="${s.url}" target="_blank" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:7px 16px; border-radius:8px; font-size:12px; font-weight:700; text-decoration:none; white-space:nowrap; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
+                          🚀 填写 ↗
+                        </a>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            `}
 
           </div>
 
           <!-- 底部确认关闭 -->
           <div style="padding:16px 24px; background:#f8fafc; border-top:1px solid #f1f5f9; display:flex; justify-content:flex-end;">
             <button id="btn-finish-survey" style="width:100%; background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; border:none; padding:11px 24px; border-radius:10px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.2);">
-              完成并返回工作台
+              ${isPortalMode ? '关闭' : '完成并返回工作台'}
             </button>
           </div>
 
@@ -19378,12 +19474,14 @@
       const closeModal = () => modal.remove();
       modal.querySelector('#btn-close-survey-modal').addEventListener('click', closeModal);
       modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
-      modal.querySelector('#chk-survey-done').addEventListener('change', (e) => {
-        localStorage.setItem(surveyDoneKey, e.target.checked ? 'true' : 'false');
+      modal.querySelector('#chk-survey-done')?.addEventListener('change', (e) => {
+        localStorage.setItem(`jizhi_survey_completed_${currentClassId}_${currentTaskId || 'general'}`, e.target.checked ? 'true' : 'false');
       });
       modal.querySelector('#btn-finish-survey').addEventListener('click', () => {
         closeModal();
-        this.renderStudentWorkspace();
+        if (!isPortalMode) {
+          this.renderStudentWorkspace();
+        }
       });
     }
 
@@ -19633,7 +19731,8 @@
         (s) => this.switchStage(s),
         () => this.handleLogout(),
         () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
-        () => this.backToTaskList()
+        () => this.backToTaskList(),
+        () => this.showReferencePapersModal()
       );
     }
 

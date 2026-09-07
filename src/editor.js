@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260908_v2888";
-import { callCozeAgentAPI } from "./agents.js?v=20260908_v2888";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260908_v2888";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260908_v2890";
+import { callCozeAgentAPI } from "./agents.js?v=20260908_v2890";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260908_v2890";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -700,7 +700,7 @@ if (typeof window !== 'undefined') {
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
    ========================================================================== */
-export function renderHeader(state, currentUser, announcements, onStageChange, onLogout, onOpenAnnModal, onOpenSurveyModal, onBackToTaskList) {
+export function renderHeader(state, currentUser, announcements, onStageChange, onLogout, onOpenAnnModal, onOpenSurveyModal, onBackToTaskList, onOpenRefPapersModal) {
   const header = document.getElementById('app-header');
   if (!header) return;
   const activeTaskId = (state && state.activeTaskId) ? state.activeTaskId : null;
@@ -820,8 +820,11 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
       <button class="stage-btn ${state.currentStage === 'stage3' ? 'active' : ''} ${isS3Locked ? 'stage-locked' : ''}" data-stage="stage3" style="${isS3Locked ? 'opacity:0.65;' : ''}" title="${isS3Locked ? `🔒 待阶段二${taskGenreKey === 'instructional' ? '磨课会议' : '编辑会议'}与正文完成后解锁` : genreCfg.stage3Title}">${isS3Locked ? '🔒 ' : ''}🎓 阶段三: ${taskGenreKey === 'instructional' ? '评审会' : '答辩擂台'}</button>
     </nav>
     <div class="header-controls">
-      <button id="btn-header-survey-link" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;" title="课程评估问卷">
-        📋 问卷
+      <button id="btn-header-ref-papers" style="background:#f5f3ff; border:1px solid #ddd6fe; color:#7c3aed; padding:3px 10px; border-radius:14px; font-size:11.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px;" title="查阅课程学术参考范文库">
+        <span>📚 参考范文</span>
+      </button>
+      <button id="btn-header-survey-link" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 10px; border-radius:14px; font-size:11.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px;" title="课程评估问卷">
+        <span>📋 问卷</span>
       </button>
       <button class="nav-ann-bell-btn ${unreadAnnCount > 0 ? 'has-unread' : ''}" id="btn-header-ann-bell" title="课堂教学通知与延期" style="padding:3px 10px; border-radius:14px; font-size:11.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;">
         <span>📢 教学通知</span>${unreadAnnCount > 0 ? `<span style="background:#ef4444; color:#ffffff; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:10px; box-shadow:0 1px 4px rgba(239,68,68,0.4);">${unreadAnnCount}</span>` : ''}
@@ -844,6 +847,11 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
       const logoutBtn = e.target.closest('#btn-user-logout');
       if (logoutBtn && typeof header._onLogout === 'function') {
         header._onLogout();
+        return;
+      }
+      const refPapersBtn = e.target.closest('#btn-header-ref-papers');
+      if (refPapersBtn && typeof header._onOpenRefPapersModal === 'function') {
+        header._onOpenRefPapersModal();
         return;
       }
       const annBellBtn = e.target.closest('#btn-header-ann-bell, .nav-ann-bell-btn');
@@ -869,6 +877,7 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
   header._onOpenAnnModal = onOpenAnnModal;
   header._onBackToTaskList = onBackToTaskList;
   header._onOpenSurveyModal = onOpenSurveyModal;
+  header._onOpenRefPapersModal = onOpenRefPapersModal || (() => { if (window.app && typeof window.app.showReferencePapersModal === 'function') window.app.showReferencePapersModal(); });
 
   if (header.innerHTML !== newHeaderHtml) {
     header.innerHTML = newHeaderHtml;
