@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2859
+ * Version: 20260907_v2860
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2859';
+  const APP_VERSION = '20260907_v2860';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -24808,7 +24808,8 @@
                 scopeKey: this.getGroupScopeKey()
               });
             } catch (apiErr) {
-              console.warn('[FirstReview] Coze API error, switching to prompt fallback:', apiErr);
+              console.warn('[FirstReview] Coze API error:', apiErr);
+            }
             // 🛡️ 智能兜底：若网络延迟未返回大模型结果，自动根据正文实际完成度生成学术初审把脉建议，绝不阻断学生
             if (!firstReviewText || !firstReviewText.trim()) {
               // 🛡️ 若已存在有效一审，直接退出，绝不覆盖
