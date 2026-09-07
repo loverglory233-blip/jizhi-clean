@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260907_v2853';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260907_v2853';
+} from './constants.js?v=20260907_v2855';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260907_v2855';
 
 export class AuthManager {
   constructor() {
@@ -2065,13 +2065,23 @@ export class AuthManager {
   getReferencePapers(groupId = null, classId = null, taskId = null) {
     const papers = this.getAllReferencePapers();
     if (!groupId && !classId && !taskId) return papers;
-    return papers.filter(p => {
+    const filtered = papers.filter(p => {
       return isScopeMatch(p, {
         userClassId: classId,
         userGroupId: groupId,
         currentTaskId: taskId
       });
     });
+    if (filtered.length === 0 && papers.length > 0) {
+      const fallback = papers.filter(p => {
+        const isClassMatch = !p.classId || p.classId === 'all' || p.classId === 'class_all' || (classId && isSameId(p.classId, classId));
+        const isGroupMatch = !p.targetGroupId || p.targetGroupId === 'all' || p.targetGroupId === 'group_all' || (groupId && isSameId(p.targetGroupId, groupId)) || (Array.isArray(p.targetGroupIds) && (p.targetGroupIds.includes('all') || (groupId && p.targetGroupIds.some(tg => isSameId(tg, groupId)))));
+        return isClassMatch && isGroupMatch;
+      });
+      if (fallback.length > 0) return fallback;
+      return papers;
+    }
+    return filtered;
   }
 
   async uploadReferencePaper(paper) {

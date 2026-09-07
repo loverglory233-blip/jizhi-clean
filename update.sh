@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260907_v2853"
+TARGET_VERSION="20260907_v2855"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -380,6 +380,16 @@ if [ -n "$EP_DIR" ]; then
   "maxAge": 21600000
 }
 EPSETEOF
+
+  # 🛡️ 注入全局原生 CSS 守卫彻底屏蔽操作验证码 / 删除 Pad 弹窗
+  mkdir -p "$EP_DIR/src/static/custom"
+  cat << 'EPCSS' > "$EP_DIR/src/static/custom/pad.css"
+#deletionTokenModal, .deletionToken, [data-key="deletePad"], [data-lkey*="delete"], [data-lkey*="deletionToken"], #pad_delete, #deletePadModal, .ep_delete_pad, [data-lkey="pad.deletionToken.modalTitle"], [data-action="deletePad"] {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+EPCSS
 
   # 🚀 深度重启与载入最新语言包和工具栏配置（MySQL 持久化保证数据 100% 完整无损）
   echo "   ⚡ 重新加载并重启 Etherpad 协同文档引擎..."

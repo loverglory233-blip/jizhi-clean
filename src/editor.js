@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2853";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2853";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2853";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2855";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2855";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2855";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -4207,10 +4207,21 @@ export function renderChatActionBar(state) {
 
       actionBar.querySelector('#btn-s1-auto-generate-contract')?.addEventListener('click', () => {
         if (isExtractingAny || isGeneratingContract) {
-          if (typeof showGlobalBannerNotice === 'function') {
-            showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+          let isStale = false;
+          if (state && state.activeAgentAnalyzing) {
+            const ts = state.activeAgentAnalyzing._ts || state.activeAgentAnalyzing.timestamp || 0;
+            if (ts && (Date.now() - ts > 30000)) isStale = true;
           }
-          return;
+          if (isStale && window.app) {
+            window.app.setActiveAgentAnalyzing(null);
+            window.app._isGeneratingContract = false;
+            if (window.app._extractingTimestamps) window.app._extractingTimestamps['contract'] = null;
+          } else {
+            if (typeof showGlobalBannerNotice === 'function') {
+              showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+            }
+            return;
+          }
         }
         if (isFailed && window.app && typeof window.app._doOneClickGenerateContract === 'function') {
           window.app._contractGenerateFailed = false;

@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2853';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2853';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2855';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2855';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -786,9 +786,9 @@ export class CloudSyncEngine {
       if (this.app?.authManager) {
         this.app.authManager.globalMetaVersion = remoteData.metaVer;
       }
-      // 🛡️ 核心防漏补丁：若服务端版本递增，但本次协同响应未包含完整 announcements 或 referencePapers（如高频协作 Delta），
+      // 🛡️ 核心防漏补丁：若服务端版本递增或初次协同，但本次协同响应未包含完整 announcements 或 referencePapers（如高频协作 Delta），
       // 必须立刻主动触发 pullGlobalMeta 补拉全局最新通知与参考范文并刷新工作台，杜绝多端数据不同步
-      if (prevMetaVer !== undefined && remoteData.metaVer !== prevMetaVer && (!Array.isArray(remoteData.announcements) || !Array.isArray(remoteData.referencePapers))) {
+      if ((prevMetaVer === undefined || remoteData.metaVer !== prevMetaVer) && (!Array.isArray(remoteData.announcements) || !Array.isArray(remoteData.referencePapers))) {
         if (this.app && this.app.authManager && typeof this.app.authManager.pullGlobalMeta === 'function') {
           this.app.authManager.pullGlobalMeta(true).then(() => {
             if (this.app) {

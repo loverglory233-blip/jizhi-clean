@@ -1175,7 +1175,7 @@ export function liftEtherpadReadonly(iframe) {
         doc.documentElement.style.pointerEvents = 'auto';
       }
 
-      // 🛡️ 彻底隐藏并清除 Etherpad 内部可能卡住的 #connectivity（“重新连接到您的记事本...”）和 #loading 阻塞提示
+      // 🛡️ 彻底隐藏并清除 Etherpad 内部可能卡住的 #connectivity、“重新连接到您的记事本...”及删除验证码弹窗 (#deletionTokenModal)
       const conn = doc.querySelector('#connectivity');
       if (conn) {
         conn.style.setProperty('display', 'none', 'important');
@@ -1185,14 +1185,15 @@ export function liftEtherpadReadonly(iframe) {
       if (loading) {
         loading.style.setProperty('display', 'none', 'important');
       }
-      doc.querySelectorAll('.gritter-item, .gritter-item-wrapper, #offline-notification').forEach(el => el.remove());
+      doc.querySelectorAll('.gritter-item, .gritter-item-wrapper, #offline-notification, #deletionTokenModal, .deletionToken, [data-lkey="pad.deletionToken.modalTitle"]').forEach(el => el.remove());
 
       let hideStyle = doc.getElementById('jizhi-hide-connectivity-style');
       if (!hideStyle) {
         hideStyle = doc.createElement('style');
         hideStyle.id = 'jizhi-hide-connectivity-style';
         hideStyle.textContent = `
-          #connectivity, #loading, .gritter-item, .gritter-item-wrapper, #offline-notification {
+          #connectivity, #loading, .gritter-item, .gritter-item-wrapper, #offline-notification,
+          #deletionTokenModal, .deletionToken, [data-key="deletePad"], [data-lkey*="delete"], [data-lkey*="deletionToken"], #pad_delete, #deletePadModal, .ep_delete_pad, [data-lkey="pad.deletionToken.modalTitle"], [data-action="deletePad"] {
             display: none !important;
             visibility: hidden !important;
             opacity: 0 !important;
@@ -1320,10 +1321,12 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
           styleEl.textContent = `
             #editbar { display: block !important; visibility: visible !important; opacity: 1 !important; }
             html, body { background-color: #ffffff !important; color-scheme: light !important; }
-            #home, .home, a[href="/"], a[href="."], a[href=".."], [data-lkey="pad.home"], [data-key="home"], .menu_left .home, #menu_left .home, .bottom-bar a[href="/"], nav.navbar a[href="/"] { display: none !important; visibility: hidden !important; pointer-events: none !important; }
+            #home, .home, a[href="/"], a[href="."], a[href=".."], [data-lkey="pad.home"], [data-key="home"], .menu_left .home, #menu_left .home, .bottom-bar a[href="/"], nav.navbar a[href="/"],
+            #deletionTokenModal, .deletionToken, [data-key="deletePad"], [data-lkey*="delete"], [data-lkey*="deletionToken"], #pad_delete, #deletePadModal, .ep_delete_pad, [data-lkey="pad.deletionToken.modalTitle"], [data-action="deletePad"] { display: none !important; visibility: hidden !important; pointer-events: none !important; }
           `;
           (doc.head || doc.documentElement).appendChild(styleEl);
         }
+        doc?.querySelectorAll('#deletionTokenModal, .deletionToken')?.forEach(el => el.remove());
       } catch(e) {}
 
       // 3. 注入 clientVars
