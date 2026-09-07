@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2850
+ * Version: 20260907_v2851
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2850';
+  const APP_VERSION = '20260907_v2851';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -16950,7 +16950,7 @@
 
           const currentStage = this.state.currentStage || 'stage1';
 
-          // ⏰ 全局进度与阶段转场催促 + 智能体保底机制 (由组长或最后确认成员触发，结合分布式锁排他保护，杜绝重复调用)
+          // ⏰ 全局进度与阶段转场催促 + 智能体保底机制 (全员平权协同，由最后完成确认的组员触发，结合分布式锁排他保护，杜绝重复调用)
           const myCode = currentUser?.id || this.state.currentUser || 'A';
           const activeTaskId = this.state.activeTaskId || null;
           const currentGroupId = (currentUser && currentUser.groupId) ? currentUser.groupId : (this.state.activeMonitorGroupId || this.state.activeGroupId || null);
@@ -17752,7 +17752,7 @@
         // 🛡️ 截止只读模式下彻底关闭所有静默提醒、情绪安抚与智能体干预
         if (this.isCurrentTaskReadOnly()) return;
 
-        // ⚡ 单点守护：由组长或当前操作成员接管，结合分布式防重锁杜绝并发重复
+        // ⚡ 单点守护：全员平权协同，由触发操作的当前成员执行，结合分布式防重锁杜绝并发重复
         const myCode = currUserObj?.id || this.state.currentUser || 'A';
         const now = Date.now();
         const membersList = Object.values(this.state.members || {});

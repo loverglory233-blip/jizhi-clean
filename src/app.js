@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2850";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2850";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2850";
-import { AuthManager } from "./auth.js?v=20260907_v2850";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2850";
-import { renderLoginView } from "./login.js?v=20260907_v2850";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2850";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2850";
+} from "./constants.js?v=20260907_v2851";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2851";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2851";
+import { AuthManager } from "./auth.js?v=20260907_v2851";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2851";
+import { renderLoginView } from "./login.js?v=20260907_v2851";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2851";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2851";
 import {
   renderChat,
   renderOutline,
@@ -32,7 +32,7 @@ import {
   renderRemoteCursors,
   renderStudentWorkspace,
   renderReferencePapersModal
-} from "./editor.js?v=20260907_v2850";
+} from "./editor.js?v=20260907_v2851";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -866,7 +866,7 @@ export class App {
 
         const currentStage = this.state.currentStage || 'stage1';
         
-        // ⏰ 全局进度与阶段转场催促 + 智能体保底机制 (由组长或最后确认成员触发，结合分布式锁排他保护，杜绝重复调用)
+        // ⏰ 全局进度与阶段转场催促 + 智能体保底机制 (全员平权协同，由最后完成确认的组员触发，结合分布式锁排他保护，杜绝重复调用)
         const myCode = currentUser?.id || this.state.currentUser || 'A';
         const activeTaskId = this.state.activeTaskId || null;
         const currentGroupId = (currentUser && currentUser.groupId) ? currentUser.groupId : (this.state.activeMonitorGroupId || this.state.activeGroupId || null);
@@ -1668,7 +1668,7 @@ export class App {
       // 🛡️ 截止只读模式下彻底关闭所有静默提醒、情绪安抚与智能体干预
       if (this.isCurrentTaskReadOnly()) return;
 
-      // ⚡ 单点守护：由组长或当前操作成员接管，结合分布式防重锁杜绝并发重复
+      // ⚡ 单点守护：全员平权协同，由触发操作的当前成员执行，结合分布式防重锁杜绝并发重复
       const myCode = currUserObj?.id || this.state.currentUser || 'A';
       const now = Date.now();
       const membersList = Object.values(this.state.members || {});
