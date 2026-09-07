@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2855
+ * Version: 20260907_v2856
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2855';
+  const APP_VERSION = '20260907_v2856';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5721,6 +5721,11 @@
                   'info',
                   8000
                 );
+                newRelevantPapers.forEach(p => {
+                  if (typeof this.app.checkAndRenderPaperNotificationInChat === 'function') {
+                    this.app.checkAndRenderPaperNotificationInChat(p, groupId, effectiveClassId);
+                  }
+                });
               }
               if (document.querySelector('.modal-ref-papers-view') || (document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库'))) {
                 if (typeof this.app.showReferencePapersModal === 'function') {
@@ -11924,13 +11929,35 @@
   function isAnyExtracting(state = null) {
     const app = window.app;
     const currState = state || (app ? app.state : null);
+    const now = Date.now();
     if (currState && currState.activeAgentAnalyzing) {
       const analyzing = currState.activeAgentAnalyzing;
       const ts = analyzing._ts || analyzing.timestamp || 0;
-      if (ts && (Date.now() - ts > 60000)) {
+      if (ts && (now - ts > 30000)) {
         currState.activeAgentAnalyzing = null;
         if (app && app.state) app.state.activeAgentAnalyzing = null;
       }
+    }
+    if (app) {
+      if (!app._extractingTimestamps) app._extractingTimestamps = {};
+      const checkLock = (prop, key) => {
+        if (app[prop]) {
+          const ts = app._extractingTimestamps[key] || 0;
+          if (!ts) {
+            app._extractingTimestamps[key] = now;
+          } else if (now - ts > 30000) {
+            app[prop] = false;
+            app._extractingTimestamps[key] = null;
+          }
+        }
+      };
+      checkLock('_isGeneratingContract', 'contract');
+      checkLock('_isExtractingTopic', 'topic');
+      checkLock('_isExtractingTime', 'time');
+      checkLock('_isExtractingTasks', 'tasks');
+      checkLock('_isGeneratingManagingSummary', 's2_managing');
+      checkLock('_isGeneratingReviewSummary', 's2_reviewing');
+      checkLock('_isAnalyzingS3Inquiry', 's3_inquiry');
     }
     const effective = getEffectiveAgentAnalyzing(state);
     if (effective) {

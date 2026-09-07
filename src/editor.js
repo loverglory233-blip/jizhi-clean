@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2855";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2855";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2855";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2856";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2856";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2856";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -189,13 +189,35 @@ if (typeof window !== 'undefined') {
 export function isAnyExtracting(state = null) {
   const app = window.app;
   const currState = state || (app ? app.state : null);
+  const now = Date.now();
   if (currState && currState.activeAgentAnalyzing) {
     const analyzing = currState.activeAgentAnalyzing;
     const ts = analyzing._ts || analyzing.timestamp || 0;
-    if (ts && (Date.now() - ts > 60000)) {
+    if (ts && (now - ts > 30000)) {
       currState.activeAgentAnalyzing = null;
       if (app && app.state) app.state.activeAgentAnalyzing = null;
     }
+  }
+  if (app) {
+    if (!app._extractingTimestamps) app._extractingTimestamps = {};
+    const checkLock = (prop, key) => {
+      if (app[prop]) {
+        const ts = app._extractingTimestamps[key] || 0;
+        if (!ts) {
+          app._extractingTimestamps[key] = now;
+        } else if (now - ts > 30000) {
+          app[prop] = false;
+          app._extractingTimestamps[key] = null;
+        }
+      }
+    };
+    checkLock('_isGeneratingContract', 'contract');
+    checkLock('_isExtractingTopic', 'topic');
+    checkLock('_isExtractingTime', 'time');
+    checkLock('_isExtractingTasks', 'tasks');
+    checkLock('_isGeneratingManagingSummary', 's2_managing');
+    checkLock('_isGeneratingReviewSummary', 's2_reviewing');
+    checkLock('_isAnalyzingS3Inquiry', 's3_inquiry');
   }
   const effective = getEffectiveAgentAnalyzing(state);
   if (effective) {
