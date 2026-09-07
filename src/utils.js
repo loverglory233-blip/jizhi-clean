@@ -576,6 +576,8 @@ export function filterAndDeduplicateChatLogs(messages) {
       txt.includes('【责任编辑') ||
       txt.includes('【审稿编辑') ||
       txt.includes('【学术拍卖师') ||
+      txt.includes('【备课引导师') ||
+      txt.includes('【备课组长') ||
       txt.includes('【结构架构师') ||
       txt.includes('【论证分析师') ||
       txt.includes('【正方委员') ||
@@ -592,19 +594,19 @@ export function filterAndDeduplicateChatLogs(messages) {
       const opKey = `${sender}_${normTxt}`;
 
       // 🛡️ 阶段一关键里程碑消息单例防护：
-      const isAllPropsGathered = sender === 'auctioneer' && (txt.includes('【学术拍卖师·提案集齐') || txt.includes('提案集齐与协同研讨'));
+      const isAllPropsGathered = sender === 'auctioneer' && (txt.includes('提案集齐') || txt.includes('提案集齐与协同研讨'));
       if (isAllPropsGathered) {
         if (seenAgentOpenings.has('stage1_all_props_gathered_singleton')) continue;
         seenAgentOpenings.add('stage1_all_props_gathered_singleton');
       }
 
-      const isVoteTally = (sender === 'auctioneer' || sender === 'system') && (txt.includes('【学术拍卖师·投票结果') || String(m.id || '').startsWith('vote_tally'));
+      const isVoteTally = (sender === 'auctioneer' || sender === 'system') && (txt.includes('投票结果') || String(m.id || '').startsWith('vote_tally'));
       if (isVoteTally) {
         if (seenAgentOpenings.has('stage1_vote_tally_singleton')) continue;
         seenAgentOpenings.add('stage1_vote_tally_singleton');
       }
 
-      const isVoteGuidance = sender === 'auctioneer' && (txt.includes('落槌与方案研讨') || txt.includes('【学术拍卖师·落槌'));
+      const isVoteGuidance = sender === 'auctioneer' && (txt.includes('落槌与方案研讨') || txt.includes('方案研讨') || txt.includes('落槌') || txt.includes('全票通过'));
       if (isVoteGuidance) {
         if (seenAgentOpenings.has('stage1_vote_guidance_singleton')) continue;
         seenAgentOpenings.add('stage1_vote_guidance_singleton');

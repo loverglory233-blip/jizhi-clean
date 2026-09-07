@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2847
+ * Version: 20260907_v2848
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2847';
+  const APP_VERSION = '20260907_v2848';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -793,6 +793,8 @@
         txt.includes('【责任编辑') ||
         txt.includes('【审稿编辑') ||
         txt.includes('【学术拍卖师') ||
+        txt.includes('【备课引导师') ||
+        txt.includes('【备课组长') ||
         txt.includes('【结构架构师') ||
         txt.includes('【论证分析师') ||
         txt.includes('【正方委员') ||
@@ -809,19 +811,19 @@
         const opKey = `${sender}_${normTxt}`;
 
         // 🛡️ 阶段一关键里程碑消息单例防护：
-        const isAllPropsGathered = sender === 'auctioneer' && (txt.includes('【学术拍卖师·提案集齐') || txt.includes('提案集齐与协同研讨'));
+        const isAllPropsGathered = sender === 'auctioneer' && (txt.includes('提案集齐') || txt.includes('提案集齐与协同研讨'));
         if (isAllPropsGathered) {
           if (seenAgentOpenings.has('stage1_all_props_gathered_singleton')) continue;
           seenAgentOpenings.add('stage1_all_props_gathered_singleton');
         }
 
-        const isVoteTally = (sender === 'auctioneer' || sender === 'system') && (txt.includes('【学术拍卖师·投票结果') || String(m.id || '').startsWith('vote_tally'));
+        const isVoteTally = (sender === 'auctioneer' || sender === 'system') && (txt.includes('投票结果') || String(m.id || '').startsWith('vote_tally'));
         if (isVoteTally) {
           if (seenAgentOpenings.has('stage1_vote_tally_singleton')) continue;
           seenAgentOpenings.add('stage1_vote_tally_singleton');
         }
 
-        const isVoteGuidance = sender === 'auctioneer' && (txt.includes('落槌与方案研讨') || txt.includes('【学术拍卖师·落槌'));
+        const isVoteGuidance = sender === 'auctioneer' && (txt.includes('落槌与方案研讨') || txt.includes('方案研讨') || txt.includes('落槌') || txt.includes('全票通过'));
         if (isVoteGuidance) {
           if (seenAgentOpenings.has('stage1_vote_guidance_singleton')) continue;
           seenAgentOpenings.add('stage1_vote_guidance_singleton');
@@ -12699,8 +12701,11 @@
     if (!s1.contract.timeAllocations) s1.contract.timeAllocations = {};
 
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-    const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || null;
-    const taskGenreKey = currentTask?.taskType || 'experiment';
+    const activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (window.app?.state?.activeTaskId) || null;
+    const currentTask = allTasks.find(t => isSameId(t.id, activeTaskId) || (t.title && t.title === activeTaskId)) || null;
+    const taskGenreKey = (window.app && typeof window.app.getCurrentTaskType === 'function')
+      ? window.app.getCurrentTaskType()
+      : (currentTask?.taskType || state.taskType || 'experiment');
     const isTaskDeadlineExpired = currentTask ? isTaskExpired(currentTask) : false;
     const genreCfg = TASK_GENRE_CONFIGS[taskGenreKey] || TASK_GENRE_CONFIGS.experiment;
     const taskDurMin = Number(currentTask?.durationMinutes) || 150;
@@ -12763,7 +12768,7 @@
             <div style="width:20px; height:20px; border:2.5px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 0.9s linear infinite; flex-shrink:0;"></div>
             <div>
               <div style="font-size:12.5px; font-weight:800; color:#1e3a8a; display:flex; align-items:center; gap:6px;">
-                <span>${effectiveAnalyzing.icon || '🎪'} ${effectiveAnalyzing.title || '智能体专家正在分析中...'}</span>
+                <span>${effectiveAnalyzing.icon || (taskGenreKey === 'instructional' ? '📐' : '🎪')} ${effectiveAnalyzing.title || (taskGenreKey === 'instructional' ? '备课引导师正在分析中...' : '学术拍卖师正在分析中...')}</span>
               </div>
               <div style="font-size:11.5px; color:#2563eb; margin-top:2px; font-weight:600;">
                 ${effectiveAnalyzing.detail || '正在根据讨论区研讨记录提炼方案，请稍候...'}
@@ -12779,13 +12784,13 @@
         <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:8px; padding:6px 14px; margin-bottom:12px; font-size:12.5px; color:#991b1b; font-weight:600; display:flex; justify-content:space-between; align-items:center; gap:12px; box-shadow:0 2px 6px rgba(239,68,68,0.08); height:38px; box-sizing:border-box;">
           <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
             <span style="font-size:15px; flex-shrink:0;">🔒</span>
-            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><b>任务已截止锁定：</b> 本任务已于 <b>${currentTask?.deadline || '截止时间'}</b> 截止，阶段一【学术拍卖会】已自动转为<b>【只读查阅模式】</b>。如需修改请联系教师延长时间。</span>
+            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><b>任务已截止锁定：</b> 本任务已于 <b>${currentTask?.deadline || '截止时间'}</b> 截止，阶段一【${taskGenreKey === 'instructional' ? '备课工作坊' : '学术拍卖会'}】已自动转为<b>【只读查阅模式】</b>。如需修改请联系教师延长时间。</span>
           </div>
           <span style="font-size:11.5px; color:#ffffff; background:#dc2626; padding:2px 8px; border-radius:4px; font-weight:800; flex-shrink:0; letter-spacing:0.5px;">已截止</span>
         </div>
       ` : (isContractLocked ? `
         <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:6px 14px; margin-bottom:12px; font-size:12.5px; color:#059669; font-weight:700; display:flex; align-items:center; justify-content:space-between; height:38px; box-sizing:border-box;">
-          <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔒 阶段一【学术拍卖会】合作公约已全员签署生效并锁定 (可随时查阅)</span>
+          <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔒 阶段一【${taskGenreKey === 'instructional' ? '备课工作坊' : '学术拍卖会'}】合作公约已全员签署生效并锁定 (可随时查阅)</span>
           <span style="font-size:11.5px; color:#065f46; background:#ffffff; border:1px solid #a7f3d0; padding:2px 8px; border-radius:4px; flex-shrink:0;">全组 ${confirmedCount}/${totalMembersCount} 人已签署</span>
         </div>
       ` : '')}
@@ -12793,7 +12798,7 @@
       <div class="card">
         <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
           <div style="display:flex; align-items:center; gap:10px;">
-            <span style="font-weight:800; font-size:15px; color:#0f172a;">💡 竞拍提案池 ${isContractLocked ? '<span style="font-size:11px; color:#059669;">🔒 已锁定</span>' : ''}</span>
+            <span style="font-weight:800; font-size:15px; color:#0f172a;">💡 ${taskGenreKey === 'instructional' ? '备课提案池' : '竞拍提案池'} ${isContractLocked ? '<span style="font-size:11px; color:#059669;">🔒 已锁定</span>' : ''}</span>
             <span id="proposal-vote-progress-badge" style="font-size:12px; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px; border:1px solid #bfdbfe;">
               ${isVotingComplete ? `🎉 投票已完成 (共投出 ${totalVotesCast} 票)` : `📊 投票进度: <b>${totalVotesCast}/${totalMembersCount} 人已投票</b> ${userHasVoted ? '<span style="color:#059669; font-weight:700; margin-left:4px;">(您已投票，等待其他组员)</span>' : ''}`}
             </span>
@@ -12876,12 +12881,12 @@
         </div>
       </div>
 
-      <!-- 一整个统一的合作学术合约公约框架卡片 (蓝白层次风) -->
+      <!-- 一整个统一的合作学术合约/备课公约框架卡片 (蓝白层次风) -->
       <div class="contract-card" style="margin-top:16px; border:2px solid #3b82f6; border-radius:16px; background:#ffffff; padding:24px; box-shadow:0 10px 30px rgba(37,99,235,0.08); width:100%; box-sizing:border-box;">
 
         <div style="text-align:center; margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:16px;">
           <div style="font-size:20px; font-weight:800; color:#1e3a8a;">
-            📜 团队协同合作学术合约
+            📜 团队协同合作${taskGenreKey === 'instructional' ? '备课公约' : '学术合约'}
           </div>
           <div style="font-size:12.5px; color:#64748b; margin-top:4px;">
             ${isContractLocked ? `<span style="color:#059669; font-weight:700;">🔒 全员 ${confirmedCount}/${totalMembersCount} 人完成签署 · 归档生效中</span>` : '小组成员在研讨区商讨后，可按步骤一键提炼或自由微调各项内容，全员确认后签署生效'}
@@ -12999,11 +13004,11 @@
         </div>
 
         <div style="display:flex; flex-direction:column; gap:16px; width:100%;">
-          <!-- 6大研究设计方案模块与阶段二起草时间规划 (文体自适应) -->
+          <!-- 6大研究设计方案/教学设计核心模块与阶段二起草时间规划 (文体自适应) -->
           <div style="background:#f8fafc; padding:18px; border-radius:12px; border:1px solid #bfdbfe; width:100%; box-sizing:border-box;">
             <div style="font-weight:800; color:#1e40af; margin-bottom:14px; font-size:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
               <div style="display:flex; align-items:center; gap:8px;">
-                <span>📚 方案核心模块与阶段二起草时间规划 (6 大模块起草):</span>
+                <span>📚 ${taskGenreKey === 'instructional' ? '教学设计核心模块与阶段二起草时间规划' : '方案核心模块与阶段二起草时间规划'} (6 大${taskGenreKey === 'instructional' ? '模块' : '章节'}起草):</span>
                 <span style="font-size:11.5px; background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:8px; border:1px solid #bfdbfe; font-weight:700;">⏱️ 阶段二起草预算: 约 ${Math.round(taskDurMin * 0.70)} 分钟 (任务总时长 ${taskDurMin} 分钟)</span>
               </div>
             </div>
@@ -13038,7 +13043,7 @@
                 return `
                   <div style="display:flex; flex-direction:column; gap:6px; width:100%; background:#ffffff; padding:12px 14px; border-radius:8px; border:1px solid #e2e8f0; box-sizing:border-box;">
                     <span style="font-weight:800; color:${m.color || '#2563eb'}; font-size:13px;">${m.avatar || '👤'} ${m.name}:</span>
-                    <input type="text" class="large-contract-input task-assignment-input" data-mkey="${mKey}" data-id="${m.id || ''}" data-name="${m.name || ''}" data-lock-key="task_${mKey}" value="${taskVal}" ${isInputDisabled ? 'disabled readonly style="opacity:0.8; cursor:not-allowed; background:#f8fafc;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:10px 14px; font-size:13px; font-family:sans-serif;" placeholder="在聊天中商定或在此录入具体负责的写作章节与任务...">
+                    <input type="text" class="large-contract-input task-assignment-input" data-mkey="${mKey}" data-id="${m.id || ''}" data-name="${m.name || ''}" data-lock-key="task_${mKey}" value="${taskVal}" ${isInputDisabled ? 'disabled readonly style="opacity:0.8; cursor:not-allowed; background:#f8fafc;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:10px 14px; font-size:13px; font-family:sans-serif;" placeholder="在聊天中商定或在此录入具体负责的${taskGenreKey === 'instructional' ? '设计模块' : '写作章节'}与任务...">
                   </div>
                 `;
               }).join('')}
@@ -13050,7 +13055,7 @@
         <div id="stage1-contract-sign-matrix-mount" style="margin-top:16px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px 18px; width:100%; box-sizing:border-box;">
           <div style="font-size:13px; font-weight:700; color:#334155; margin-bottom:10px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;">
             <span>📌 本组全员确认签署状态矩阵 (规则：需 ${totalMembersCount}/${totalMembersCount} 人全部点击确认):</span>
-            <span style="color:${confirmedCount === totalMembersCount ? '#059669' : '#d97706'}; font-weight:800;">签署进度: ${confirmedCount}/${totalMembersCount} 人已完成 ${confirmedCount === totalMembersCount ? '🎉 (合约已生效)' : ''}</span>
+            <span style="color:${confirmedCount === totalMembersCount ? '#059669' : '#d97706'}; font-weight:800;">签署进度: ${confirmedCount}/${totalMembersCount} 人已完成 ${confirmedCount === totalMembersCount ? `🎉 (${taskGenreKey === 'instructional' ? '公约' : '合约'}已生效)` : ''}</span>
           </div>
           <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:13px;">
             ${membersList.map(m => {
@@ -13079,7 +13084,7 @@
             </button>
           ` : `
             <button id="btn-confirm-contract" style="background:${userHasConfirmed ? '#eff6ff' : 'linear-gradient(135deg, #059669, #047857)'}; border:1px solid ${userHasConfirmed ? '#bfdbfe' : 'transparent'}; color:${userHasConfirmed ? '#1d4ed8' : 'white'}; padding:13px 32px; border-radius:10px; font-weight:800; cursor:pointer; font-size:14.5px; box-shadow:0 3px 12px rgba(5,150,105,0.25);">
-              ${userHasConfirmed ? `✅ 我 (${currentUserName}) 已按键确认签署 (${confirmedCount}/${totalMembersCount} 人已完成)` : `✍️ 我以 (${currentUserName}) 身份按键确认签署合约 (已确认 ${confirmedCount}/${totalMembersCount} 人)`}
+              ${userHasConfirmed ? `✅ 我 (${currentUserName}) 已按键确认签署 (${confirmedCount}/${totalMembersCount} 人已完成)` : `✍️ 我以 (${currentUserName}) 身份按键确认签署${taskGenreKey === 'instructional' ? '备课公约' : '学术合约'} (已确认 ${confirmedCount}/${totalMembersCount} 人)`}
             </button>
           `))}
         </div>
@@ -20761,11 +20766,8 @@
       if (s1._topicExtractFailed) {
         return this._doExtractTopic();
       }
-      const count = this.getStepConfirmedCount('s1_topic', membersList);
-      if (count >= totalCount && totalCount > 0) {
-        return this._doExtractTopic();
-      }
-      this.handleStepConfirmation('s1_topic', () => this._doExtractTopic(), '主题与研究方案');
+      const isInst = (this.getCurrentTaskType() === 'instructional');
+      this.handleStepConfirmation('s1_topic', () => this._doExtractTopic(), isInst ? '课题与教学构想' : '主题与研究方案');
     }
 
     async _doExtractTopic(btnElement = null) {
