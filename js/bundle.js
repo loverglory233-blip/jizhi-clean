@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2867
+ * Version: 20260907_v2868
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2867';
+  const APP_VERSION = '20260907_v2868';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -6225,13 +6225,25 @@
         }
 
         if (remoteData.stage2.memberContributions) {
-          if (JSON.stringify(remoteData.stage2.memberContributions) !== JSON.stringify(this.app.state.stage2.memberContributions)) {
-            this.app.state.stage2.memberContributions = remoteData.stage2.memberContributions;
-            this.app.updateContributionUi();
+          const localContribs = this.app.state.stage2.memberContributions || {};
+          const remoteContribs = remoteData.stage2.memberContributions || {};
+          const localSum = Object.values(localContribs).reduce((a, b) => a + (Number(b) || 0), 0);
+          const remoteSum = Object.values(remoteContribs).reduce((a, b) => a + (Number(b) || 0), 0);
+          if (remoteSum >= localSum || localSum === 0) {
+            if (JSON.stringify(remoteContribs) !== JSON.stringify(localContribs)) {
+              this.app.state.stage2.memberContributions = remoteContribs;
+              this.app.updateContributionUi();
+            }
           }
         }
         if (remoteData.stage2.frozenContributions) {
-          this.app.state.stage2.frozenContributions = remoteData.stage2.frozenContributions;
+          const localFrozen = this.app.state.stage2.frozenContributions || {};
+          const remoteFrozen = remoteData.stage2.frozenContributions || {};
+          const localFzSum = Object.values(localFrozen).reduce((a, b) => a + (Number(b) || 0), 0);
+          const remoteFzSum = Object.values(remoteFrozen).reduce((a, b) => a + (Number(b) || 0), 0);
+          if (remoteFzSum >= localFzSum || localFzSum === 0) {
+            this.app.state.stage2.frozenContributions = remoteFrozen;
+          }
         }
         if (remoteData.stage2.meetingSubmissions) {
           const localSubs = this.app.state.stage2.meetingSubmissions || {};
@@ -14075,6 +14087,9 @@
     };
 
     const getEffectiveContribs = () => {
+      if (state.stage2?.frozenContributions && Object.keys(state.stage2.frozenContributions).length > 0) {
+        return state.stage2.frozenContributions;
+      }
       return (state.stage2 && state.stage2.memberContributions) ? state.stage2.memberContributions : {};
     };
 
@@ -14120,6 +14135,10 @@
 
     const syncPadMetrics = async () => {
       try {
+        if (state.stage2?.isDraftConfirmed || (state.stage2?.frozenContributions && Object.keys(state.stage2.frozenContributions).length > 0)) {
+          updateContribDom();
+          return;
+        }
         const authorStats = getEtherpadAuthorStats('stage2-etherpad-frame', membersList, currUserName, state);
         const cleanTxt = authorStats ? authorStats.cleanText : (typeof getEtherpadTextDirect === 'function' ? getEtherpadTextDirect() : null);
 

@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2867';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2867';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2868';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2868';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1533,13 +1533,25 @@ export class CloudSyncEngine {
       }
 
       if (remoteData.stage2.memberContributions) {
-        if (JSON.stringify(remoteData.stage2.memberContributions) !== JSON.stringify(this.app.state.stage2.memberContributions)) {
-          this.app.state.stage2.memberContributions = remoteData.stage2.memberContributions;
-          this.app.updateContributionUi();
+        const localContribs = this.app.state.stage2.memberContributions || {};
+        const remoteContribs = remoteData.stage2.memberContributions || {};
+        const localSum = Object.values(localContribs).reduce((a, b) => a + (Number(b) || 0), 0);
+        const remoteSum = Object.values(remoteContribs).reduce((a, b) => a + (Number(b) || 0), 0);
+        if (remoteSum >= localSum || localSum === 0) {
+          if (JSON.stringify(remoteContribs) !== JSON.stringify(localContribs)) {
+            this.app.state.stage2.memberContributions = remoteContribs;
+            this.app.updateContributionUi();
+          }
         }
       }
       if (remoteData.stage2.frozenContributions) {
-        this.app.state.stage2.frozenContributions = remoteData.stage2.frozenContributions;
+        const localFrozen = this.app.state.stage2.frozenContributions || {};
+        const remoteFrozen = remoteData.stage2.frozenContributions || {};
+        const localFzSum = Object.values(localFrozen).reduce((a, b) => a + (Number(b) || 0), 0);
+        const remoteFzSum = Object.values(remoteFrozen).reduce((a, b) => a + (Number(b) || 0), 0);
+        if (remoteFzSum >= localFzSum || localFzSum === 0) {
+          this.app.state.stage2.frozenContributions = remoteFrozen;
+        }
       }
       if (remoteData.stage2.meetingSubmissions) {
         const localSubs = this.app.state.stage2.meetingSubmissions || {};

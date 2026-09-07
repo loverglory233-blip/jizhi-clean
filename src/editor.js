@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2867";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2867";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2867";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2868";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2868";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2868";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -2243,6 +2243,9 @@ function renderStage2Canvas(canvas, state, handlers) {
   };
 
   const getEffectiveContribs = () => {
+    if (state.stage2?.frozenContributions && Object.keys(state.stage2.frozenContributions).length > 0) {
+      return state.stage2.frozenContributions;
+    }
     return (state.stage2 && state.stage2.memberContributions) ? state.stage2.memberContributions : {};
   };
 
@@ -2288,6 +2291,10 @@ function renderStage2Canvas(canvas, state, handlers) {
 
   const syncPadMetrics = async () => {
     try {
+      if (state.stage2?.isDraftConfirmed || (state.stage2?.frozenContributions && Object.keys(state.stage2.frozenContributions).length > 0)) {
+        updateContribDom();
+        return;
+      }
       const authorStats = getEtherpadAuthorStats('stage2-etherpad-frame', membersList, currUserName, state);
       const cleanTxt = authorStats ? authorStats.cleanText : (typeof getEtherpadTextDirect === 'function' ? getEtherpadTextDirect() : null);
 
