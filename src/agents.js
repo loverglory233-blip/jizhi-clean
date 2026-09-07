@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260907_v2832';
-import { showGlobalBannerNotice } from './utils.js?v=20260907_v2832';
+import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260907_v2833';
+import { showGlobalBannerNotice } from './utils.js?v=20260907_v2833';
 
 export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
   // 🛡️ 终极只读熔断器：一旦任务截止进入只读模式或已终稿归档，底层彻底熔断任何大模型调用与智能体生成
@@ -39,9 +39,9 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
     }
   } catch (e) {}
 
-  // 🛡️ 高可用单次调用核心：严格执行 1 次请求，带 80 秒硬性超时熔断，绝不提前中断长文大模型生成
+  // 🛡️ 高可用敏捷调用核心：结合服务端流式提前截断，设置 45 秒超时熔断，杜绝前端长时间挂起
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const timerId = controller ? setTimeout(() => controller.abort(), 80000) : null;
+  const timerId = controller ? setTimeout(() => controller.abort(), 45000) : null;
 
   try {
     const resp = await fetch('sync.php?action=coze_chat', {

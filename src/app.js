@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2832";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2832";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2832";
-import { AuthManager } from "./auth.js?v=20260907_v2832";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2832";
-import { renderLoginView } from "./login.js?v=20260907_v2832";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2832";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2832";
+} from "./constants.js?v=20260907_v2833";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2833";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2833";
+import { AuthManager } from "./auth.js?v=20260907_v2833";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2833";
+import { renderLoginView } from "./login.js?v=20260907_v2833";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2833";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2833";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2832";
+} from "./editor.js?v=20260907_v2833";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4110,25 +4110,25 @@ export class App {
 
       const tally = s1.votes || {};
       const proposals = s1.proposals || [];
-      let maxVotes = -1;
+      let maxVotes = 0;
       let winningProposal = null;
       proposals.forEach(p => {
-        const count = tally[p.id] || 0;
+        const count = Number(tally[p.id] || 0);
         if (count > maxVotes) {
           maxVotes = count;
           winningProposal = p;
         }
       });
+      if (!winningProposal && proposals.length > 0) {
+        winningProposal = proposals[0];
+      }
 
-      const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
-      const effClassId = this.state.activeStudentClassId || currUser?.classId || null;
-      const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUser, effClassId) : null;
-      const membersList = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0) 
-        ? effGroup.members 
-        : (this.state.members || [{ name: 'A' }, { name: 'B' }, { name: 'C' }]);
-      const totalMembersCount = membersList.length;
-
-      const isUnanimous = (winningProposal && maxVotes === totalMembersCount && totalMembersCount > 0);
+      // 🛡️ 判定投票共识与一致性（杜绝班级未满员时将全票一致误判为分歧）：
+      // 1. 凡是实际获得投票的提案只有 1 个（且有得票），说明所有已投票的组员完全投给同一提案，100% 为全票一致！
+      // 2. 或者全组本来就只有 1 个候选提案，自然达成共识。
+      // 3. 只有当实际有得票的提案数量 >= 2（多方分立）时，才判定为存在分歧！
+      const votedProposals = proposals.filter(p => Number(tally[p.id] || 0) > 0);
+      const isUnanimous = (votedProposals.length === 1 && maxVotes > 0) || (proposals.length === 1);
 
       // 🛡️ 清理已有的同类失败气泡与思考中占位气泡
       this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => {
@@ -4153,8 +4153,10 @@ export class App {
         s1.mergedTitle = winningProposal.title;
         if (!s1.contract) s1.contract = {};
         s1.contract.topic = winningProposal.title;
-        s1.contract.overview = '';
-        s1.researchOverview = '';
+        if (winningProposal.description && !s1.contract.overview) {
+          s1.contract.overview = winningProposal.description.replace(/<[^>]+>/g, ' ').trim();
+          s1.researchOverview = s1.contract.overview;
+        }
         guideMsgId = 'vote_unanimous_' + Date.now();
 
         const unanimousPrompt = `${genreDesc}
@@ -4703,9 +4705,10 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
         }
       }
 
-      // 🛡️ 严格遵循用户真实研讨：若确实没有提取出方案，直接显示“暂无”，绝对不添加任何预设套话兜底！
+      // 🛡️ 严格遵循用户真实研讨：若确实没有提取出方案，优先匹配当前课题的提案说明，或显示“暂无”，绝不添加任何假大空套话！
+      const matchedProp = propList.find(p => p && (p.title === finalTopic || p.title === currentCandidate)) || propList[0];
       if (!finalOverview || !finalOverview.trim() || finalOverview === '暂无') {
-        finalOverview = (propList[0]?.description) ? propList[0].description.replace(/<[^>]+>/g, ' ').trim() : '暂无';
+        finalOverview = (matchedProp?.description) ? matchedProp.description.replace(/<[^>]+>/g, ' ').trim() : '暂无';
       }
 
       // 🛡️ 移除正在提炼中的思考消息与残留网络提醒

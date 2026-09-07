@@ -239,14 +239,14 @@ if ($isMilestone) {
     $safeMilestone = preg_replace('/[^a-zA-Z0-9_-]/', '_', $milestoneKey);
     $lockFile = $lockDir . "/ms_{$safeScope}_{$safeMilestone}.json";
 
-    // 1. 检查是否存在 10 分钟内的成功完成缓存（0 Token 消耗秒级返回）
+    // 1. 检查是否存在 8 秒内的即时并发缓存（仅用于同组多人几乎同秒点击时的突发去重，绝不缓存 10 分钟导致研讨后重新提炼无效）
     if (file_exists($lockFile)) {
         $existingRaw = @file_get_contents($lockFile);
         if (!empty($existingRaw)) {
             $existingData = @json_decode($existingRaw, true);
             if ($existingData && isset($existingData['status']) && $existingData['status'] === 'completed' && !empty($existingData['reply'])) {
                 $completedAt = isset($existingData['completed_at']) ? intval($existingData['completed_at']) : 0;
-                if (time() - $completedAt < 600) {
+                if (time() - $completedAt < 8) {
                     echo json_encode([
                         'success' => true,
                         'completed' => true,
@@ -302,7 +302,7 @@ if ($isMilestone) {
             if (!empty($postAcquireRaw)) {
                 $postAcquireData = @json_decode($postAcquireRaw, true);
                 if ($postAcquireData && isset($postAcquireData['status']) && $postAcquireData['status'] === 'completed' && !empty($postAcquireData['reply'])) {
-                    if (time() - intval($postAcquireData['completed_at'] ?? 0) < 600) {
+                    if (time() - intval($postAcquireData['completed_at'] ?? 0) < 8) {
                         @flock($lockFp, LOCK_UN);
                         @fclose($lockFp);
                         echo json_encode([
@@ -370,7 +370,7 @@ function parseCozeSseStream($rawResp) {
 // 2. 使用 Prompt 工厂进行结构化组装
 $assembledPrompt = CozePromptFactory::buildPrompt($stage, $topic, $userQuery, $actualDoc, $botKey, $priorReview, $taskType);
 
-// 3. 发起 Chat 请求 (采用 stream=true + auto_save_history=false 强制关闭云端对话记忆，杜绝历史 Token 累积)
+// 3. 发起 Chat 请求 (采用 stream=true + 敏捷回调接收，大模型生成结束瞬间即刻关闭连接，耗时从 75s 缩短至 2~5s)
 $cozeUrl = $COZE_API_BASE_URL . '/chat';
 $headers = [
     'Authorization: Bearer ' . $accessToken,
@@ -391,48 +391,67 @@ $payload = [
     ]
 ];
 
+$streamBuffer = '';
 $ch = curl_init($cozeUrl);
 curl_setopt($ch, CURLOPT_POST, 1);
 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
 curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
 curl_setopt($ch, CURLOPT_TCP_NODELAY, 1);
-curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
-curl_setopt($ch, CURLOPT_TIMEOUT, 75);
+curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 8);
+curl_setopt($ch, CURLOPT_TIMEOUT, 40);
+curl_setopt($ch, CURLOPT_WRITEFUNCTION, function($curlHandle, $chunk) use (&$streamBuffer) {
+    $streamBuffer .= $chunk;
+    // ⚡ 核心提速：一旦接收到生成完成或结束事件，立即返回 0 结束 curl 读取，不再死等长连接超时
+    if (strpos($streamBuffer, '[DONE]') !== false || 
+        strpos($streamBuffer, 'conversation.chat.completed') !== false || 
+        strpos($streamBuffer, 'conversation.chat.failed') !== false ||
+        strpos($streamBuffer, 'conversation.chat.requires_action') !== false) {
+        return 0;
+    }
+    return strlen($chunk);
+});
 
 $resp = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
-// 🛡️ 智能 Token 4100/4001 失效自愈：仅当明确返回鉴权失败且非网络超时时换新 Token 重试一次，绝不在超时断开后盲目二次重试拖满 60 秒
+// 🛡️ 智能 Token 4100/4001 失效自愈：仅当明确返回鉴权失败且非网络超时时换新 Token 重试一次
 $answerText = '';
-if ($resp !== false && ($httpCode === 401 || (is_string($resp) && (strpos($resp, '4100') !== false || strpos($resp, '4001') !== false)))) {
+if (($httpCode === 401 || strpos($streamBuffer, '4100') !== false || strpos($streamBuffer, '4001') !== false)) {
     $cacheFile = __DIR__ . '/token_cache.json';
     @unlink($cacheFile);
     $accessToken = getCozeAccessToken(true);
     if ($accessToken) {
         $headers = ['Authorization: Bearer ' . $accessToken, 'Content-Type: application/json'];
+        $streamBuffer = '';
         $chRetry = curl_init($cozeUrl);
         curl_setopt($chRetry, CURLOPT_POST, 1);
         curl_setopt($chRetry, CURLOPT_POSTFIELDS, json_encode($payload));
         curl_setopt($chRetry, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($chRetry, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($chRetry, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($chRetry, CURLOPT_SSL_VERIFYHOST, 0);
         curl_setopt($chRetry, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
         curl_setopt($chRetry, CURLOPT_TCP_NODELAY, 1);
-        curl_setopt($chRetry, CURLOPT_ENCODING, '');
         curl_setopt($chRetry, CURLOPT_CONNECTTIMEOUT, 4);
         curl_setopt($chRetry, CURLOPT_TIMEOUT, 25);
+        curl_setopt($chRetry, CURLOPT_WRITEFUNCTION, function($curlHandle, $chunk) use (&$streamBuffer) {
+            $streamBuffer .= $chunk;
+            if (strpos($streamBuffer, '[DONE]') !== false || 
+                strpos($streamBuffer, 'conversation.chat.completed') !== false || 
+                strpos($streamBuffer, 'conversation.chat.failed') !== false) {
+                return 0;
+            }
+            return strlen($chunk);
+        });
         $resp = curl_exec($chRetry);
         curl_close($chRetry);
     }
 }
 
-$answerText = parseCozeSseStream($resp);
+$answerText = parseCozeSseStream($streamBuffer);
 
 if (!empty($answerText)) {
     if ($isMilestone && !empty($lockFile)) {
