@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2865";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2865";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2865";
-import { AuthManager } from "./auth.js?v=20260907_v2865";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2865";
-import { renderLoginView } from "./login.js?v=20260907_v2865";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2865";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2865";
+} from "./constants.js?v=20260907_v2866";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2866";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2866";
+import { AuthManager } from "./auth.js?v=20260907_v2866";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2866";
+import { renderLoginView } from "./login.js?v=20260907_v2866";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2866";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2866";
 import {
   renderEditor,
   renderChat,
@@ -31,7 +31,7 @@ import {
   enforceEtherpadWorkspaceGuard,
   getEtherpadAuthorStats,
   renderPresenceCursors
-} from "./editor.js?v=20260907_v2865";
+} from "./editor.js?v=20260907_v2866";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {

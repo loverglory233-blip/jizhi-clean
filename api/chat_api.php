@@ -239,8 +239,14 @@ if ($isMilestone) {
     $safeMilestone = preg_replace('/[^a-zA-Z0-9_-]/', '_', $milestoneKey);
     $lockFile = $lockDir . "/ms_{$safeScope}_{$safeMilestone}.json";
 
-    // 1. 检查是否存在 60 秒内的即时并发缓存（供同组多人几乎同秒点击或轮询时获取已生成的结果）
-    if (file_exists($lockFile)) {
+    // 1. 若为显式重试（nocache 或 force 或 milestoneKey 包含 retry），主动清理旧缓存
+    $isRetry = (!empty($req['nocache']) || !empty($req['force']) || (strpos($milestoneKey, 'retry') !== false));
+    if ($isRetry && file_exists($lockFile)) {
+        @unlink($lockFile);
+    }
+
+    // 2. 检查是否存在 60 秒内的即时并发缓存（供同组多人几乎同秒点击或轮询时获取已生成的结果）
+    if (!$isRetry && file_exists($lockFile)) {
         $existingRaw = @file_get_contents($lockFile);
         if (!empty($existingRaw)) {
             $existingData = @json_decode($existingRaw, true);
@@ -258,7 +264,7 @@ if ($isMilestone) {
                 }
             } else if ($existingData && isset($existingData['status']) && $existingData['status'] === 'in_progress') {
                 $startedAt = isset($existingData['started_at']) ? intval($existingData['started_at']) : 0;
-                if (time() - $startedAt > 120) {
+                if (time() - $startedAt > 90) {
                     @unlink($lockFile);
                     @unlink($lockFile . '.lock');
                 }
