@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260908_v2879
+ * Version: 20260908_v2880
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260908_v2879';
+  const APP_VERSION = '20260908_v2880';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11596,8 +11596,8 @@
     });
 
     const displayClasses = myClasses.length > 0 ? myClasses : (
-      (classes || []).filter(c => c.id === (currentUser?.classId || null)).length > 0
-        ? (classes || []).filter(c => c.id === (currentUser?.classId || null))
+      (classes || []).filter(c => isSameId(c.id, currentUser?.classId)).length > 0
+        ? (classes || []).filter(c => isSameId(c.id, currentUser?.classId))
         : (classes || [])
     );
 
@@ -11644,10 +11644,10 @@
       return;
     }
 
-    const activeUserClassId = state.activeStudentClassId && displayClasses.some(c => c.id === state.activeStudentClassId)
+    const activeUserClassId = state.activeStudentClassId && displayClasses.some(c => isSameId(c.id, state.activeStudentClassId))
       ? state.activeStudentClassId
-      : (displayClasses.find(c => c.id === currentUser?.classId)?.id || (displayClasses[0] ? displayClasses[0].id : null));
-    const userClass = displayClasses.find(c => c.id === activeUserClassId) || displayClasses[0];
+      : (displayClasses.find(c => isSameId(c.id, currentUser?.classId))?.id || (displayClasses[0] ? displayClasses[0].id : null));
+    const userClass = displayClasses.find(c => isSameId(c.id, activeUserClassId)) || displayClasses[0];
     state.activeStudentClassId = userClass.id;
 
     // 👥 2. 动态精准匹配该学生在当前选定班级里的真实小组
@@ -11658,9 +11658,9 @@
     const relevantTasks = tasks.filter(t => {
       if (!t) return false;
       if (!t.classId || t.classId === 'all' || t.classId === 'class_all') return true;
-      return t.classId === userClass.id || 
+      return isSameId(t.classId, userClass.id) || 
              (t.className && t.className === userClass.name) ||
-             (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.includes(userClass.id)));
+             (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.some(cid => isSameId(cid, userClass.id))));
     });
     const isAnnRead = (a) => {
       if (!a) return false;
