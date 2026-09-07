@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260908_v2882";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2882";
-import { callCozeAgentAPI } from "./agents.js?v=20260908_v2882";
-import { AuthManager } from "./auth.js?v=20260908_v2882";
-import { CloudSyncEngine } from "./sync.js?v=20260908_v2882";
-import { renderLoginView } from "./login.js?v=20260908_v2882";
-import { renderTeacherPortal } from "./teacher.js?v=20260908_v2882";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2882";
+} from "./constants.js?v=20260908_v2884";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2884";
+import { callCozeAgentAPI } from "./agents.js?v=20260908_v2884";
+import { AuthManager } from "./auth.js?v=20260908_v2884";
+import { CloudSyncEngine } from "./sync.js?v=20260908_v2884";
+import { renderLoginView } from "./login.js?v=20260908_v2884";
+import { renderTeacherPortal } from "./teacher.js?v=20260908_v2884";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2884";
 import {
   renderEditor,
   renderChat,
@@ -36,7 +36,7 @@ import {
   getEtherpadAuthorStats,
   renderPresenceCursors,
   getEffectiveAgentAnalyzing
-} from "./editor.js?v=20260908_v2882";
+} from "./editor.js?v=20260908_v2884";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -399,10 +399,11 @@ export class App {
       try { this.authManager._pruneStorageQuota(); } catch (e) {}
     }
 
-    // 🛡️ 优先从单一轻量工作台快照恢复（仅记录当前组，0ms秒开上屏且绝不超5MB配额）
+    // 🛡️ 优先从任务专属轻量工作台快照恢复，严格杜绝跨任务残影
     let cached = null;
     try {
-      const raw = sessionStorage.getItem('jizhi_active_workspace_snap') || localStorage.getItem('jizhi_active_workspace_snap');
+      const taskSnapKey = `jizhi_active_workspace_snap_${effectiveClassId}_${taskId}_${groupId}`;
+      const raw = sessionStorage.getItem(taskSnapKey) || localStorage.getItem(taskSnapKey) || sessionStorage.getItem('jizhi_active_workspace_snap') || localStorage.getItem('jizhi_active_workspace_snap');
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && isSameId(parsed.classId, effectiveClassId) && parsed.taskId && taskId && isSameId(parsed.taskId, taskId) && isSameId(parsed.groupId, groupId)) {
@@ -531,7 +532,7 @@ export class App {
   }
 
   saveGroupState(groupId) {
-    // 🛡️ 单一 Key 覆盖轻量快照：仅缓存当前正在操作的 1 个工作台，保障 0ms 秒开，绝不堆积碎片
+    // 🛡️ 任务专属快照保存：写入专属 key 与单一最新 key，保障 0ms 秒开且任务绝对隔离
     try {
       const user = this.authManager ? this.authManager.getCurrentUser() : null;
       const isTeacher = user && (user.isTeacher || user.role === 'teacher');
@@ -553,6 +554,9 @@ export class App {
         updatedAt: Date.now()
       };
       const snapStr = JSON.stringify(snap);
+      const taskSnapKey = `jizhi_active_workspace_snap_${effectiveClassId}_${this.state.activeTaskId}_${groupId}`;
+      sessionStorage.setItem(taskSnapKey, snapStr);
+      localStorage.setItem(taskSnapKey, snapStr);
       sessionStorage.setItem('jizhi_active_workspace_snap', snapStr);
       localStorage.setItem('jizhi_active_workspace_snap', snapStr);
     } catch (e) {}
@@ -1439,7 +1443,7 @@ export class App {
               }
               if (this.cloudSyncEngine) {
                 this.cloudSyncEngine.groupId = targetGroupId;
-                this.cloudSyncEngine.taskId = actualTaskId;
+                this.cloudSyncEngine.taskId = strictTaskId;
                 this.cloudSyncEngine.updateScopeKeys();
                 await this.cloudSyncEngine.pullFromServer();
                 if (typeof window.renderChat === 'function') window.renderChat(this.state);

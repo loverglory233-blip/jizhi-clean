@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260908_v2882';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260908_v2882';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260908_v2884';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260908_v2884';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -592,6 +592,8 @@ export class CloudSyncEngine {
     const snapshot = {
       timestamp: Date.now(),
       groupId: groupId,
+      taskId: this.taskId || (this.app?.state?.activeTaskId || null),
+      classId: this.effectiveClassId || (this.app?.state?.activeStudentClassId || null),
       revisionId: this.lastRevisionId || 0,
       members: this.app.state.members,
       presence: this.app.state.presence || {},
@@ -1119,8 +1121,7 @@ export class CloudSyncEngine {
 
     // 🛡️ 严格任务物理隔离守卫：若响应中携带的 taskId 与当前工作台 activeTaskId 不一致，坚决拒绝合并阶段数据
     const currentActiveTaskId = this.app?.state?.activeTaskId || this.taskId;
-    const isTaskMatch = !remoteData.taskId || !currentActiveTaskId || isSameId(remoteData.taskId, currentActiveTaskId);
-    if (!isTaskMatch && user?.role === 'student') {
+    if (remoteData.taskId && currentActiveTaskId && !isSameId(remoteData.taskId, currentActiveTaskId)) {
       return;
     }
 

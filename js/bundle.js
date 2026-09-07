@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260908_v2882
+ * Version: 20260908_v2884
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260908_v2882';
+  const APP_VERSION = '20260908_v2884';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -867,15 +867,15 @@
           seenAgentOpenings.add(greetKey);
         }
 
-        // 🛡️ 阶段三关键里程碑消息单例防护：
-        const isStage3Prop = (sender === 'proponent') || (txt.includes('立论支持') || txt.includes('肯定支持') || txt.includes('正方委员') || txt.includes('正方专家'));
+        // 🛡️ 阶段三关键里程碑消息单例防护（严格限定本智能体发言，绝不能被其他角色的致辞误占）：
+        const isStage3Prop = (sender === 'proponent') || (m.senderName && (m.senderName.includes('正方委员') || m.senderName.includes('正方专家')));
         if (isStage3Prop && (txt.includes('立论支持') || txt.includes('肯定支持') || txt.includes('正方') || txt.includes('通读草稿') || txt.includes('通读全篇'))) {
           if (seenAgentOpenings.has('stage3_prop_singleton')) continue;
           seenAgentOpenings.add('stage3_prop_singleton');
         }
 
-        const isStage3Opp = (sender === 'opponent') || (txt.includes('商讨质询') || txt.includes('针对实质询') || txt.includes('尖锐质询') || txt.includes('反方委员') || txt.includes('反方专家'));
-        if (isStage3Opp && (txt.includes('商讨质询') || txt.includes('针对实质询') || txt.includes('尖锐质询') || txt.includes('反方'))) {
+        const isStage3Opp = (sender === 'opponent') || (m.senderName && (m.senderName.includes('反方委员') || m.senderName.includes('反方专家')));
+        if (isStage3Opp && (txt.includes('商讨质询') || txt.includes('针对实质询') || txt.includes('尖锐质询') || txt.includes('学术质询') || txt.includes('反方'))) {
           if (seenAgentOpenings.has('stage3_opp_singleton')) continue;
           seenAgentOpenings.add('stage3_opp_singleton');
         }
@@ -5298,6 +5298,8 @@
       const snapshot = {
         timestamp: Date.now(),
         groupId: groupId,
+        taskId: this.taskId || (this.app?.state?.activeTaskId || null),
+        classId: this.effectiveClassId || (this.app?.state?.activeStudentClassId || null),
         revisionId: this.lastRevisionId || 0,
         members: this.app.state.members,
         presence: this.app.state.presence || {},
@@ -5825,8 +5827,7 @@
 
       // 🛡️ 严格任务物理隔离守卫：若响应中携带的 taskId 与当前工作台 activeTaskId 不一致，坚决拒绝合并阶段数据
       const currentActiveTaskId = this.app?.state?.activeTaskId || this.taskId;
-      const isTaskMatch = !remoteData.taskId || !currentActiveTaskId || isSameId(remoteData.taskId, currentActiveTaskId);
-      if (!isTaskMatch && user?.role === 'student') {
+      if (remoteData.taskId && currentActiveTaskId && !isSameId(remoteData.taskId, currentActiveTaskId)) {
         return;
       }
 
@@ -16218,7 +16219,7 @@
           s2.actionPlan?.isGenerated ||
           s2.reviewMilestone === 'checklist_issued' ||
           s2.reviewMilestone === 'second_review_received' ||
-          s2Chats.some(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('磨课修正清单')))
+          s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('二审修正清单') || m.text?.includes('磨课修正清单') || m.text?.includes('二审意见') || m.text?.includes('磨课质检') || m.text?.includes('二审修正')))
         );
 
         if (!isS2MeetingDone) {
@@ -16755,10 +16756,11 @@
         try { this.authManager._pruneStorageQuota(); } catch (e) {}
       }
 
-      // 🛡️ 优先从单一轻量工作台快照恢复（仅记录当前组，0ms秒开上屏且绝不超5MB配额）
+      // 🛡️ 优先从任务专属轻量工作台快照恢复，严格杜绝跨任务残影
       let cached = null;
       try {
-        const raw = sessionStorage.getItem('jizhi_active_workspace_snap') || localStorage.getItem('jizhi_active_workspace_snap');
+        const taskSnapKey = `jizhi_active_workspace_snap_${effectiveClassId}_${taskId}_${groupId}`;
+        const raw = sessionStorage.getItem(taskSnapKey) || localStorage.getItem(taskSnapKey) || sessionStorage.getItem('jizhi_active_workspace_snap') || localStorage.getItem('jizhi_active_workspace_snap');
         if (raw) {
           const parsed = JSON.parse(raw);
           if (parsed && isSameId(parsed.classId, effectiveClassId) && parsed.taskId && taskId && isSameId(parsed.taskId, taskId) && isSameId(parsed.groupId, groupId)) {
@@ -16887,7 +16889,7 @@
     }
 
     saveGroupState(groupId) {
-      // 🛡️ 单一 Key 覆盖轻量快照：仅缓存当前正在操作的 1 个工作台，保障 0ms 秒开，绝不堆积碎片
+      // 🛡️ 任务专属快照保存：写入专属 key 与单一最新 key，保障 0ms 秒开且任务绝对隔离
       try {
         const user = this.authManager ? this.authManager.getCurrentUser() : null;
         const isTeacher = user && (user.isTeacher || user.role === 'teacher');
@@ -16909,6 +16911,9 @@
           updatedAt: Date.now()
         };
         const snapStr = JSON.stringify(snap);
+        const taskSnapKey = `jizhi_active_workspace_snap_${effectiveClassId}_${this.state.activeTaskId}_${groupId}`;
+        sessionStorage.setItem(taskSnapKey, snapStr);
+        localStorage.setItem(taskSnapKey, snapStr);
         sessionStorage.setItem('jizhi_active_workspace_snap', snapStr);
         localStorage.setItem('jizhi_active_workspace_snap', snapStr);
       } catch (e) {}
@@ -17795,7 +17800,7 @@
                 }
                 if (this.cloudSyncEngine) {
                   this.cloudSyncEngine.groupId = targetGroupId;
-                  this.cloudSyncEngine.taskId = actualTaskId;
+                  this.cloudSyncEngine.taskId = strictTaskId;
                   this.cloudSyncEngine.updateScopeKeys();
                   await this.cloudSyncEngine.pullFromServer();
                   if (typeof window.renderChat === 'function') window.renderChat(this.state);

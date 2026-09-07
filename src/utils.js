@@ -650,15 +650,15 @@ export function filterAndDeduplicateChatLogs(messages) {
         seenAgentOpenings.add(greetKey);
       }
 
-      // 🛡️ 阶段三关键里程碑消息单例防护：
-      const isStage3Prop = (sender === 'proponent') || (txt.includes('立论支持') || txt.includes('肯定支持') || txt.includes('正方委员') || txt.includes('正方专家'));
+      // 🛡️ 阶段三关键里程碑消息单例防护（严格限定本智能体发言，绝不能被其他角色的致辞误占）：
+      const isStage3Prop = (sender === 'proponent') || (m.senderName && (m.senderName.includes('正方委员') || m.senderName.includes('正方专家')));
       if (isStage3Prop && (txt.includes('立论支持') || txt.includes('肯定支持') || txt.includes('正方') || txt.includes('通读草稿') || txt.includes('通读全篇'))) {
         if (seenAgentOpenings.has('stage3_prop_singleton')) continue;
         seenAgentOpenings.add('stage3_prop_singleton');
       }
 
-      const isStage3Opp = (sender === 'opponent') || (txt.includes('商讨质询') || txt.includes('针对实质询') || txt.includes('尖锐质询') || txt.includes('反方委员') || txt.includes('反方专家'));
-      if (isStage3Opp && (txt.includes('商讨质询') || txt.includes('针对实质询') || txt.includes('尖锐质询') || txt.includes('反方'))) {
+      const isStage3Opp = (sender === 'opponent') || (m.senderName && (m.senderName.includes('反方委员') || m.senderName.includes('反方专家')));
+      if (isStage3Opp && (txt.includes('商讨质询') || txt.includes('针对实质询') || txt.includes('尖锐质询') || txt.includes('学术质询') || txt.includes('反方'))) {
         if (seenAgentOpenings.has('stage3_opp_singleton')) continue;
         seenAgentOpenings.add('stage3_opp_singleton');
       }
