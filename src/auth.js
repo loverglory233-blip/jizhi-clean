@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260907_v2833';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260907_v2833';
+} from './constants.js?v=20260907_v2834';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260907_v2834';
 
 export class AuthManager {
   constructor() {
@@ -2059,16 +2059,27 @@ export class AuthManager {
   getReferencePapers(groupId = null, classId = null, taskId = null) {
     const papers = this.getAllReferencePapers();
     if (!groupId && !classId && !taskId) return papers;
-    return papers.filter(p => {
+    const matched = papers.filter(p => {
       return isScopeMatch(p, {
         userClassId: classId,
         userGroupId: groupId,
         currentTaskId: taskId
       });
     });
+    // 🛡️ 智能防呆优雅降级：若按特定 taskId 匹配为 0 篇，但当前班级与小组存在本课程的学术参考范文，自动展示本班/本组可用范文（杜绝跨任务排他导致学生端误显 0 篇）
+    if (matched.length === 0 && (classId || groupId)) {
+      return papers.filter(p => {
+        return isScopeMatch(p, {
+          userClassId: classId,
+          userGroupId: groupId,
+          currentTaskId: null // 忽略任务隔离，展示本班/本组全部可用范文
+        });
+      });
+    }
+    return matched;
   }
 
-  uploadReferencePaper(paper) {
+  async uploadReferencePaper(paper) {
     const papers = this.getAllReferencePapers();
     const paperId = 'ref_' + Date.now();
 
@@ -2097,7 +2108,7 @@ export class AuthManager {
       papers.splice(20);
       try { localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers)); } catch (err) {}
     }
-    this.pushGlobalMeta();
+    await this.pushGlobalMeta();
 
     if ('BroadcastChannel' in window) {
       try {

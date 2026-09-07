@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2833';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2833';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2834';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2834';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -786,14 +786,30 @@ export class CloudSyncEngine {
       if (this.app?.authManager) {
         this.app.authManager.globalMetaVersion = remoteData.metaVer;
       }
-      // 🛡️ 核心防漏补丁：若服务端版本递增，但本次协同响应未包含完整 announcements（如高频协作 Delta），
-      // 必须立刻主动触发 pullGlobalMeta 补拉全局最新通知并弹窗，杜绝多端通知丢失
-      if (prevMetaVer !== undefined && remoteData.metaVer !== prevMetaVer && !Array.isArray(remoteData.announcements)) {
+      // 🛡️ 核心防漏补丁：若服务端版本递增，但本次协同响应未包含完整 announcements 或 referencePapers（如高频协作 Delta），
+      // 必须立刻主动触发 pullGlobalMeta 补拉全局最新通知与参考范文并刷新工作台，杜绝多端数据不同步
+      if (prevMetaVer !== undefined && remoteData.metaVer !== prevMetaVer && (!Array.isArray(remoteData.announcements) || !Array.isArray(remoteData.referencePapers))) {
         if (this.app && this.app.authManager && typeof this.app.authManager.pullGlobalMeta === 'function') {
           this.app.authManager.pullGlobalMeta(true).then(() => {
             if (this.app) {
               if (typeof this.app.renderHeader === 'function') this.app.renderHeader();
               if (typeof this.app.checkUnreadAnnouncements === 'function') this.app.checkUnreadAnnouncements();
+
+              // 📚 实时更新工作台参考范文按钮与弹窗
+              const currentUser = this.app.authManager.getCurrentUser();
+              const effectiveClassId = this.app.authManager.getEffectiveStudentClassId(currentUser, this.app.state?.activeTaskId);
+              const activeGroupObj = this.app.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
+              const groupId = this.app.state?.activeGroupId || this.groupId || activeGroupObj?.id || currentUser?.groupId || null;
+              const available = this.app.authManager.getReferencePapers(groupId, effectiveClassId, this.app.state?.activeTaskId);
+              const refBtn = document.getElementById('btn-show-case') || document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
+              if (refBtn) {
+                refBtn.innerText = available.length > 0 ? `📚 查阅参考范文 (${available.length}篇)` : '📚 查阅参考范文库';
+              }
+              if (document.querySelector('.modal-ref-papers-view') || (document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库'))) {
+                if (typeof this.app.showReferencePapersModal === 'function') {
+                  this.app.showReferencePapersModal();
+                }
+              }
             }
           }).catch(() => {});
         }

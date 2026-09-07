@@ -2083,6 +2083,11 @@ if ($action === 'get_global_meta') {
                             'abstract' => $pr['abstract'] ?? '',
                             'keyHighlights' => $pr['highlights'] ?? '',
                             'targetGroupId' => $pr['target_group'] ?? 'all',
+                            'targetGroupIds' => (isset($pr['target_group_ids']) && !empty($pr['target_group_ids'])) ? (json_decode($pr['target_group_ids'], true) ?: [$pr['target_group'] ?? 'all']) : [$pr['target_group'] ?? 'all'],
+                            'targetGroupName' => $pr['target_group_name'] ?? '全班所有小组',
+                            'classId' => $pr['class_id'] ?? 'all',
+                            'className' => $pr['class_name'] ?? '全校班级',
+                            'taskId' => $pr['task_id'] ?? 'task_all',
                             'fileName' => $pr['file_name'] ?? '',
                             'fileSize' => $pr['file_size'] ?? '',
                             'fileUrl' => $pr['file_data'] ?? '',
@@ -2644,9 +2649,14 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // 🛡️ 实体表实时入库：将所有范文 reference_papers 100% 同步 upsert 至 reference_papers 实体表
                 if (isset($decoded['referencePapers']) && is_array($decoded['referencePapers'])) {
-                    $stmtPaperUpsert = $pdo->prepare("INSERT INTO `reference_papers` (`id`, `title`, `abstract`, `highlights`, `target_group`, `file_name`, `file_size`, `file_data`, `upload_time`)
-                        VALUES (:id, :title, :abstract, :highlights, :tg, :fname, :fsize, :fdata, :uptime)
-                        ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `abstract`=VALUES(`abstract`), `highlights`=VALUES(`highlights`), `target_group`=VALUES(`target_group`), `file_name`=VALUES(`file_name`), `file_size`=VALUES(`file_size`), `file_data`=VALUES(`file_data`), `upload_time`=VALUES(`upload_time`)");
+                    try { @$pdo->exec("ALTER TABLE `reference_papers` ADD COLUMN `class_id` VARCHAR(128) NULL"); } catch (\Throwable $e) {}
+                    try { @$pdo->exec("ALTER TABLE `reference_papers` ADD COLUMN `class_name` VARCHAR(255) NULL"); } catch (\Throwable $e) {}
+                    try { @$pdo->exec("ALTER TABLE `reference_papers` ADD COLUMN `task_id` VARCHAR(128) NULL"); } catch (\Throwable $e) {}
+                    try { @$pdo->exec("ALTER TABLE `reference_papers` ADD COLUMN `target_group_ids` LONGTEXT NULL"); } catch (\Throwable $e) {}
+                    try { @$pdo->exec("ALTER TABLE `reference_papers` ADD COLUMN `target_group_name` VARCHAR(255) NULL"); } catch (\Throwable $e) {}
+                    $stmtPaperUpsert = $pdo->prepare("INSERT INTO `reference_papers` (`id`, `title`, `abstract`, `highlights`, `target_group`, `file_name`, `file_size`, `file_data`, `upload_time`, `class_id`, `class_name`, `task_id`, `target_group_ids`, `target_group_name`)
+                        VALUES (:id, :title, :abstract, :highlights, :tg, :fname, :fsize, :fdata, :uptime, :cid, :cname, :tid, :tgids, :tgname)
+                        ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `abstract`=VALUES(`abstract`), `highlights`=VALUES(`highlights`), `target_group`=VALUES(`target_group`), `file_name`=VALUES(`file_name`), `file_size`=VALUES(`file_size`), `file_data`=VALUES(`file_data`), `upload_time`=VALUES(`upload_time`), `class_id`=VALUES(`class_id`), `class_name`=VALUES(`class_name`), `task_id`=VALUES(`task_id`), `target_group_ids`=VALUES(`target_group_ids`), `target_group_name`=VALUES(`target_group_name`)");
                     $validPids = [];
                     foreach ($decoded['referencePapers'] as $rp) {
                         $rpid = $rp['id'] ?? ('paper_' . uniqid());
@@ -2659,9 +2669,15 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         $rpfsize = $rp['fileSize'] ?? '';
                         $rpfdata = $rp['fileUrl'] ?? ($rp['fileData'] ?? '');
                         $rpuptime = $rp['uploadTime'] ?? date('Y-m-d H:i:s');
+                        $rpcid = $rp['classId'] ?? 'all';
+                        $rpcname = $rp['className'] ?? '全校班级';
+                        $rptid = $rp['taskId'] ?? 'task_all';
+                        $rptgids = json_encode($rp['targetGroupIds'] ?? (isset($rp['targetGroupId']) ? [$rp['targetGroupId']] : ['all']), JSON_UNESCAPED_UNICODE);
+                        $rptgname = $rp['targetGroupName'] ?? '全班所有小组';
                         $stmtPaperUpsert->execute([
                             ':id' => $rpid, ':title' => $rptitle, ':abstract' => $rpabstract, ':highlights' => $rphighlights,
-                            ':tg' => $rptg, ':fname' => $rpfname, ':fsize' => $rpfsize, ':fdata' => $rpfdata, ':uptime' => $rpuptime
+                            ':tg' => $rptg, ':fname' => $rpfname, ':fsize' => $rpfsize, ':fdata' => $rpfdata, ':uptime' => $rpuptime,
+                            ':cid' => $rpcid, ':cname' => $rpcname, ':tid' => $rptid, ':tgids' => $rptgids, ':tgname' => $rptgname
                         ]);
                     }
                     if (!empty($validPids)) {

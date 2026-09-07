@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2833";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2833";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2833";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2834";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2834";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2834";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -1161,22 +1161,22 @@ function renderStage1Canvas(canvas, state, handlers) {
           <div id="stage1-contract-action-bar-mount" style="margin-top:12px; display:flex; justify-content:center;">
             ${(() => {
               const confs = state.stepConfirmations || {};
-              const isExtractingAny = isAnyExtracting(state);
-              const genericNames = ['学生', '组员', '我', '未分配', '匿名', 'a', 'b', 'c', 'user', 'undefined', 'null'];
-
+              const isExtractingAny = isTopicExtracting || isTimeExtracting || isTasksExtracting || isFullContractExtracting;
               const isDoneHelper = (map) => {
                 if (!map) return 0;
                 return membersList.filter(m => isMemberDone(map, m)).length;
               };
               const isMyDoneHelper = (map) => {
                 if (!map) return false;
-                return isMemberDone(map, currUserObj || currentUser);
+                return isMemberDone(map, currUserObj || { id: currentUser, name: currentUserName });
               };
 
               if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
                 return `
-                  <div style="background:#f0fdf4; border:1.5px solid #86efac; color:#15803d; padding:7px 22px; border-radius:20px; font-weight:800; font-size:13px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(34,197,94,0.15);">
-                    ✅ 公约草案已全部提炼生成（全组可微调修改，并在下方签署确认）
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:13px; font-weight:800; color:#059669; background:#ecfdf5; border:1px solid #a7f3d0; padding:6px 16px; border-radius:20px;">
+                      🎉 公约草案已全部就绪
+                    </span>
                   </div>
                 `;
               } else if (s1.contractStep === 'tasks') {
@@ -1270,12 +1270,12 @@ function renderStage1Canvas(canvas, state, handlers) {
       </div>
 
       <div style="display:flex; flex-direction:column; gap:16px; width:100%;">
-        <!-- 6大研究设计方案模块与时间规划 (文体自适应) -->
+        <!-- 6大研究设计方案模块与阶段二起草时间规划 (文体自适应) -->
         <div style="background:#f8fafc; padding:18px; border-radius:12px; border:1px solid #bfdbfe; width:100%; box-sizing:border-box;">
           <div style="font-weight:800; color:#1e40af; margin-bottom:14px; font-size:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
             <div style="display:flex; align-items:center; gap:8px;">
-              <span>📚 方案核心模块与时间规划 (6 大模块起草):</span>
-              <span style="font-size:11.5px; background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:8px; border:1px solid #bfdbfe; font-weight:700;">${genreCfg.icon} ${genreCfg.label}</span>
+              <span>📚 方案核心模块与阶段二起草时间规划 (6 大模块起草):</span>
+              <span style="font-size:11.5px; background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:8px; border:1px solid #bfdbfe; font-weight:700;">⏱️ 阶段二起草预算: 约 ${Math.round(taskDurMin * 0.70)} 分钟 (任务总时长 ${taskDurMin} 分钟)</span>
             </div>
           </div>
           
@@ -1317,6 +1317,7 @@ function renderStage1Canvas(canvas, state, handlers) {
         </div>
       </div>
 
+      <!-- 签署矩阵看板 -->
       <div id="stage1-contract-sign-matrix-mount" style="margin-top:16px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px 18px; width:100%; box-sizing:border-box;">
         <div style="font-size:13px; font-weight:700; color:#334155; margin-bottom:10px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;">
           <span>📌 本组全员确认签署状态矩阵 (规则：需 ${totalMembersCount}/${totalMembersCount} 人全部点击确认):</span>
@@ -1324,7 +1325,7 @@ function renderStage1Canvas(canvas, state, handlers) {
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:13px;">
           ${membersList.map(m => {
-            const isConf = isMemberDone(confirmedMembers, m);
+            const isConf = isMemberDone(s1.contract?.confirmedMembers, m);
             return `
               <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#ffffff'}; padding:6px 12px; border-radius:8px; font-weight:600;">
                 ${m.avatar || '👤'} ${m.name}: <b>${isConf ? '✅ 已确认签署' : '⏳ 未确认'}</b>
@@ -1343,11 +1344,15 @@ function renderStage1Canvas(canvas, state, handlers) {
           <button disabled style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:13px 32px; border-radius:10px; font-weight:800; cursor:not-allowed; font-size:14.5px;">
             🛑 任务已截止（只读查阅模式）
           </button>
+        ` : (!isContractComplete ? `
+          <button id="btn-confirm-contract" disabled style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:13px 32px; border-radius:10px; font-weight:800; cursor:not-allowed; font-size:14.5px; opacity:0.85; box-shadow:none;" title="请先完成课题、方案概述、时间分配与任务分工">
+            ⏳ 请等待公约内容生成完整后签署 (需完成课题、概述、时间与分工)
+          </button>
         ` : `
           <button id="btn-confirm-contract" style="background:${userHasConfirmed ? '#eff6ff' : 'linear-gradient(135deg, #059669, #047857)'}; border:1px solid ${userHasConfirmed ? '#bfdbfe' : 'transparent'}; color:${userHasConfirmed ? '#1d4ed8' : 'white'}; padding:13px 32px; border-radius:10px; font-weight:800; cursor:pointer; font-size:14.5px; box-shadow:0 3px 12px rgba(5,150,105,0.25);">
             ${userHasConfirmed ? `✅ 我 (${currentUserName}) 已按键确认签署 (${confirmedCount}/${totalMembersCount} 人已完成)` : `✍️ 我以 (${currentUserName}) 身份按键确认签署合约 (已确认 ${confirmedCount}/${totalMembersCount} 人)`}
           </button>
-        `)}
+        `))}
       </div>
 
     </div>
@@ -2036,6 +2041,17 @@ function renderStage1Canvas(canvas, state, handlers) {
     const btnConfirm = canvas.querySelector('#btn-confirm-contract');
     if (btnConfirm) {
       btnConfirm.addEventListener('click', () => {
+        const hasTopic = !!(s1.mergedTitle || s1.contract?.topic?.trim());
+        const hasOverview = !!(s1.contract?.overview?.trim() || s1.researchOverview?.trim());
+        const hasTime = !!(s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6 && Object.values(s1.contract.timeAllocations).some(v => Number(v) > 0));
+        const hasAssignments = !!(s1.contract?.taskAssignments && Object.keys(s1.contract.taskAssignments).length > 0 && Object.values(s1.contract.taskAssignments).some(v => typeof v === 'string' && v.trim().length > 0));
+        if (!hasTopic || !hasOverview || !hasTime || !hasAssignments) {
+          if (typeof showGlobalBannerNotice === 'function') {
+            showGlobalBannerNotice('公约尚未就绪', '请先完成课题、方案概述、时间预算分配及人员分工等公约核心内容，方可签署！', 'warning', 4000);
+          }
+          return;
+        }
+
         s1.contract._lastSignTime = Date.now();
         const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
         const myCode = currUser?.id || state.currentUser || '';
@@ -4000,6 +4016,13 @@ export function renderChat(state) {
         btn.disabled = true;
         btn.style.opacity = '0.5';
         btn.style.cursor = 'not-allowed';
+      });
+    } else {
+      // 🛡️ 恢复：当不再进行任何提炼时，确保重试按钮可点击
+      stream.querySelectorAll('.btn-retry-ai').forEach(btn => {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
       });
     }
 

@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2833";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2833";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2833";
-import { AuthManager } from "./auth.js?v=20260907_v2833";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2833";
-import { renderLoginView } from "./login.js?v=20260907_v2833";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2833";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2833";
+} from "./constants.js?v=20260907_v2834";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2834";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2834";
+import { AuthManager } from "./auth.js?v=20260907_v2834";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2834";
+import { renderLoginView } from "./login.js?v=20260907_v2834";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2834";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2834";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2833";
+} from "./editor.js?v=20260907_v2834";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4036,6 +4036,91 @@ export class App {
   }
 
   /**
+   * 🔄 阶段二：手动重试触发一审破题把脉（供聊天气泡中的重试按钮调用）
+   */
+  async triggerStage2FirstReview(btnElement = null) {
+    if (this._isTriggeringFirstReview) return;
+    this._isTriggeringFirstReview = true;
+    if (btnElement) this.disableAllRetryButtons(btnElement, '⏳ 正在重新生成一审破题把脉...');
+
+    const taskType = this.getCurrentTaskType();
+    const isInstTask = (taskType === 'instructional');
+    const reviewerRoleName = isInstTask ? '教研专家' : '审稿编辑';
+    const genreDocName = isInstTask ? '教学设计' : '论文';
+    const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+
+    // 获取当前 Etherpad 正文内容
+    let rawDoc = '';
+    try {
+      const padFrame = document.querySelector('#etherpad-iframe, iframe[src*="etherpad"]');
+      if (padFrame && padFrame.contentDocument) {
+        const body = padFrame.contentDocument.querySelector('iframe[name="ace_outer"]')?.contentDocument?.querySelector('iframe[name="ace_inner"]')?.contentDocument?.body;
+        rawDoc = body ? body.innerText.replace(/<[^>]*>/g, '').trim() : '';
+      }
+    } catch (e) { /* cross-origin */ }
+    if (!rawDoc) rawDoc = this.state.stage2?.lastEditorContent || this.state.stage2?.editorContent || '论文草稿已起草引言与文献综述';
+
+    const s2 = this.state.stage2 || {};
+
+    this.setActiveAgentAnalyzing({
+      icon: '📝',
+      title: `【${reviewerRoleName}】正在进行初审破题把脉质检...`,
+      detail: `正在全量通读当前已起草的全部正文段落，以开篇破题为主线进行通盘${isInstTask ? '教学设计' : '学术'}把脉...`
+    });
+
+    try {
+      const genreDesc = getGenrePromptDescriptor(taskType);
+      const firstReviewPrompt = `${genreDesc}\n\n【课题】：《${topic}》\n【当前${genreDocName}正文已起草的实际草稿内容（全量通读）】：\n${rawDoc}\n\n请作为${reviewerRoleName}，全面通读当前学生已起草的全部内容（写到哪审到哪，具体情况具体分析，【绝对严禁出现"分工"字眼】）：\n1. 【正文实质性与进度评估】：\n   - 若当前草稿字数极少（仅有零星几个字、测试字句或尚未实质性展开正文）：直接一针见血指出正文起草严重滞后，尚未形成实质性${genreDocName}框架，督促小组成员紧扣《${topic}》尽快展开开篇实质性起草；\n   - 若已有实质性起草：以开篇立意/${isInstTask ? '三维教学目标' : '核心研究问题'}为主线，直截了当指出【哪里有什么问题 ➔ 怎么改】；${isInstTask ? '\n   - 【教学设计质检红线】：严格审查第二部分【教学目标与重难点】是否规范落地【三维目标】（知识与技能、过程与方法、情感态度价值观），严查是否出现"使学生/让学生"等教师视角表述、过程与方法是否具备"通过...经历...学会..."三要素、动词是否具体可测；' : ''}\n2. 【分情况审查全文衔接】：\n   - 若后续章节/教学活动已有起草：明确指出开头目标/立论与后续已写段落之间是否存在脱节；\n   - 若后续章节尚未起草：重点把关开头的问题界定与学情目标是否精准，并给出后续展开的衔接要求；\n3. 【语体规范与严密性】：若存在口语化表述或设计步骤含糊，精准指出并给出规范建议；\n\n输出格式：清晰列出 1~2 条核心质检条目（每条包含：· 诊断问题：指出哪里有什么问题；· 改进建议：指出具体怎么改）。纯自然语言输出，120~160字。`;
+
+      let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, {
+        stage: 'stage2',
+        topic,
+        actualDoc: rawDoc,
+        taskType,
+        milestoneKey: 'stage2_first_review',
+        scopeKey: this.getGroupScopeKey()
+      });
+
+      if (firstReviewText && firstReviewText.trim().length > 0) {
+        const formattedFirstReview = (firstReviewText.includes('一审') || firstReviewText.includes('初审') || firstReviewText.includes('破题把脉')) ? firstReviewText : `📝 【${reviewerRoleName}·一审破题把脉】：\n${firstReviewText}`;
+        const firstReviewMsg = {
+          sender: 'reviewingEditor',
+          senderName: `学术质量 · ${reviewerRoleName}`,
+          text: formattedFirstReview,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+        this.state.chatLogs.stage2.push(firstReviewMsg);
+        s2.firstReviewText = firstReviewText;
+        s2.reviewMilestone = 'first_review_done';
+        this.syncChatLogs();
+        this.syncStage2();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      } else {
+        // 仍然失败，重新显示重试按钮
+        const errMsg = {
+          id: 'err_first_review_retry_' + Date.now(),
+          sender: 'reviewingEditor',
+          senderName: `学术质量 · ${reviewerRoleName}`,
+          text: `📝 【${reviewerRoleName}·网络提醒】：📡 一审破题把脉再次生成失败，请稍后重试。<br><button class="btn-retry-ai" onclick="window.app.triggerStage2FirstReview(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成《一审破题把脉》</button>`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+        this.state.chatLogs.stage2.push(errMsg);
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      }
+    } catch (err) {
+      console.error('[triggerStage2FirstReview] retry error:', err);
+    } finally {
+      this.setActiveAgentAnalyzing(null);
+      this._isTriggeringFirstReview = false;
+    }
+  }
+
+  /**
    * 💡 阶段一：重试生成方案研讨指引
    */
   async retryVoteGuidance(btnElement) {
@@ -4248,6 +4333,8 @@ ${votedDetails}
       this.renderStudentWorkspace();
     } catch (e) {
       console.warn('triggerVoteGuidance error:', e);
+      this._isTriggeringVoteGuidance = false;
+      this.setActiveAgentAnalyzing(null);
       this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (!m.isThinking && !String(m.id || '').startsWith('thinking_vote')));
       const errVoteMsg = {
         id: 'err_vote_' + Date.now(),
@@ -4274,6 +4361,11 @@ ${votedDetails}
       if (this.state.stage1) this.state.stage1._guidanceCallingTimestamp = null;
       this.syncStage1();
       this.setActiveAgentAnalyzing(null);
+      if (typeof window.renderChat === 'function') {
+        window.renderChat(this.state);
+      } else {
+        renderChat(this.state);
+      }
     }
   }
 
@@ -4767,6 +4859,8 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
       renderChat(this.state);
     } catch (e) {
       console.warn('Extract topic & overview error:', e);
+      this._isExtractingTopic = false;
+      this.setActiveAgentAnalyzing(null);
       if (!this.state.stage1) this.state.stage1 = {};
       this.state.stage1._topicExtractFailed = true;
       this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (!m.isThinking && !String(m.id || '').startsWith('thinking_topic_')));
@@ -4792,6 +4886,7 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
       this._isExtractingTopic = false;
       this.setActiveAgentAnalyzing(null);
       this.renderStudentWorkspace();
+      renderChat(this.state);
       if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
     }
   }
@@ -4858,28 +4953,30 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
       const allTasks = this.authManager ? this.authManager.getTasks() : [];
       const curTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
       const totalDurationMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
+      const stage2BudgetMin = Math.round(totalDurationMin * 0.70);
 
-      const timePrompt = `小组成员已就${isInst ? '教学设计方案 6 大模块' : '学术论文 6 大章节'}的时间预算规划在讨论区展开了非制式自由研讨。
+      const timePrompt = `小组成员已就${isInst ? '教学设计方案 6 大模块' : '学术论文 6 大章节'}的时间预算规划在讨论区展开了研讨。
 【组内关于时间规划与各${isInst ? '模块' : '章节'}侧重的真实研讨记录（全量记录）】:
 ${chatSnippet}
-【参考${isInst ? '备课设计' : '论文写作'}总时长】: ${totalDurationMin} 分钟
+【参考任务总时长】: ${totalDurationMin} 分钟，其中【阶段二 ${isInst ? '集体备课/教学设计起草' : '学术编辑部/正文撰写'}预算时长（占任务总时长 70%）约为 ${stage2BudgetMin} 分钟】。
 
 请通读上述真实讨论记录，作为资深${agentRole}：
+1. 核心规划原则：6 大${isInst ? '模块' : '章节'}的时间预算分配是专门针对【阶段二 正文协同撰写/备课起草】的实际耗时进行规划，因此 6 大${isInst ? '模块' : '章节'}分配的分钟数总和应约为 ${stage2BudgetMin} 分钟（【最高红线：严禁按任务全流程总时长 ${totalDurationMin} 分钟分配，因为阶段一方案协商与阶段三答辩也各需占用时间】）；
    - 若组员明确提到了某${isInst ? '模块' : '章节'}分配多少分钟，严格按照组员商定的时间分配；
-   - 若组员提到各${isInst ? '模块' : '章节'}“平分”或“均分”，则将总时长平分给各${isInst ? '模块' : '章'}；
-   - 若组员提到“重点在${isInst ? '新知探究与建构/情境创设' : '方法/重点在综述'}”，则显著增加对应${isInst ? '模块' : '章节'}的时间权重；
-   - 若组员未明确提及某${isInst ? '模块' : '章节'}具体数值，依据${isInst ? '教学设计方案黄金比例（重点强化新知探究与建构）' : '学术论文标准黄金比例（重点强化研究设计与方法）'}智能补齐，使 6 大${isInst ? '模块' : '章节'}总和约为 ${totalDurationMin} 分钟；
+   - 若组员提到各${isInst ? '模块' : '章节'}“平分”或“均分”，则将阶段二预算（约 ${stage2BudgetMin} 分钟）平分给各${isInst ? '模块' : '章'}；
+   - 若组员提到“重点在${isInst ? '新知探究与建构/情境创设' : '研究设计与方法/文献综述'}”，则显著增加对应${isInst ? '模块' : '章节'}的时间权重；
+   - 若组员未明确提及某${isInst ? '模块' : '章节'}具体数值，依据${isInst ? '教学设计方案黄金比例（重点强化新知探究与建构）' : '学术论文标准黄金比例（重点强化研究设计与方法）'}智能补齐，使 6 大${isInst ? '模块' : '章节'}总和约为 ${stage2BudgetMin} 分钟；
 2. 给出 1 句专业且亲切的点拨（结合组员的研讨侧重点），宣布时间分配已录入公约，并顺承引导全组在讨论区商定各自负责的${isInst ? '撰写模块' : '写作章节'}与任务分工！
 
 输出格式必须为合法 JSON（严禁代码块以外的多余文字）：
 {
-  "background": 25,
-  "literature": 30,
-  "questions": 25,
-  "method": 40,
-  "reflection": 20,
-  "references": 10,
-  "guideText": "全篇 6 大${isInst ? '模块' : '章节'}时间预算已成功配置并录入公约看板！接下来请全组在讨论区商定各自负责认领的${isInst ? '撰写模块' : '写作章节'}与任务分工！商定完成后点击左侧【👥 一键提炼任务分工】！"
+  "background": ${isInst ? 10 : 12},
+  "literature": ${isInst ? 10 : 16},
+  "questions": ${isInst ? 15 : 12},
+  "method": ${isInst ? 30 : 30},
+  "reflection": ${isInst ? 12 : 14},
+  "references": ${isInst ? 7 : 8},
+  "guideText": "阶段二 6 大${isInst ? '模块' : '章节'}起草时间预算（共计约 ${stage2BudgetMin} 分钟）已成功配置并录入公约看板！接下来请全组在讨论区商定各自负责认领的${isInst ? '撰写模块' : '写作章节'}与任务分工！商定完成后点击左侧【👥 一键提炼任务分工】！"
 }`;
 
       const resp = await callCozeAgentAPI('auctioneer', timePrompt, { stage: 'stage1', topic: s1.mergedTitle || (isInst ? '教学设计' : '论文'), taskType, milestoneKey: 'stage1_time_alloc' });
@@ -5003,6 +5100,8 @@ ${chatSnippet}
       renderChat(this.state);
     } catch (e) {
       console.warn('Extract time error:', e);
+      this._isExtractingTime = false;
+      this.setActiveAgentAnalyzing(null);
       if (!this.state.stage1) this.state.stage1 = {};
       this.state.stage1._timeExtractFailed = true;
       this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (!m.isThinking && !String(m.id || '').startsWith('thinking_time_')));
@@ -5028,6 +5127,7 @@ ${chatSnippet}
       this._isExtractingTime = false;
       this.setActiveAgentAnalyzing(null);
       this.renderStudentWorkspace();
+      renderChat(this.state);
       if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
     }
   }
@@ -5227,6 +5327,8 @@ ${chatSnippet}
       renderChat(this.state);
     } catch (e) {
       console.warn('Extract tasks error:', e);
+      this._isExtractingTasks = false;
+      this.setActiveAgentAnalyzing(null);
       if (!this.state.stage1) this.state.stage1 = {};
       this.state.stage1._tasksExtractFailed = true;
       this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (!m.isThinking && !String(m.id || '').startsWith('thinking_tasks_')));
@@ -5252,6 +5354,7 @@ ${chatSnippet}
       this._isExtractingTasks = false;
       this.setActiveAgentAnalyzing(null);
       this.renderStudentWorkspace();
+      renderChat(this.state);
       if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
     }
   }
@@ -5538,6 +5641,8 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
 
     if (!isSuccess) {
       this._contractGenerateFailed = true;
+      this._isGeneratingContract = false;
+      this.setActiveAgentAnalyzing(null);
       if (this.state.stage1) this.state.stage1._fullContractFailed = true;
       this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (!m.isThinking && !String(m.id || '').startsWith('thinking_full_contract_')));
       const errFullMsg = {
@@ -5555,8 +5660,8 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
       this.syncStage1();
       this.syncChatLogs();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-      if (typeof renderChat === 'function') renderChat(this.state);
       this.renderStudentWorkspace();
+      if (typeof renderChat === 'function') renderChat(this.state);
       return;
     }
 
@@ -5647,6 +5752,8 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
     }, 300);
   } catch (e) {
     console.warn('One click generate contract error:', e);
+    this._isGeneratingContract = false;
+    this.setActiveAgentAnalyzing(null);
     if (this.state.stage1) this.state.stage1._contractGenerateFailed = true;
     if (window.app) window.app._contractGenerateFailed = true;
     const errFullMsg = {
@@ -5668,6 +5775,7 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
     this._isGeneratingContract = false;
     this.setActiveAgentAnalyzing(null);
     this.renderStudentWorkspace();
+    renderChat(this.state);
     if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
   }
 }
@@ -5892,7 +6000,17 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
       const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues, taskType, milestoneKey: 'stage2_managing' });
       let managingText = (respManaging && respManaging.trim().length > 0) ? respManaging.trim() : '';
       if (!managingText) {
+        this.setActiveAgentAnalyzing(null);
+        this._isGeneratingManagingSummary = false;
         managingText = `🤝 【${managingName}·提示】：📡 正在提炼研讨共识，大模型生成未完成。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:5px 14px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新调用生成研讨共识小结</button>`;
+        const msgManaging = { sender: 'managingEditor', senderName: isInst ? '协同调度 · 备课组长' : '协同调度 · 责任编辑', text: managingText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
+        s2ChatLogs.push(msgManaging);
+        this.sendSingleChatMessage(msgManaging, 'stage2');
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        this.renderStudentWorkspace();
+        if (typeof renderChat === 'function') renderChat(this.state);
+        return;
       } else {
         if (!managingText.startsWith('🤝')) managingText = `🤝 【${managingName}·研讨共识小结】：${managingText}`;
       }
@@ -5932,6 +6050,7 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
       }
 
       if (!reviewingText) {
+        this.setActiveAgentAnalyzing(null);
         reviewingText = `📝 【${reviewingName}·提示】：📡 通读全篇草稿生成清单未完成。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:5px 14px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新调用下发《${isInst ? '磨课修正清单' : '二审修正清单'}》</button>`;
       } else {
         if (!reviewingText.startsWith('📝')) reviewingText = `📝 【${reviewingName}·${isInst ? '磨课质检' : '二审修正'}】：${reviewingText}`;
@@ -5970,6 +6089,7 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
       this.setActiveAgentAnalyzing(null);
       this._isGeneratingManagingSummary = false;
       this.renderStudentWorkspace();
+      if (typeof renderChat === 'function') renderChat(this.state);
     }
   }
 
@@ -6017,6 +6137,7 @@ ${chatSnippet}
       const respSummary = await callCozeAgentAPI('reviewingEditor', summaryPrompt, { stage: 'stage2', topic, taskType, milestoneKey: 'stage2_review_summary' });
       let summaryText = (respSummary && respSummary.trim().length > 0) ? respSummary.trim() : '';
       if (!summaryText) {
+        this.setActiveAgentAnalyzing(null);
         summaryText = `📝 【${reviewingName}·网络提醒】：📡 正在评估全组修改对策与落实方案，网络连接稍有延迟未能获取到即时总结。<br><button class="btn-retry-ai" onclick="window.app.handleS2ReviewingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成修改确认与冲刺寄语</button>`;
       } else {
         if (!summaryText.startsWith('📝')) summaryText = `📝 【${reviewingName}·修改确认与${isInst ? '备课' : '写作'}冲刺】：${summaryText}`;
@@ -6045,6 +6166,7 @@ ${chatSnippet}
       this._isGeneratingReviewSummary = false;
       this.setActiveAgentAnalyzing(null); // 🌟 研判完毕，清除动态分析框
       this.renderStudentWorkspace();
+      if (typeof renderChat === 'function') renderChat(this.state);
     }
   }
 
@@ -6264,6 +6386,8 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
         }
       } else {
         // ⚠️ 只要大模型生成未完成或缺少任何一个标签，严禁兜底硬塞，必须直接出重试按键！
+        this.setActiveAgentAnalyzing(null);
+        this._isAnalyzingS3Inquiry = false;
         chairSpeech = `🟡 【${chairShort}·网络提醒】：📡 答辩审阅大模型未能按标准完成【${inqLabel}】定案分析。<br><button class="btn-retry-ai" onclick="window.app.handleS3InquirySummary(this)" style="margin-top:6px; background:#d97706; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成【${inqLabel}】答辩定案</button>`;
       }
 
@@ -6286,6 +6410,8 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
       if (typeof window.renderChat === 'function') window.renderChat(this.state);
     } catch (e) {
       console.warn('handleS3InquirySummary error:', e);
+      this._isAnalyzingS3Inquiry = false;
+      this.setActiveAgentAnalyzing(null);
       const errChairMsg = {
         sender: 'neutral',
         senderName: '答辩委员会主席 · 中间委员',
@@ -6299,6 +6425,7 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
       this._isAnalyzingS3Inquiry = false;
       this.setActiveAgentAnalyzing(null);
       this.renderStudentWorkspace();
+      if (typeof window.renderChat === 'function') window.renderChat(this.state);
     }
   }
 
@@ -6704,6 +6831,8 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
 
         // 🛡️ 纯粹大模型真实生成：若未生成完成则提示重试，绝不注入假保底内容
         if (!propText || !oppText) {
+          this.setActiveAgentAnalyzing(null);
+          this._isStage3PipelineRunning = false;
           const errPipelineMsg = {
             id: 'msg_s3_pipeline_err_' + Date.now(),
             sender: 'neutral',
@@ -8350,11 +8479,13 @@ ${contentSnippet}
             console.warn('[FirstReview] Coze API error, switching to prompt fallback:', apiErr);
           }
           if (!firstReviewText || firstReviewText.trim().length === 0) {
+            this.setActiveAgentAnalyzing(null);
+            this._isTriggeringFirstReview = false;
             const errReviewMsg = {
               id: 'err_first_review_' + Date.now(),
               sender: 'reviewingEditor',
               senderName: `学术质量 · ${reviewerRoleName}`,
-              text: `📝 【${reviewerRoleName}·网络提醒】：📡 正在通读正文草稿进行初审把脉，网络连接稍有延迟未能即时生成意见。<br><button class="btn-retry-ai" onclick="window.app.triggerStage2FirstReview()" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成《一审破题把脉》</button>`,
+              text: `📝 【${reviewerRoleName}·网络提醒】：📡 正在通读正文草稿进行初审把脉，网络连接稍有延迟未能即时生成意见。<br><button class="btn-retry-ai" onclick="window.app.triggerStage2FirstReview(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成《一审破题把脉》</button>`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now()
             };
