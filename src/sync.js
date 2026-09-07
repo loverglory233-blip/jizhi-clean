@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2830';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2830';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2831';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2831';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -327,7 +327,9 @@ export class CloudSyncEngine {
       if (res.ok) {
         const data = await res.json();
         if (data && data.presence && typeof data.presence === 'object') {
-          this.app.state.presence = { ...(this.app.state.presence || {}), ...data.presence };
+          const newPr = { ...data.presence };
+          newPr[userKey] = { lastSeen: Date.now(), updatedAt: Date.now(), name: currentUser.name || userKey, role: currentUser.role || 'student' };
+          this.app.state.presence = newPr;
           if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
           this.app.renderPresenceCursors();
         }
@@ -1127,7 +1129,12 @@ export class CloudSyncEngine {
           }
         });
       }
-      this.app.state.presence = { ...(this.app.state.presence || {}), ...incomingPr };
+      // 🛡️ 严格权威在线状态：直接采用服务端清洗后的最新 presence，杜绝历史离线成员内存残留
+      const myId = user ? String(user.id || '').trim() : '';
+      if (myId && this.app.state.presence && this.app.state.presence[myId]) {
+        incomingPr[myId] = this.app.state.presence[myId];
+      }
+      this.app.state.presence = incomingPr;
       this.app.renderPresenceCursors();
     }
 

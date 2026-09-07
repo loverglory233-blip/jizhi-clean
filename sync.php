@@ -920,7 +920,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
 
     $result = ['success' => true, 'groups' => []];
     $nowMs = round(microtime(true) * 1000);
-    $ONLINE_WINDOW_MS = 180000; // 180 秒（3分钟稳定在线窗口，消除弱网与思考间歇抖动）
+    $ONLINE_WINDOW_MS = 15000; // 15 秒实时在线窗口（心跳每4秒一次，3次心跳断开即判定离线）
 
     if ($pdo) {
         // 1. 优先加载官方班级分组名册与全校学生信息字典
@@ -996,7 +996,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
         }
         if (empty($allGroupIds)) $allGroupIds = ['group_1'];
 
-        $ONLINE_WINDOW_MS = 180000; // 180 秒（3分钟稳定在线窗口，消除弱网与思考间歇抖动）
+        $ONLINE_WINDOW_MS = 15000; // 15 秒实时在线窗口（心跳每4秒一次，3次心跳断开即判定离线）
         $cutoffMs = $nowMs - $ONLINE_WINDOW_MS;
 
         // 🚀 性能革命：收集全量 ScopeKey 进行批量单次查表，消灭 N+1 查询瓶颈，教师端毫秒级秒开！
@@ -3045,17 +3045,18 @@ if ($action === 'presence_ping' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $currPresence = !empty($rawPrStr) ? json_decode($rawPrStr, true) : [];
         if (!is_array($currPresence)) $currPresence = [];
 
-        // 清理超过 180 秒（3分钟容错）的陈旧心跳或显式离线记录
+        // 清理超过 15 秒（约3次心跳周期）的陈旧心跳或显式离线记录
         $cleanPresence = [];
         foreach ($currPresence as $k => $v) {
             $lastSeen = isset($v['lastSeen']) ? intval($v['lastSeen']) : (isset($v['updatedAt']) ? intval($v['updatedAt']) : 0);
             $isOff = is_array($v) && !empty($v['offline']);
-            if (!$isOff && ($nowMs - $lastSeen < 180000)) {
+            if (!$isOff && ($nowMs - $lastSeen < 15000)) {
                 $cleanPresence[strval($k)] = $v;
             }
         }
 
         $pingPayload = [
+            'userId'    => $userKey,
             'lastSeen'  => $nowMs,
             'updatedAt' => $nowMs,
             'timestamp' => $nowMs,
@@ -3092,6 +3093,7 @@ if ($action === 'presence_ping' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'presence_leave' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $req = !empty($REQ_DATA) ? $REQ_DATA : (@json_decode($RAW_INPUT, true) ?: []);
     $userKey = isset($req['userId']) ? trim($req['userId']) : (isset($req['studentCode']) ? trim($req['studentCode']) : '');
+    $userName = isset($req['name']) ? trim($req['name']) : '';
     $nowMs = round(microtime(true) * 1000);
 
     if (!empty($userKey) && $pdo) {
@@ -3099,11 +3101,18 @@ if ($action === 'presence_leave' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmtGet->execute([':sk' => $scopeKey]);
         $stRow = $stmtGet->fetch();
         $currPresence = ($stRow && !empty($stRow['presence_data'])) ? json_decode($stRow['presence_data'], true) : [];
-        if (!is_array($currPresence)) $currPresence = [];
-        unset($currPresence[strval($userKey)]);
-        $prJson = json_encode($currPresence, JSON_UNESCAPED_UNICODE);
-        $stmtUp = $pdo->prepare("UPDATE group_states SET presence_data = :pr, last_timestamp = :ts WHERE scope_key = :sk");
-        $stmtUp->execute([':pr' => $prJson, ':ts' => $nowMs, ':sk' => $scopeKey]);
+        if (is_array($currPresence)) {
+            $newPr = [];
+            foreach ($currPresence as $k => $v) {
+                if (is_same_id_php($k, $userKey)) continue;
+                if ($userName && isset($v['name']) && $v['name'] === $userName) continue;
+                if (isset($v['userId']) && is_same_id_php($v['userId'], $userKey)) continue;
+                $newPr[$k] = $v;
+            }
+            $prJson = json_encode($newPr, JSON_UNESCAPED_UNICODE);
+            $stmtUp = $pdo->prepare("UPDATE group_states SET presence_data = :pr, last_timestamp = :ts WHERE scope_key = :sk");
+            $stmtUp->execute([':pr' => $prJson, ':ts' => $nowMs, ':sk' => $scopeKey]);
+        }
     }
     echo json_encode(['success' => true]);
     exit;
@@ -3874,7 +3883,7 @@ if ($pdo) {
         foreach ($currPr as $pk => $pv) {
             $t = is_array($pv) ? intval($pv['lastSeen'] ?? $pv['updatedAt'] ?? $pv['timestamp'] ?? 0) : 0;
             $isOff = is_array($pv) && !empty($pv['offline']);
-            if ($isOff || ($nowMs - $t > 180000)) {
+            if ($isOff || ($nowMs - $t > 15000)) {
                 unset($currPr[$pk]);
                 $prChanged = true;
             }

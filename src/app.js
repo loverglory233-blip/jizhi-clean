@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2830";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2830";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2830";
-import { AuthManager } from "./auth.js?v=20260907_v2830";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2830";
-import { renderLoginView } from "./login.js?v=20260907_v2830";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2830";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2830";
+} from "./constants.js?v=20260907_v2831";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2831";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2831";
+import { AuthManager } from "./auth.js?v=20260907_v2831";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2831";
+import { renderLoginView } from "./login.js?v=20260907_v2831";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2831";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2831";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2830";
+} from "./editor.js?v=20260907_v2831";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -877,8 +877,8 @@ export class App {
         const membersList = Object.values(this.state.members || {});
         const presenceMap = this.state.presence || {};
         const onlineMembers = membersList.filter(m => {
-          const p = presenceMap[m.id] || presenceMap[m.id];
-          return p && (nowMs - (p.updatedAt || 0) < 180000);
+          const p = presenceMap[m.id] || presenceMap[m.name];
+          return p && (nowMs - (p.updatedAt || p.lastSeen || 0) < 15000);
         });
         if (this.isCurrentTaskReadOnly && this.isCurrentTaskReadOnly()) return; // 🛡️ 只读模式下绝不触发任何定时智能体催促与分析
 
@@ -1345,8 +1345,12 @@ export class App {
             // 🛡️ 严格任务物理隔离：无论是从任务大厅进入、还是切换不同任务，进入指定任务时彻底重置为干净状态或该任务专属状态
             const isNewOrSwitchedTask = (!this.state.activeTaskId || !isSameId(this.state.activeTaskId, strictTaskId));
             if (isNewOrSwitchedTask) {
+              if (this.cloudSyncEngine && this.state.activeTaskId) {
+                this.cloudSyncEngine.sendPresenceLeave(currentUser);
+              }
               sessionStorage.removeItem('jizhi_active_workspace_snap');
               localStorage.removeItem('jizhi_active_workspace_snap');
+              this.state.presence = {};
               this.state.isFinalSubmitted = false;
               this.state.currentStage = 'stage1';
               this.state.groupMaxStage = 'stage1';
@@ -1386,12 +1390,11 @@ export class App {
             this.state.currentStage = effectiveStage;
             this.isViewingPastStage = false;
 
-            if (!this.state.presence) this.state.presence = {};
-            const myKeys = [currentUser?.id, currentUser?.name].filter(Boolean);
+            this.state.presence = {};
             const now = Date.now();
-            myKeys.forEach(k => {
-              this.state.presence[k] = { nodeIndex: 0, activeSection: '在线协作', updatedAt: now };
-            });
+            if (currentUser?.id) {
+              this.state.presence[String(currentUser.id)] = { nodeIndex: 0, activeSection: '在线协作', updatedAt: now, lastSeen: now, name: currentUser.name };
+            }
 
             if (this.cloudSyncEngine) {
               this.cloudSyncEngine.isLoggingOut = false;
