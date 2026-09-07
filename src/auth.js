@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260907_v2823';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260907_v2823';
+} from './constants.js?v=20260907_v2824';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260907_v2824';
 
 export class AuthManager {
   constructor() {
@@ -732,13 +732,9 @@ export class AuthManager {
     if (!tasks || tasks.length === 0) return null;
     if (targetId) {
       const found = tasks.find(t => isSameId(t.id, targetId) || (t.title && t.title === targetId));
-      if (found) return found;
+      return found || null;
     }
-    const checkExpired = (typeof isTaskExpired === 'function') ? isTaskExpired : (t => {
-      if (!t || !t.deadline) return false;
-      return new Date(String(t.deadline).replace(/-/g, '/')).getTime() < Date.now();
-    });
-    return tasks.find(t => !checkExpired(t)) || tasks[0] || null;
+    return null;
   }
   getAnnouncements() {
     let announcements = [];
@@ -1262,13 +1258,12 @@ export class AuthManager {
     let activeTask = null;
     const tasks = this.getTasks();
     if (taskId) {
-      activeTask = tasks.find(t => isSameId(t.id, taskId)) || null;
+      activeTask = tasks.find(t => isSameId(t.id, taskId) || (t.title && t.title === taskId)) || null;
     }
-    if (!activeTask && tasks.length > 0) {
-      const clsTasks = tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === 'class_all' || isSameId(t.classId, activeClass.id));
-      activeTask = clsTasks.length > 0 ? clsTasks[0] : tasks[0];
+    if (!activeTask) {
+      return { ok: false, reason: '当前写作任务已失效或被教师删除，请返回任务大厅' };
     }
-    const resolvedTaskId = activeTask ? activeTask.id : '';
+    const resolvedTaskId = activeTask.id;
 
     // 4) 成员 = 当前登录用户本身
     return {

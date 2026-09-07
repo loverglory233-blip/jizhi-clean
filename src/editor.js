@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2823";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2823";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2823";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2824";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2824";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2824";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -675,8 +675,7 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
   const header = document.getElementById('app-header');
   if (!header) return;
   const activeTaskId = (state && state.activeTaskId) ? state.activeTaskId : null;
-  const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-  const currentTask = allTasks.find(t => isSameId(t.id, activeTaskId) || (t.title && t.title === activeTaskId)) || (activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
+  const currentTask = allTasks.find(t => isSameId(t.id, activeTaskId) || (t.title && t.title === activeTaskId)) || null;
   const taskGenreKey = currentTask?.taskType || 'experiment';
   
   let remainingMin = 150;
@@ -970,7 +969,7 @@ function renderStage1Canvas(canvas, state, handlers) {
   if (!s1.contract.timeAllocations) s1.contract.timeAllocations = {};
 
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-  const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || (state.activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
+  const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || null;
   const taskGenreKey = currentTask?.taskType || 'experiment';
   const isTaskDeadlineExpired = currentTask ? isTaskExpired(currentTask) : false;
   const genreCfg = TASK_GENRE_CONFIGS[taskGenreKey] || TASK_GENRE_CONFIGS.experiment;
@@ -2119,7 +2118,7 @@ function renderStage2Canvas(canvas, state, handlers) {
   if (!currUserName) currUserName = currUserCode || '组员';
   const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-  const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || (state.activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
+  const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || null;
   const taskGenreKey = currentTask?.taskType || state.taskType || 'experiment';
   const isTaskDeadlineExpired = currentTask ? isTaskExpired(currentTask) : false;
   const confirmedDraftMap = s2.confirmedMembers || {};
@@ -3099,7 +3098,7 @@ function renderStage3Canvas(canvas, state, handlers) {
   const isAllFinalSubmitted = (finalSubmittedCount >= totalCount && totalCount > 0);
 
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-  const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || (state.activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
+  const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || null;
   const taskGenreKey = currentTask?.taskType || state.taskType || 'experiment';
   const isTaskDeadlineExpired = currentTask ? isTaskExpired(currentTask) : false;
   // 🛡️ 阶段三终稿区：全员已完成终稿提交确认、或任务已截止时，锁定为只读归档

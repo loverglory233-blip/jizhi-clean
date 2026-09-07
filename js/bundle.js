@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2823
+ * Version: 20260907_v2824
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2823';
+  const APP_VERSION = '20260907_v2824';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2758,13 +2758,9 @@
       if (!tasks || tasks.length === 0) return null;
       if (targetId) {
         const found = tasks.find(t => isSameId(t.id, targetId) || (t.title && t.title === targetId));
-        if (found) return found;
+        return found || null;
       }
-      const checkExpired = (typeof isTaskExpired === 'function') ? isTaskExpired : (t => {
-        if (!t || !t.deadline) return false;
-        return new Date(String(t.deadline).replace(/-/g, '/')).getTime() < Date.now();
-      });
-      return tasks.find(t => !checkExpired(t)) || tasks[0] || null;
+      return null;
     }
     getAnnouncements() {
       let announcements = [];
@@ -3288,13 +3284,12 @@
       let activeTask = null;
       const tasks = this.getTasks();
       if (taskId) {
-        activeTask = tasks.find(t => isSameId(t.id, taskId)) || null;
+        activeTask = tasks.find(t => isSameId(t.id, taskId) || (t.title && t.title === taskId)) || null;
       }
-      if (!activeTask && tasks.length > 0) {
-        const clsTasks = tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === 'class_all' || isSameId(t.classId, activeClass.id));
-        activeTask = clsTasks.length > 0 ? clsTasks[0] : tasks[0];
+      if (!activeTask) {
+        return { ok: false, reason: '当前写作任务已失效或被教师删除，请返回任务大厅' };
       }
-      const resolvedTaskId = activeTask ? activeTask.id : '';
+      const resolvedTaskId = activeTask.id;
 
       // 4) 成员 = 当前登录用户本身
       return {
@@ -12328,8 +12323,7 @@
     const header = document.getElementById('app-header');
     if (!header) return;
     const activeTaskId = (state && state.activeTaskId) ? state.activeTaskId : null;
-    const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-    const currentTask = allTasks.find(t => isSameId(t.id, activeTaskId) || (t.title && t.title === activeTaskId)) || (activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
+    const currentTask = allTasks.find(t => isSameId(t.id, activeTaskId) || (t.title && t.title === activeTaskId)) || null;
     const taskGenreKey = currentTask?.taskType || 'experiment';
 
     let remainingMin = 150;
@@ -12623,7 +12617,7 @@
     if (!s1.contract.timeAllocations) s1.contract.timeAllocations = {};
 
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-    const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || (state.activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
+    const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || null;
     const taskGenreKey = currentTask?.taskType || 'experiment';
     const isTaskDeadlineExpired = currentTask ? isTaskExpired(currentTask) : false;
     const genreCfg = TASK_GENRE_CONFIGS[taskGenreKey] || TASK_GENRE_CONFIGS.experiment;
@@ -13772,7 +13766,7 @@
     if (!currUserName) currUserName = currUserCode || '组员';
     const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-    const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || (state.activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
+    const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || null;
     const taskGenreKey = currentTask?.taskType || state.taskType || 'experiment';
     const isTaskDeadlineExpired = currentTask ? isTaskExpired(currentTask) : false;
     const confirmedDraftMap = s2.confirmedMembers || {};
@@ -14752,7 +14746,7 @@
     const isAllFinalSubmitted = (finalSubmittedCount >= totalCount && totalCount > 0);
 
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-    const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || (state.activeTaskId ? null : (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
+    const currentTask = allTasks.find(t => isSameId(t.id, state.activeTaskId) || (t.title && t.title === state.activeTaskId)) || null;
     const taskGenreKey = currentTask?.taskType || state.taskType || 'experiment';
     const isTaskDeadlineExpired = currentTask ? isTaskExpired(currentTask) : false;
     // 🛡️ 阶段三终稿区：全员已完成终稿提交确认、或任务已截止时，锁定为只读归档
@@ -22453,7 +22447,7 @@
       const allTasks = this.authManager ? this.authManager.getTasks() : [];
       const curTask = (this.authManager && typeof this.authManager.getActiveTask === 'function')
         ? this.authManager.getActiveTask()
-        : (allTasks.find(t => isSameId(t.id, this.state.activeTaskId)) || (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
+        : (allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId)) || null);
       if (curTask && isTaskExpired(curTask)) {
         if (typeof showGlobalBannerNotice === 'function') {
           showGlobalBannerNotice('⏳ 任务已截止', '当前任务已截止锁定。若需继续审阅，请任课教师顺延截止时间。', 'warning', 4000);
@@ -23007,8 +23001,9 @@
 
     getGroupScopeKey() {
       const user = this.authManager ? this.authManager.getCurrentUser() : null;
+      const isTeacher = user && (user.isTeacher || user.role === 'teacher');
       const allTasks = this.authManager ? this.authManager.getTasks() : [];
-      const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : (allTasks[0]?.id || '');
+      const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : (isTeacher ? (allTasks[0]?.id || '') : '');
       const classId = this.authManager ? this.authManager.getEffectiveStudentClassId(user, activeTaskId) : (this.state.activeStudentClassId || user?.classId || '');
       const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(user, classId) : null;
       const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj?.id || user?.groupId || '';

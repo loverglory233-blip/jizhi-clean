@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2823";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2823";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2823";
-import { AuthManager } from "./auth.js?v=20260907_v2823";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2823";
-import { renderLoginView } from "./login.js?v=20260907_v2823";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2823";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2823";
+} from "./constants.js?v=20260907_v2824";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2824";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2824";
+import { AuthManager } from "./auth.js?v=20260907_v2824";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2824";
+import { renderLoginView } from "./login.js?v=20260907_v2824";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2824";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2824";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2823";
+} from "./editor.js?v=20260907_v2824";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6451,7 +6451,7 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
     const allTasks = this.authManager ? this.authManager.getTasks() : [];
     const curTask = (this.authManager && typeof this.authManager.getActiveTask === 'function')
       ? this.authManager.getActiveTask()
-      : (allTasks.find(t => isSameId(t.id, this.state.activeTaskId)) || (allTasks.find(t => !isTaskExpired(t)) || allTasks[0] || null));
+      : (allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId)) || null);
     if (curTask && isTaskExpired(curTask)) {
       if (typeof showGlobalBannerNotice === 'function') {
         showGlobalBannerNotice('⏳ 任务已截止', '当前任务已截止锁定。若需继续审阅，请任课教师顺延截止时间。', 'warning', 4000);
@@ -7005,8 +7005,9 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
 
   getGroupScopeKey() {
     const user = this.authManager ? this.authManager.getCurrentUser() : null;
+    const isTeacher = user && (user.isTeacher || user.role === 'teacher');
     const allTasks = this.authManager ? this.authManager.getTasks() : [];
-    const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : (allTasks[0]?.id || '');
+    const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : (isTeacher ? (allTasks[0]?.id || '') : '');
     const classId = this.authManager ? this.authManager.getEffectiveStudentClassId(user, activeTaskId) : (this.state.activeStudentClassId || user?.classId || '');
     const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(user, classId) : null;
     const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj?.id || user?.groupId || '';
