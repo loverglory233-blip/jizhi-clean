@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2836";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2836";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2836";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2837";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2837";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2837";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -4148,7 +4148,7 @@ export function renderChatActionBar(state) {
           📜 公约草案已全部生成！👉 请全员在左侧公约下方核对并签署 (${confirmedCount}/${totalCount} 人已签)
         </div>
       `;
-    } else if (elapsedSec >= 13 * 60) {
+    } else if (elapsedSec >= 8 * 60) {
       actionBar.style.display = 'block';
       const isGeneratingContract = !!(window.app && window.app._isGeneratingContract);
       const isExtractingAny = isAnyExtracting(state);
@@ -4275,11 +4275,20 @@ export function renderChatActionBar(state) {
     }
   } else if (curStage === 'stage3') {
     const s3 = state.stage3 || {};
+    let s3Start = state.stage3StartTime || s3.startTime;
+    if (!s3Start) {
+      const s3Chats = state.chatLogs?.stage3 || [];
+      for (const m of s3Chats) {
+        const t = m._timeMs;
+        if (t && (!s3Start || t < s3Start)) s3Start = t;
+      }
+    }
+    const s3ElapsedSec = s3Start ? Math.max(0, Math.floor(((Date.now() - s3Start) / 1000) * (state.timer?.speed || 1))) : 0;
     const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
     const pendingInquiries = feedbacks.filter(f => f.role === 'opponent' && (!f.response || !f.response.trim()));
     const currentInquiry = pendingInquiries[0];
 
-    if (currentInquiry) {
+    if (currentInquiry && s3ElapsedSec >= 8 * 60) {
       const inqIndex = feedbacks.indexOf(currentInquiry);
       const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
       const stepKey = `s3_inquiry_${inqIndex}`;
@@ -4303,7 +4312,7 @@ export function renderChatActionBar(state) {
         }
       });
     } else {
-      // 全部答辩定案后直接收起隐藏
+      // 8分钟前或全部答辩定案后直接收起隐藏
       actionBar.style.display = 'none';
       actionBar.innerHTML = '';
     }
