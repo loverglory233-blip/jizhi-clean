@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260907_v2779";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260907_v2779";
+} from "./constants.js?v=20260907_v2780";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice, isSameId, normalizeId } from "./utils.js?v=20260907_v2780";
 
 export const getPanoGroupData = (pano, gid) => {
   if (!pano || typeof pano !== 'object' || !gid) return null;
@@ -350,7 +350,7 @@ function updateTeacherLiveMonitorInPlace(container, state, authManager, activeCl
         tFrame2.setAttribute('data-pad', expectedPad);
         tFrame2.setAttribute('data-task', curTaskPid);
         tFrame2.setAttribute('data-group', curGroupPid);
-        tFrame2.src = `/p/${encodeURIComponent(expectedPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true`;
+        tFrame2.src = `/p/${encodeURIComponent(expectedPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
       }
       enforceEtherpadReadonly(tFrame2);
     }
@@ -371,7 +371,7 @@ function updateTeacherLiveMonitorInPlace(container, state, authManager, activeCl
         tFrame3.setAttribute('data-pad', expectedPad);
         tFrame3.setAttribute('data-task', curTaskPid);
         tFrame3.setAttribute('data-group', curGroupPid);
-        tFrame3.src = `/p/${encodeURIComponent(expectedPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true`;
+        tFrame3.src = `/p/${encodeURIComponent(expectedPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
       }
       enforceEtherpadReadonly(tFrame3);
     }
@@ -1883,7 +1883,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                                 </div>
                               </div>
                               <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex; overscroll-behavior:contain; overscroll-behavior-y:contain;">
-                                <iframe id="teacher-stage2-etherpad-frame" data-pad="${targetPad}" data-task="${activeTaskId}" data-group="${activeMonitorGId}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff; overscroll-behavior:contain; overscroll-behavior-y:contain;" title="教师端实时写作同屏镜像 (只读)"></iframe>
+                                <iframe id="teacher-stage2-etherpad-frame" data-pad="${targetPad}" data-task="${activeTaskId}" data-group="${activeMonitorGId}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff; overscroll-behavior:contain; overscroll-behavior-y:contain;" title="教师端实时写作同屏镜像 (只读)"></iframe>
                               </div>
                             </div>
                           `;
@@ -1966,7 +1966,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                                 </div>
                                 </div>
                                 <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex; overscroll-behavior:contain; overscroll-behavior-y:contain;">
-                                  <iframe id="teacher-stage3-etherpad-frame" data-pad="${targetPad}" data-task="${activeTaskId}" data-group="${activeMonitorGId}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff; overscroll-behavior:contain; overscroll-behavior-y:contain;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
+                                  <iframe id="teacher-stage3-etherpad-frame" data-pad="${targetPad}" data-task="${activeTaskId}" data-group="${activeMonitorGId}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff; overscroll-behavior:contain; overscroll-behavior-y:contain;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
                                 </div>
                               </div>
                             `;
