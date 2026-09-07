@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2838";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2838";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2838";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2839";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2839";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2839";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -4275,33 +4275,89 @@ export function renderChatActionBar(state) {
     }
   } else if (curStage === 'stage3') {
     const s3 = state.stage3 || {};
+    let s3Start = state.stage3StartTime || s3.startTime;
+    if (!s3Start) {
+      const s3Chats = state.chatLogs?.stage3 || [];
+      for (const m of s3Chats) {
+        const t = m._timeMs;
+        if (t && (!s3Start || t < s3Start)) s3Start = t;
+      }
+    }
+    const s3ElapsedSec = s3Start ? Math.max(0, Math.floor(((Date.now() - s3Start) / 1000) * (state.timer?.speed || 1))) : 0;
     const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
     const pendingInquiries = feedbacks.filter(f => f.role === 'opponent' && (!f.response || !f.response.trim()));
     const currentInquiry = pendingInquiries[0];
 
-    if (currentInquiry) {
-      const inqIndex = feedbacks.indexOf(currentInquiry);
-      const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
-      const stepKey = `s3_inquiry_${inqIndex}`;
-      const count = isDoneHelper(confs[stepKey]);
-      const isMe = isMyDoneHelper(confs[stepKey]);
-      const isFull = count >= totalCount && totalCount > 0;
-
+    if (pendingInquiries.length > 0) {
       actionBar.style.display = 'block';
-      actionBar.innerHTML = `
-        <button id="btn-s3-inquiry-summary" style="background:${isFull ? 'linear-gradient(135deg, #059669, #047857)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)')}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
-          ${isFull ? `⚡ 全员已确认 (${count}/${totalCount}) · 点击总结并填入` : (isMe ? `✅ 您已确认【${inqLabel}】(${count}/${totalCount} 等待组员)` : `💡 ${inqLabel} 讨论差不多了？帮我总结并填入 (${count}/${totalCount})`)}
-        </button>
-      `;
-      actionBar.querySelector('#btn-s3-inquiry-summary')?.addEventListener('click', () => {
-        if (window.app && typeof window.app.handleStepConfirmation === 'function') {
-          window.app.handleStepConfirmation(stepKey, () => {
+      const isBatchRunning = !!(window.app && window.app._isBatchAnalyzingS3);
+      const isBatchFailed = !!(window.app && window.app._s3BatchFailed);
+      const isAnyExtracting = isAnyExtracting(state);
+
+      if (isBatchRunning) {
+        actionBar.innerHTML = `
+          <button id="btn-s3-batch-summary" style="background:#94a3b8; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:wait; opacity:0.9; display:inline-flex; align-items:center; gap:6px;">
+            ⏳ 答辩主席正在通读研讨并一键定案全部质询...
+          </button>
+        `;
+      } else if (isBatchFailed) {
+        actionBar.innerHTML = `
+          <button id="btn-s3-batch-summary" style="background:linear-gradient(135deg, #ea580c, #c2410c); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(234,88,12,0.3); transition:all 0.2s;">
+            🔄 提炼遇阻，点此重新一键总结全部答辩定案
+          </button>
+        `;
+        actionBar.querySelector('#btn-s3-batch-summary')?.addEventListener('click', () => {
+          if (window.app && typeof window.app._doBatchAllInquiriesSummary === 'function') {
+            window.app._s3BatchFailed = false;
+            window.app._doBatchAllInquiriesSummary();
+          }
+        });
+      } else if (s3ElapsedSec >= 8 * 60 && pendingInquiries.length > 1) {
+        // 🌟 研讨达 8 分钟且存在多条未定案质询时，展示【一键总结全部答辩定案】
+        const confs = state.stepConfirmations || {};
+        const count = isDoneHelper(confs.s3_all_inquiries);
+        const isMe = isMyDoneHelper(confs.s3_all_inquiries);
+        const isFull = count >= totalCount && totalCount > 0;
+        actionBar.innerHTML = `
+          <button id="btn-s3-batch-summary" style="background:${isFull ? 'linear-gradient(135deg, #059669, #047857)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)')}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
+            ${isFull ? `⚡ 全员已确认 (${count}/${totalCount}) · 点击一键总结全部答辩定案` : (isMe ? `✅ 您已确认全套定案 (${count}/${totalCount} 等待组员)` : `💡 [ ⚡ 研讨差不多了？一键总结全部答辩定案 (${count}/${totalCount}) ]`)}
+          </button>
+        `;
+        actionBar.querySelector('#btn-s3-batch-summary')?.addEventListener('click', () => {
+          if (isAnyExtracting || isBatchRunning) {
+            if (typeof showGlobalBannerNotice === 'function') {
+              showGlobalBannerNotice('⏳ 正在提炼中', '智能体当前正在分析提炼中，请稍候完成后再操作！', 'info', 3000);
+            }
+            return;
+          }
+          if (window.app && typeof window.app.handleS3BatchAllInquiriesSummary === 'function') {
+            window.app.handleS3BatchAllInquiriesSummary();
+          }
+        });
+      } else if (currentInquiry) {
+        // 单条质询实时总结按键
+        const inqIndex = feedbacks.indexOf(currentInquiry);
+        const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
+        const stepKey = `s3_inquiry_${inqIndex}`;
+        const count = isDoneHelper(confs[stepKey]);
+        const isMe = isMyDoneHelper(confs[stepKey]);
+        const isFull = count >= totalCount && totalCount > 0;
+
+        actionBar.innerHTML = `
+          <button id="btn-s3-inquiry-summary" style="background:${isFull ? 'linear-gradient(135deg, #059669, #047857)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)')}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
+            ${isFull ? `⚡ 全员已确认 (${count}/${totalCount}) · 点击总结并填入` : (isMe ? `✅ 您已确认【${inqLabel}】(${count}/${totalCount} 等待组员)` : `💡 ${inqLabel} 讨论差不多了？帮我总结并填入 (${count}/${totalCount})`)}
+          </button>
+        `;
+        actionBar.querySelector('#btn-s3-inquiry-summary')?.addEventListener('click', () => {
+          if (window.app && typeof window.app.handleStepConfirmation === 'function') {
+            window.app.handleStepConfirmation(stepKey, () => {
+              window.app.handleS3InquirySummary(null, currentInquiry);
+            }, inqLabel);
+          } else if (window.app && typeof window.app.handleS3InquirySummary === 'function') {
             window.app.handleS3InquirySummary(null, currentInquiry);
-          }, inqLabel);
-        } else if (window.app && typeof window.app.handleS3InquirySummary === 'function') {
-          window.app.handleS3InquirySummary(null, currentInquiry);
-        }
-      });
+          }
+        });
+      }
     } else {
       // 全部答辩定案后直接收起隐藏
       actionBar.style.display = 'none';
