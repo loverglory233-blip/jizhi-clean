@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260908_v2891
+ * Version: 20260908_v2892
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260908_v2891';
+  const APP_VERSION = '20260908_v2892';
   const APP_BUILD_DATE = '2026-09-08';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -16575,7 +16575,6 @@
       const storedTeacherCTab = sessionStorage.getItem('jizhi_teacher_ctab') || localStorage.getItem('jizhi_teacher_ctab');
       if (storedTeacherCTab) this.state.teacherClassTab = storedTeacherCTab;
 
-      const user = this.authManager.getCurrentUser();
       const effectiveClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(user, this.state.activeTaskId) : (this.state.activeStudentClassId || user?.classId || null));
       const activeGroupObj = this.authManager.getStudentActiveGroup(user, effectiveClassId);
       const currentGroupId = activeGroupObj?.id || user?.groupId || this.state.activeGroupId || null;

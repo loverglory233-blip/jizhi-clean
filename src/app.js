@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260908_v2891";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2891";
-import { callCozeAgentAPI } from "./agents.js?v=20260908_v2891";
-import { AuthManager } from "./auth.js?v=20260908_v2891";
-import { CloudSyncEngine } from "./sync.js?v=20260908_v2891";
-import { renderLoginView } from "./login.js?v=20260908_v2891";
-import { renderTeacherPortal } from "./teacher.js?v=20260908_v2891";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2891";
+} from "./constants.js?v=20260908_v2892";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2892";
+import { callCozeAgentAPI } from "./agents.js?v=20260908_v2892";
+import { AuthManager } from "./auth.js?v=20260908_v2892";
+import { CloudSyncEngine } from "./sync.js?v=20260908_v2892";
+import { renderLoginView } from "./login.js?v=20260908_v2892";
+import { renderTeacherPortal } from "./teacher.js?v=20260908_v2892";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2892";
 import {
   renderEditor,
   renderChat,
@@ -36,7 +36,7 @@ import {
   getEtherpadAuthorStats,
   renderPresenceCursors,
   getEffectiveAgentAnalyzing
-} from "./editor.js?v=20260908_v2891";
+} from "./editor.js?v=20260908_v2892";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -116,7 +116,6 @@ export class App {
     const storedTeacherCTab = sessionStorage.getItem('jizhi_teacher_ctab') || localStorage.getItem('jizhi_teacher_ctab');
     if (storedTeacherCTab) this.state.teacherClassTab = storedTeacherCTab;
 
-    const user = this.authManager.getCurrentUser();
     const effectiveClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(user, this.state.activeTaskId) : (this.state.activeStudentClassId || user?.classId || null));
     const activeGroupObj = this.authManager.getStudentActiveGroup(user, effectiveClassId);
     const currentGroupId = activeGroupObj?.id || user?.groupId || this.state.activeGroupId || null;
