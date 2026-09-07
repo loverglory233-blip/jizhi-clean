@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2780
+ * Version: 20260907_v2781
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2780';
+  const APP_VERSION = '20260907_v2781';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12021,6 +12021,23 @@
         rawCounts[aClass] = (rawCounts[aClass] || 0) + len;
       }
 
+      // 缓存 key，按 pad 唯一持久化作者映射
+      let storageKey = '';
+      try {
+        const padIdFromSrc = (f && f.src) ? (f.src.match(/\/p\/([^?#/]+)/) || [])[1] : '';
+        const padIdEff = padIdFromSrc ? decodeURIComponent(padIdFromSrc) : `jizhi_${activeTaskId}_${targetGid}`;
+        if (padIdEff) storageKey = `jizhi_authors_${padIdEff}`;
+      } catch(e) {}
+
+      // 读取 localStorage 中已确认的 authorId -> memberId 映射
+      const cachedAuthorMap = {};
+      if (storageKey && typeof localStorage !== 'undefined') {
+        try {
+          const stored = localStorage.getItem(storageKey);
+          if (stored) Object.assign(cachedAuthorMap, JSON.parse(stored));
+        } catch(e) {}
+      }
+
       const selfMem = targetMembersList.find(m => isSameUser(m, currUser) || (currUser?.id && isSameId(m.id, currUser.id)) || (targetUserName && m.name === targetUserName)) || currUser;
       const otherMembers = targetMembersList.filter(m => !isSameUser(m, selfMem));
 
@@ -12041,6 +12058,19 @@
         }
       }
       const rawLocalId = localUserId ? localUserId.replace(/^(author[-_]|a[._-])/i, '').toLowerCase() : '';
+
+      // 0. 先载入 localStorage 历史映射记忆 (确保刷新后 authorId 不变时 0 秒瞬间相认)
+      Object.entries(cachedAuthorMap).forEach(([cachedRawId, memberIdentifier]) => {
+        if (!cachedRawId || !memberIdentifier) return;
+        const memObj = targetMembersList.find(m => isSameId(m.id, memberIdentifier) || m.name === memberIdentifier);
+        if (memObj) {
+          authorMap.set(cachedRawId, memObj);
+          authorMap.set('a.' + cachedRawId, memObj);
+          authorMap.set('a-' + cachedRawId, memObj);
+          authorMap.set('a_' + cachedRawId, memObj);
+          authorMap.set('author-' + cachedRawId, memObj);
+        }
+      });
 
       // 1. 权威依据 Etherpad authorData (历史与当前全量作者数据) 进行姓名与颜色绑定
       Object.entries(authorData).forEach(([aKey, aObj]) => {
@@ -12064,6 +12094,7 @@
             authorMap.set('a-' + rawId, nameMatched);
             authorMap.set('a_' + rawId, nameMatched);
             authorMap.set(aKey, nameMatched);
+            cachedAuthorMap[rawId] = nameMatched.id;
             return;
           }
         }
@@ -12076,18 +12107,20 @@
             authorMap.set('a-' + rawId, colorMatched);
             authorMap.set('a_' + rawId, colorMatched);
             authorMap.set(aKey, colorMatched);
+            cachedAuthorMap[rawId] = colorMatched.id;
             return;
           }
         }
       });
 
-      // 2. 当前客户端 localUserId 保底绑定为当前登录用户 selfMem
-      if (rawLocalId && selfMem && !authorMap.has(rawLocalId)) {
+      // 2. 当前客户端 localUserId 绝对权威绑定为当前登录用户 selfMem
+      if (rawLocalId && selfMem) {
         authorMap.set(rawLocalId, selfMem);
         authorMap.set('a.' + rawLocalId, selfMem);
         authorMap.set('a-' + rawLocalId, selfMem);
         authorMap.set('a_' + rawLocalId, selfMem);
         authorMap.set(localUserId, selfMem);
+        cachedAuthorMap[rawLocalId] = selfMem.id;
       }
 
       const assignedAuthors = new Map();
@@ -12121,25 +12154,30 @@
           }
         }
 
-        if (!matched) {
-          if (rawId && rawId === rawLocalId && selfMem) {
-            matched = selfMem;
-          } else if (otherMembers.length === 1) {
-            matched = otherMembers[0];
-          } else if (otherMembers.length > 1) {
-            const unboundOther = otherMembers.find(om => !Array.from(assignedAuthors.values()).some(am => isSameUser(am, om))) || otherMembers[0];
-            matched = unboundOther;
-          }
+        // 如果当前客户端刚刚打字，且这个 author 就是当前客户端，坚决匹配为 selfMem
+        if (!matched && rawId && rawId === rawLocalId && selfMem) {
+          matched = selfMem;
         }
 
+        // 🛡️ 严禁将无法识别的作者硬塞给某一个队友（杜绝以前在这里误将所有字判给 otherMembers[0] 变成 100% vs 0% 的重大 Bug）
         if (matched) {
           assignedAuthors.set(aKey, matched);
+          if (rawId) cachedAuthorMap[rawId] = matched.id;
         }
       });
 
+      // 异步或在安全时将最新映射写回 localStorage
+      if (storageKey && typeof localStorage !== 'undefined') {
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(cachedAuthorMap));
+        } catch(e) {}
+      }
+
       // 4. 累计各成员字数
       let totalAssignedChars = 0;
+      let unassignedUnknownAuthorChars = 0;
       Object.keys(rawCounts).forEach(aKey => {
+        if (aKey === 'unassigned') return;
         const count = rawCounts[aKey];
         if (count <= 0) return;
         const targetMember = assignedAuthors.get(aKey);
@@ -12147,35 +12185,45 @@
           memberCounts[targetMember.id] = (memberCounts[targetMember.id] || 0) + count;
           if (targetMember.name) memberCounts[targetMember.name] = (memberCounts[targetMember.name] || 0) + count;
           totalAssignedChars += count;
+        } else {
+          // 未能确定作者的字数，绝不乱安插给单个人，放入未识别待分摊池
+          unassignedUnknownAuthorChars += count;
         }
       });
 
-      // 4. 处理 unassigned 裸文本与历史底稿
-      const unassignedChars = rawCounts['unassigned'] || 0;
-      if (unassignedChars > 0) {
+      // 5. 处理 unassigned 裸文本以及暂未匹配 author 的文本
+      const rawUnassigned = rawCounts['unassigned'] || 0;
+      const totalPendingChars = rawUnassigned + unassignedUnknownAuthorChars;
+
+      if (totalPendingChars > 0) {
         if (totalAssignedChars > 0) {
+          // 如果已经有明确作者的字数分布，按各成员已有真实撰写比例等比分配未标记字数
           targetMembersList.forEach(m => {
             const currentMemChars = memberCounts[m.id] || 0;
-            const extra = Math.round((currentMemChars / totalAssignedChars) * unassignedChars);
+            const extra = Math.round((currentMemChars / totalAssignedChars) * totalPendingChars);
             memberCounts[m.id] = (memberCounts[m.id] || 0) + extra;
             if (m.name) memberCounts[m.name] = (memberCounts[m.name] || 0) + extra;
           });
         } else {
+          // 全篇都还没能识别出独立作者（例如页面初次载入、Etherpad 数据尚未就绪，或全篇由单次粘贴生成）
           const existingContribs = currState?.stage2?.memberContributions || {};
           let existingTotal = 0;
           targetMembersList.forEach(m => { existingTotal += getMemberContribVal(existingContribs, m); });
 
           if (existingTotal > 0) {
+            // 优先继承云端/本地已有的历史贡献比字数，防止刚刷新页面就突变
             targetMembersList.forEach(m => {
               const val = getMemberContribVal(existingContribs, m);
               memberCounts[m.id] = val;
               if (m.name) memberCounts[m.name] = val;
             });
           } else if (selfMem && (Date.now() - (window._lastLocalPadInputTime || 0) < 20000)) {
-            memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + unassignedChars;
-            if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + unassignedChars;
+            // 仅当当前登录用户在过去20秒内有本地键盘输入时，将未标记字数算作本地输入
+            memberCounts[selfMem.id] = (memberCounts[selfMem.id] || 0) + totalPendingChars;
+            if (selfMem.name) memberCounts[selfMem.name] = (memberCounts[selfMem.name] || 0) + totalPendingChars;
           } else if (targetMembersList.length > 0) {
-            const splitCount = Math.floor(unassignedChars / targetMembersList.length);
+            // 初始白板情况下均分
+            const splitCount = Math.floor(totalPendingChars / targetMembersList.length);
             targetMembersList.forEach(m => {
               memberCounts[m.id] = (memberCounts[m.id] || 0) + splitCount;
               if (m.name) memberCounts[m.name] = (memberCounts[m.name] || 0) + splitCount;
@@ -13749,7 +13797,7 @@
 
     const syncPadMetrics = async () => {
       try {
-        const authorStats = getEtherpadAuthorStats();
+        const authorStats = getEtherpadAuthorStats('stage2-etherpad-frame', membersList, currUserName, state);
         const cleanTxt = authorStats ? authorStats.cleanText : (typeof getEtherpadTextDirect === 'function' ? getEtherpadTextDirect() : null);
 
         // 1. 实时刷新顶栏正文字数
@@ -13763,6 +13811,24 @@
 
         // 2. 实时更新各成员贡献比
         if (authorStats && authorStats.memberCounts) {
+          // 🛡️ 防闪烁/防误上报保护：如果之前已有多个组员有贡献，而当前瞬时扫描只有一个组员有字（其他全为0），先进行5秒缓冲确认
+          const prevContribs = state.stage2.memberContributions || {};
+          const prevMultiMember = membersList.filter(m => getMemberContribVal(prevContribs, m) > 0).length > 1;
+          const newMultiMember = membersList.filter(m => getMemberContribVal(authorStats.memberCounts, m) > 0).length > 1;
+
+          if (prevMultiMember && !newMultiMember) {
+            if (!window._padSingleMemberDetectStart) {
+              window._padSingleMemberDetectStart = Date.now();
+            }
+            // 缓冲 4 秒：若4秒内依然只有单人，才接受（允许真实单人清空）；否则维持此前贡献比展示与上报
+            if (Date.now() - window._padSingleMemberDetectStart < 4000) {
+              updateContribDom();
+              return;
+            }
+          } else {
+            window._padSingleMemberDetectStart = 0;
+          }
+
           state.stage2.memberContributions = authorStats.memberCounts;
           updateContribDom();
 
@@ -15054,7 +15120,7 @@
 
     const syncStage3PadMetrics = async () => {
       try {
-        const authorStats = getEtherpadAuthorStats('stage3-etherpad-frame', membersList, currUserName);
+        const authorStats = getEtherpadAuthorStats('stage3-etherpad-frame', membersList, currUserName, state);
         if (authorStats && authorStats.memberCounts) {
           if (state.stage2) {
             state.stage2.memberContributions = authorStats.memberCounts;
