@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2822";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2822";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2822";
-import { AuthManager } from "./auth.js?v=20260907_v2822";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2822";
-import { renderLoginView } from "./login.js?v=20260907_v2822";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2822";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2822";
+} from "./constants.js?v=20260907_v2823";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2823";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2823";
+import { AuthManager } from "./auth.js?v=20260907_v2823";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2823";
+import { renderLoginView } from "./login.js?v=20260907_v2823";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2823";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2823";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2822";
+} from "./editor.js?v=20260907_v2823";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1383,7 +1383,11 @@ export class App {
             // 🟢 后台异步静默拉取云端权威数据，绝不阻塞用户界面跳转
             setTimeout(async () => {
               if (this.authManager && this.authManager.pullGlobalMeta) {
-                try { await this.authManager.pullGlobalMeta(); } catch (e) {}
+                try {
+                  await this.authManager.pullGlobalMeta(true);
+                  if (typeof this.renderHeader === 'function') this.renderHeader();
+                  if (typeof this.checkUnreadAnnouncements === 'function') this.checkUnreadAnnouncements();
+                } catch (e) {}
               }
               if (this.cloudSyncEngine) {
                 this.cloudSyncEngine.groupId = targetGroupId;

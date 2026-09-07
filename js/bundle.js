@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2822
+ * Version: 20260907_v2823
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2822';
+  const APP_VERSION = '20260907_v2823';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5577,8 +5577,8 @@
                   }
                 });
                 annMap.set(localAnn.id, {
-                  ...remoteAnn,
                   ...localAnn,
+                  ...remoteAnn,
                   readStatus: mergedReadStatus,
                   readGroupStatus: mergedGroupStatus,
                   confirmedMembers: Array.from(confMembersMap.values())
@@ -17385,7 +17385,11 @@
               // 🟢 后台异步静默拉取云端权威数据，绝不阻塞用户界面跳转
               setTimeout(async () => {
                 if (this.authManager && this.authManager.pullGlobalMeta) {
-                  try { await this.authManager.pullGlobalMeta(); } catch (e) {}
+                  try {
+                    await this.authManager.pullGlobalMeta(true);
+                    if (typeof this.renderHeader === 'function') this.renderHeader();
+                    if (typeof this.checkUnreadAnnouncements === 'function') this.checkUnreadAnnouncements();
+                  } catch (e) {}
                 }
                 if (this.cloudSyncEngine) {
                   this.cloudSyncEngine.groupId = targetGroupId;
