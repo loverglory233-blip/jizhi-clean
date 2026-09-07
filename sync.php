@@ -2492,7 +2492,7 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $inConf = (isset($annIn['confirmedMembers']) && is_array($annIn['confirmedMembers'])) ? $annIn['confirmedMembers'] : [];
                                 foreach (array_merge($eaConf, $inConf) as $cm) {
                                     if (!is_array($cm)) continue;
-                                    $k = (isset($cm['id']) && $cm['id']) ? $cm['id'] : ((isset($cm['studentCode']) && $cm['studentCode']) ? $cm['studentCode'] : (isset($cm['name']) ? $cm['name'] : ''));
+                                    $k = (isset($cm['id']) && $cm['id']) ? $cm['id'] : (isset($cm['name']) ? $cm['name'] : '');
                                     if ($k !== '') $confMap[$k] = $cm;
                                 }
                                 $annIn['confirmedMembers'] = array_values($confMap);
@@ -2716,18 +2716,15 @@ if ($action === 'update_read_status' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         if (!isset($ann['confirmedMembers']) || !is_array($ann['confirmedMembers'])) $ann['confirmedMembers'] = [];
 
                         if ($userId) $ann['readStatus'][$userId] = true;
-                        if ($userCode) $ann['readStatus'][$userCode] = true;
                         if ($userName) $ann['readStatus'][$userName] = true;
                         if ($groupId) {
                             $ann['readGroupStatus'][$groupId] = true;
-                            $ann['readStatus'][$groupId] = true;
                         }
 
                         $exists = false;
                         foreach ($ann['confirmedMembers'] as $cm) {
                             if (is_array($cm) && (
                                 (isset($cm['id']) && $userId && $cm['id'] === $userId) ||
-                                (isset($cm['studentCode']) && $userCode && $cm['studentCode'] === $userCode) ||
                                 (isset($cm['name']) && $userName && $cm['name'] === $userName)
                             )) {
                                 $exists = true;
@@ -2736,8 +2733,8 @@ if ($action === 'update_read_status' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                         if (!$exists) {
                             $ann['confirmedMembers'][] = [
-                                'id' => $userId ?: ($userCode ?: 'u_' . round(microtime(true) * 1000)),
-                                'name' => $userName ?: ($userCode ?: '学生'),
+                                'id' => $userId ?: 'u_' . round(microtime(true) * 1000),
+                                'name' => $userName ?: '学生',
                                 'groupId' => $groupId ?: '',
                                 'time' => date('H:i')
                             ];
