@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2861
+ * Version: 20260907_v2863
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2861';
+  const APP_VERSION = '20260907_v2863';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12275,6 +12275,11 @@
         if (!cachedRawId || !memberIdentifier) return;
         const memObj = targetMembersList.find(m => isSameId(m.id, memberIdentifier) || m.name === memberIdentifier);
         if (memObj) {
+          // 🛡️ 若当前客户端为 selfMem，且此历史映射指向 selfMem 但 cachedRawId 并非当前 localUserId，则清除该过期历史，杜绝将同伴的 authorId 误认给自己
+          if (isSameUser(memObj, selfMem) && rawLocalId && cachedRawId !== rawLocalId) {
+            delete cachedAuthorMap[cachedRawId];
+            return;
+          }
           authorMap.set(cachedRawId, memObj);
           authorMap.set('a.' + cachedRawId, memObj);
           authorMap.set('a-' + cachedRawId, memObj);
@@ -12340,6 +12345,21 @@
       Object.keys(rawCounts).forEach(aKey => {
         if (aKey === 'unassigned') return;
         const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
+
+        // 🛡️ 智能双人组绑定：若当前小组仅有2位组员，规则清晰绝对：
+        // - 若 rawId 等于当前登录用户的 localId，100% 归属于 selfMem
+        // - 若 rawId 不等于当前登录用户的 localId，100% 归属于 otherMembers[0]，绝不产生 100/0 畸变
+        if (otherMembers.length === 1 && rawId) {
+          if (rawLocalId && rawId === rawLocalId) {
+            assignedAuthors.set(aKey, selfMem);
+            cachedAuthorMap[rawId] = selfMem.id;
+            return;
+          } else if (rawLocalId && rawId !== rawLocalId) {
+            assignedAuthors.set(aKey, otherMembers[0]);
+            cachedAuthorMap[rawId] = otherMembers[0].id;
+            return;
+          }
+        }
 
         let matched = authorMap.get(aKey) || authorMap.get(rawId) || authorMap.get('a.' + rawId) || authorMap.get('a-' + rawId) || authorMap.get('a_' + rawId);
 
@@ -19498,14 +19518,10 @@
             }, 600);
           }
 
-          // ③ 二审修正清单：若已存在，彻底清理待下发标记，绝不重复生成！仅当确实在途待下发且历史从未生成时才触发
+          // ③ 二审修正清单：若已存在，彻底清理待下发标记，绝不重复生成
           if (hasSecondReview) {
             if (s2) s2.pendingReviewing = null;
             this.state.stage2PendingReviewing = null;
-          } else if (s2.pendingReviewing || this.state.stage2PendingReviewing) {
-            setTimeout(() => {
-              this.triggerReviewingEditorAfterDiscussion();
-            }, 800);
           }
         }
       } else if (activeStage === 'stage3') {
@@ -22228,7 +22244,8 @@
         const ideationIssues = allIdeationSecs.length > 0 ? allIdeationSecs.join('、') : '';
 
         const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-        const rawDoc = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
+        const liveDoc = (typeof window.getEtherpadAuthorStats === 'function') ? (window.getEtherpadAuthorStats('stage2-etherpad-frame')?.cleanText || '') : '';
+        const rawDoc = (liveDoc && liveDoc.trim().length > 30) ? liveDoc.trim() : ((s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim());
 
         const managingPrompt = `小组成员已在讨论区就论文《${topic}》的前序修改方向展开了半程研讨。
   【组员自查打卡反映的全部瓶颈与脱节痛点】: ${bottlenecks}
@@ -22291,20 +22308,26 @@
 
         const reviewingPrompt = `${genreDesc}
 
-  针对课题《${topic}》，结合小组成员自查瓶颈【${bottlenecks}】、聚焦关注点【${focusIssues}】及下方正文草稿，作为资深审稿专家给出言简意赅、直击要害的《${isInst ? '磨课修正清单' : '二审修正清单'}》（140~190字）：
+  【全篇${isInst ? '教学设计' : '学术论文'}草稿全文】：
+  ${rawDoc || `（小组成员正在协作起草${isInst ? '教学设计' : '正文'}草稿）`}
 
+  【半程自查研讨与暴露的瓶颈】：
+  - 核心卡壳瓶颈：『${bottlenecks}』
+  - 组员聚焦关注点：『${focusIssues}』
   【组内关于修改思路的讨论记录】:
   ${chatSnippet}
 
-  【正文草稿全文】：
-  ${rawDoc || '（小组成员正在协作起草正文草稿）'}
+  【审查要求】：
+  请作为资深${isInst ? '教研专家' : '审稿编辑'}，通读上方全篇${isInst ? '教学设计（包括教学目标、学情分析、教学重难点、导入新课、合作探究活动/新授过程、练习巩固、板书与评价）' : '论文正文草稿'}，发表 140~180 字【${isInst ? '磨课修正清单' : '二审修正清单'}】。
+  ${isInst ? '【教研深度审查要求】：绝严禁只泛泛评价目标和学情！必须重点深入诊断具体【新知探究活动过程、合作探究任务设计、师生互动提问、板书设计或教学评价】中存在的具体单薄脱节问题，并给出充实具体的改进修改方案！' : '【学术深度审查要求】：绝严禁假大空套话！必须具体针对正文各章节的论证逻辑、方法操作化与分析阐述给出具体诊断问题与改进建议！'}
+  （包含 3 项具体可执行要点，纯自然语言，【绝对严禁出现“分工”字眼】）。
 
-  请按以下格式输出（严禁输出任何 Markdown 代码块，必须直接输出纯文本）：
-  📝 【${reviewingName}·二审意见】：（50字左右的审稿把关寄语）
+  请严格按以下格式输出（严禁输出任何 Markdown 代码块，必须直接输出纯文本）：
+  📝 【${reviewingName}·${isInst ? '磨课质检意见' : '二审意见'}】：（40~60字左右的审稿把关寄语）
   【${isInst ? '磨课修正清单' : '二审修正清单'}】：
-  1. 🎯 [诊断问题]：说明具体哪部分存在脱节或单薄；[改进建议]：给出具体的充实修改方案。
-  2. 🎯 [诊断问题]：...；[改进建议]：...
-  3. 🎯 [诊断问题]：...；[改进建议]：...
+  1. 🎯 诊断问题：说明具体哪部分（如探究活动设计/师生提问/板书等）存在脱节或单薄；改进建议：给出具体的充实修改方案。
+  2. 🎯 诊断问题：...；改进建议：...
+  3. 🎯 诊断问题：...；改进建议：...`;
 
   （纯自然语言输出，【绝对严禁出现“分工”字眼”】）`;
 
@@ -23631,8 +23654,6 @@
             if (hasSecondReview) {
               if (this.state.stage2) this.state.stage2.pendingReviewing = null;
               this.state.stage2PendingReviewing = null;
-            } else if ((this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing) && typeof this.triggerReviewingEditorAfterDiscussion === 'function') {
-              this.triggerReviewingEditorAfterDiscussion();
             }
           }
         }
@@ -25685,16 +25706,7 @@
         this.state.stage2PendingReviewing = this.state.stage2.pendingReviewing;
         this.syncStage2();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-
-        // 🌟 无分歧时自动无缝交棒给审稿编辑（教研专家）：先出二审问题建议，再装配半程清单卡片，跳过责任编辑总结
-        if (!hasDivergence) {
-          const directHandoverText = isInst
-            ? `🤝 【备课组长·一致性研判】：已成功收到全组 ${submittedCount} 位组员的编辑会议打卡记录！全组备课目标与活动设计高度契合一致，直接交棒教研专家通读全篇进行深度磨课质检！`
-            : `🤝 【责任编辑·一致性研判】：已成功收到全组 ${submittedCount} 位组员的编辑会议打卡记录！全篇立意与章节逻辑高度协同连贯，直接交棒审稿专家通读全篇进行深度学术质检！`;
-          setTimeout(() => {
-            this.triggerReviewingEditorAfterDiscussion(directHandoverText);
-          }, 800);
-        }
+        this.renderStudentWorkspace();
       });
     }
 
@@ -25875,27 +25887,31 @@
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
 
-      const fullDoc = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '论文初稿方案';
+      const liveDoc = (typeof window.getEtherpadAuthorStats === 'function') ? (window.getEtherpadAuthorStats('stage2-etherpad-frame')?.cleanText || '') : '';
+      const fullDoc = (liveDoc && liveDoc.trim().length > 30) ? liveDoc.trim() : ((this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '论文初稿方案');
       const priorFirstReview = this.state.stage2FirstReviewText || (this.state.chatLogs.stage2 || []).find(m => m.sender === 'reviewingEditor')?.text || '前期初审已肯定研究背景立意与文献归纳';
 
       const genreDesc = getGenrePromptDescriptor(taskType);
       const reviewingPrompt = `${genreDesc}
 
-  【全篇正文草稿】：
+  【全篇${isInst ? '教学设计' : '学术论文'}草稿全文】：
   ${fullDoc}
 
   【半程会议研讨与暴露的瓶颈】：
-  - 核心卡壳瓶颈：『${ctx.bAcademic}』
-  - 组员聚焦关注点：『${ctx.userText || '核心概念统领与主体设计'}』
+  - 核心卡壳瓶颈：『${ctx.bAcademic || (isInst ? '教学活动设计与学情重难点落实' : '论证逻辑与方法设计')}』
+  - 组员聚焦关注点：『${ctx.userText || (isInst ? '新知探究与合作任务设计' : '核心概念统领与主体设计')}』
 
-  请依据${isInst ? '教研专家' : '审稿编辑'}角色与审查红线（顺应已有框架、绝不推翻大改、方案形态绝不索要数据图表），发表 120~150 字【${isInst ? '磨课修正清单' : '二审修正清单'}】（包含 3 项具体可执行要点，纯自然语言，末尾提示商定后点击下方【📝 讨论差不多了？让${reviewingName}总结】）。
+  【审查要求】：
+  请作为资深${isInst ? '教研专家' : '审稿编辑'}，通读上方全篇${isInst ? '教学设计（包括教学目标、学情分析、教学重难点、导入新课、合作探究活动/新授过程、练习巩固、板书与评价）' : '论文正文草稿'}，发表 140~180 字【${isInst ? '磨课修正清单' : '二审修正清单'}】。
+  ${isInst ? '【教研深度审查要求】：绝严禁只泛泛评价目标和学情！必须重点深入诊断具体【新知探究活动过程、合作探究任务设计、师生互动提问、板书设计或教学评价】中存在的具体单薄脱节问题，并给出充实具体的改进修改方案！' : '【学术深度审查要求】：绝严禁假大空套话！必须具体针对正文各章节的论证逻辑、方法操作化与分析阐述给出具体诊断问题与改进建议！'}
+  （包含 3 项具体可执行要点，纯自然语言，【绝对严禁出现“分工”字眼】）。
 
-  请按以下格式输出（严禁输出任何 Markdown 代码块，必须直接输出纯文本）：
-  📝 【${reviewingName}·二审意见】：（50字左右的审稿把关寄语）
+  请严格按以下格式输出（严禁输出任何 Markdown 代码块，必须直接输出纯文本）：
+  📝 【${reviewingName}·${isInst ? '磨课质检意见' : '二审意见'}】：（40~60字左右的审稿把关寄语）
   【${isInst ? '磨课修正清单' : '二审修正清单'}】：
-  1. 🎯 [诊断问题]：说明具体哪部分存在脱节或单薄；[改进建议]：给出具体的充实修改方案。
-  2. 🎯 [诊断问题]：...；[改进建议]：...
-  3. 🎯 [诊断问题]：...；[改进建议]：...`;
+  1. 🎯 诊断问题：说明具体哪部分（如探究活动设计/师生提问/板书等）存在脱节或单薄；改进建议：给出具体的充实修改方案。
+  2. 🎯 诊断问题：...；改进建议：...
+  3. 🎯 诊断问题：...；改进建议：...`;
 
       try {
         let reviewingText = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic: ctx.topic, bottleneck: ctx.bAcademic, actualDoc: fullDoc, priorReview: priorFirstReview, milestoneKey: 'stage2_second_review' });

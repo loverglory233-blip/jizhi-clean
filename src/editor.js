@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2861";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2861";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2861";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2863";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2863";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2863";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -504,6 +504,11 @@ export function getEtherpadAuthorStats(frameId = 'stage2-etherpad-frame', member
       if (!cachedRawId || !memberIdentifier) return;
       const memObj = targetMembersList.find(m => isSameId(m.id, memberIdentifier) || m.name === memberIdentifier);
       if (memObj) {
+        // 🛡️ 若当前客户端为 selfMem，且此历史映射指向 selfMem 但 cachedRawId 并非当前 localUserId，则清除该过期历史，杜绝将同伴的 authorId 误认给自己
+        if (isSameUser(memObj, selfMem) && rawLocalId && cachedRawId !== rawLocalId) {
+          delete cachedAuthorMap[cachedRawId];
+          return;
+        }
         authorMap.set(cachedRawId, memObj);
         authorMap.set('a.' + cachedRawId, memObj);
         authorMap.set('a-' + cachedRawId, memObj);
@@ -569,6 +574,21 @@ export function getEtherpadAuthorStats(frameId = 'stage2-etherpad-frame', member
     Object.keys(rawCounts).forEach(aKey => {
       if (aKey === 'unassigned') return;
       const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '').toLowerCase();
+
+      // 🛡️ 智能双人组绑定：若当前小组仅有2位组员，规则清晰绝对：
+      // - 若 rawId 等于当前登录用户的 localId，100% 归属于 selfMem
+      // - 若 rawId 不等于当前登录用户的 localId，100% 归属于 otherMembers[0]，绝不产生 100/0 畸变
+      if (otherMembers.length === 1 && rawId) {
+        if (rawLocalId && rawId === rawLocalId) {
+          assignedAuthors.set(aKey, selfMem);
+          cachedAuthorMap[rawId] = selfMem.id;
+          return;
+        } else if (rawLocalId && rawId !== rawLocalId) {
+          assignedAuthors.set(aKey, otherMembers[0]);
+          cachedAuthorMap[rawId] = otherMembers[0].id;
+          return;
+        }
+      }
 
       let matched = authorMap.get(aKey) || authorMap.get(rawId) || authorMap.get('a.' + rawId) || authorMap.get('a-' + rawId) || authorMap.get('a_' + rawId);
 

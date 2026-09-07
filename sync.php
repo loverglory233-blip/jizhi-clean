@@ -2007,6 +2007,45 @@ if ($action === 'get_global_meta') {
             }
         }
 
+        // 🛡️ 实体表权威对齐：无论 main_meta 是否存在，始终从 reference_papers 实体表补全/合并最新范文数据
+        try {
+            $aggregatedPapers = [];
+            $stmtP = $pdo->query("SELECT * FROM reference_papers");
+            if ($stmtP) {
+                while ($pr = $stmtP->fetch(PDO::FETCH_ASSOC)) {
+                    $aggregatedPapers[] = [
+                        'id' => $pr['id'],
+                        'title' => $pr['title'],
+                        'abstract' => $pr['abstract'] ?? '',
+                        'keyHighlights' => $pr['highlights'] ?? '',
+                        'targetGroupId' => $pr['target_group'] ?? 'all',
+                        'targetGroupIds' => (isset($pr['target_group_ids']) && !empty($pr['target_group_ids'])) ? (json_decode($pr['target_group_ids'], true) ?: [$pr['target_group'] ?? 'all']) : [$pr['target_group'] ?? 'all'],
+                        'targetGroupName' => $pr['target_group_name'] ?? '全班所有小组',
+                        'classId' => $pr['class_id'] ?? 'all',
+                        'className' => $pr['class_name'] ?? '全校班级',
+                        'taskId' => $pr['task_id'] ?? 'task_all',
+                        'fileName' => $pr['file_name'] ?? '',
+                        'fileSize' => $pr['file_size'] ?? '',
+                        'fileUrl' => $pr['file_data'] ?? '',
+                        'fileData' => $pr['file_data'] ?? '',
+                        'uploadTime' => $pr['upload_time'] ?? ''
+                    ];
+                }
+            }
+            if ($foundMeta) {
+                $pMap = [];
+                if (isset($foundMeta['referencePapers']) && is_array($foundMeta['referencePapers'])) {
+                    foreach ($foundMeta['referencePapers'] as $p) {
+                        if (isset($p['id'])) $pMap[$p['id']] = $p;
+                    }
+                }
+                foreach ($aggregatedPapers as $p) {
+                    $pMap[$p['id']] = isset($pMap[$p['id']]) ? array_merge($pMap[$p['id']], $p) : $p;
+                }
+                $foundMeta['referencePapers'] = array_values($pMap);
+            }
+        } catch (Exception $e) {}
+
         // 2. 🛡️ 仅在 main_meta 彻底为空的极端冷启动情况下，才从独立关系表聚合还原兜底
         if (!$foundMeta) {
             try {
@@ -2069,30 +2108,6 @@ if ($action === 'get_global_meta') {
                             'isPinned' => !empty($ar['is_pinned']),
                             'attachment' => !empty($ar['attachment']) ? (json_decode($ar['attachment'], true) ?: $ar['attachment']) : null,
                             'confirmedMembers' => !empty($ar['confirmed_members']) ? (json_decode($ar['confirmed_members'], true) ?: []) : []
-                        ];
-                    }
-                }
-
-                $aggregatedPapers = [];
-                $stmtP = $pdo->query("SELECT * FROM reference_papers");
-                if ($stmtP) {
-                    while ($pr = $stmtP->fetch(PDO::FETCH_ASSOC)) {
-                        $aggregatedPapers[] = [
-                            'id' => $pr['id'],
-                            'title' => $pr['title'],
-                            'abstract' => $pr['abstract'] ?? '',
-                            'keyHighlights' => $pr['highlights'] ?? '',
-                            'targetGroupId' => $pr['target_group'] ?? 'all',
-                            'targetGroupIds' => (isset($pr['target_group_ids']) && !empty($pr['target_group_ids'])) ? (json_decode($pr['target_group_ids'], true) ?: [$pr['target_group'] ?? 'all']) : [$pr['target_group'] ?? 'all'],
-                            'targetGroupName' => $pr['target_group_name'] ?? '全班所有小组',
-                            'classId' => $pr['class_id'] ?? 'all',
-                            'className' => $pr['class_name'] ?? '全校班级',
-                            'taskId' => $pr['task_id'] ?? 'task_all',
-                            'fileName' => $pr['file_name'] ?? '',
-                            'fileSize' => $pr['file_size'] ?? '',
-                            'fileUrl' => $pr['file_data'] ?? '',
-                            'fileData' => $pr['file_data'] ?? '',
-                            'uploadTime' => $pr['upload_time'] ?? ''
                         ];
                     }
                 }
@@ -3964,6 +3979,43 @@ if ($pdo) {
             $stmtMeta->execute();
             $metaRow = $stmtMeta->fetch();
             $globalMeta = ($metaRow && !empty($metaRow['meta_value'])) ? json_decode($metaRow['meta_value'], true) : [];
+
+            // 🛡️ 实体表权威对齐：始终从 reference_papers 实体表补全最新范文
+            try {
+                $stmtP = $pdo->query("SELECT * FROM reference_papers");
+                $pList = [];
+                if ($stmtP) {
+                    while ($pr = $stmtP->fetch(PDO::FETCH_ASSOC)) {
+                        $pList[] = [
+                            'id' => $pr['id'],
+                            'title' => $pr['title'],
+                            'abstract' => $pr['abstract'] ?? '',
+                            'keyHighlights' => $pr['highlights'] ?? '',
+                            'targetGroupId' => $pr['target_group'] ?? 'all',
+                            'targetGroupIds' => (isset($pr['target_group_ids']) && !empty($pr['target_group_ids'])) ? (json_decode($pr['target_group_ids'], true) ?: [$pr['target_group'] ?? 'all']) : [$pr['target_group'] ?? 'all'],
+                            'targetGroupName' => $pr['target_group_name'] ?? '全班所有小组',
+                            'classId' => $pr['class_id'] ?? 'all',
+                            'className' => $pr['class_name'] ?? '全校班级',
+                            'taskId' => $pr['task_id'] ?? 'task_all',
+                            'fileName' => $pr['file_name'] ?? '',
+                            'fileSize' => $pr['file_size'] ?? '',
+                            'fileUrl' => $pr['file_data'] ?? '',
+                            'fileData' => $pr['file_data'] ?? '',
+                            'uploadTime' => $pr['upload_time'] ?? ''
+                        ];
+                    }
+                }
+                $pMap = [];
+                if (isset($globalMeta['referencePapers']) && is_array($globalMeta['referencePapers'])) {
+                    foreach ($globalMeta['referencePapers'] as $p) {
+                        if (isset($p['id'])) $pMap[$p['id']] = $p;
+                    }
+                }
+                foreach ($pList as $p) {
+                    $pMap[$p['id']] = isset($pMap[$p['id']]) ? array_merge($pMap[$p['id']], $p) : $p;
+                }
+                $globalMeta['referencePapers'] = array_values($pMap);
+            } catch (Exception $e) {}
 
             if (isset($globalMeta['users']) && is_array($globalMeta['users'])) {
                 foreach ($globalMeta['users'] as $u) {
