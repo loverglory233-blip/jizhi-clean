@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2866';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2866';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2867';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2867';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -639,15 +639,12 @@ export class CloudSyncEngine {
       let remoteLogs = Array.isArray(remoteChatLogs[stg]) ? remoteChatLogs[stg] : [];
       const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
       
-      // 🛡️ 智能保留本地未决思考气泡与未落库本地发言（Union 并集防吞防闪烁，仅限30秒内最新发言）
-      const now = Date.now();
-      const localPending = localLogs.filter(m => {
+      // 🛡️ 智能并集保留：无论是本地刚生成的智能体消息还是本地发言，绝不允许被旧快照丢弃（真实并集）
+      const localCompleted = localLogs.filter(m => {
         if (!m) return false;
         if (m.isThinking || String(m.id || '').startsWith('thinking_')) {
-          return (now - (m._timeMs || 0) < 30000);
+          return false; // 过滤临时思考占位
         }
-        const isRecent = (now - (m._timeMs || 0) < 30000);
-        if (!isRecent) return false;
         const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs === m._timeMs && rm.text === m.text));
         return !existsInRemote;
       });
@@ -655,12 +652,8 @@ export class CloudSyncEngine {
       // 🛡️ 全局过滤掉临时占位思考气泡，杜绝残留
       remoteLogs = remoteLogs.filter(m => !m || (!String(m.id || '').startsWith('thinking_') && !m.isThinking));
 
-      // 合并 baseLogs 与 localPending
-      const mergedList = [...remoteLogs];
-      localPending.forEach(lp => {
-        const exists = mergedList.some(m => (lp.id && m.id === lp.id) || (m._timeMs === lp._timeMs && m.text === lp.text));
-        if (!exists) mergedList.push(lp);
-      });
+      // 合并 remoteLogs 与 localCompleted（确保本地已完成的发言绝不丢失）
+      const mergedList = [...remoteLogs, ...localCompleted];
 
       // 稳健补全缺省 senderName
       const allUsers = this.app.authManager ? this.app.authManager.getUsers() : [];
@@ -1588,14 +1581,25 @@ export class CloudSyncEngine {
         }
       }
       if (remoteData.stage2.actionPlan) {
-        if (remoteData.stage2.actionPlan.isGenerated && !this.app.state.stage2.actionPlan?.isGenerated) {
-          this.app.state.stage2.actionPlan = remoteData.stage2.actionPlan;
+        const localAP = this.app.state.stage2.actionPlan || {};
+        const remoteAP = remoteData.stage2.actionPlan || {};
+        if (remoteAP.isGenerated && !localAP.isGenerated) {
+          this.app.state.stage2.actionPlan = remoteAP;
           needWorkspaceRender = true;
           setTimeout(() => {
             flashHighlightElement('#stage2-action-plan-card, .action-plan-container');
           }, 300);
-        } else if (JSON.stringify(remoteData.stage2.actionPlan) !== JSON.stringify(this.app.state.stage2.actionPlan)) {
-          this.app.state.stage2.actionPlan = remoteData.stage2.actionPlan;
+        } else if (localAP.isGenerated && !remoteAP.isGenerated) {
+          // 🛡️ 本地已生成行动清单，远端为未生成旧快照：严禁覆盖倒退！
+        } else if (JSON.stringify(remoteAP) !== JSON.stringify(localAP)) {
+          const mergedCompletedMap = { ...(localAP.completedMap || {}), ...(remoteAP.completedMap || {}) };
+          this.app.state.stage2.actionPlan = {
+            ...remoteAP,
+            ...localAP,
+            isGenerated: true,
+            items: (remoteAP.items && remoteAP.items.length > 0) ? remoteAP.items : localAP.items,
+            completedMap: mergedCompletedMap
+          };
           needWorkspaceRender = true;
         }
       }
@@ -1695,8 +1699,22 @@ export class CloudSyncEngine {
         }
 
         if (remoteS3.revisionPlan) {
-          if (JSON.stringify(remoteS3.revisionPlan) !== JSON.stringify(localS3.revisionPlan)) {
-            this.app.state.stage3.revisionPlan = remoteS3.revisionPlan;
+          const localRP = localS3.revisionPlan || {};
+          const remoteRP = remoteS3.revisionPlan || {};
+          if (remoteRP.isGenerated && !localRP.isGenerated) {
+            this.app.state.stage3.revisionPlan = remoteRP;
+            needWorkspaceRender = true;
+          } else if (localRP.isGenerated && !remoteRP.isGenerated) {
+            // 🛡️ 本地已生成修改计划，远端为未生成旧快照：严禁覆盖倒退！
+          } else if (JSON.stringify(remoteRP) !== JSON.stringify(localRP)) {
+            const mergedCompleted = { ...(localRP.completedMap || {}), ...(remoteRP.completedMap || {}) };
+            this.app.state.stage3.revisionPlan = {
+              ...remoteRP,
+              ...localRP,
+              isGenerated: true,
+              items: (remoteRP.items && remoteRP.items.length > 0) ? remoteRP.items : localRP.items,
+              completedMap: mergedCompleted
+            };
             needWorkspaceRender = true;
           }
         }
