@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2814";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2814";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2814";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2815";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2815";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2815";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -718,9 +718,10 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
   });
   const isAnnRead = (a) => {
     if (!a) return false;
+    const uKey = currentUser ? (currentUser.id || currentUser.name || 'anon') : 'anon';
     try {
       const localReadMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
-      if (localReadMap[a.id]) return true;
+      if (localReadMap[`${uKey}_${a.id}`]) return true;
     } catch (e) {}
     if (currentUser) {
       if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;

@@ -1402,14 +1402,16 @@ export function isScopeMatch(target = {}, context = {}) {
     taskId: tTaskId, 
     targetClassIds: tClassIds, 
     targetGroupIds: tGroupIds, 
-    className: tClassName 
+    className: tClassName,
+    taskTitle: tTaskTitle 
   } = target;
   
   const targetGroupId = tGroupId || tDirectGroupId;
   const { userClassId, userGroupId, currentTaskId, userClassName } = context;
 
-  // 1. 班级范围匹配 (仅在明确指定全校广播 all/class_all/* 时放行，否则严格校验班级ID)
+  // 1. 班级范围匹配 (仅在明确指定全校广播 all/class_all/* 时放行，否则严格校验班级ID/班级名称)
   const cleanTargetClass = String(tClassId || '').trim();
+  const cleanTargetClassName = String(tClassName || '').trim().toLowerCase();
   const isClassBroadcast = !cleanTargetClass || cleanTargetClass.toLowerCase() === 'all' || cleanTargetClass.toLowerCase() === 'class_all' || cleanTargetClass === '*';
 
   let matchClass = false;
@@ -1417,14 +1419,19 @@ export function isScopeMatch(target = {}, context = {}) {
     matchClass = true;
   } else {
     const cleanUserClass = String(userClassId || '').trim();
+    const cleanUserClassName = String(userClassName || '').trim().toLowerCase();
     if (cleanUserClass && isSameId(cleanTargetClass, cleanUserClass)) {
+      matchClass = true;
+    } else if (cleanTargetClassName && cleanUserClassName && cleanTargetClassName === cleanUserClassName) {
+      matchClass = true;
+    } else if (cleanTargetClassName && cleanUserClass && cleanTargetClassName === cleanUserClass.toLowerCase()) {
+      matchClass = true;
+    } else if (cleanTargetClass && cleanUserClassName && cleanTargetClass.toLowerCase() === cleanUserClassName) {
       matchClass = true;
     } else if (Array.isArray(tClassIds) && tClassIds.some(cid => {
       const c = String(cid || '').trim();
-      return c.toLowerCase() === 'all' || c === '*' || (cleanUserClass && isSameId(c, cleanUserClass));
+      return c.toLowerCase() === 'all' || c === '*' || (cleanUserClass && isSameId(c, cleanUserClass)) || (cleanUserClassName && c.toLowerCase() === cleanUserClassName);
     })) {
-      matchClass = true;
-    } else if (userClassName && tClassName && String(tClassName).trim().toLowerCase() === String(userClassName).trim().toLowerCase()) {
       matchClass = true;
     }
   }
@@ -1448,8 +1455,9 @@ export function isScopeMatch(target = {}, context = {}) {
     }
   }
 
-  // 3. 任务范围匹配 (仅在明确指定全部任务 all/task_all/* 时放行，否则严格校验任务ID)
+  // 3. 任务范围匹配 (仅在明确指定全部任务 all/task_all/* 时放行，否则校验任务ID/任务名称)
   const cleanTargetTask = String(tTaskId || '').trim();
+  const cleanTargetTaskTitle = String(tTaskTitle || '').trim().toLowerCase();
   const isTaskBroadcast = !cleanTargetTask || cleanTargetTask.toLowerCase() === 'all' || cleanTargetTask.toLowerCase() === 'task_all' || cleanTargetTask === '*';
 
   let matchTask = false;
@@ -1458,6 +1466,8 @@ export function isScopeMatch(target = {}, context = {}) {
   } else {
     const cleanCurrentTask = String(currentTaskId || '').trim();
     if (cleanCurrentTask && isSameId(cleanTargetTask, cleanCurrentTask)) {
+      matchTask = true;
+    } else if (cleanTargetTaskTitle && cleanCurrentTask && cleanTargetTaskTitle === cleanCurrentTask.toLowerCase()) {
       matchTask = true;
     } else if (!cleanCurrentTask) {
       matchTask = true;

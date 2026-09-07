@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2814
+ * Version: 20260907_v2815
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2814';
+  const APP_VERSION = '20260907_v2815';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1619,14 +1619,16 @@
       taskId: tTaskId, 
       targetClassIds: tClassIds, 
       targetGroupIds: tGroupIds, 
-      className: tClassName 
+      className: tClassName,
+      taskTitle: tTaskTitle 
     } = target;
 
     const targetGroupId = tGroupId || tDirectGroupId;
     const { userClassId, userGroupId, currentTaskId, userClassName } = context;
 
-    // 1. 班级范围匹配 (仅在明确指定全校广播 all/class_all/* 时放行，否则严格校验班级ID)
+    // 1. 班级范围匹配 (仅在明确指定全校广播 all/class_all/* 时放行，否则严格校验班级ID/班级名称)
     const cleanTargetClass = String(tClassId || '').trim();
+    const cleanTargetClassName = String(tClassName || '').trim().toLowerCase();
     const isClassBroadcast = !cleanTargetClass || cleanTargetClass.toLowerCase() === 'all' || cleanTargetClass.toLowerCase() === 'class_all' || cleanTargetClass === '*';
 
     let matchClass = false;
@@ -1634,14 +1636,19 @@
       matchClass = true;
     } else {
       const cleanUserClass = String(userClassId || '').trim();
+      const cleanUserClassName = String(userClassName || '').trim().toLowerCase();
       if (cleanUserClass && isSameId(cleanTargetClass, cleanUserClass)) {
+        matchClass = true;
+      } else if (cleanTargetClassName && cleanUserClassName && cleanTargetClassName === cleanUserClassName) {
+        matchClass = true;
+      } else if (cleanTargetClassName && cleanUserClass && cleanTargetClassName === cleanUserClass.toLowerCase()) {
+        matchClass = true;
+      } else if (cleanTargetClass && cleanUserClassName && cleanTargetClass.toLowerCase() === cleanUserClassName) {
         matchClass = true;
       } else if (Array.isArray(tClassIds) && tClassIds.some(cid => {
         const c = String(cid || '').trim();
-        return c.toLowerCase() === 'all' || c === '*' || (cleanUserClass && isSameId(c, cleanUserClass));
+        return c.toLowerCase() === 'all' || c === '*' || (cleanUserClass && isSameId(c, cleanUserClass)) || (cleanUserClassName && c.toLowerCase() === cleanUserClassName);
       })) {
-        matchClass = true;
-      } else if (userClassName && tClassName && String(tClassName).trim().toLowerCase() === String(userClassName).trim().toLowerCase()) {
         matchClass = true;
       }
     }
@@ -1665,8 +1672,9 @@
       }
     }
 
-    // 3. 任务范围匹配 (仅在明确指定全部任务 all/task_all/* 时放行，否则严格校验任务ID)
+    // 3. 任务范围匹配 (仅在明确指定全部任务 all/task_all/* 时放行，否则校验任务ID/任务名称)
     const cleanTargetTask = String(tTaskId || '').trim();
+    const cleanTargetTaskTitle = String(tTaskTitle || '').trim().toLowerCase();
     const isTaskBroadcast = !cleanTargetTask || cleanTargetTask.toLowerCase() === 'all' || cleanTargetTask.toLowerCase() === 'task_all' || cleanTargetTask === '*';
 
     let matchTask = false;
@@ -1675,6 +1683,8 @@
     } else {
       const cleanCurrentTask = String(currentTaskId || '').trim();
       if (cleanCurrentTask && isSameId(cleanTargetTask, cleanCurrentTask)) {
+        matchTask = true;
+      } else if (cleanTargetTaskTitle && cleanCurrentTask && cleanTargetTaskTitle === cleanCurrentTask.toLowerCase()) {
         matchTask = true;
       } else if (!cleanCurrentTask) {
         matchTask = true;
@@ -2388,7 +2398,7 @@
             // 4. 课堂通知：智能合并，继承已读标记
             if (Array.isArray(data.announcements)) {
               const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
-              const localAnns = JSON.parse(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]');
+              const localAnns = JSON.parse(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || localStorage.getItem('jizhi_announcements_db') || '[]');
               const annMap = new Map();
 
               data.announcements.forEach(remoteAnn => {
@@ -2410,20 +2420,20 @@
                   const confMembersMap = new Map();
                   (remoteAnn.confirmedMembers || []).forEach(m => {
                     if (m) {
-                      const k = m.id || m.studentCode || m.name;
+                      const k = m.id || m.name;
                       if (k) confMembersMap.set(k, m);
                     }
                   });
                   (localAnn.confirmedMembers || []).forEach(m => {
                     if (m) {
-                      const k = m.id || m.studentCode || m.name;
+                      const k = m.id || m.name;
                       if (k) confMembersMap.set(k, m);
                     }
                   });
 
                   annMap.set(localAnn.id, {
-                    ...remoteAnn,
                     ...localAnn,
+                    ...remoteAnn,
                     readStatus: mergedReadStatus,
                     readGroupStatus: mergedGroupStatus,
                     confirmedMembers: Array.from(confMembersMap.values())
@@ -2434,6 +2444,7 @@
               const mergedAnns = Array.from(annMap.values());
               localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
               localStorage.setItem('jizhi_announcements_db', JSON.stringify(mergedAnns));
+              localStorage.setItem('jizhi_pure_v10_ann_db', JSON.stringify(mergedAnns));
             }
 
             // 5. 学术文献与范文：云端权威，保留教师本地在途
@@ -2745,7 +2756,8 @@
     getAnnouncements() {
       let announcements = [];
       try {
-        announcements = JSON.parse(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS)) || DefaultAnnouncements;
+        const stored = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || localStorage.getItem('jizhi_announcements_db') || localStorage.getItem('jizhi_pure_v10_ann_db');
+        announcements = stored ? JSON.parse(stored) : DefaultAnnouncements;
         if (Array.isArray(announcements)) {
           let changed = false;
           announcements.forEach(a => {
@@ -2756,6 +2768,8 @@
           });
           if (changed) {
             localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
+            localStorage.setItem('jizhi_announcements_db', JSON.stringify(announcements));
+            localStorage.setItem('jizhi_pure_v10_ann_db', JSON.stringify(announcements));
           }
         }
       } catch (e) {
@@ -2772,7 +2786,11 @@
     }
     saveAnnouncements(list) {
       if (Array.isArray(list)) {
-        try { localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(list)); } catch (e) {}
+        try {
+          localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(list));
+          localStorage.setItem('jizhi_announcements_db', JSON.stringify(list));
+          localStorage.setItem('jizhi_pure_v10_ann_db', JSON.stringify(list));
+        } catch (e) {}
       }
     }
     saveReferencePapers(list) {
@@ -3927,10 +3945,11 @@
       const ann = announcements.find(a => a.id === annId);
       const currUser = this.getCurrentUser();
 
-      // ⚡ 1. 立即持久化本地已读记录（杜绝任何时序差导致的二次弹出）
+      // ⚡ 1. 立即持久化本地已读记录（按用户 ID 隔离，杜绝同浏览器多账号串读）
       try {
+        const uKey = currUser ? (currUser.id || currUser.name || 'anon') : 'anon';
         const localMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
-        localMap[annId] = true;
+        localMap[`${uKey}_${annId}`] = true;
         localStorage.setItem('jizhi_locally_read_announcements', JSON.stringify(localMap));
         sessionStorage.setItem('jizhi_locally_read_announcements', JSON.stringify(localMap));
       } catch (e) {}
@@ -3944,7 +3963,6 @@
             annId,
             groupId,
             userId: currUser ? currUser.id : '',
-            userCode: currUser ? currUser.id : '',
             userName: currUser ? currUser.name : '学生'
           })
         }).catch(() => {});
@@ -3972,15 +3990,18 @@
 
         if (groupId) {
           ann.readGroupStatus[groupId] = true;
-          ann.readStatus[groupId] = true;
         }
 
         try {
           localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
+          localStorage.setItem('jizhi_announcements_db', JSON.stringify(announcements));
+          localStorage.setItem('jizhi_pure_v10_ann_db', JSON.stringify(announcements));
         } catch (err) {
           this._pruneStorageQuota();
           try {
             localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
+            localStorage.setItem('jizhi_announcements_db', JSON.stringify(announcements));
+            localStorage.setItem('jizhi_pure_v10_ann_db', JSON.stringify(announcements));
           } catch (e2) {}
         }
       }
@@ -12329,9 +12350,10 @@
     });
     const isAnnRead = (a) => {
       if (!a) return false;
+      const uKey = currentUser ? (currentUser.id || currentUser.name || 'anon') : 'anon';
       try {
         const localReadMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
-        if (localReadMap[a.id]) return true;
+        if (localReadMap[`${uKey}_${a.id}`]) return true;
       } catch (e) {}
       if (currentUser) {
         if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
@@ -18294,9 +18316,10 @@
 
         const isAnnRead = (a) => {
           if (!a) return false;
+          const uKey = currentUser ? (currentUser.id || currentUser.name || 'anon') : 'anon';
           try {
             const localReadMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
-            if (localReadMap[a.id]) return true;
+            if (localReadMap[`${uKey}_${a.id}`]) return true;
           } catch (e) {}
           if (currentUser) {
             if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
@@ -18377,9 +18400,10 @@
 
       const isAnnRead = (a) => {
         if (!a) return false;
+        const uKey = currentUser ? (currentUser.id || currentUser.name || 'anon') : 'anon';
         try {
           const localReadMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
-          if (localReadMap[a.id]) return true;
+          if (localReadMap[`${uKey}_${a.id}`]) return true;
         } catch (e) {}
         if (currentUser) {
           if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
