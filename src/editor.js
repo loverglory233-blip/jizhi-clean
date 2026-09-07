@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260908_v2893";
-import { callCozeAgentAPI } from "./agents.js?v=20260908_v2893";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260908_v2893";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260908_v2894";
+import { callCozeAgentAPI } from "./agents.js?v=20260908_v2894";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260908_v2894";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -1047,7 +1047,11 @@ function renderStage1Canvas(canvas, state, handlers) {
   const isAllConfirmed = (totalMembersCount > 0 && confirmedCount >= totalMembersCount);
   const isContractLocked = !!(s1.contract && s1.contract.isConfirmed) || isAllConfirmed || (state.groupMaxStage === 'stage2' || state.groupMaxStage === 'stage3') || state.isFinalSubmitted || isTaskDeadlineExpired;
   const isDraftDone = !!(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated);
-  const isContractComplete = isDraftDone || !!(s1.contract?.topic || s1.mergedTitle);
+  const hasContractTopic = !!(s1.mergedTitle || String(s1.contract?.topic || '').trim());
+  const hasContractOverview = !!(String(s1.contract?.overview || s1.researchOverview || '').trim());
+  const hasContractTime = !!(s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6 && Object.values(s1.contract.timeAllocations).some(v => Number(v) > 0));
+  const hasContractAssignments = !!(s1.contract?.taskAssignments && Object.values(s1.contract.taskAssignments).some(v => typeof v === 'string' && v.trim().length > 0));
+  const isContractComplete = isDraftDone && hasContractTopic && hasContractOverview && hasContractTime && hasContractAssignments;
   const isInputDisabled = isContractLocked; // 只有在公约最终签署生效/全组进入下一阶段后才真正锁定输入，草案生成后全员可自由微调
   if (s1.contract && isAllConfirmed) s1.contract.isConfirmed = true;
 
@@ -2095,9 +2099,10 @@ function renderStage1Canvas(canvas, state, handlers) {
         const hasOverview = !!(s1.contract?.overview?.trim() || s1.researchOverview?.trim());
         const hasTime = !!(s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6 && Object.values(s1.contract.timeAllocations).some(v => Number(v) > 0));
         const hasAssignments = !!(s1.contract?.taskAssignments && Object.keys(s1.contract.taskAssignments).length > 0 && Object.values(s1.contract.taskAssignments).some(v => typeof v === 'string' && v.trim().length > 0));
-        if (!hasTopic || !hasOverview || !hasTime || !hasAssignments) {
+        const hasDraftGenerated = !!(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated);
+        if (!hasDraftGenerated || !hasTopic || !hasOverview || !hasTime || !hasAssignments) {
           if (typeof showGlobalBannerNotice === 'function') {
-            showGlobalBannerNotice('公约尚未就绪', '请先完成课题、方案概述、时间预算分配及人员分工等公约核心内容，方可签署！', 'warning', 4000);
+            showGlobalBannerNotice('公约尚未就绪', '请先等待公约草案最终生成，并完成课题、方案概述、时间预算分配及人员分工后再签署！', 'warning', 4000);
           }
           return;
         }
@@ -2329,13 +2334,18 @@ function renderStage2Canvas(canvas, state, handlers) {
           window._padSingleMemberDetectStart = 0;
         }
 
-        state.stage2.memberContributions = authorStats.memberCounts;
+        const prevSum = membersList.reduce((sum, m) => sum + getMemberContribVal(prevContribs, m), 0);
+        const nextSum = membersList.reduce((sum, m) => sum + getMemberContribVal(authorStats.memberCounts, m), 0);
+        if (nextSum > 0 || prevSum === 0) {
+          state.stage2.memberContributions = authorStats.memberCounts;
+        }
         updateContribDom();
 
         const contribStr = JSON.stringify(authorStats.memberCounts);
         if (_padContribDebounceTimer) clearTimeout(_padContribDebounceTimer);
         _padContribDebounceTimer = setTimeout(() => {
           if (_lastReportedContribStr === contribStr) return;
+          if (nextSum === 0 && prevSum > 0) return;
           _lastReportedContribStr = contribStr;
           fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
             method: 'POST',
@@ -2481,8 +2491,8 @@ function renderStage2Canvas(canvas, state, handlers) {
                 const isChecked = !!(effActionPlan.completedMap && effActionPlan.completedMap[idx]);
                 let formattedItem = escapeHtml(item);
                 return `
-                  <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.4; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#cbd5e1'}; border-radius:4px; padding:5px 8px; display:flex; align-items:flex-start; gap:6px; cursor:pointer; transition:all 0.15s ease;">
-                    <input type="checkbox" class="action-plan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} style="cursor:pointer; margin-top:2px; transform:scale(1.1);">
+                  <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.4; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#cbd5e1'}; border-radius:4px; padding:5px 8px; display:flex; align-items:flex-start; gap:6px; cursor:${(isTaskDeadlineExpired || state.isFinalSubmitted || s2.isDraftConfirmed) ? 'not-allowed' : 'pointer'}; pointer-events:${(isTaskDeadlineExpired || state.isFinalSubmitted || s2.isDraftConfirmed) ? 'none' : 'auto'}; transition:all 0.15s ease;">
+                    <input type="checkbox" class="action-plan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} ${(isTaskDeadlineExpired || state.isFinalSubmitted || s2.isDraftConfirmed) ? 'disabled' : ''} style="cursor:${(isTaskDeadlineExpired || state.isFinalSubmitted || s2.isDraftConfirmed) ? 'not-allowed' : 'pointer'}; margin-top:2px; transform:scale(1.1);">
                     <div style="flex:1; text-decoration:${isChecked ? 'line-through' : 'none'}; color:${isChecked ? '#166534' : '#1e293b'};">
                       <b style="color:${isChecked ? '#166534' : '#0f172a'}; margin-right:4px;">${idx + 1}.</b> ${formattedItem}
                     </div>
@@ -2721,8 +2731,8 @@ function renderStage2Canvas(canvas, state, handlers) {
                 const isChecked = !!(effActionPlan.completedMap && effActionPlan.completedMap[idx]);
                 let formattedItem = escapeHtml(item);
                 return `
-                  <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.4; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#cbd5e1'}; border-radius:4px; padding:5px 8px; display:flex; align-items:flex-start; gap:6px; cursor:pointer; transition:all 0.15s ease;">
-                    <input type="checkbox" class="action-plan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} style="cursor:pointer; margin-top:2px; transform:scale(1.1);">
+                  <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.4; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#cbd5e1'}; border-radius:4px; padding:5px 8px; display:flex; align-items:flex-start; gap:6px; cursor:${(isTaskDeadlineExpired || state.isFinalSubmitted || s2.isDraftConfirmed) ? 'not-allowed' : 'pointer'}; pointer-events:${(isTaskDeadlineExpired || state.isFinalSubmitted || s2.isDraftConfirmed) ? 'none' : 'auto'}; transition:all 0.15s ease;">
+                    <input type="checkbox" class="action-plan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} ${(isTaskDeadlineExpired || state.isFinalSubmitted || s2.isDraftConfirmed) ? 'disabled' : ''} style="cursor:${(isTaskDeadlineExpired || state.isFinalSubmitted || s2.isDraftConfirmed) ? 'not-allowed' : 'pointer'}; margin-top:2px; transform:scale(1.1);">
                     <div style="flex:1; text-decoration:${isChecked ? 'line-through' : 'none'}; color:${isChecked ? '#166534' : '#1e293b'};">
                       <b style="color:${isChecked ? '#166534' : '#0f172a'}; margin-right:4px;">${idx + 1}.</b> ${formattedItem}
                     </div>
@@ -2829,6 +2839,7 @@ function renderStage2Canvas(canvas, state, handlers) {
 
     canvas.querySelectorAll('.action-plan-item-box').forEach(box => {
       box.addEventListener('click', (e) => {
+        if (isTaskDeadlineExpired || state.isFinalSubmitted || s2.isDraftConfirmed) return;
         const idx = Number(box.dataset.itemIdx);
         if (!state.stage2.actionPlan.completedMap) state.stage2.actionPlan.completedMap = {};
         state.stage2.actionPlan.completedMap[idx] = !state.stage2.actionPlan.completedMap[idx];
@@ -2930,8 +2941,8 @@ function renderStage3RevisionPlanHtml(s3, state) {
           const isChecked = !!completedMap[idx];
           const rawResp = (item.response || item.title || '在对应章节补充修改完善').trim();
           return `
-            <div class="s3-revplan-item-box" data-item-idx="${idx}" style="line-height:1.4; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#cbd5e1'}; border-radius:4px; padding:5px 8px; display:flex; align-items:center; gap:6px; cursor:pointer; transition:all 0.15s ease;">
-              <input type="checkbox" class="s3-revplan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} style="cursor:pointer; margin-top:0; transform:scale(1.1);">
+            <div class="s3-revplan-item-box" data-item-idx="${idx}" style="line-height:1.4; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#cbd5e1'}; border-radius:4px; padding:5px 8px; display:flex; align-items:center; gap:6px; cursor:${(state.isFinalSubmitted || (typeof window.app?.isCurrentTaskReadOnly === 'function' && window.app.isCurrentTaskReadOnly())) ? 'not-allowed' : 'pointer'}; pointer-events:${(state.isFinalSubmitted || (typeof window.app?.isCurrentTaskReadOnly === 'function' && window.app.isCurrentTaskReadOnly())) ? 'none' : 'auto'}; transition:all 0.15s ease;">
+              <input type="checkbox" class="s3-revplan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} ${(state.isFinalSubmitted || (typeof window.app?.isCurrentTaskReadOnly === 'function' && window.app.isCurrentTaskReadOnly())) ? 'disabled' : ''} style="cursor:${(state.isFinalSubmitted || (typeof window.app?.isCurrentTaskReadOnly === 'function' && window.app.isCurrentTaskReadOnly())) ? 'not-allowed' : 'pointer'}; margin-top:0; transform:scale(1.1);">
               <div style="flex:1; text-decoration:${isChecked ? 'line-through' : 'none'}; color:${isChecked ? '#166534' : '#1e293b'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(rawResp)}">
                 <b style="color:${isChecked ? '#166534' : '#0f172a'}; margin-right:4px;">${idx + 1}.</b> ${escapeHtml(rawResp)}
               </div>
@@ -2969,6 +2980,8 @@ function bindStage3RevisionPlanEvents(container, s3, state, handlers) {
 
   card.querySelectorAll('.s3-revplan-item-box').forEach(box => {
     box.onclick = (e) => {
+      const isLocked = !!(state.isFinalSubmitted || (typeof window.app?.isCurrentTaskReadOnly === 'function' && window.app.isCurrentTaskReadOnly()));
+      if (isLocked) return;
       const idx = Number(box.dataset.itemIdx);
       if (isNaN(idx)) return;
       if (!s3.revisionPlan) s3.revisionPlan = {};
@@ -2995,7 +3008,11 @@ function renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitt
   const isReadOnly = (typeof window.app?.isCurrentTaskReadOnly === 'function') && window.app.isCurrentTaskReadOnly();
   const isCallingActive = !!(s3._pipelineCallingTimestamp && (Date.now() - Number(s3._pipelineCallingTimestamp) < 60000));
   const isRunning = !!(state.stage3CommitteeLoading || window.app?._isStage3PipelineRunning || isCallingActive);
-  if (isRunning || !s3.feedbackItems || s3.feedbackItems.length === 0) {
+  const s3Logs = (state.chatLogs && Array.isArray(state.chatLogs.stage3)) ? state.chatLogs.stage3 : [];
+  const hasProp = s3Logs.some(m => m && m.sender === 'proponent' && String(m.text || '').trim());
+  const hasOpp = s3Logs.some(m => m && m.sender === 'opponent' && String(m.text || '').trim());
+  const hasCommitteeReady = hasProp && hasOpp && Array.isArray(s3.feedbackItems) && s3.feedbackItems.length > 0;
+  if (isRunning || !hasCommitteeReady) {
     if (isReadOnly) {
       return `
         <div style="background:#fff1f2; border:1.5px solid #fecdd3; border-radius:12px; padding:32px 24px; text-align:center; box-shadow:0 4px 12px rgba(225,29,72,0.06);">
@@ -3024,11 +3041,13 @@ function renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitt
         <div style="font-size:16px; font-weight:800; color:#1e40af; margin-bottom:6px;">答辩评审委员会已就绪</div>
         <div style="font-size:13px; color:#64748b; line-height:1.6; margin-bottom:18px;">
           全篇${docType}初稿已完成，正反两方评审专家已准备就位！<br>
-          如系统尚未自动开始，可点击下方按钮立即唤醒答辩专家通读审阅并下发修改清单。
+          ${hasCommitteeReady ? '正反方评审已成功生成，请在下方矩阵查看意见。' : '如系统尚未自动开始或上次生成失败，可点击下方按钮立即唤醒答辩专家通读审阅并下发修改清单。'}
         </div>
+        ${hasCommitteeReady ? '' : `
         <button class="btn-trigger-s3-pipeline" onclick="window.app && window.app.runStage3CommitteePipeline(this)" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); color:#ffffff; border:none; padding:10px 24px; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.25); display:inline-flex; align-items:center; gap:8px; transition:transform 0.15s ease;">
           🚀 立即召唤答辩专家审阅初稿
         </button>
+        `}
       </div>
     `;
   }

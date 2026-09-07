@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   TASK_GENRE_CONFIGS,
   APP_VERSION
-} from "./constants.js?v=20260908_v2893";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch, isSameId } from "./utils.js?v=20260908_v2893";
+} from "./constants.js?v=20260908_v2894";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch, isSameId } from "./utils.js?v=20260908_v2894";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -124,6 +124,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
     clearInterval(window._studentPortalPollTimer);
     window._studentPortalPollTimer = null;
   }
+  // 服务端只在版本变化时返回完整元数据；未变化响应仅为极小版本探测包。
   window._studentPortalPollTimer = setInterval(async () => {
     if (state.studentViewMode !== 'task_list') {
       clearInterval(window._studentPortalPollTimer);
@@ -136,7 +137,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
         await authManager.pullGlobalMeta(false);
       } catch (err) {}
     }
-  }, 3500);
+  }, 5000);
 
   const currentUser = authManager.getCurrentUser();
   const classes = authManager.getClasses();
@@ -260,12 +261,17 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
   const groupId = activeGroupObj.id;
   const groupName = activeGroupObj.name || '第 1 协作小组';
 
+  // 大厅也必须按当前班级 + 当前小组展示，避免学生看到不属于自己的定向任务。
   const relevantTasks = tasks.filter(t => {
     if (!t) return false;
-    if (!t.classId || t.classId === 'all' || t.classId === 'class_all') return true;
-    return isSameId(t.classId, userClass.id) || 
-           (t.className && t.className === userClass.name) ||
-           (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.some(cid => isSameId(cid, userClass.id))));
+    return isScopeMatch(t, {
+      userClassId: userClass.id,
+      userClassName: userClass.name,
+      userGroupId: groupId,
+      userGroupName: groupName,
+      currentTaskId: null,
+      currentTaskTitle: null
+    });
   }).sort((a, b) => (b.createdMs || new Date(b.createdAt || b.startTime || 0).getTime() || 0) - (a.createdMs || new Date(a.createdAt || a.startTime || 0).getTime() || 0));
   const isAnnRead = (a) => {
     if (!a) return false;

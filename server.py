@@ -4,8 +4,8 @@ Jizhi (集智) 离线单机沙盒与快速演示服务器 (Port 8088)
 【重要部署说明 / Architecture Note】:
 - 本文件用于没有安装 PHP/MySQL 运行环境的个人电脑进行本地纯单机测试与快速演示。
 - 生产环境（阿里云/腾讯云/宝塔面板）标准部署架构为：
-  Nginx (Web服务) + PHP (sync.php 业务与数据持久化) + MySQL (关系数据库) + Node.js (server_yjs.js 协同 1234 端口)。
-  线上正式运行完全无需启动本 server.py 脚本。
+  Nginx (Web服务) + PHP (sync.php 业务与数据持久化) + MySQL (关系数据库) + Etherpad (正文协同)。
+  线上正式运行完全无需启动本 server.py 脚本。Etherpad 负责正文协同，PHP/MySQL 负责业务同步。
 """
 
 import http.server
@@ -17,7 +17,6 @@ import threading
 import gzip
 import hashlib
 import base64
-import struct
 import urllib.parse
 from queue import Queue
 
@@ -140,88 +139,6 @@ def call_coze_chat_py(bot_id, user_id, query):
 SSE_CLIENTS = {}
 SSE_LOCK = threading.Lock()
 
-# WebSocket rooms: { roomKey: set(socket1, socket2, ...) }
-WS_ROOMS = {}
-WS_UPDATES = {} # roomKey: [bytes, ...]
-WS_LOCK = threading.Lock()
-
-# 🛡️ 单帧长度上限与读超时：杜绝慢连接 (slow-loris) 声明超大帧或逐字节滴灌拖垮线程/内存
-MAX_WS_FRAME = 16 * 1024 * 1024   # 16MB
-WS_READ_TIMEOUT = 300            # 300s 读超时，Yjs 客户端心跳 ~30s，足够安全
-
-# 🚀 每连接独立发送锁：杜绝同一 socket 的并发帧撕裂，同时避免全局 WS_LOCK 持有期间做阻塞 IO（头阻塞）
-_SEND_LOCKS = {}
-_SEND_LOCKS_GUARD = threading.Lock()
-
-# 🛡️ JSON 文件读写互斥锁：序列化所有 JSON 文件的读-改-写，避免并发覆盖/读到半写入文件
-JSON_FILE_LOCK = threading.Lock()
-
-def _send_lock_for(sock):
-    with _SEND_LOCKS_GUARD:
-        lk = _SEND_LOCKS.get(sock)
-        if lk is None:
-            lk = threading.Lock()
-            _SEND_LOCKS[sock] = lk
-        return lk
-
-def _drop_send_lock(sock):
-    with _SEND_LOCKS_GUARD:
-        _SEND_LOCKS.pop(sock, None)
-
-def make_ws_frame(data, is_binary=False):
-    if isinstance(data, str):
-        data = data.encode('utf-8')
-    length = len(data)
-    if length <= 125:
-        header = struct.pack('!BB', 0x82 if is_binary else 0x81, length)
-    elif length <= 65535:
-        header = struct.pack('!BBH', 0x82 if is_binary else 0x81, 126, length)
-    else:
-        header = struct.pack('!BBQ', 0x82 if is_binary else 0x81, 127, length)
-    return header + data
-
-def read_ws_frame(sock):
-    try:
-        header = sock.recv(2)
-        if not header or len(header) < 2:
-            return None, None
-        b1, b2 = header[0], header[1]
-        opcode = b1 & 0x0f
-        is_masked = bool(b2 & 0x80)
-        length = b2 & 0x7f
-
-        if length == 126:
-            ext = sock.recv(2)
-            if len(ext) < 2: return None, None
-            length = struct.unpack('!H', ext)[0]
-        elif length == 127:
-            ext = sock.recv(8)
-            if len(ext) < 8: return None, None
-            length = struct.unpack('!Q', ext)[0]
-
-        # 🛡️ 长度上限：拒绝异常超大帧，防止内存耗尽
-        if length > MAX_WS_FRAME:
-            return None, None
-
-        mask = sock.recv(4) if is_masked else b''
-        if is_masked and len(mask) < 4:
-            return None, None
-
-        payload = bytearray()
-        while len(payload) < length:
-            chunk = sock.recv(min(4096, length - len(payload)))
-            if not chunk:
-                break
-            payload.extend(chunk)
-
-        if is_masked:
-            for i in range(len(payload)):
-                payload[i] ^= mask[i % 4]
-
-        return opcode, bytes(payload)
-    except Exception:
-        return None, None
-
 # Server-Side Hardware Session Lock: { userId: { token: str, lastActive: float, userName: str } }
 SESSION_LOCKS = {}
 LOCK_MUTEX = threading.Lock()
@@ -233,8 +150,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Upgrade, Sec-WebSocket-Key, Sec-WebSocket-Version')
-        # 🛡️ 静态资源与页面一律禁缓存，杜绝“改了不生效”的浏览器陈旧缓存（API/SSE/WebSocket 已各自设置）
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With')
+        # 🛡️ 静态资源与页面一律禁缓存，杜绝浏览器陈旧缓存
         if not any(p in self.path for p in ('/api', '/health', '/ws', 'action=', '/stream')):
             self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
         super().end_headers()
@@ -247,10 +164,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if self.path.startswith('/health') or self.path.startswith('/api/health'):
             resp = json.dumps({
                 'status': 'ok',
-                'service': 'JIZHI Yjs CRDT & Multi-Agent Gateway',
+                'service': 'JIZHI Local HTTP Sync Gateway',
                 'version': '2.0.0',
                 'port': PORT,
-                'activeRooms': len(WS_ROOMS),
                 'timestamp': int(time.time() * 1000)
             }, ensure_ascii=False).encode('utf-8')
             self.send_response(200)
@@ -261,90 +177,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(resp)
             self.wfile.flush()
             return
-
-        # ⚡ 工业级 WebSocket 集中式长连接协同通道 (复用 8088 端口，零额外端口与 NAT 穿透隐患)
-        if self.headers.get('Upgrade', '').lower() == 'websocket' or '/ws' in self.path:
-            key = self.headers.get('Sec-WebSocket-Key', '')
-            if key:
-                accept_val = base64.b64encode(hashlib.sha1((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode('utf-8')).digest()).decode('utf-8')
-                self.send_response(101, 'Switching Protocols')
-                self.send_header('Upgrade', 'websocket')
-                self.send_header('Connection', 'Upgrade')
-                self.send_header('Sec-WebSocket-Accept', accept_val)
-                self.end_headers()
-
-                parsed = urllib.parse.urlparse(self.path)
-                params = urllib.parse.parse_qs(parsed.query)
-                room = params.get('room', ['default'])[0]
-                if not room or room == 'default':
-                    room = self.path.split('/')[-1] or 'default'
-
-                sock = self.request
-                # 🛡️ 读超时：防止慢连接 (slow-loris) 永久占用线程
-                try:
-                    sock.settimeout(WS_READ_TIMEOUT)
-                except Exception:
-                    pass
-                with WS_LOCK:
-                    if room not in WS_ROOMS:
-                        WS_ROOMS[room] = set()
-                    WS_ROOMS[room].add(sock)
-                    if room not in WS_UPDATES:
-                        WS_UPDATES[room] = []
-                    hist_copies = list(WS_UPDATES[room])
-
-                # 🚀 历史增量重放：将已有 CRDT 文档更新帧立即回放给新接入的客户端（走独立发送锁，杜绝与广播帧交错）
-                for hdata in hist_copies:
-                    try:
-                        with _send_lock_for(sock):
-                            sock.sendall(make_ws_frame(hdata, is_binary=True))
-                    except Exception:
-                        pass
-
-                try:
-                    while True:
-                        opcode, data = read_ws_frame(sock)
-                        if opcode is None or opcode == 8:
-                            break
-                        if opcode == 9:
-                            sock.sendall(struct.pack('!BB', 0x8a, 0))
-                            continue
-                        if opcode in (1, 2) and data:
-                            is_bin = (opcode == 2)
-                            # 🚀 如果是 Yjs 二进制更新 (messageType === 0 即 messageSync)，存入房间历史缓存
-                            if is_bin and len(data) > 0 and data[0] == 0:
-                                with WS_LOCK:
-                                    if room not in WS_UPDATES:
-                                        WS_UPDATES[room] = []
-                                    WS_UPDATES[room].append(data)
-
-                            out_frame = make_ws_frame(data, is_bin)
-                            with WS_LOCK:
-                                targets = list(WS_ROOMS.get(room, set()))
-                            dead = set()
-                            for s in targets:
-                                if s != sock:
-                                    try:
-                                        # 🚀 每连接独立互斥写入：仅锁住目标 socket，避免阻塞其它连接 (彻底消除并发帧撕裂，且无头阻塞)
-                                        with _send_lock_for(s):
-                                            s.sendall(out_frame)
-                                    except Exception:
-                                        dead.add(s)
-                            if dead:
-                                with WS_LOCK:
-                                    if room in WS_ROOMS:
-                                        WS_ROOMS[room].difference_update(dead)
-                                # 🛡️ 及时回收死连接的独立发送锁，杜绝 _SEND_LOCKS 缓慢泄漏
-                                for dead_sock in dead:
-                                    _drop_send_lock(dead_sock)
-                except Exception:
-                    pass
-                finally:
-                    with WS_LOCK:
-                        if room in WS_ROOMS:
-                            WS_ROOMS[room].discard(sock)
-                    _drop_send_lock(sock)
-                return
 
         # ⚡ 顶号检测 API (客户端轮询检查自己是否被踢下线)
         if 'action=session_check' in self.path or '/api/session/check' in self.path:
@@ -1242,19 +1074,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
-import asyncio
-
-def start_yjs_background_service():
-    try:
-        import server_yjs
-        print("[Yjs Auto-Launcher] Starting Yjs WebSocket Service on Port 1234...", flush=True)
-        asyncio.run(server_yjs.main())
-    except Exception as e:
-        print(f"[Yjs Auto-Launcher Error] {e}", flush=True)
-
 if __name__ == '__main__':
-    yjs_thread = threading.Thread(target=start_yjs_background_service, daemon=True)
-    yjs_thread.start()
     print(f'🚀 集智 Gzip 极速+服务端独占锁服务器运行在端口 {PORT}...', flush=True)
     with socketserver.ThreadingTCPServer(('0.0.0.0', PORT), Handler) as httpd:
         httpd.serve_forever()

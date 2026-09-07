@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260908_v2893';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260908_v2893';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260908_v2894';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260908_v2894';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -898,24 +898,17 @@ export class CloudSyncEngine {
         }
       }
       if (Array.isArray(remoteData.users) && remoteData.users.length > 0) {
-        const localUsers = this.app.authManager.getUsers();
         const userMap = new Map();
-        localUsers.forEach(u => {
-          if (u && u.id) {
-            const k = String(u.id).trim().toLowerCase();
-            userMap.set(k, u);
-          }
-        });
+        if (isTeacher) {
+          const localUsers = this.app.authManager.getUsers();
+          localUsers.forEach(u => {
+            if (u && u.id) userMap.set(String(u.id).trim().toLowerCase(), u);
+          });
+        }
         remoteData.users.forEach(rUser => {
           if (rUser && rUser.id) {
             const k = String(rUser.id).trim().toLowerCase();
-            const u = userMap.get(k);
-            if (u) {
-              const mergedClassIds = Array.from(new Set([...(rUser.classIds || [rUser.classId].filter(Boolean)), ...(u.classIds || [u.classId].filter(Boolean))]));
-              userMap.set(k, { ...u, ...rUser, classIds: (rUser.classIds && rUser.classIds.length > 0) ? rUser.classIds : mergedClassIds });
-            } else {
-              userMap.set(k, rUser);
-            }
+            userMap.set(k, rUser);
           }
         });
         localStorage.setItem('jizhi_pure_v10_users_db', JSON.stringify(Array.from(userMap.values())));
@@ -1579,11 +1572,16 @@ export class CloudSyncEngine {
         const remoteContribs = remoteData.stage2.memberContributions || {};
         const localSum = Object.values(localContribs).reduce((a, b) => a + (Number(b) || 0), 0);
         const remoteSum = Object.values(remoteContribs).reduce((a, b) => a + (Number(b) || 0), 0);
-        if (remoteSum >= localSum || localSum === 0) {
+        const isLocalPadActive = !!document.getElementById('stage2-etherpad-frame') || !!document.getElementById('stage3-etherpad-frame');
+        // 本地正在扫描 Etherpad 时，不接受远端空贡献覆盖；刷新后 Etherpad 未就绪时也不把已有贡献清零。
+        if (remoteSum > 0 && (remoteSum >= localSum || localSum === 0)) {
           if (JSON.stringify(remoteContribs) !== JSON.stringify(localContribs)) {
             this.app.state.stage2.memberContributions = remoteContribs;
             this.app.updateContributionUi();
           }
+        } else if (!isLocalPadActive && remoteSum >= localSum && JSON.stringify(remoteContribs) !== JSON.stringify(localContribs)) {
+          this.app.state.stage2.memberContributions = remoteContribs;
+          this.app.updateContributionUi();
         }
       }
       if (remoteData.stage2.frozenContributions) {

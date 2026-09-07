@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260908_v2893';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260908_v2893';
+} from './constants.js?v=20260908_v2894';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260908_v2894';
 
 export class AuthManager {
   constructor() {
@@ -263,30 +263,43 @@ export class AuthManager {
           if (data.unchanged) {
             return { success: true, changed: false, version: this.globalMetaVersion }; // ⚡ 极速早退：服务端版本未变，0 开销
           }
-          // 1. 账号池：以服务端数据为准，保留本地非默认自定义密码
+          // 1. 账号池：学生端以服务端归属为唯一权威，不能让普通模式的旧 localStorage
+          // 覆盖最新 classId/classIds/groupId；教师端才保留本地未完成的账号编辑。
           if (Array.isArray(data.users)) {
-            const localUsers = this.getUsers();
+            const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
+            const localUsers = isTeacher ? this.getUsers() : [];
             const userMap = new Map();
             data.users.forEach(u => {
-              if (u && u.id) {
-                const k = String(u.id).trim().toLowerCase();
-                userMap.set(k, u);
-              }
+              if (u && u.id) userMap.set(String(u.id).trim().toLowerCase(), u);
             });
-            localUsers.forEach(u => {
-              if (u && u.id) {
+            if (isTeacher) {
+              localUsers.forEach(u => {
+                if (!u || !u.id) return;
                 const k = String(u.id).trim().toLowerCase();
                 if (!userMap.has(k)) {
                   userMap.set(k, u);
                 } else {
                   const rUser = userMap.get(k);
                   const preservedPassword = (u.password && u.password !== '123') ? u.password : (rUser.password || u.password || '123');
-                  const mergedClassIds = Array.from(new Set([...(rUser.classIds || [rUser.classId].filter(Boolean)), ...(u.classIds || [u.classId].filter(Boolean))]));
-                  userMap.set(k, { ...rUser, ...u, password: preservedPassword, classIds: mergedClassIds });
+                  userMap.set(k, { ...rUser, ...u, password: preservedPassword });
                 }
+              });
+            }
+            const authoritativeUsers = Array.from(userMap.values());
+            localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(authoritativeUsers));
+
+            // 同步当前会话的班级/小组归属，但保留登录凭证，避免旧会话继续使用旧范围。
+            if (currUser && !isTeacher) {
+              const freshUser = authoritativeUsers.find(u => u && String(u.id).trim().toLowerCase() === String(currUser.id).trim().toLowerCase());
+              if (freshUser) {
+                const sessionUser = { ...currUser, ...freshUser };
+                sessionUser.token = currUser.token;
+                sessionUser.activeSessionId = currUser.activeSessionId;
+                sessionUser.sessionToken = currUser.sessionToken;
+                sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(sessionUser));
+                localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(sessionUser));
               }
-            });
-            localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(Array.from(userMap.values())));
+            }
           }
 
           // 2. 班级与小组：服务端为权威基准，保留教师本地在途更新

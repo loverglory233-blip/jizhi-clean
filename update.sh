@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260908_v2893"
+TARGET_VERSION="20260908_v2894"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -80,7 +80,7 @@ if [ $DOWNLOADED -eq 0 ]; then
     "index.html" "update.sh" "sync.php" "build.py" "package.json"
     "css/styles.css" "css/libs/quill.snow.css"
     "js/libs/xlsx.full.min.js" "js/libs/quill.min.js" "js/libs/quill-cursors.min.js"
-    "js/libs/yjs.js" "js/libs/y-websocket.js" "js/libs/y-quill.js" "js/bundle.js"
+    "js/bundle.js"
     "src/constants.js" "src/utils.js" "src/agents.js" "src/auth.js" "src/sync.js"
     "src/login.js" "src/teacher.js" "src/student-portal.js" "src/editor.js" "src/app.js"
     "api/chat_api.php" "api/coze_prompt.php" "api/db_init.php" "api/stream.php"

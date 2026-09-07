@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260908_v2893
+ * Version: 20260908_v2894
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260908_v2893';
+  const APP_VERSION = '20260908_v2894';
   const APP_BUILD_DATE = '2026-09-08';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2336,30 +2336,43 @@
             if (data.unchanged) {
               return { success: true, changed: false, version: this.globalMetaVersion }; // ⚡ 极速早退：服务端版本未变，0 开销
             }
-            // 1. 账号池：以服务端数据为准，保留本地非默认自定义密码
+            // 1. 账号池：学生端以服务端归属为唯一权威，不能让普通模式的旧 localStorage
+            // 覆盖最新 classId/classIds/groupId；教师端才保留本地未完成的账号编辑。
             if (Array.isArray(data.users)) {
-              const localUsers = this.getUsers();
+              const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
+              const localUsers = isTeacher ? this.getUsers() : [];
               const userMap = new Map();
               data.users.forEach(u => {
-                if (u && u.id) {
-                  const k = String(u.id).trim().toLowerCase();
-                  userMap.set(k, u);
-                }
+                if (u && u.id) userMap.set(String(u.id).trim().toLowerCase(), u);
               });
-              localUsers.forEach(u => {
-                if (u && u.id) {
+              if (isTeacher) {
+                localUsers.forEach(u => {
+                  if (!u || !u.id) return;
                   const k = String(u.id).trim().toLowerCase();
                   if (!userMap.has(k)) {
                     userMap.set(k, u);
                   } else {
                     const rUser = userMap.get(k);
                     const preservedPassword = (u.password && u.password !== '123') ? u.password : (rUser.password || u.password || '123');
-                    const mergedClassIds = Array.from(new Set([...(rUser.classIds || [rUser.classId].filter(Boolean)), ...(u.classIds || [u.classId].filter(Boolean))]));
-                    userMap.set(k, { ...rUser, ...u, password: preservedPassword, classIds: mergedClassIds });
+                    userMap.set(k, { ...rUser, ...u, password: preservedPassword });
                   }
+                });
+              }
+              const authoritativeUsers = Array.from(userMap.values());
+              localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(authoritativeUsers));
+
+              // 同步当前会话的班级/小组归属，但保留登录凭证，避免旧会话继续使用旧范围。
+              if (currUser && !isTeacher) {
+                const freshUser = authoritativeUsers.find(u => u && String(u.id).trim().toLowerCase() === String(currUser.id).trim().toLowerCase());
+                if (freshUser) {
+                  const sessionUser = { ...currUser, ...freshUser };
+                  sessionUser.token = currUser.token;
+                  sessionUser.activeSessionId = currUser.activeSessionId;
+                  sessionUser.sessionToken = currUser.sessionToken;
+                  sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(sessionUser));
+                  localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(sessionUser));
                 }
-              });
-              localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(Array.from(userMap.values())));
+              }
             }
 
             // 2. 班级与小组：服务端为权威基准，保留教师本地在途更新
@@ -5606,24 +5619,17 @@
           }
         }
         if (Array.isArray(remoteData.users) && remoteData.users.length > 0) {
-          const localUsers = this.app.authManager.getUsers();
           const userMap = new Map();
-          localUsers.forEach(u => {
-            if (u && u.id) {
-              const k = String(u.id).trim().toLowerCase();
-              userMap.set(k, u);
-            }
-          });
+          if (isTeacher) {
+            const localUsers = this.app.authManager.getUsers();
+            localUsers.forEach(u => {
+              if (u && u.id) userMap.set(String(u.id).trim().toLowerCase(), u);
+            });
+          }
           remoteData.users.forEach(rUser => {
             if (rUser && rUser.id) {
               const k = String(rUser.id).trim().toLowerCase();
-              const u = userMap.get(k);
-              if (u) {
-                const mergedClassIds = Array.from(new Set([...(rUser.classIds || [rUser.classId].filter(Boolean)), ...(u.classIds || [u.classId].filter(Boolean))]));
-                userMap.set(k, { ...u, ...rUser, classIds: (rUser.classIds && rUser.classIds.length > 0) ? rUser.classIds : mergedClassIds });
-              } else {
-                userMap.set(k, rUser);
-              }
+              userMap.set(k, rUser);
             }
           });
           localStorage.setItem('jizhi_pure_v10_users_db', JSON.stringify(Array.from(userMap.values())));
@@ -6287,11 +6293,16 @@
           const remoteContribs = remoteData.stage2.memberContributions || {};
           const localSum = Object.values(localContribs).reduce((a, b) => a + (Number(b) || 0), 0);
           const remoteSum = Object.values(remoteContribs).reduce((a, b) => a + (Number(b) || 0), 0);
-          if (remoteSum >= localSum || localSum === 0) {
+          const isLocalPadActive = !!document.getElementById('stage2-etherpad-frame') || !!document.getElementById('stage3-etherpad-frame');
+          // 本地正在扫描 Etherpad 时，不接受远端空贡献覆盖；刷新后 Etherpad 未就绪时也不把已有贡献清零。
+          if (remoteSum > 0 && (remoteSum >= localSum || localSum === 0)) {
             if (JSON.stringify(remoteContribs) !== JSON.stringify(localContribs)) {
               this.app.state.stage2.memberContributions = remoteContribs;
               this.app.updateContributionUi();
             }
+          } else if (!isLocalPadActive && remoteSum >= localSum && JSON.stringify(remoteContribs) !== JSON.stringify(localContribs)) {
+            this.app.state.stage2.memberContributions = remoteContribs;
+            this.app.updateContributionUi();
           }
         }
         if (remoteData.stage2.frozenContributions) {
@@ -11598,6 +11609,7 @@
       clearInterval(window._studentPortalPollTimer);
       window._studentPortalPollTimer = null;
     }
+    // 服务端只在版本变化时返回完整元数据；未变化响应仅为极小版本探测包。
     window._studentPortalPollTimer = setInterval(async () => {
       if (state.studentViewMode !== 'task_list') {
         clearInterval(window._studentPortalPollTimer);
@@ -11610,7 +11622,7 @@
           await authManager.pullGlobalMeta(false);
         } catch (err) {}
       }
-    }, 3500);
+    }, 5000);
 
     const currentUser = authManager.getCurrentUser();
     const classes = authManager.getClasses();
@@ -11734,12 +11746,17 @@
     const groupId = activeGroupObj.id;
     const groupName = activeGroupObj.name || '第 1 协作小组';
 
+    // 大厅也必须按当前班级 + 当前小组展示，避免学生看到不属于自己的定向任务。
     const relevantTasks = tasks.filter(t => {
       if (!t) return false;
-      if (!t.classId || t.classId === 'all' || t.classId === 'class_all') return true;
-      return isSameId(t.classId, userClass.id) || 
-             (t.className && t.className === userClass.name) ||
-             (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.some(cid => isSameId(cid, userClass.id))));
+      return isScopeMatch(t, {
+        userClassId: userClass.id,
+        userClassName: userClass.name,
+        userGroupId: groupId,
+        userGroupName: groupName,
+        currentTaskId: null,
+        currentTaskTitle: null
+      });
     }).sort((a, b) => (b.createdMs || new Date(b.createdAt || b.startTime || 0).getTime() || 0) - (a.createdMs || new Date(a.createdAt || a.startTime || 0).getTime() || 0));
     const isAnnRead = (a) => {
       if (!a) return false;
@@ -13068,7 +13085,11 @@
     const isAllConfirmed = (totalMembersCount > 0 && confirmedCount >= totalMembersCount);
     const isContractLocked = !!(s1.contract && s1.contract.isConfirmed) || isAllConfirmed || (state.groupMaxStage === 'stage2' || state.groupMaxStage === 'stage3') || state.isFinalSubmitted || isTaskDeadlineExpired;
     const isDraftDone = !!(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated);
-    const isContractComplete = isDraftDone || !!(s1.contract?.topic || s1.mergedTitle);
+    const hasContractTopic = !!(s1.mergedTitle || String(s1.contract?.topic || '').trim());
+    const hasContractOverview = !!(String(s1.contract?.overview || s1.researchOverview || '').trim());
+    const hasContractTime = !!(s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6 && Object.values(s1.contract.timeAllocations).some(v => Number(v) > 0));
+    const hasContractAssignments = !!(s1.contract?.taskAssignments && Object.values(s1.contract.taskAssignments).some(v => typeof v === 'string' && v.trim().length > 0));
+    const isContractComplete = isDraftDone && hasContractTopic && hasContractOverview && hasContractTime && hasContractAssignments;
     const isInputDisabled = isContractLocked; // 只有在公约最终签署生效/全组进入下一阶段后才真正锁定输入，草案生成后全员可自由微调
     if (s1.contract && isAllConfirmed) s1.contract.isConfirmed = true;
 
@@ -14116,9 +14137,10 @@
           const hasOverview = !!(s1.contract?.overview?.trim() || s1.researchOverview?.trim());
           const hasTime = !!(s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6 && Object.values(s1.contract.timeAllocations).some(v => Number(v) > 0));
           const hasAssignments = !!(s1.contract?.taskAssignments && Object.keys(s1.contract.taskAssignments).length > 0 && Object.values(s1.contract.taskAssignments).some(v => typeof v === 'string' && v.trim().length > 0));
-          if (!hasTopic || !hasOverview || !hasTime || !hasAssignments) {
+          const hasDraftGenerated = !!(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated);
+          if (!hasDraftGenerated || !hasTopic || !hasOverview || !hasTime || !hasAssignments) {
             if (typeof showGlobalBannerNotice === 'function') {
-              showGlobalBannerNotice('公约尚未就绪', '请先完成课题、方案概述、时间预算分配及人员分工等公约核心内容，方可签署！', 'warning', 4000);
+              showGlobalBannerNotice('公约尚未就绪', '请先等待公约草案最终生成，并完成课题、方案概述、时间预算分配及人员分工后再签署！', 'warning', 4000);
             }
             return;
           }
@@ -14350,13 +14372,18 @@
             window._padSingleMemberDetectStart = 0;
           }
 
-          state.stage2.memberContributions = authorStats.memberCounts;
+          const prevSum = membersList.reduce((sum, m) => sum + getMemberContribVal(prevContribs, m), 0);
+          const nextSum = membersList.reduce((sum, m) => sum + getMemberContribVal(authorStats.memberCounts, m), 0);
+          if (nextSum > 0 || prevSum === 0) {
+            state.stage2.memberContributions = authorStats.memberCounts;
+          }
           updateContribDom();
 
           const contribStr = JSON.stringify(authorStats.memberCounts);
           if (_padContribDebounceTimer) clearTimeout(_padContribDebounceTimer);
           _padContribDebounceTimer = setTimeout(() => {
             if (_lastReportedContribStr === contribStr) return;
+            if (nextSum === 0 && prevSum > 0) return;
             _lastReportedContribStr = contribStr;
             fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
               method: 'POST',
@@ -14502,8 +14529,8 @@
                   const isChecked = !!(effActionPlan.completedMap && effActionPlan.completedMap[idx]);
                   let formattedItem = escapeHtml(item);
                   return `
-                    <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.4; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#cbd5e1'}; border-radius:4px; padding:5px 8px; display:flex; align-items:flex-start; gap:6px; cursor:pointer; transition:all 0.15s ease;">
-                      <input type="checkbox" class="action-plan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} style="cursor:pointer; margin-top:2px; transform:scale(1.1);">
+                    <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.4; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#cbd5e1'}; border-radius:4px; padding:5px 8px; display:flex; align-items:flex-start; gap:6px; cursor:${(isTaskDeadlineExpired || state.isFinalSubmitted || s2.isDraftConfirmed) ? 'not-allowed' : 'pointer'}; pointer-events:${(isTaskDeadlineExpired || state.isFinalSubmitted || s2.isDraftConfirmed) ? 'none' : 'auto'}; transition:all 0.15s ease;">
+                      <input type="checkbox" class="action-plan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} ${(isTaskDeadlineExpired || state.isFinalSubmitted || s2.isDraftConfirmed) ? 'disabled' : ''} style="cursor:${(isTaskDeadlineExpired || state.isFinalSubmitted || s2.isDraftConfirmed) ? 'not-allowed' : 'pointer'}; margin-top:2px; transform:scale(1.1);">
                       <div style="flex:1; text-decoration:${isChecked ? 'line-through' : 'none'}; color:${isChecked ? '#166534' : '#1e293b'};">
                         <b style="color:${isChecked ? '#166534' : '#0f172a'}; margin-right:4px;">${idx + 1}.</b> ${formattedItem}
                       </div>
@@ -14742,8 +14769,8 @@
                   const isChecked = !!(effActionPlan.completedMap && effActionPlan.completedMap[idx]);
                   let formattedItem = escapeHtml(item);
                   return `
-                    <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.4; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#cbd5e1'}; border-radius:4px; padding:5px 8px; display:flex; align-items:flex-start; gap:6px; cursor:pointer; transition:all 0.15s ease;">
-                      <input type="checkbox" class="action-plan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} style="cursor:pointer; margin-top:2px; transform:scale(1.1);">
+                    <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.4; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#cbd5e1'}; border-radius:4px; padding:5px 8px; display:flex; align-items:flex-start; gap:6px; cursor:${(isTaskDeadlineExpired || state.isFinalSubmitted || s2.isDraftConfirmed) ? 'not-allowed' : 'pointer'}; pointer-events:${(isTaskDeadlineExpired || state.isFinalSubmitted || s2.isDraftConfirmed) ? 'none' : 'auto'}; transition:all 0.15s ease;">
+                      <input type="checkbox" class="action-plan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} ${(isTaskDeadlineExpired || state.isFinalSubmitted || s2.isDraftConfirmed) ? 'disabled' : ''} style="cursor:${(isTaskDeadlineExpired || state.isFinalSubmitted || s2.isDraftConfirmed) ? 'not-allowed' : 'pointer'}; margin-top:2px; transform:scale(1.1);">
                       <div style="flex:1; text-decoration:${isChecked ? 'line-through' : 'none'}; color:${isChecked ? '#166534' : '#1e293b'};">
                         <b style="color:${isChecked ? '#166534' : '#0f172a'}; margin-right:4px;">${idx + 1}.</b> ${formattedItem}
                       </div>
@@ -14850,6 +14877,7 @@
 
       canvas.querySelectorAll('.action-plan-item-box').forEach(box => {
         box.addEventListener('click', (e) => {
+          if (isTaskDeadlineExpired || state.isFinalSubmitted || s2.isDraftConfirmed) return;
           const idx = Number(box.dataset.itemIdx);
           if (!state.stage2.actionPlan.completedMap) state.stage2.actionPlan.completedMap = {};
           state.stage2.actionPlan.completedMap[idx] = !state.stage2.actionPlan.completedMap[idx];
@@ -14951,8 +14979,8 @@
             const isChecked = !!completedMap[idx];
             const rawResp = (item.response || item.title || '在对应章节补充修改完善').trim();
             return `
-              <div class="s3-revplan-item-box" data-item-idx="${idx}" style="line-height:1.4; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#cbd5e1'}; border-radius:4px; padding:5px 8px; display:flex; align-items:center; gap:6px; cursor:pointer; transition:all 0.15s ease;">
-                <input type="checkbox" class="s3-revplan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} style="cursor:pointer; margin-top:0; transform:scale(1.1);">
+              <div class="s3-revplan-item-box" data-item-idx="${idx}" style="line-height:1.4; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#cbd5e1'}; border-radius:4px; padding:5px 8px; display:flex; align-items:center; gap:6px; cursor:${(state.isFinalSubmitted || (typeof window.app?.isCurrentTaskReadOnly === 'function' && window.app.isCurrentTaskReadOnly())) ? 'not-allowed' : 'pointer'}; pointer-events:${(state.isFinalSubmitted || (typeof window.app?.isCurrentTaskReadOnly === 'function' && window.app.isCurrentTaskReadOnly())) ? 'none' : 'auto'}; transition:all 0.15s ease;">
+                <input type="checkbox" class="s3-revplan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} ${(state.isFinalSubmitted || (typeof window.app?.isCurrentTaskReadOnly === 'function' && window.app.isCurrentTaskReadOnly())) ? 'disabled' : ''} style="cursor:${(state.isFinalSubmitted || (typeof window.app?.isCurrentTaskReadOnly === 'function' && window.app.isCurrentTaskReadOnly())) ? 'not-allowed' : 'pointer'}; margin-top:0; transform:scale(1.1);">
                 <div style="flex:1; text-decoration:${isChecked ? 'line-through' : 'none'}; color:${isChecked ? '#166534' : '#1e293b'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(rawResp)}">
                   <b style="color:${isChecked ? '#166534' : '#0f172a'}; margin-right:4px;">${idx + 1}.</b> ${escapeHtml(rawResp)}
                 </div>
@@ -14990,6 +15018,8 @@
 
     card.querySelectorAll('.s3-revplan-item-box').forEach(box => {
       box.onclick = (e) => {
+        const isLocked = !!(state.isFinalSubmitted || (typeof window.app?.isCurrentTaskReadOnly === 'function' && window.app.isCurrentTaskReadOnly()));
+        if (isLocked) return;
         const idx = Number(box.dataset.itemIdx);
         if (isNaN(idx)) return;
         if (!s3.revisionPlan) s3.revisionPlan = {};
@@ -15016,7 +15046,11 @@
     const isReadOnly = (typeof window.app?.isCurrentTaskReadOnly === 'function') && window.app.isCurrentTaskReadOnly();
     const isCallingActive = !!(s3._pipelineCallingTimestamp && (Date.now() - Number(s3._pipelineCallingTimestamp) < 60000));
     const isRunning = !!(state.stage3CommitteeLoading || window.app?._isStage3PipelineRunning || isCallingActive);
-    if (isRunning || !s3.feedbackItems || s3.feedbackItems.length === 0) {
+    const s3Logs = (state.chatLogs && Array.isArray(state.chatLogs.stage3)) ? state.chatLogs.stage3 : [];
+    const hasProp = s3Logs.some(m => m && m.sender === 'proponent' && String(m.text || '').trim());
+    const hasOpp = s3Logs.some(m => m && m.sender === 'opponent' && String(m.text || '').trim());
+    const hasCommitteeReady = hasProp && hasOpp && Array.isArray(s3.feedbackItems) && s3.feedbackItems.length > 0;
+    if (isRunning || !hasCommitteeReady) {
       if (isReadOnly) {
         return `
           <div style="background:#fff1f2; border:1.5px solid #fecdd3; border-radius:12px; padding:32px 24px; text-align:center; box-shadow:0 4px 12px rgba(225,29,72,0.06);">
@@ -15045,11 +15079,13 @@
           <div style="font-size:16px; font-weight:800; color:#1e40af; margin-bottom:6px;">答辩评审委员会已就绪</div>
           <div style="font-size:13px; color:#64748b; line-height:1.6; margin-bottom:18px;">
             全篇${docType}初稿已完成，正反两方评审专家已准备就位！<br>
-            如系统尚未自动开始，可点击下方按钮立即唤醒答辩专家通读审阅并下发修改清单。
+            ${hasCommitteeReady ? '正反方评审已成功生成，请在下方矩阵查看意见。' : '如系统尚未自动开始或上次生成失败，可点击下方按钮立即唤醒答辩专家通读审阅并下发修改清单。'}
           </div>
+          ${hasCommitteeReady ? '' : `
           <button class="btn-trigger-s3-pipeline" onclick="window.app && window.app.runStage3CommitteePipeline(this)" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); color:#ffffff; border:none; padding:10px 24px; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.25); display:inline-flex; align-items:center; gap:8px; transition:transform 0.15s ease;">
             🚀 立即召唤答辩专家审阅初稿
           </button>
+          `}
         </div>
       `;
     }
@@ -16587,15 +16623,41 @@
       this.initTimer();
 
       // 🎯 响应云端全局元数据对齐：秒级更新工作台顶部通知、参考范文与任务状态
-      window.addEventListener('jizhi_meta_updated', () => {
-        const u = this.authManager ? this.authManager.getCurrentUser() : null;
-        if (u && (u.role === 'student' || u.isStudent)) {
+      // 跨设备元数据变化只做一次合并刷新，避免通知/文献/问卷连续发布时重复重绘。
+      this._scheduleStudentMetaUiRefresh = () => {
+        if (this._studentMetaUiRefreshTimer) return;
+        this._studentMetaUiRefreshTimer = setTimeout(() => {
+          this._studentMetaUiRefreshTimer = null;
+          const u = this.authManager ? this.authManager.getCurrentUser() : null;
+          if (!u || (u.role !== 'student' && !u.isStudent)) return;
+
           if (this.state.studentViewMode === 'workspace') {
+            // 元数据更新只刷新轻量控件，绝不重绘整个工作台，避免重建 Etherpad iframe。
             if (typeof this.renderHeader === 'function') this.renderHeader();
             if (typeof this.checkUnreadAnnouncements === 'function') this.checkUnreadAnnouncements();
+
+            const currentTaskId = this.state.activeTaskId || null;
+            const classId = this.state.activeStudentClassId || this.authManager.getEffectiveStudentClassId(u, currentTaskId);
+            const group = this.authManager.getStudentActiveGroup(u, classId);
+            const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || group?.id || u.groupId || null;
+            const papers = this.authManager.getReferencePapers(groupId, classId, currentTaskId);
+            const refBtn = document.getElementById('btn-show-case') || document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
+            if (refBtn) refBtn.innerText = papers.length ? `📚 查阅参考范文 (${papers.length}篇)` : '📚 查阅参考范文库';
+
+            // 若用户正在查看范文/问卷，才就地重建对应小弹窗，不触碰正文编辑器。
+            const openModal = document.querySelector('.modal-overlay');
+            const modalTitle = openModal?.querySelector('h3')?.innerText || '';
+            if (modalTitle.includes('参考范文库') && typeof this.showReferencePapersModal === 'function') {
+              this.showReferencePapersModal();
+            } else if (modalTitle.includes('课程协作学习与体验问卷') && typeof this.showQuestionnaireModal === 'function') {
+              this.showQuestionnaireModal();
+            }
+          } else if (this.state.studentViewMode === 'task_list' && typeof this.renderMain === 'function') {
+            this.renderMain();
           }
-        }
-      });
+        }, 500);
+      };
+      window.addEventListener('jizhi_meta_updated', this._scheduleStudentMetaUiRefresh);
 
       this.renderMain();
 
@@ -17235,7 +17297,7 @@
       const contribBarsContainer = document.getElementById('stage2-contrib-bars');
       if (contribLabelsContainer && contribBarsContainer) {
         const membersList = Object.values(this.state.members || {});
-        const contribs = (this.state.stage2 && this.state.stage2.memberContributions) ? this.state.stage2.memberContributions : {};
+        const contribs = (this.state.stage2 && (this.state.stage2.frozenContributions || this.state.stage2.memberContributions)) ? (this.state.stage2.frozenContributions || this.state.stage2.memberContributions) : {};
 
         const getVal = (m) => {
           if (!m) return 0;
@@ -17752,8 +17814,12 @@
                   // 1. 先弹出任务已截止专属提示弹窗
                   showTaskDeadlineExpiredModal(curTask);
 
-                  // 2. 立即刷新工作台转为只读查阅模式并呈现顶栏“已截止”与正文红横幅
-                  this.renderStudentWorkspace(true);
+                  // 2. 立即切为只读查阅，但不重建 Etherpad iframe，避免协同中断
+                  if (typeof this.renderHeader === 'function') this.renderHeader();
+                  const f2 = document.getElementById('stage2-etherpad-frame');
+                  const f3 = document.getElementById('stage3-etherpad-frame');
+                  if (f2 && typeof enforceEtherpadReadonly === 'function') enforceEtherpadReadonly(f2);
+                  if (f3 && typeof enforceEtherpadReadonly === 'function') enforceEtherpadReadonly(f3);
                 }
               } else {
                 // 若时间被延长，重置已通知标志
@@ -19346,8 +19412,18 @@
       const currTaskObj = tasks.find(t => isSameId(t.id, currentTaskId));
       const taskTitle = currTaskObj ? currTaskObj.title : (currentTaskId || '写作任务');
 
+      const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, currentClassId);
+      const currentGroupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj?.id || currentUser?.groupId || null;
+      const currentClassObj = (this.authManager.getClasses() || []).find(c => isSameId(c.id, currentClassId));
       const allSurveys = this.authManager.getSurveysList() || [];
-      const classSurveys = allSurveys.filter(s => !s.classId || s.classId === 'all' || s.classId === 'class_all' || isSameId(s.classId, currentClassId));
+      const classSurveys = allSurveys.filter(s => isScopeMatch(s, {
+        userClassId: currentClassId,
+        userClassName: currentClassObj?.name || '',
+        userGroupId: currentGroupId,
+        userGroupName: activeGroupObj?.name || '',
+        currentTaskId,
+        currentTaskTitle: currentTaskObj?.title || taskTitle
+      }));
 
       const surveyUrl = currentTaskId
         ? (this.authManager.getSurveyUrl(currentClassId, currentTaskId) || (currTaskObj ? this.authManager.getSurveyUrl(currentClassId, currTaskObj.id) : ''))

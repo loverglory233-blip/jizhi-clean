@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260908_v2893";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2893";
-import { callCozeAgentAPI } from "./agents.js?v=20260908_v2893";
-import { AuthManager } from "./auth.js?v=20260908_v2893";
-import { CloudSyncEngine } from "./sync.js?v=20260908_v2893";
-import { renderLoginView } from "./login.js?v=20260908_v2893";
-import { renderTeacherPortal } from "./teacher.js?v=20260908_v2893";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2893";
+} from "./constants.js?v=20260908_v2894";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2894";
+import { callCozeAgentAPI } from "./agents.js?v=20260908_v2894";
+import { AuthManager } from "./auth.js?v=20260908_v2894";
+import { CloudSyncEngine } from "./sync.js?v=20260908_v2894";
+import { renderLoginView } from "./login.js?v=20260908_v2894";
+import { renderTeacherPortal } from "./teacher.js?v=20260908_v2894";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2894";
 import {
   renderEditor,
   renderChat,
@@ -36,7 +36,7 @@ import {
   getEtherpadAuthorStats,
   renderPresenceCursors,
   getEffectiveAgentAnalyzing
-} from "./editor.js?v=20260908_v2893";
+} from "./editor.js?v=20260908_v2894";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -126,15 +126,41 @@ export class App {
     this.initTimer();
     
     // 🎯 响应云端全局元数据对齐：秒级更新工作台顶部通知、参考范文与任务状态
-    window.addEventListener('jizhi_meta_updated', () => {
-      const u = this.authManager ? this.authManager.getCurrentUser() : null;
-      if (u && (u.role === 'student' || u.isStudent)) {
+    // 跨设备元数据变化只做一次合并刷新，避免通知/文献/问卷连续发布时重复重绘。
+    this._scheduleStudentMetaUiRefresh = () => {
+      if (this._studentMetaUiRefreshTimer) return;
+      this._studentMetaUiRefreshTimer = setTimeout(() => {
+        this._studentMetaUiRefreshTimer = null;
+        const u = this.authManager ? this.authManager.getCurrentUser() : null;
+        if (!u || (u.role !== 'student' && !u.isStudent)) return;
+
         if (this.state.studentViewMode === 'workspace') {
+          // 元数据更新只刷新轻量控件，绝不重绘整个工作台，避免重建 Etherpad iframe。
           if (typeof this.renderHeader === 'function') this.renderHeader();
           if (typeof this.checkUnreadAnnouncements === 'function') this.checkUnreadAnnouncements();
+
+          const currentTaskId = this.state.activeTaskId || null;
+          const classId = this.state.activeStudentClassId || this.authManager.getEffectiveStudentClassId(u, currentTaskId);
+          const group = this.authManager.getStudentActiveGroup(u, classId);
+          const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || group?.id || u.groupId || null;
+          const papers = this.authManager.getReferencePapers(groupId, classId, currentTaskId);
+          const refBtn = document.getElementById('btn-show-case') || document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
+          if (refBtn) refBtn.innerText = papers.length ? `📚 查阅参考范文 (${papers.length}篇)` : '📚 查阅参考范文库';
+
+          // 若用户正在查看范文/问卷，才就地重建对应小弹窗，不触碰正文编辑器。
+          const openModal = document.querySelector('.modal-overlay');
+          const modalTitle = openModal?.querySelector('h3')?.innerText || '';
+          if (modalTitle.includes('参考范文库') && typeof this.showReferencePapersModal === 'function') {
+            this.showReferencePapersModal();
+          } else if (modalTitle.includes('课程协作学习与体验问卷') && typeof this.showQuestionnaireModal === 'function') {
+            this.showQuestionnaireModal();
+          }
+        } else if (this.state.studentViewMode === 'task_list' && typeof this.renderMain === 'function') {
+          this.renderMain();
         }
-      }
-    });
+      }, 500);
+    };
+    window.addEventListener('jizhi_meta_updated', this._scheduleStudentMetaUiRefresh);
 
     this.renderMain();
 
@@ -774,7 +800,7 @@ export class App {
     const contribBarsContainer = document.getElementById('stage2-contrib-bars');
     if (contribLabelsContainer && contribBarsContainer) {
       const membersList = Object.values(this.state.members || {});
-      const contribs = (this.state.stage2 && this.state.stage2.memberContributions) ? this.state.stage2.memberContributions : {};
+      const contribs = (this.state.stage2 && (this.state.stage2.frozenContributions || this.state.stage2.memberContributions)) ? (this.state.stage2.frozenContributions || this.state.stage2.memberContributions) : {};
       
       const getVal = (m) => {
         if (!m) return 0;
@@ -1291,8 +1317,12 @@ export class App {
                 // 1. 先弹出任务已截止专属提示弹窗
                 showTaskDeadlineExpiredModal(curTask);
 
-                // 2. 立即刷新工作台转为只读查阅模式并呈现顶栏“已截止”与正文红横幅
-                this.renderStudentWorkspace(true);
+                // 2. 立即切为只读查阅，但不重建 Etherpad iframe，避免协同中断
+                if (typeof this.renderHeader === 'function') this.renderHeader();
+                const f2 = document.getElementById('stage2-etherpad-frame');
+                const f3 = document.getElementById('stage3-etherpad-frame');
+                if (f2 && typeof enforceEtherpadReadonly === 'function') enforceEtherpadReadonly(f2);
+                if (f3 && typeof enforceEtherpadReadonly === 'function') enforceEtherpadReadonly(f3);
               }
             } else {
               // 若时间被延长，重置已通知标志
@@ -2885,8 +2915,18 @@ export class App {
     const currTaskObj = tasks.find(t => isSameId(t.id, currentTaskId));
     const taskTitle = currTaskObj ? currTaskObj.title : (currentTaskId || '写作任务');
 
+    const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, currentClassId);
+    const currentGroupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj?.id || currentUser?.groupId || null;
+    const currentClassObj = (this.authManager.getClasses() || []).find(c => isSameId(c.id, currentClassId));
     const allSurveys = this.authManager.getSurveysList() || [];
-    const classSurveys = allSurveys.filter(s => !s.classId || s.classId === 'all' || s.classId === 'class_all' || isSameId(s.classId, currentClassId));
+    const classSurveys = allSurveys.filter(s => isScopeMatch(s, {
+      userClassId: currentClassId,
+      userClassName: currentClassObj?.name || '',
+      userGroupId: currentGroupId,
+      userGroupName: activeGroupObj?.name || '',
+      currentTaskId,
+      currentTaskTitle: currentTaskObj?.title || taskTitle
+    }));
 
     const surveyUrl = currentTaskId
       ? (this.authManager.getSurveyUrl(currentClassId, currentTaskId) || (currTaskObj ? this.authManager.getSurveyUrl(currentClassId, currTaskObj.id) : ''))
