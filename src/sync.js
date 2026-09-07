@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260908_v2886';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260908_v2886';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260908_v2888';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260908_v2888';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -642,14 +642,14 @@ export class CloudSyncEngine {
       let remoteLogs = Array.isArray(remoteChatLogs[stg]) ? remoteChatLogs[stg] : [];
       const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
       
-      // 🛡️ 严格任务物理隔离：仅保留明确属于当前任务的未上传本地发言，非当前任务一律丢弃
+      // 🛡️ 严格任务物理隔离：仅保留明确属于当前任务的未上传本地发言，非当前任务或缺失 taskId 一律丢弃
       const localCompleted = localLogs.filter(m => {
         if (!m) return false;
         if (m.isThinking || String(m.id || '').startsWith('thinking_') || String(m.id || '').startsWith('temp_analyzing_')) {
           return false; // 过滤临时思考占位
         }
-        if (m.taskId && currentTaskId && !isSameId(m.taskId, currentTaskId)) {
-          return false; // 绝不允许跨任务继承历史消息！
+        if (!m.taskId || !currentTaskId || !isSameId(m.taskId, currentTaskId)) {
+          return false; // 绝不允许跨任务继承历史消息！没有 taskId 亦绝对不保留
         }
         const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs && m._timeMs && Math.abs(rm._timeMs - m._timeMs) < 2500 && rm.text === m.text) || (rm.text && m.text && rm.text === m.text && rm.sender === m.sender));
         return !existsInRemote;
@@ -1186,18 +1186,58 @@ export class CloudSyncEngine {
       this._hasInitialPullCompleted = true;
     }
 
-    if (remoteData.chatLogs) {
+    // 🛡️ 新任务纯净初始化守卫：若当前任务尚未产生协作记录（revisionId === 0），彻底清空残留数据
+    const isBrandNewTask = (remoteData.revisionId === 0 || remoteData.timestamp === 0);
+    if (isBrandNewTask) {
+      this.app.state.currentStage = 'stage1';
+      this.app.state.groupMaxStage = 'stage1';
+      this.app.state.isFinalSubmitted = false;
+      this.app.state.stepConfirmations = {};
+      this.app.state.fieldLocks = {};
+      this.app.state.activeAgentAnalyzing = null;
+      this.app.state.stage2PendingReviewing = null;
+      this.app.state.stage2FirstReviewText = null;
+      this.app.state.stage2SecondReviewText = null;
+      this.app.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+      if (this.app.state.stage1) {
+        this.app.state.stage1.proposals = [];
+        this.app.state.stage1.votes = {};
+        this.app.state.stage1.hasVoted = {};
+        this.app.state.stage1.mergedTitle = '';
+        this.app.state.stage1.researchOverview = '';
+        this.app.state.stage1.contractStep = '';
+        this.app.state.stage1.contract = {
+          topic: '', overview: '', isDraftGenerated: false, isConfirmed: false,
+          taskAssignments: {}, timeAllocations: {}, confirmedMembers: {}, contractRules: {}
+        };
+      }
+      if (this.app.state.stage2) {
+        this.app.state.stage2.unifiedContent = '';
+        this.app.state.stage2.memberContributions = {};
+        this.app.state.stage2.confirmedMembers = {};
+        this.app.state.stage2.meetingSubmissions = {};
+        this.app.state.stage2.meetingStep = '';
+        this.app.state.stage2.reviewMilestone = 'none';
+        this.app.state.stage2.actionPlan = null;
+        this.app.state.stage2.isDraftConfirmed = false;
+      }
+      if (this.app.state.stage3) {
+        this.app.state.stage3.feedbackItems = [];
+        this.app.state.stage3.finalSubmittedMembers = {};
+        this.app.state.stage3.revisionPlan = null;
+      }
+      needWorkspaceRender = true;
+    } else if (remoteData.chatLogs) {
       this.applyRemoteChatLogs(remoteData.chatLogs);
     }
 
     // 🔒 渲染阶段一合约与阶段三答辩的字段级排他聚焦锁
-    if (remoteData.locks !== undefined) {
+    if (!isBrandNewTask && remoteData.locks !== undefined) {
       this.app.state.fieldLocks = remoteData.locks || {};
       const locks = this.app.state.fieldLocks;
       const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
       const currentUserId = currentUser ? currentUser.id : '';
 
-      // 阶段一公约与阶段三答辩矩阵字段锁更新
       document.querySelectorAll('.task-assignment-input, .contract-time-input, #contract-topic-input, .feedback-direct-input').forEach(el => {
         const fieldKey = el.dataset.lockKey || el.id || (el.dataset.mkey ? `task_${el.dataset.mkey}` : (el.dataset.key ? `time_${el.dataset.key}` : (el.dataset.id ? `fb_${el.dataset.id}` : '')));
         if (!fieldKey) return;
@@ -1212,17 +1252,14 @@ export class CloudSyncEngine {
         const lockName = lockInfo ? String(lockInfo.userName || '') : '';
         const isLockedByOther = isLockFresh && lockUser !== currentUserId && (!currentUserName || lockName !== currentUserName);
 
-        // 查找所属卡片或外层容器
         const isTimeInput = el.classList.contains('contract-time-input');
         const mountContainer = isTimeInput ? (el.closest('div[style*="border-left"]') || el.parentElement.parentElement) : el.parentElement;
         let badge = mountContainer.querySelector(`.field-lock-badge[data-for="${fieldKey}"]`);
 
         if (isLockedByOther) {
-          // 💡 实时呈现对方正在打的成型文字 (无论当前焦点在不在，只要对方锁定了，立即镜像最新内容！)
           if (lockInfo.value !== undefined && lockInfo.value !== null) {
             el.value = lockInfo.value;
           }
-          // 🛡️ 如果自己当前正好在该输入框中，标记抢占并安全 blur，杜绝 blur 事件回写覆盖
           if (document.activeElement === el) {
             el._preemptedByOther = true;
             el.blur();
@@ -1251,7 +1288,6 @@ export class CloudSyncEngine {
             badge.innerHTML = `🔒 ${lockInfo.userName || '组员'} 正在输入...`;
           }
 
-          // ⚡ 8.5 秒强制自毁定时器：对方若完全停手 8s 安全交接
           if (badge._selfDestructTimer) clearTimeout(badge._selfDestructTimer);
           badge._selfDestructTimer = setTimeout(() => {
             if (badge) badge.remove();
@@ -1285,49 +1321,6 @@ export class CloudSyncEngine {
           }
         }
       });
-    }
-
-    let needWorkspaceRender = !this._hasRenderedInitialWorkspace;
-
-    // 🛡️ 新任务纯净初始化守卫：若当前任务尚未产生协作记录（revisionId === 0），彻底清空残留数据
-    const isBrandNewTask = (remoteData.revisionId === 0 || remoteData.timestamp === 0);
-    if (isBrandNewTask) {
-      this.app.state.currentStage = 'stage1';
-      this.app.state.groupMaxStage = 'stage1';
-      this.app.state.isFinalSubmitted = false;
-      this.app.state.stepConfirmations = {};
-      this.app.state.fieldLocks = {};
-      this.app.state.stage2PendingReviewing = null;
-      this.app.state.stage2FirstReviewText = null;
-      this.app.state.stage2SecondReviewText = null;
-      if (this.app.state.stage1) {
-        this.app.state.stage1.proposals = [];
-        this.app.state.stage1.votes = {};
-        this.app.state.stage1.hasVoted = {};
-        this.app.state.stage1.mergedTitle = '';
-        this.app.state.stage1.researchOverview = '';
-        this.app.state.stage1.contractStep = '';
-        this.app.state.stage1.contract = {
-          topic: '', overview: '', isDraftGenerated: false, isConfirmed: false,
-          taskAssignments: {}, timeAllocations: {}, confirmedMembers: {}, contractRules: {}
-        };
-      }
-      if (this.app.state.stage2) {
-        this.app.state.stage2.unifiedContent = '';
-        this.app.state.stage2.memberContributions = {};
-        this.app.state.stage2.confirmedMembers = {};
-        this.app.state.stage2.meetingSubmissions = {};
-        this.app.state.stage2.meetingStep = '';
-        this.app.state.stage2.reviewMilestone = 'none';
-        this.app.state.stage2.actionPlan = null;
-        this.app.state.stage2.isDraftConfirmed = false;
-      }
-      if (this.app.state.stage3) {
-        this.app.state.stage3.feedbackItems = [];
-        this.app.state.stage3.finalSubmittedMembers = {};
-        this.app.state.stage3.revisionPlan = null;
-      }
-      needWorkspaceRender = true;
     }
 
     if (remoteData.stage1 && !isBrandNewTask) {

@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260908_v2886
+ * Version: 20260908_v2888
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,8 +16,8 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260908_v2886';
-  const APP_BUILD_DATE = '2026-09-07';
+  const APP_VERSION = '20260908_v2888';
+  const APP_BUILD_DATE = '2026-09-08';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
   const STORAGE_KEY_USERS_DB = 'jizhi_pure_v10_users_db';
@@ -5348,14 +5348,14 @@
         let remoteLogs = Array.isArray(remoteChatLogs[stg]) ? remoteChatLogs[stg] : [];
         const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
 
-        // 🛡️ 严格任务物理隔离：仅保留明确属于当前任务的未上传本地发言，非当前任务一律丢弃
+        // 🛡️ 严格任务物理隔离：仅保留明确属于当前任务的未上传本地发言，非当前任务或缺失 taskId 一律丢弃
         const localCompleted = localLogs.filter(m => {
           if (!m) return false;
           if (m.isThinking || String(m.id || '').startsWith('thinking_') || String(m.id || '').startsWith('temp_analyzing_')) {
             return false; // 过滤临时思考占位
           }
-          if (m.taskId && currentTaskId && !isSameId(m.taskId, currentTaskId)) {
-            return false; // 绝不允许跨任务继承历史消息！
+          if (!m.taskId || !currentTaskId || !isSameId(m.taskId, currentTaskId)) {
+            return false; // 绝不允许跨任务继承历史消息！没有 taskId 亦绝对不保留
           }
           const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs && m._timeMs && Math.abs(rm._timeMs - m._timeMs) < 2500 && rm.text === m.text) || (rm.text && m.text && rm.text === m.text && rm.sender === m.sender));
           return !existsInRemote;
@@ -5892,18 +5892,58 @@
         this._hasInitialPullCompleted = true;
       }
 
-      if (remoteData.chatLogs) {
+      // 🛡️ 新任务纯净初始化守卫：若当前任务尚未产生协作记录（revisionId === 0），彻底清空残留数据
+      const isBrandNewTask = (remoteData.revisionId === 0 || remoteData.timestamp === 0);
+      if (isBrandNewTask) {
+        this.app.state.currentStage = 'stage1';
+        this.app.state.groupMaxStage = 'stage1';
+        this.app.state.isFinalSubmitted = false;
+        this.app.state.stepConfirmations = {};
+        this.app.state.fieldLocks = {};
+        this.app.state.activeAgentAnalyzing = null;
+        this.app.state.stage2PendingReviewing = null;
+        this.app.state.stage2FirstReviewText = null;
+        this.app.state.stage2SecondReviewText = null;
+        this.app.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+        if (this.app.state.stage1) {
+          this.app.state.stage1.proposals = [];
+          this.app.state.stage1.votes = {};
+          this.app.state.stage1.hasVoted = {};
+          this.app.state.stage1.mergedTitle = '';
+          this.app.state.stage1.researchOverview = '';
+          this.app.state.stage1.contractStep = '';
+          this.app.state.stage1.contract = {
+            topic: '', overview: '', isDraftGenerated: false, isConfirmed: false,
+            taskAssignments: {}, timeAllocations: {}, confirmedMembers: {}, contractRules: {}
+          };
+        }
+        if (this.app.state.stage2) {
+          this.app.state.stage2.unifiedContent = '';
+          this.app.state.stage2.memberContributions = {};
+          this.app.state.stage2.confirmedMembers = {};
+          this.app.state.stage2.meetingSubmissions = {};
+          this.app.state.stage2.meetingStep = '';
+          this.app.state.stage2.reviewMilestone = 'none';
+          this.app.state.stage2.actionPlan = null;
+          this.app.state.stage2.isDraftConfirmed = false;
+        }
+        if (this.app.state.stage3) {
+          this.app.state.stage3.feedbackItems = [];
+          this.app.state.stage3.finalSubmittedMembers = {};
+          this.app.state.stage3.revisionPlan = null;
+        }
+        needWorkspaceRender = true;
+      } else if (remoteData.chatLogs) {
         this.applyRemoteChatLogs(remoteData.chatLogs);
       }
 
       // 🔒 渲染阶段一合约与阶段三答辩的字段级排他聚焦锁
-      if (remoteData.locks !== undefined) {
+      if (!isBrandNewTask && remoteData.locks !== undefined) {
         this.app.state.fieldLocks = remoteData.locks || {};
         const locks = this.app.state.fieldLocks;
         const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
         const currentUserId = currentUser ? currentUser.id : '';
 
-        // 阶段一公约与阶段三答辩矩阵字段锁更新
         document.querySelectorAll('.task-assignment-input, .contract-time-input, #contract-topic-input, .feedback-direct-input').forEach(el => {
           const fieldKey = el.dataset.lockKey || el.id || (el.dataset.mkey ? `task_${el.dataset.mkey}` : (el.dataset.key ? `time_${el.dataset.key}` : (el.dataset.id ? `fb_${el.dataset.id}` : '')));
           if (!fieldKey) return;
@@ -5918,17 +5958,14 @@
           const lockName = lockInfo ? String(lockInfo.userName || '') : '';
           const isLockedByOther = isLockFresh && lockUser !== currentUserId && (!currentUserName || lockName !== currentUserName);
 
-          // 查找所属卡片或外层容器
           const isTimeInput = el.classList.contains('contract-time-input');
           const mountContainer = isTimeInput ? (el.closest('div[style*="border-left"]') || el.parentElement.parentElement) : el.parentElement;
           let badge = mountContainer.querySelector(`.field-lock-badge[data-for="${fieldKey}"]`);
 
           if (isLockedByOther) {
-            // 💡 实时呈现对方正在打的成型文字 (无论当前焦点在不在，只要对方锁定了，立即镜像最新内容！)
             if (lockInfo.value !== undefined && lockInfo.value !== null) {
               el.value = lockInfo.value;
             }
-            // 🛡️ 如果自己当前正好在该输入框中，标记抢占并安全 blur，杜绝 blur 事件回写覆盖
             if (document.activeElement === el) {
               el._preemptedByOther = true;
               el.blur();
@@ -5957,7 +5994,6 @@
               badge.innerHTML = `🔒 ${lockInfo.userName || '组员'} 正在输入...`;
             }
 
-            // ⚡ 8.5 秒强制自毁定时器：对方若完全停手 8s 安全交接
             if (badge._selfDestructTimer) clearTimeout(badge._selfDestructTimer);
             badge._selfDestructTimer = setTimeout(() => {
               if (badge) badge.remove();
@@ -5991,49 +6027,6 @@
             }
           }
         });
-      }
-
-      let needWorkspaceRender = !this._hasRenderedInitialWorkspace;
-
-      // 🛡️ 新任务纯净初始化守卫：若当前任务尚未产生协作记录（revisionId === 0），彻底清空残留数据
-      const isBrandNewTask = (remoteData.revisionId === 0 || remoteData.timestamp === 0);
-      if (isBrandNewTask) {
-        this.app.state.currentStage = 'stage1';
-        this.app.state.groupMaxStage = 'stage1';
-        this.app.state.isFinalSubmitted = false;
-        this.app.state.stepConfirmations = {};
-        this.app.state.fieldLocks = {};
-        this.app.state.stage2PendingReviewing = null;
-        this.app.state.stage2FirstReviewText = null;
-        this.app.state.stage2SecondReviewText = null;
-        if (this.app.state.stage1) {
-          this.app.state.stage1.proposals = [];
-          this.app.state.stage1.votes = {};
-          this.app.state.stage1.hasVoted = {};
-          this.app.state.stage1.mergedTitle = '';
-          this.app.state.stage1.researchOverview = '';
-          this.app.state.stage1.contractStep = '';
-          this.app.state.stage1.contract = {
-            topic: '', overview: '', isDraftGenerated: false, isConfirmed: false,
-            taskAssignments: {}, timeAllocations: {}, confirmedMembers: {}, contractRules: {}
-          };
-        }
-        if (this.app.state.stage2) {
-          this.app.state.stage2.unifiedContent = '';
-          this.app.state.stage2.memberContributions = {};
-          this.app.state.stage2.confirmedMembers = {};
-          this.app.state.stage2.meetingSubmissions = {};
-          this.app.state.stage2.meetingStep = '';
-          this.app.state.stage2.reviewMilestone = 'none';
-          this.app.state.stage2.actionPlan = null;
-          this.app.state.stage2.isDraftConfirmed = false;
-        }
-        if (this.app.state.stage3) {
-          this.app.state.stage3.feedbackItems = [];
-          this.app.state.stage3.finalSubmittedMembers = {};
-          this.app.state.stage3.revisionPlan = null;
-        }
-        needWorkspaceRender = true;
       }
 
       if (remoteData.stage1 && !isBrandNewTask) {
@@ -16492,14 +16485,35 @@
       this.state = JSON.parse(JSON.stringify(InitialState));
       this.studentMsgCountSinceLastAgent = 0;
 
+      const user = this.authManager ? this.authManager.getCurrentUser() : null;
+      const isTeacher = user && (user.isTeacher || user.role === 'teacher');
+      const isStudent = user && (user.role === 'student' || user.isStudent);
+      const allTasks = this.authManager ? this.authManager.getTasks() : [];
+
       const storedTaskId = sessionStorage.getItem('jizhi_active_task_id') || localStorage.getItem('jizhi_active_task_id');
-      if (storedTaskId) this.state.activeTaskId = storedTaskId;
-
       const storedClassId = sessionStorage.getItem('jizhi_active_student_class_id') || localStorage.getItem('jizhi_active_student_class_id');
-      if (storedClassId) this.state.activeStudentClassId = storedClassId;
-
       const storedViewMode = sessionStorage.getItem('jizhi_student_view_mode') || localStorage.getItem('jizhi_student_view_mode');
-      this.state.studentViewMode = (storedViewMode === 'workspace' && storedTaskId) ? 'workspace' : 'task_list';
+
+      const taskExists = storedTaskId && allTasks.some(t => isSameId(t.id, storedTaskId));
+      if (isStudent) {
+        if (storedViewMode === 'workspace' && taskExists) {
+          this.state.activeTaskId = storedTaskId;
+          this.state.studentViewMode = 'workspace';
+        } else {
+          this.state.activeTaskId = null;
+          this.state.studentViewMode = 'task_list';
+          try {
+            sessionStorage.removeItem('jizhi_active_task_id');
+            localStorage.removeItem('jizhi_active_task_id');
+            sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
+            localStorage.setItem('jizhi_student_view_mode', 'task_list');
+          } catch (e) {}
+        }
+      } else if (storedTaskId) {
+        this.state.activeTaskId = storedTaskId;
+      }
+
+      if (storedClassId) this.state.activeStudentClassId = storedClassId;
 
       // 🛡️ 教师端状态持久化恢复：刷新后精准停留在上次选中的班级/小组/Tab
       const storedTeacherClassId = sessionStorage.getItem('jizhi_teacher_active_class_id') || localStorage.getItem('jizhi_teacher_active_class_id');
@@ -16820,12 +16834,14 @@
       // 🛡️ 优先从任务专属轻量工作台快照恢复，严格杜绝跨任务残影
       let cached = null;
       try {
-        const taskSnapKey = `jizhi_active_workspace_snap_${effectiveClassId}_${taskId}_${groupId}`;
-        const raw = sessionStorage.getItem(taskSnapKey) || localStorage.getItem(taskSnapKey) || sessionStorage.getItem('jizhi_active_workspace_snap') || localStorage.getItem('jizhi_active_workspace_snap');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed && isSameId(parsed.classId, effectiveClassId) && parsed.taskId && taskId && isSameId(parsed.taskId, taskId) && isSameId(parsed.groupId, groupId)) {
-            cached = parsed;
+        if (taskId && groupId) {
+          const taskSnapKey = `jizhi_active_workspace_snap_${effectiveClassId}_${taskId}_${groupId}`;
+          const raw = sessionStorage.getItem(taskSnapKey) || localStorage.getItem(taskSnapKey);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && isSameId(parsed.classId, effectiveClassId) && parsed.taskId && isSameId(parsed.taskId, taskId) && isSameId(parsed.groupId, groupId)) {
+              cached = parsed;
+            }
           }
         }
       } catch (e) {}
@@ -16975,8 +16991,6 @@
         const taskSnapKey = `jizhi_active_workspace_snap_${effectiveClassId}_${this.state.activeTaskId}_${groupId}`;
         sessionStorage.setItem(taskSnapKey, snapStr);
         localStorage.setItem(taskSnapKey, snapStr);
-        sessionStorage.setItem('jizhi_active_workspace_snap', snapStr);
-        localStorage.setItem('jizhi_active_workspace_snap', snapStr);
       } catch (e) {}
     }
 
@@ -24486,8 +24500,9 @@
           }
 
           // 🛡️ 极速状态合并：提取本地持久化与内存中已有所有确认记录，防止并发冲刷
-          const groupId = (typeof this.getEffectiveGroupId === 'function') ? this.getEffectiveGroupId() : (this.state.activeGroupId || this.state.activeGroupId || null);
-          const cachedRaw = localStorage.getItem(`jizhi_group_state_${groupId}`);
+          const groupId = (typeof this.getEffectiveGroupId === 'function') ? this.getEffectiveGroupId() : (this.state.activeGroupId || null);
+          const taskSnapKey = `jizhi_active_workspace_snap_${effectiveClassId}_${this.state.activeTaskId}_${groupId}`;
+          const cachedRaw = localStorage.getItem(taskSnapKey);
           if (cachedRaw) {
             try {
               const cachedState = JSON.parse(cachedRaw);

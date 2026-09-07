@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260908_v2886";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2886";
-import { callCozeAgentAPI } from "./agents.js?v=20260908_v2886";
-import { AuthManager } from "./auth.js?v=20260908_v2886";
-import { CloudSyncEngine } from "./sync.js?v=20260908_v2886";
-import { renderLoginView } from "./login.js?v=20260908_v2886";
-import { renderTeacherPortal } from "./teacher.js?v=20260908_v2886";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2886";
+} from "./constants.js?v=20260908_v2888";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2888";
+import { callCozeAgentAPI } from "./agents.js?v=20260908_v2888";
+import { AuthManager } from "./auth.js?v=20260908_v2888";
+import { CloudSyncEngine } from "./sync.js?v=20260908_v2888";
+import { renderLoginView } from "./login.js?v=20260908_v2888";
+import { renderTeacherPortal } from "./teacher.js?v=20260908_v2888";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2888";
 import {
   renderEditor,
   renderChat,
@@ -36,7 +36,7 @@ import {
   getEtherpadAuthorStats,
   renderPresenceCursors,
   getEffectiveAgentAnalyzing
-} from "./editor.js?v=20260908_v2886";
+} from "./editor.js?v=20260908_v2888";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -74,14 +74,35 @@ export class App {
     this.state = JSON.parse(JSON.stringify(InitialState));
     this.studentMsgCountSinceLastAgent = 0;
 
+    const user = this.authManager ? this.authManager.getCurrentUser() : null;
+    const isTeacher = user && (user.isTeacher || user.role === 'teacher');
+    const isStudent = user && (user.role === 'student' || user.isStudent);
+    const allTasks = this.authManager ? this.authManager.getTasks() : [];
+
     const storedTaskId = sessionStorage.getItem('jizhi_active_task_id') || localStorage.getItem('jizhi_active_task_id');
-    if (storedTaskId) this.state.activeTaskId = storedTaskId;
-
     const storedClassId = sessionStorage.getItem('jizhi_active_student_class_id') || localStorage.getItem('jizhi_active_student_class_id');
-    if (storedClassId) this.state.activeStudentClassId = storedClassId;
-
     const storedViewMode = sessionStorage.getItem('jizhi_student_view_mode') || localStorage.getItem('jizhi_student_view_mode');
-    this.state.studentViewMode = (storedViewMode === 'workspace' && storedTaskId) ? 'workspace' : 'task_list';
+
+    const taskExists = storedTaskId && allTasks.some(t => isSameId(t.id, storedTaskId));
+    if (isStudent) {
+      if (storedViewMode === 'workspace' && taskExists) {
+        this.state.activeTaskId = storedTaskId;
+        this.state.studentViewMode = 'workspace';
+      } else {
+        this.state.activeTaskId = null;
+        this.state.studentViewMode = 'task_list';
+        try {
+          sessionStorage.removeItem('jizhi_active_task_id');
+          localStorage.removeItem('jizhi_active_task_id');
+          sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
+          localStorage.setItem('jizhi_student_view_mode', 'task_list');
+        } catch (e) {}
+      }
+    } else if (storedTaskId) {
+      this.state.activeTaskId = storedTaskId;
+    }
+
+    if (storedClassId) this.state.activeStudentClassId = storedClassId;
 
     // 🛡️ 教师端状态持久化恢复：刷新后精准停留在上次选中的班级/小组/Tab
     const storedTeacherClassId = sessionStorage.getItem('jizhi_teacher_active_class_id') || localStorage.getItem('jizhi_teacher_active_class_id');
@@ -402,12 +423,14 @@ export class App {
     // 🛡️ 优先从任务专属轻量工作台快照恢复，严格杜绝跨任务残影
     let cached = null;
     try {
-      const taskSnapKey = `jizhi_active_workspace_snap_${effectiveClassId}_${taskId}_${groupId}`;
-      const raw = sessionStorage.getItem(taskSnapKey) || localStorage.getItem(taskSnapKey) || sessionStorage.getItem('jizhi_active_workspace_snap') || localStorage.getItem('jizhi_active_workspace_snap');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && isSameId(parsed.classId, effectiveClassId) && parsed.taskId && taskId && isSameId(parsed.taskId, taskId) && isSameId(parsed.groupId, groupId)) {
-          cached = parsed;
+      if (taskId && groupId) {
+        const taskSnapKey = `jizhi_active_workspace_snap_${effectiveClassId}_${taskId}_${groupId}`;
+        const raw = sessionStorage.getItem(taskSnapKey) || localStorage.getItem(taskSnapKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && isSameId(parsed.classId, effectiveClassId) && parsed.taskId && isSameId(parsed.taskId, taskId) && isSameId(parsed.groupId, groupId)) {
+            cached = parsed;
+          }
         }
       }
     } catch (e) {}
@@ -557,8 +580,6 @@ export class App {
       const taskSnapKey = `jizhi_active_workspace_snap_${effectiveClassId}_${this.state.activeTaskId}_${groupId}`;
       sessionStorage.setItem(taskSnapKey, snapStr);
       localStorage.setItem(taskSnapKey, snapStr);
-      sessionStorage.setItem('jizhi_active_workspace_snap', snapStr);
-      localStorage.setItem('jizhi_active_workspace_snap', snapStr);
     } catch (e) {}
   }
 
@@ -8068,8 +8089,9 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
         }
 
         // 🛡️ 极速状态合并：提取本地持久化与内存中已有所有确认记录，防止并发冲刷
-        const groupId = (typeof this.getEffectiveGroupId === 'function') ? this.getEffectiveGroupId() : (this.state.activeGroupId || this.state.activeGroupId || null);
-        const cachedRaw = localStorage.getItem(`jizhi_group_state_${groupId}`);
+        const groupId = (typeof this.getEffectiveGroupId === 'function') ? this.getEffectiveGroupId() : (this.state.activeGroupId || null);
+        const taskSnapKey = `jizhi_active_workspace_snap_${effectiveClassId}_${this.state.activeTaskId}_${groupId}`;
+        const cachedRaw = localStorage.getItem(taskSnapKey);
         if (cachedRaw) {
           try {
             const cachedState = JSON.parse(cachedRaw);
