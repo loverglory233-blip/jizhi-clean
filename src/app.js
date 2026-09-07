@@ -21,13 +21,12 @@ import { CloudSyncEngine } from "./sync.js?v=20260907_v2828";
 import { renderLoginView } from "./login.js?v=20260907_v2828";
 import { renderTeacherPortal } from "./teacher.js?v=20260907_v2828";
 import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2828";
-import { 
-  renderHeader, 
-  renderStudentWorkspace, 
-  renderCanvas,
+import {
   renderChat,
-  renderChatActionBar,
-  renderEditorToolbar
+  renderHeader,
+  renderCanvas,
+  renderPresencePills,
+  renderRemoteCursors
 } from "./editor.js?v=20260907_v2828";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition

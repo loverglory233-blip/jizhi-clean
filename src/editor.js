@@ -4324,6 +4324,7 @@ export function renderSurveyModal() {}
 export function setupChatAtMentionMenu() {}
 export function updateContributionUi() {}
 export function showSurveyModalIfApplicable() {}
+export function renderEditorToolbar() {}
 
 // 🚀 全局事件委托守护：确保初稿确认、范文库、编辑会议三大按钮任何时刻 100% 灵敏响应
 if (typeof document !== 'undefined' && !window._stage2GlobalClickDelegated) {
