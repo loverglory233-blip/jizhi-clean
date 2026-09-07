@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2871";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2871";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2871";
-import { AuthManager } from "./auth.js?v=20260907_v2871";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2871";
-import { renderLoginView } from "./login.js?v=20260907_v2871";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2871";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2871";
+} from "./constants.js?v=20260907_v2872";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2872";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2872";
+import { AuthManager } from "./auth.js?v=20260907_v2872";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2872";
+import { renderLoginView } from "./login.js?v=20260907_v2872";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2872";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2872";
 import {
   renderEditor,
   renderChat,
@@ -36,7 +36,7 @@ import {
   getEtherpadAuthorStats,
   renderPresenceCursors,
   getEffectiveAgentAnalyzing
-} from "./editor.js?v=20260907_v2871";
+} from "./editor.js?v=20260907_v2872";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -437,27 +437,11 @@ export class App {
         this.stage3StartTime = this.state.stage3.startTime;
       }
 
-      // 🛡️ 阶段防越权自愈自净：若小组在阶段一或阶段二，强制解除任何终稿提交锁定，保证写作畅通
+      // 🛡️ 阶段防越权保护：遵循已签署状态，由云端权威同步最终裁决当前阶段
       if (this.state.currentStage === 'stage1' || this.state.currentStage === 'stage2') {
-        this.state.isFinalSubmitted = false;
-        this.isViewingPastStage = false;
-      }
-
-      // 🛡️ 阶段防越权自愈自净：若小组尚未推进至阶段三且未正式确认签署阶段二初稿，严禁保留提前触发的阶段三答辩数据
-      const isActuallyStage3 = !!(this.state.isFinalSubmitted || this.state.stage2?.isDraftConfirmed || this.state.groupMaxStage === 'stage3');
-      if (!isActuallyStage3) {
-        const correctMax = (this.state.stage1?.contract?.isConfirmed) ? 'stage2' : 'stage1';
-        this.state.groupMaxStage = correctMax;
-        if (this.state.currentStage === 'stage3') {
-          this.state.currentStage = correctMax;
+        if (!this.state.isFinalSubmitted) {
+          this.isViewingPastStage = false;
         }
-        if (this.state.stage3) {
-          this.state.stage3 = { feedbackItems: [], proponentAnalysis: null, opponentAnalysis: null, meetingSubmissions: {} };
-        }
-        if (this.state.chatLogs && this.state.chatLogs.stage3) {
-          this.state.chatLogs.stage3 = [];
-        }
-        this.state.stage3CommitteeLoading = false;
       }
     } else {
       // 🛡️ 教师端监控模式：如果已有全景监控数据，优先从全景快照恢复，杜绝被空默认值覆盖

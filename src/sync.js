@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2871';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2871';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2872';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2872';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -891,21 +891,21 @@ export class CloudSyncEngine {
       if (Array.isArray(remoteData.users) && remoteData.users.length > 0) {
         const localUsers = this.app.authManager.getUsers();
         const userMap = new Map();
-        remoteData.users.forEach(u => {
+        localUsers.forEach(u => {
           if (u && u.id) {
             const k = String(u.id).trim().toLowerCase();
             userMap.set(k, u);
           }
         });
-        localUsers.forEach(u => {
-          if (u && u.id) {
-            const k = String(u.id).trim().toLowerCase();
-            if (!userMap.has(k)) {
-              userMap.set(k, u);
-            } else {
-              const rUser = userMap.get(k);
+        remoteData.users.forEach(rUser => {
+          if (rUser && rUser.id) {
+            const k = String(rUser.id).trim().toLowerCase();
+            const u = userMap.get(k);
+            if (u) {
               const mergedClassIds = Array.from(new Set([...(rUser.classIds || [rUser.classId].filter(Boolean)), ...(u.classIds || [u.classId].filter(Boolean))]));
-              userMap.set(k, { ...rUser, ...u, classIds: mergedClassIds });
+              userMap.set(k, { ...u, ...rUser, classIds: (rUser.classIds && rUser.classIds.length > 0) ? rUser.classIds : mergedClassIds });
+            } else {
+              userMap.set(k, rUser);
             }
           }
         });
@@ -915,27 +915,25 @@ export class CloudSyncEngine {
         if (Array.isArray(remoteData.classes) && remoteData.classes.length > 0) {
           const localClasses = this.app.authManager.getClasses();
           const classMap = new Map();
-          remoteData.classes.forEach(c => {
+          localClasses.forEach(c => {
             if (c && c.id) {
               classMap.set(c.id, c);
             }
           });
-          if (isTeacher) {
-            localClasses.forEach(c => {
-              if (c && c.id) {
-                if (!classMap.has(c.id)) {
-                  classMap.set(c.id, c);
-                } else {
-                  const rClass = classMap.get(c.id);
-                  const mergedStudentIds = Array.from(new Set([...(rClass.studentIds || []), ...(c.studentIds || [])]));
-                  const grpMap = new Map();
-                  (rClass.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
-                  (c.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
-                  classMap.set(c.id, { ...rClass, ...c, studentIds: mergedStudentIds, groups: Array.from(grpMap.values()) });
-                }
+          remoteData.classes.forEach(rClass => {
+            if (rClass && rClass.id) {
+              const c = classMap.get(rClass.id);
+              if (c && isTeacher) {
+                const mergedStudentIds = Array.from(new Set([...(rClass.studentIds || []), ...(c.studentIds || [])]));
+                const grpMap = new Map();
+                (c.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
+                (rClass.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
+                classMap.set(rClass.id, { ...c, ...rClass, studentIds: (rClass.studentIds && rClass.studentIds.length > 0) ? rClass.studentIds : mergedStudentIds, groups: Array.from(grpMap.values()) });
+              } else {
+                classMap.set(rClass.id, rClass);
               }
-            });
-          }
+            }
+          });
           localStorage.setItem('jizhi_pure_v10_classes_db', JSON.stringify(Array.from(classMap.values())));
           if (this.app.authManager.sanitizeAndDeduplicateGroups) {
             this.app.authManager.sanitizeAndDeduplicateGroups();
@@ -1435,11 +1433,13 @@ export class CloudSyncEngine {
           if (!k) return;
           const remoteP = propMap.get(k);
           if (!remoteP) {
-            propMap.set(k, p);
+            if (p._localDirty === true) {
+              propMap.set(k, p);
+            }
           } else {
             const remoteTime = remoteP.updatedAt || 0;
             const localTime = p.updatedAt || 0;
-            if (localTime >= remoteTime) {
+            if (p._localDirty === true && localTime > remoteTime) {
               propMap.set(k, p);
             }
           }
@@ -1817,9 +1817,14 @@ export class CloudSyncEngine {
     const remoteOrder = stageOrder[remoteData.currentStage] || 1;
 
     if (remoteData.currentStage) {
+      const prevStage = this.app.state.currentStage;
+      const prevMax = this.app.state.groupMaxStage;
       this.app.state.groupMaxStage = remoteData.currentStage;
-      if (!this.app.isViewingPastStage) {
+      if (!this.app.isViewingPastStage || remoteOrder > currentOrder) {
         this.app.state.currentStage = remoteData.currentStage;
+      }
+      if (this.app.state.currentStage !== prevStage || this.app.state.groupMaxStage !== prevMax) {
+        needWorkspaceRender = true;
       }
     }
 

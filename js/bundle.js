@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2871
+ * Version: 20260907_v2872
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2871';
+  const APP_VERSION = '20260907_v2872';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5583,21 +5583,21 @@
         if (Array.isArray(remoteData.users) && remoteData.users.length > 0) {
           const localUsers = this.app.authManager.getUsers();
           const userMap = new Map();
-          remoteData.users.forEach(u => {
+          localUsers.forEach(u => {
             if (u && u.id) {
               const k = String(u.id).trim().toLowerCase();
               userMap.set(k, u);
             }
           });
-          localUsers.forEach(u => {
-            if (u && u.id) {
-              const k = String(u.id).trim().toLowerCase();
-              if (!userMap.has(k)) {
-                userMap.set(k, u);
-              } else {
-                const rUser = userMap.get(k);
+          remoteData.users.forEach(rUser => {
+            if (rUser && rUser.id) {
+              const k = String(rUser.id).trim().toLowerCase();
+              const u = userMap.get(k);
+              if (u) {
                 const mergedClassIds = Array.from(new Set([...(rUser.classIds || [rUser.classId].filter(Boolean)), ...(u.classIds || [u.classId].filter(Boolean))]));
-                userMap.set(k, { ...rUser, ...u, classIds: mergedClassIds });
+                userMap.set(k, { ...u, ...rUser, classIds: (rUser.classIds && rUser.classIds.length > 0) ? rUser.classIds : mergedClassIds });
+              } else {
+                userMap.set(k, rUser);
               }
             }
           });
@@ -5607,27 +5607,25 @@
           if (Array.isArray(remoteData.classes) && remoteData.classes.length > 0) {
             const localClasses = this.app.authManager.getClasses();
             const classMap = new Map();
-            remoteData.classes.forEach(c => {
+            localClasses.forEach(c => {
               if (c && c.id) {
                 classMap.set(c.id, c);
               }
             });
-            if (isTeacher) {
-              localClasses.forEach(c => {
-                if (c && c.id) {
-                  if (!classMap.has(c.id)) {
-                    classMap.set(c.id, c);
-                  } else {
-                    const rClass = classMap.get(c.id);
-                    const mergedStudentIds = Array.from(new Set([...(rClass.studentIds || []), ...(c.studentIds || [])]));
-                    const grpMap = new Map();
-                    (rClass.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
-                    (c.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
-                    classMap.set(c.id, { ...rClass, ...c, studentIds: mergedStudentIds, groups: Array.from(grpMap.values()) });
-                  }
+            remoteData.classes.forEach(rClass => {
+              if (rClass && rClass.id) {
+                const c = classMap.get(rClass.id);
+                if (c && isTeacher) {
+                  const mergedStudentIds = Array.from(new Set([...(rClass.studentIds || []), ...(c.studentIds || [])]));
+                  const grpMap = new Map();
+                  (c.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
+                  (rClass.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
+                  classMap.set(rClass.id, { ...c, ...rClass, studentIds: (rClass.studentIds && rClass.studentIds.length > 0) ? rClass.studentIds : mergedStudentIds, groups: Array.from(grpMap.values()) });
+                } else {
+                  classMap.set(rClass.id, rClass);
                 }
-              });
-            }
+              }
+            });
             localStorage.setItem('jizhi_pure_v10_classes_db', JSON.stringify(Array.from(classMap.values())));
             if (this.app.authManager.sanitizeAndDeduplicateGroups) {
               this.app.authManager.sanitizeAndDeduplicateGroups();
@@ -6127,11 +6125,13 @@
             if (!k) return;
             const remoteP = propMap.get(k);
             if (!remoteP) {
-              propMap.set(k, p);
+              if (p._localDirty === true) {
+                propMap.set(k, p);
+              }
             } else {
               const remoteTime = remoteP.updatedAt || 0;
               const localTime = p.updatedAt || 0;
-              if (localTime >= remoteTime) {
+              if (p._localDirty === true && localTime > remoteTime) {
                 propMap.set(k, p);
               }
             }
@@ -6509,9 +6509,14 @@
       const remoteOrder = stageOrder[remoteData.currentStage] || 1;
 
       if (remoteData.currentStage) {
+        const prevStage = this.app.state.currentStage;
+        const prevMax = this.app.state.groupMaxStage;
         this.app.state.groupMaxStage = remoteData.currentStage;
-        if (!this.app.isViewingPastStage) {
+        if (!this.app.isViewingPastStage || remoteOrder > currentOrder) {
           this.app.state.currentStage = remoteData.currentStage;
+        }
+        if (this.app.state.currentStage !== prevStage || this.app.state.groupMaxStage !== prevMax) {
+          needWorkspaceRender = true;
         }
       }
 
@@ -16719,27 +16724,11 @@
           this.stage3StartTime = this.state.stage3.startTime;
         }
 
-        // 🛡️ 阶段防越权自愈自净：若小组在阶段一或阶段二，强制解除任何终稿提交锁定，保证写作畅通
+        // 🛡️ 阶段防越权保护：遵循已签署状态，由云端权威同步最终裁决当前阶段
         if (this.state.currentStage === 'stage1' || this.state.currentStage === 'stage2') {
-          this.state.isFinalSubmitted = false;
-          this.isViewingPastStage = false;
-        }
-
-        // 🛡️ 阶段防越权自愈自净：若小组尚未推进至阶段三且未正式确认签署阶段二初稿，严禁保留提前触发的阶段三答辩数据
-        const isActuallyStage3 = !!(this.state.isFinalSubmitted || this.state.stage2?.isDraftConfirmed || this.state.groupMaxStage === 'stage3');
-        if (!isActuallyStage3) {
-          const correctMax = (this.state.stage1?.contract?.isConfirmed) ? 'stage2' : 'stage1';
-          this.state.groupMaxStage = correctMax;
-          if (this.state.currentStage === 'stage3') {
-            this.state.currentStage = correctMax;
+          if (!this.state.isFinalSubmitted) {
+            this.isViewingPastStage = false;
           }
-          if (this.state.stage3) {
-            this.state.stage3 = { feedbackItems: [], proponentAnalysis: null, opponentAnalysis: null, meetingSubmissions: {} };
-          }
-          if (this.state.chatLogs && this.state.chatLogs.stage3) {
-            this.state.chatLogs.stage3 = [];
-          }
-          this.state.stage3CommitteeLoading = false;
         }
       } else {
         // 🛡️ 教师端监控模式：如果已有全景监控数据，优先从全景快照恢复，杜绝被空默认值覆盖
