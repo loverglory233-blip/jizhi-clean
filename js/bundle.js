@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2864
+ * Version: 20260907_v2865
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2864';
+  const APP_VERSION = '20260907_v2865';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -18176,6 +18176,25 @@
               this.syncStage2();
               if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
               renderChat(this.state);
+              return;
+            }
+
+            // 🌟 核心时间守护：从【一致性引导发言正式出现】开始精确计时 8 分钟（480,000ms）
+            // 若 8 分钟内学生未手动点击【让责任编辑总结】，系统自动平滑推进交棒给审稿编辑通读全篇
+            if (divergenceElapsed >= 8 * 60 * 1000 && !this._isTriggeringSecondReview && !this._isAutoAdvancingToSecondReview) {
+              this._isAutoAdvancingToSecondReview = true;
+              console.log('⏰ [Stage2 Workflow] 一致性引导发言已出现满 8 分钟，学生未手动点击总结，平台自动交棒审稿编辑...');
+              const taskType = this.getCurrentTaskType();
+              const isInst = (taskType === 'instructional');
+              const managingName = isInst ? '备课组长' : '责任编辑';
+              const reviewingName = isInst ? '教研专家' : '审稿编辑';
+              const autoSummarySpeech = `🤝 【${managingName}·研讨小结与交棒】：全组一致性协同研讨已进行 8 分钟，为保障整体写作进度，现将大家研讨要点与正文草稿移交给${reviewingName}，通读全篇下发《${isInst ? '磨课修正清单' : '二审修正清单'}》！`;
+              setTimeout(() => {
+                if (typeof this.triggerReviewingEditorAfterDiscussion === 'function') {
+                  this.triggerReviewingEditorAfterDiscussion(autoSummarySpeech);
+                }
+                this._isAutoAdvancingToSecondReview = false;
+              }, 600);
               return;
             }
           }

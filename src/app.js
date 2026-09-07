@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2864";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2864";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2864";
-import { AuthManager } from "./auth.js?v=20260907_v2864";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2864";
-import { renderLoginView } from "./login.js?v=20260907_v2864";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2864";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2864";
+} from "./constants.js?v=20260907_v2865";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2865";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2865";
+import { AuthManager } from "./auth.js?v=20260907_v2865";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2865";
+import { renderLoginView } from "./login.js?v=20260907_v2865";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2865";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2865";
 import {
   renderEditor,
   renderChat,
@@ -31,7 +31,7 @@ import {
   enforceEtherpadWorkspaceGuard,
   getEtherpadAuthorStats,
   renderPresenceCursors
-} from "./editor.js?v=20260907_v2864";
+} from "./editor.js?v=20260907_v2865";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1939,6 +1939,25 @@ export class App {
             this.syncStage2();
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             renderChat(this.state);
+            return;
+          }
+
+          // 🌟 核心时间守护：从【一致性引导发言正式出现】开始精确计时 8 分钟（480,000ms）
+          // 若 8 分钟内学生未手动点击【让责任编辑总结】，系统自动平滑推进交棒给审稿编辑通读全篇
+          if (divergenceElapsed >= 8 * 60 * 1000 && !this._isTriggeringSecondReview && !this._isAutoAdvancingToSecondReview) {
+            this._isAutoAdvancingToSecondReview = true;
+            console.log('⏰ [Stage2 Workflow] 一致性引导发言已出现满 8 分钟，学生未手动点击总结，平台自动交棒审稿编辑...');
+            const taskType = this.getCurrentTaskType();
+            const isInst = (taskType === 'instructional');
+            const managingName = isInst ? '备课组长' : '责任编辑';
+            const reviewingName = isInst ? '教研专家' : '审稿编辑';
+            const autoSummarySpeech = `🤝 【${managingName}·研讨小结与交棒】：全组一致性协同研讨已进行 8 分钟，为保障整体写作进度，现将大家研讨要点与正文草稿移交给${reviewingName}，通读全篇下发《${isInst ? '磨课修正清单' : '二审修正清单'}》！`;
+            setTimeout(() => {
+              if (typeof this.triggerReviewingEditorAfterDiscussion === 'function') {
+                this.triggerReviewingEditorAfterDiscussion(autoSummarySpeech);
+              }
+              this._isAutoAdvancingToSecondReview = false;
+            }, 600);
             return;
           }
         }
