@@ -7,7 +7,7 @@
 class CozePromptFactory {
     public static function buildPrompt($stage, $topic, $userQuery, $actualDoc = '', $botKey = '', $priorReview = '', $taskType = 'experiment') {
         // ⚡ 若指令本身已包含正文全文或结构化上下文，直接透传，确保真实大模型极速响应
-        if (mb_strpos($userQuery, 'JSON') !== false || mb_strpos($userQuery, '小组成员已') !== false || mb_strpos($userQuery, '小组已完成') !== false || mb_strpos($userQuery, '答辩终审裁决') !== false || mb_strpos($userQuery, '【组内') !== false || mb_strpos($userQuery, '【当前任务') !== false || mb_strpos($userQuery, '【小组当前真实正文草稿') !== false || mb_strpos($userQuery, '针对小组') !== false || mb_strpos($userQuery, '针对课题') !== false) {
+        if (mb_strpos($userQuery, 'JSON') !== false || mb_strpos($userQuery, '小组成员已') !== false || mb_strpos($userQuery, '小组已完成') !== false || mb_strpos($userQuery, '小组正在协作撰写') !== false || mb_strpos($userQuery, '动态写作关怀') !== false || mb_strpos($userQuery, '写作字数贡献') !== false || mb_strpos($userQuery, '答辩终审裁决') !== false || mb_strpos($userQuery, '【组内') !== false || mb_strpos($userQuery, '【当前任务') !== false || mb_strpos($userQuery, '【小组当前真实正文草稿') !== false || mb_strpos($userQuery, '针对小组') !== false || mb_strpos($userQuery, '针对课题') !== false) {
             if (!empty($actualDoc) && mb_strpos($userQuery, $actualDoc) === false) {
                 return $userQuery . "\n\n【正文草稿全文】:\n" . $actualDoc;
             }
@@ -25,7 +25,7 @@ class CozePromptFactory {
         $topicText = !empty($topic) ? $topic : ($isInst ? '暂未确定教学主题' : '暂未确定课题');
         
         $prompt = "【协作阶段】: {$stageText} | 【{$topicLabel}】: 《{$topicText}》\n";
-        $prompt .= "【全局红线】: 严格聚焦" . ($isInst ? '教学设计与教学逻辑' : '学术内容与研究逻辑') . "；遇到无实质乱码空洞内容时简短提醒补充，有实质内容时给出针对性具体建议；投票结果由系统单独播报，智能体发言中严禁重复报票数数字，严禁点名组员，仅负责定性分析一致性/分歧互补并引导研讨。\n";
+        $prompt .= "【全局红线】: 严格聚焦" . ($isInst ? '教学设计与教学逻辑' : '学术内容与研究逻辑') . "；遇到无实质乱码空洞内容时简短提醒补充，有实质内容时给出针对性具体建议；投票引导中严禁重复报票数数字，仅负责定性分析一致性/分歧互补并引导研讨。\n";
 
         if (!empty($priorReview)) {
             $prompt .= "【前序审查记录】:\n{$priorReview}\n";

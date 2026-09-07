@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2834";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2834";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2834";
-import { AuthManager } from "./auth.js?v=20260907_v2834";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2834";
-import { renderLoginView } from "./login.js?v=20260907_v2834";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2834";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2834";
+} from "./constants.js?v=20260907_v2835";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2835";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2835";
+import { AuthManager } from "./auth.js?v=20260907_v2835";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2835";
+import { renderLoginView } from "./login.js?v=20260907_v2835";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2835";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2835";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2834";
+} from "./editor.js?v=20260907_v2835";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -8661,10 +8661,10 @@ ${contentSnippet}
       const managingName = isInst ? '备课组长' : '责任编辑';
 
       const contribPrompt = `小组正在协作撰写《${topic}》，目前全组总字数已达到 ${effectiveTotal} 字。
-组员【${targetName}】主要聚焦在【${targetChapter}】，当前写作字数贡献占比偏低（≤ 15%）。
+组员【${targetName}】主要负责【${targetChapter}】，当前写作字数贡献占比偏低（≤ 15%）。
 请作为${managingName}（过程学伴），发表 80~110 字的【动态写作关怀与共同思考点拨】：
-① 用温和鼓励的语气提醒 ${targetName} 同学可以逐步动笔展开起草；
-② 结合其主要聚焦的【${targetChapter}】，给出 1 个具体的学术起草切入建议；
+① 【明确点名提醒】：必须在发言中明确点名【@${targetName} 同学】，用温和鼓励的语气提醒其可以逐步动笔展开起草；
+② 结合其主要聚焦的【${targetChapter}】，给出 1 个具体的学术/教学设计起草切入建议；
 ③ 【核心红线要求】：同时提醒其主动通读同伴已起草的段落，从中汲取灵感并打通前后逻辑衔接；
 ④ 纯自然语言，80~110字，严禁指责，【绝对严禁出现“分工”字眼】，强调共同思考与协同衔接，严禁输出代码块，严禁添加按钮。`;
 
@@ -8685,8 +8685,11 @@ ${contentSnippet}
       }
 
       if (!careText) {
-        // 🌟 协作贡献比关怀：以大模型为主，大模型异常时以温暖兜底为辅
-        careText = `🤝 【${managingName}·协同关怀】：大家都在按节奏推进！主要聚焦【${targetChapter}】的 ${targetName} 同学也可以逐步动笔啦。建议可以先通读同伴已起草的段落，从中汲取灵感并打通前后逻辑衔接，遇到难点随时在研讨区抛出来，全组共同思考推进！`;
+        // 🌟 协作贡献比关怀：以大模型为主，大模型异常时以温暖兜底为辅（明确点名关怀）
+        careText = `🤝 【${managingName}·协同关怀】：大家都在按节奏推进！主要聚焦【${targetChapter}】的 @${targetName} 同学也可以逐步动笔啦。建议可以先通读同伴已起草的段落，从中汲取灵感并打通前后逻辑衔接，遇到难点随时在研讨区抛出来，全组共同思考推进！`;
+      } else if (!careText.includes(targetName)) {
+        // 🛡️ 守卫：确保发言中明确点名被关怀组员
+        careText = careText.replace(`🤝 【${managingName}·协同关怀】：`, `🤝 【${managingName}·协同关怀】：@${targetName} 同学，`);
       }
 
       const msg = {
