@@ -920,7 +920,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
 
     $result = ['success' => true, 'groups' => []];
     $nowMs = round(microtime(true) * 1000);
-    $ONLINE_WINDOW_MS = 15000; // 15 秒实时在线窗口（心跳每4秒一次，3次心跳断开即判定离线）
+    $ONLINE_WINDOW_MS = 45000; // 45 秒宽容在线窗口（任务专属物理隔离，离开即刻下线，断网45秒超时）
 
     if ($pdo) {
         // 1. 优先加载官方班级分组名册与全校学生信息字典
@@ -996,7 +996,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
         }
         if (empty($allGroupIds)) $allGroupIds = ['group_1'];
 
-        $ONLINE_WINDOW_MS = 15000; // 15 秒实时在线窗口（心跳每4秒一次，3次心跳断开即判定离线）
+        $ONLINE_WINDOW_MS = 45000; // 45 秒宽容在线窗口
         $cutoffMs = $nowMs - $ONLINE_WINDOW_MS;
 
         // 🚀 性能革命：收集全量 ScopeKey 进行批量单次查表，消灭 N+1 查询瓶颈，教师端毫秒级秒开！
@@ -3045,12 +3045,12 @@ if ($action === 'presence_ping' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $currPresence = !empty($rawPrStr) ? json_decode($rawPrStr, true) : [];
         if (!is_array($currPresence)) $currPresence = [];
 
-        // 清理超过 15 秒（约3次心跳周期）的陈旧心跳或显式离线记录
+        // 清理超过 45 秒的陈旧心跳或显式离线记录
         $cleanPresence = [];
         foreach ($currPresence as $k => $v) {
             $lastSeen = isset($v['lastSeen']) ? intval($v['lastSeen']) : (isset($v['updatedAt']) ? intval($v['updatedAt']) : 0);
             $isOff = is_array($v) && !empty($v['offline']);
-            if (!$isOff && ($nowMs - $lastSeen < 15000)) {
+            if (!$isOff && ($nowMs - $lastSeen < 45000)) {
                 $cleanPresence[strval($k)] = $v;
             }
         }
@@ -3883,7 +3883,7 @@ if ($pdo) {
         foreach ($currPr as $pk => $pv) {
             $t = is_array($pv) ? intval($pv['lastSeen'] ?? $pv['updatedAt'] ?? $pv['timestamp'] ?? 0) : 0;
             $isOff = is_array($pv) && !empty($pv['offline']);
-            if ($isOff || ($nowMs - $t > 15000)) {
+            if ($isOff || ($nowMs - $t > 45000)) {
                 unset($currPr[$pk]);
                 $prChanged = true;
             }

@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2831";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2831";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2831";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2832";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2832";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2832";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -915,7 +915,7 @@ export function renderPresencePills(editorId, state) {
         const p = presence[k];
         if (p) {
           const pTime = Number(p.lastSeen || p.updatedAt || p.timestamp || 0);
-          if (pTime > 0 && ((serverNow - pTime <= 15000) || (pTime - serverNow <= 15000))) {
+          if (pTime > 0 && ((serverNow - pTime <= 45000) || (pTime - serverNow <= 45000))) {
             isOnline = true;
             break;
           }
@@ -3728,7 +3728,7 @@ export function renderChat(state) {
           const p = presence[k];
           if (p && !p.offline) {
             const pTime = Number(p.lastSeen || p.updatedAt || p.timestamp || 0);
-            if (pTime > 0 && (nowMs - pTime <= 15000)) {
+            if (pTime > 0 && (nowMs - pTime <= 45000)) {
               isOnline = true;
               break;
             }
@@ -3740,7 +3740,7 @@ export function renderChat(state) {
           for (const [pk, p] of Object.entries(presence)) {
             if (!p || p.offline) continue;
             const pTime = Number(p.lastSeen || p.updatedAt || p.timestamp || 0);
-            if (pTime > 0 && (nowMs - pTime <= 15000)) {
+            if (pTime > 0 && (nowMs - pTime <= 45000)) {
               const pLow = String(pk).toLowerCase();
               const pName = String(p.name || '').trim().toLowerCase();
               const pId = String(p.userId || p.id || '').trim().toLowerCase();
