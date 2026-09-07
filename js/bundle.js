@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2857
+ * Version: 20260907_v2858
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2857';
+  const APP_VERSION = '20260907_v2858';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1958,9 +1958,9 @@
       }
     } catch (e) {}
 
-    // 🛡️ 高可用敏捷调用核心：结合服务端流式提前截断，设置 45 秒超时熔断，杜绝前端长时间挂起
+    // 🛡️ 高可用调用核心：设置 120 秒（2分钟）超时熔断，完全契合大模型深度思考与完整输出周期
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timerId = controller ? setTimeout(() => controller.abort(), 45000) : null;
+    const timerId = controller ? setTimeout(() => controller.abort(), 120000) : null;
 
     try {
       const resp = await fetch('sync.php?action=coze_chat', {
@@ -4105,15 +4105,6 @@
           currentTaskId: taskId
         });
       });
-      if (filtered.length === 0 && papers.length > 0) {
-        const fallback = papers.filter(p => {
-          const isClassMatch = !p.classId || p.classId === 'all' || p.classId === 'class_all' || (classId && isSameId(p.classId, classId));
-          const isGroupMatch = !p.targetGroupId || p.targetGroupId === 'all' || p.targetGroupId === 'group_all' || (groupId && isSameId(p.targetGroupId, groupId)) || (Array.isArray(p.targetGroupIds) && (p.targetGroupIds.includes('all') || (groupId && p.targetGroupIds.some(tg => isSameId(tg, groupId)))));
-          return isClassMatch && isGroupMatch;
-        });
-        if (fallback.length > 0) return fallback;
-        return papers;
-      }
       return filtered;
     }
 
@@ -11933,7 +11924,7 @@
     if (currState && currState.activeAgentAnalyzing) {
       const analyzing = currState.activeAgentAnalyzing;
       const ts = analyzing._ts || analyzing.timestamp || 0;
-      if (ts && (now - ts > 30000)) {
+      if (ts && (now - ts > 120000)) {
         currState.activeAgentAnalyzing = null;
         if (app && app.state) app.state.activeAgentAnalyzing = null;
       }
@@ -11945,7 +11936,7 @@
           const ts = app._extractingTimestamps[key] || 0;
           if (!ts) {
             app._extractingTimestamps[key] = now;
-          } else if (now - ts > 30000) {
+          } else if (now - ts > 120000) {
             app[prop] = false;
             app._extractingTimestamps[key] = null;
           }
@@ -19083,17 +19074,12 @@
       const activeGroupObj = this.authManager.getStudentActiveGroup(user, classId);
       const groupId = (this.state && this.state.activeGroupId) || (this.cloudSyncEngine && this.cloudSyncEngine.groupId) || activeGroupObj?.id || user?.groupId || null;
       let papers = this.authManager.getReferencePapers(groupId, classId, activeTaskId);
-      if (!papers || papers.length === 0) {
-        const allP = this.authManager.getAllReferencePapers();
-        if (allP && allP.length > 0) papers = allP;
-      }
 
       // ⚡ 异步触发 pullGlobalMeta 刷新最新范文
       if (this.authManager && typeof this.authManager.pullGlobalMeta === 'function') {
         this.authManager.pullGlobalMeta(true).then(() => {
           const updatedPapers = this.authManager.getReferencePapers(groupId, classId, activeTaskId);
-          const finalP = (updatedPapers && updatedPapers.length > 0) ? updatedPapers : this.authManager.getAllReferencePapers();
-          if (finalP.length !== papers.length) {
+          if (updatedPapers.length !== papers.length) {
             const currentModal = document.querySelector('.modal-ref-papers-view') || document.querySelector('.modal-overlay');
             if (currentModal && currentModal.querySelector('h3')?.innerText?.includes('参考范文库')) {
               this.showReferencePapersModal();
@@ -20577,12 +20563,12 @@
      * 🛡️ 全局提炼互斥判定：当任意一处正在进行 AI 提炼时互斥保护，同时具备超时自愈机制防止死锁
      */
     isAnyExtracting() {
-      // 🛡️ 智能防呆自愈：检查 activeAgentAnalyzing 是否存在且是否超时（严格 30 秒自愈，绝不无限阻塞）
+      // 🛡️ 智能防呆自愈：检查 activeAgentAnalyzing 是否存在且是否超时（严格 120 秒 / 2分钟自愈，给足大模型生成时间，绝不无限阻塞）
       const now = Date.now();
       if (this.state && this.state.activeAgentAnalyzing) {
         const info = this.state.activeAgentAnalyzing;
         const ts = info._ts || info.timestamp || 0;
-        if (ts && (now - ts > 30000)) {
+        if (ts && (now - ts > 120000)) {
           this._isGeneratingContract = false;
           this._isExtractingTopic = false;
           this._isExtractingTime = false;
@@ -20600,7 +20586,7 @@
           const ts = this._extractingTimestamps[key] || 0;
           if (!ts) {
             this._extractingTimestamps[key] = now;
-          } else if (now - ts > 30000) {
+          } else if (now - ts > 120000) {
             this[prop] = false;
             this._extractingTimestamps[key] = null;
           }
@@ -21604,7 +21590,7 @@
         let isStale = false;
         if (this.state.activeAgentAnalyzing) {
           const ts = this.state.activeAgentAnalyzing._ts || this.state.activeAgentAnalyzing.timestamp || 0;
-          if (ts && (Date.now() - ts > 30000)) isStale = true;
+          if (ts && (Date.now() - ts > 120000)) isStale = true;
         }
         if (isStale) {
           this.setActiveAgentAnalyzing(null);
@@ -21875,7 +21861,7 @@
               isSuccess = true;
             }
           } catch (je) {
-            console.warn('One-click generate parse fail, fallback', je);
+            console.warn('One-click generate parse fail', je);
           }
         }
       } catch (err) {
@@ -21887,21 +21873,9 @@
         finalOverview = '暂无';
       }
 
-      // 🛡️ 稳健兜底保护：若大模型网络延迟或未返回完整 JSON，绝不阻断学生进程，自动根据各章节为成员分配任务
+      // 🛡️ 真实大模型调用校验：若大模型调用未成功或无有效分工提取，严格抛出异常进入重试分支，绝不伪造生成成功！
       if (!isSuccess || Object.keys(finalAssignments).length === 0) {
-        const defaultModulesInst = ['教学目标与重难点设计', '学情分析与教学准备', '教学过程与探究活动设计', '板书设计与教学资源', '教学评价与反思设计', '作业设计与拓展延伸'];
-        const defaultModulesExp = ['引言与核心科学问题界定', '文献综述与理论基础', '研究方法与实证设计', '实验过程与数据分析', '研究结论与讨论反思', '参考文献与学术规范'];
-        const defaultModules = isInst ? defaultModulesInst : defaultModulesExp;
-        membersList.forEach((m, idx) => {
-          const mKey = m.id || m.name || `mem_${idx}`;
-          if (!finalAssignments[mKey]) {
-            const mod = defaultModules[idx % defaultModules.length];
-            finalAssignments[mKey] = `负责撰写【${mod}】并配合全组统稿`;
-            if (m.id) finalAssignments[m.id] = finalAssignments[mKey];
-            if (m.name) finalAssignments[m.name] = finalAssignments[mKey];
-          }
-        });
-        isSuccess = true;
+        throw new Error('Contract AI extraction failed to return valid assignment configuration.');
       }
 
       // 🛡️ 移除正在提炼中的思考消息与残留网络提醒/重试按键

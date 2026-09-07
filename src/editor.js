@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2857";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2857";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2857";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2858";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2858";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2858";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -193,7 +193,7 @@ export function isAnyExtracting(state = null) {
   if (currState && currState.activeAgentAnalyzing) {
     const analyzing = currState.activeAgentAnalyzing;
     const ts = analyzing._ts || analyzing.timestamp || 0;
-    if (ts && (now - ts > 30000)) {
+    if (ts && (now - ts > 120000)) {
       currState.activeAgentAnalyzing = null;
       if (app && app.state) app.state.activeAgentAnalyzing = null;
     }
@@ -205,7 +205,7 @@ export function isAnyExtracting(state = null) {
         const ts = app._extractingTimestamps[key] || 0;
         if (!ts) {
           app._extractingTimestamps[key] = now;
-        } else if (now - ts > 30000) {
+        } else if (now - ts > 120000) {
           app[prop] = false;
           app._extractingTimestamps[key] = null;
         }
