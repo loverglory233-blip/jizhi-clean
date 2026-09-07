@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2852
+ * Version: 20260907_v2853
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2852';
+  const APP_VERSION = '20260907_v2853';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -17585,6 +17585,7 @@
         appEl.className = 'app-student-mode';
         appEl.innerHTML = `
           <header class="app-header" id="app-header"></header>
+          <div id="workspace-top-banner-mount" style="flex-shrink:0; width:100%;"></div>
           <div class="main-content">
             <main class="canvas-panel" id="canvas-panel"></main>
             <aside class="chat-panel">
@@ -23437,6 +23438,23 @@
         ? this.authManager.getActiveTask()
         : (allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId)) || null);
       const isTaskDeadlineExpired = curTask ? isTaskExpired(curTask) : false;
+
+      const bannerMount = document.getElementById('workspace-top-banner-mount');
+      if (bannerMount) {
+        if (isTaskDeadlineExpired && curTask) {
+          bannerMount.innerHTML = `
+            <div id="workspace-deadline-banner" style="background:#fef2f2; border-bottom:1.5px solid #fca5a5; padding:9px 20px; font-size:13px; color:#991b1b; font-weight:700; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 8px rgba(239,68,68,0.08); z-index:100; flex-shrink:0; box-sizing:border-box; width:100%;">
+              <div style="display:flex; align-items:center; gap:10px; min-width:0; overflow:hidden;">
+                <span style="font-size:18px; flex-shrink:0;">🛑</span>
+                <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><b>任务截止通知：</b> 该写作任务《<b>${escapeHtml(curTask?.title || '当前任务')}</b>》已于 <b>${escapeHtml(curTask?.deadline || '截止时间')}</b> 截止。工作台所有阶段已自动转为<b>【只读查阅模式】</b>。文稿与研讨数据已安全归档保全，如需继续编辑修改请联系指导教师延长任务时间。</span>
+              </div>
+              <span style="background:#dc2626; color:#ffffff; padding:3px 12px; border-radius:6px; font-size:12px; font-weight:800; white-space:nowrap; flex-shrink:0; letter-spacing:0.5px;">已截止锁定</span>
+            </div>
+          `;
+        } else {
+          bannerMount.innerHTML = '';
+        }
+      }
 
       if (isTaskDeadlineExpired && curTask) {
         const modalKey = `jizhi_expired_modal_${curTask.id || this.state.activeTaskId}_${curTask.deadline || ''}`;
