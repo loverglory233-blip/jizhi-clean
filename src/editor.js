@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2844";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2844";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2844";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2845";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2845";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2845";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -847,33 +847,37 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
 }
 
 export function renderCanvas(state, handlers) {
-  const canvas = document.getElementById('canvas-panel');
-  if (!canvas) return;
+  try {
+    const canvas = document.getElementById('canvas-panel');
+    if (!canvas) return;
 
-  // 🛡️ 极致架构升级：采用多阶段独立持久化容器，切换阶段时保留 DOM 与 iframe，彻底根治 Etherpad 闪烁白屏与状态丢失问题
-  let s1Container = canvas.querySelector('#stage-canvas-s1');
-  let s2Container = canvas.querySelector('#stage-canvas-s2');
-  let s3Container = canvas.querySelector('#stage-canvas-s3');
+    // 🛡️ 极致架构升级：采用多阶段独立持久化容器，切换阶段时保留 DOM 与 iframe，彻底根治 Etherpad 闪烁白屏与状态丢失问题
+    let s1Container = canvas.querySelector('#stage-canvas-s1');
+    let s2Container = canvas.querySelector('#stage-canvas-s2');
+    let s3Container = canvas.querySelector('#stage-canvas-s3');
 
-  if (!s1Container || !s2Container || !s3Container) {
-    canvas.innerHTML = `
-      <div id="stage-canvas-s1" style="display:none; flex-direction:column; width:100%; gap:12px; padding-bottom:36px;"></div>
-      <div id="stage-canvas-s2" style="display:none; flex-direction:column; height:100%; width:100%; overflow:hidden;"></div>
-      <div id="stage-canvas-s3" style="display:none; flex-direction:column; width:100%; gap:12px; padding-bottom:36px;"></div>
-    `;
-    s1Container = canvas.querySelector('#stage-canvas-s1');
-    s2Container = canvas.querySelector('#stage-canvas-s2');
-    s3Container = canvas.querySelector('#stage-canvas-s3');
+    if (!s1Container || !s2Container || !s3Container) {
+      canvas.innerHTML = `
+        <div id="stage-canvas-s1" style="display:none; flex-direction:column; width:100%; gap:12px; padding-bottom:36px;"></div>
+        <div id="stage-canvas-s2" style="display:none; flex-direction:column; height:100%; width:100%; overflow:hidden;"></div>
+        <div id="stage-canvas-s3" style="display:none; flex-direction:column; width:100%; gap:12px; padding-bottom:36px;"></div>
+      `;
+      s1Container = canvas.querySelector('#stage-canvas-s1');
+      s2Container = canvas.querySelector('#stage-canvas-s2');
+      s3Container = canvas.querySelector('#stage-canvas-s3');
+    }
+
+    const curStage = state.currentStage || 'stage1';
+    s1Container.style.display = (curStage === 'stage1') ? 'flex' : 'none';
+    s2Container.style.display = (curStage === 'stage2') ? 'flex' : 'none';
+    s3Container.style.display = (curStage === 'stage3') ? 'flex' : 'none';
+
+    if (curStage === 'stage1') renderStage1Canvas(s1Container, state, handlers);
+    else if (curStage === 'stage2') renderStage2Canvas(s2Container, state, handlers);
+    else if (curStage === 'stage3') renderStage3Canvas(s3Container, state, handlers);
+  } catch (err) {
+    console.error('[renderCanvas] Render error:', err);
   }
-
-  const curStage = state.currentStage || 'stage1';
-  s1Container.style.display = (curStage === 'stage1') ? 'flex' : 'none';
-  s2Container.style.display = (curStage === 'stage2') ? 'flex' : 'none';
-  s3Container.style.display = (curStage === 'stage3') ? 'flex' : 'none';
-
-  if (curStage === 'stage1') renderStage1Canvas(s1Container, state, handlers);
-  else if (curStage === 'stage2') renderStage2Canvas(s2Container, state, handlers);
-  else if (curStage === 'stage3') renderStage3Canvas(s3Container, state, handlers);
 }
 
 export function renderPresencePills(editorId, state) {
@@ -1002,6 +1006,7 @@ function renderStage1Canvas(canvas, state, handlers) {
   const isAllConfirmed = (totalMembersCount > 0 && confirmedCount >= totalMembersCount);
   const isContractLocked = !!(s1.contract && s1.contract.isConfirmed) || isAllConfirmed || (state.groupMaxStage === 'stage2' || state.groupMaxStage === 'stage3') || state.isFinalSubmitted || isTaskDeadlineExpired;
   const isDraftDone = !!(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated);
+  const isContractComplete = isDraftDone || !!(s1.contract?.topic || s1.mergedTitle);
   const isInputDisabled = isContractLocked; // 只有在公约最终签署生效/全组进入下一阶段后才真正锁定输入，草案生成后全员可自由微调
   if (s1.contract && isAllConfirmed) s1.contract.isConfirmed = true;
 
@@ -1165,7 +1170,7 @@ function renderStage1Canvas(canvas, state, handlers) {
           <div id="stage1-contract-action-bar-mount" style="margin-top:12px; display:flex; justify-content:center;">
             ${(() => {
               const confs = state.stepConfirmations || {};
-              const isExtractingAny = isTopicExtracting || isTimeExtracting || isTasksExtracting || isFullContractExtracting;
+              const isExtractingAny = isAnyExtracting(state);
               const isDoneHelper = (map) => {
                 if (!map) return 0;
                 return membersList.filter(m => isMemberDone(map, m)).length;

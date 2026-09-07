@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2832
+ * Version: 20260907_v2845
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2844';
+  const APP_VERSION = '20260907_v2845';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1655,7 +1655,7 @@
       }
     }
 
-    // 2. 小组范围匹配 (仅在明确指定全班广播 all/group_all/* 时放行，否则校验小组ID)
+    // 2. 小组范围匹配 (仅在明确指定全班广播 all/group_all/* 时放行，否则严格校验小组ID)
     const cleanTargetGroup = String(targetGroupId || '').trim();
     const isGroupBroadcast = !cleanTargetGroup || cleanTargetGroup.toLowerCase() === 'all' || cleanTargetGroup.toLowerCase() === 'group_all' || cleanTargetGroup === '*' || (target.targetGroupName && String(target.targetGroupName).includes('全班'));
 
@@ -1664,6 +1664,8 @@
       matchGroup = true;
     } else {
       const cleanUserGroup = String(userGroupId || '').trim();
+
+      // 严格按小组 ID 比对（支持单个指定与多选数组指定）
       if (cleanUserGroup && isSameId(cleanTargetGroup, cleanUserGroup)) {
         matchGroup = true;
       } else if (Array.isArray(tGroupIds) && tGroupIds.some(gid => {
@@ -1951,9 +1953,9 @@
       }
     } catch (e) {}
 
-    // 🛡️ 高可用单次调用核心：严格执行 1 次请求，带 80 秒硬性超时熔断，绝不提前中断长文大模型生成
+    // 🛡️ 高可用敏捷调用核心：结合服务端流式提前截断，设置 45 秒超时熔断，杜绝前端长时间挂起
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timerId = controller ? setTimeout(() => controller.abort(), 80000) : null;
+    const timerId = controller ? setTimeout(() => controller.abort(), 45000) : null;
 
     try {
       const resp = await fetch('sync.php?action=coze_chat', {
@@ -2246,7 +2248,11 @@
     }
 
     async pullGlobalMeta(force = false) {
-      if (this._isPullingMeta) return { success: false, inFlight: true };
+      if (this._isPullingMeta) {
+        this._queuedPull = true;
+        if (force) this._queuedForce = true;
+        return { success: false, inFlight: true };
+      }
       // 🛡️ 教师推送在途时挂起本次拉取，避免用过期云端数据反向覆盖本地刚写入的新数据（导入学生/建组后被清空的根因）
       if (this._pushInFlight) {
         this._pendingPull = true;
@@ -2458,6 +2464,15 @@
               localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
               localStorage.setItem('jizhi_announcements_db', JSON.stringify(mergedAnns));
               localStorage.setItem('jizhi_pure_v10_ann_db', JSON.stringify(mergedAnns));
+
+              if (window.app && currUser && (currUser.role === 'student' || currUser.isStudent)) {
+                if (typeof window.app.renderHeader === 'function') {
+                  window.app.renderHeader();
+                }
+                if (typeof window.app.checkUnreadAnnouncements === 'function') {
+                  window.app.checkUnreadAnnouncements();
+                }
+              }
             }
 
             // 5. 学术文献与范文：云端权威，保留教师本地在途
@@ -2520,6 +2535,12 @@
         return { success: false, error: e };
       } finally {
         this._isPullingMeta = false;
+        if (this._queuedPull) {
+          const nextForce = !!this._queuedForce;
+          this._queuedPull = false;
+          this._queuedForce = false;
+          setTimeout(() => this.pullGlobalMeta(nextForce), 50);
+        }
       }
     }
     getSurveysList() {
@@ -2529,25 +2550,30 @@
       } catch (e) { list = []; }
       return Array.isArray(list) ? list : [];
     }
-    saveSurvey(classId, taskId, url, existingId = null) {
+    async saveSurvey(classId, taskId, url, existingId = null) {
       if (!url || !url.trim()) return null;
       let list = this.getSurveysList();
       const classes = this.getClasses();
       const tasks = this.getTasks();
-      const cObj = classes.find(c => c.id === classId);
-      const tObj = tasks.find(t => t.id === taskId);
+      const cObj = classes.find(c => isSameId(c.id, classId));
+      const tObj = tasks.find(t => isSameId(t.id, taskId));
       const cleanUrl = url.trim();
 
+      let existingItem = null;
       if (existingId) {
-        const item = list.find(s => s.id === existingId);
-        if (item) {
-          item.classId = classId;
-          item.className = cObj ? cObj.name : '全校班级';
-          item.taskId = taskId;
-          item.taskTitle = tObj ? tObj.title : '写作任务';
-          item.url = cleanUrl;
-          item.updatedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        }
+        existingItem = list.find(s => s.id === existingId);
+      }
+      if (!existingItem) {
+        existingItem = list.find(s => isSameId(s.classId, classId) && isSameId(s.taskId, taskId));
+      }
+
+      if (existingItem) {
+        existingItem.classId = classId;
+        existingItem.className = cObj ? cObj.name : '全校班级';
+        existingItem.taskId = taskId;
+        existingItem.taskTitle = tObj ? tObj.title : (existingItem.taskTitle || '写作任务');
+        existingItem.url = cleanUrl;
+        existingItem.updatedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       } else {
         const newSurvey = {
           id: 'survey_' + Date.now(),
@@ -2561,7 +2587,6 @@
         list.unshift(newSurvey);
       }
       localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(list));
-      this.pushGlobalMeta();
 
       if ('BroadcastChannel' in window) {
         try {
@@ -2571,6 +2596,8 @@
           window._jizhiGlobalBc.postMessage({ type: 'survey_updated', classId, taskId, url: cleanUrl });
         } catch (e) {}
       }
+
+      return await this.pushGlobalMeta();
     }
     deleteSurvey(surveyId) {
       let list = this.getSurveysList();
@@ -2594,7 +2621,7 @@
       // 1. 最高优先级：精准匹配 班级 + 任务
       const exactMatch = list.find(s => {
         const matchCls = !s.classId || s.classId === 'all' || isSameId(s.classId, classId);
-        const matchTsk = isSameId(s.taskId, taskId);
+        const matchTsk = isSameId(s.taskId, taskId) || (s.taskTitle && taskId && (s.taskTitle === taskId || s.taskId === taskId));
         return matchCls && matchTsk && s.url && s.url.startsWith('http');
       });
       if (exactMatch) return exactMatch.url;
@@ -3919,6 +3946,8 @@
       }
 
       localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
+      localStorage.setItem('jizhi_announcements_db', JSON.stringify(announcements));
+      localStorage.setItem('jizhi_pure_v10_ann_db', JSON.stringify(announcements));
       this.pushGlobalMeta();
 
       if ('BroadcastChannel' in window) {
@@ -3936,6 +3965,8 @@
       let announcements = this.getAnnouncements();
       announcements = announcements.filter(a => a.id !== annId);
       localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
+      localStorage.setItem('jizhi_announcements_db', JSON.stringify(announcements));
+      localStorage.setItem('jizhi_pure_v10_ann_db', JSON.stringify(announcements));
       this.pushGlobalMeta();
 
       if ('BroadcastChannel' in window) {
@@ -4071,7 +4102,7 @@
       });
     }
 
-    uploadReferencePaper(paper) {
+    async uploadReferencePaper(paper) {
       const papers = this.getAllReferencePapers();
       const paperId = 'ref_' + Date.now();
 
@@ -4100,7 +4131,7 @@
         papers.splice(20);
         try { localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers)); } catch (err) {}
       }
-      this.pushGlobalMeta();
+      await this.pushGlobalMeta();
 
       if ('BroadcastChannel' in window) {
         try {
@@ -4663,6 +4694,13 @@
         taskId = null;
       }
 
+      if (!isSameId(this.taskId, taskId) || !isSameId(this.groupId, groupId) || !isSameId(this.effectiveClassId, effectiveClassId)) {
+        this._lastKnownRevisionId = 0;
+        this._lastKnownMetaVer = 0;
+        this._hasInitialPullCompleted = false;
+        this._hasRenderedInitialWorkspace = false;
+      }
+
       this.groupId = groupId;
       this.taskId = taskId;
       this.effectiveClassId = effectiveClassId;
@@ -4935,7 +4973,9 @@
         if (res.ok) {
           const data = await res.json();
           if (data && data.presence && typeof data.presence === 'object') {
-            this.app.state.presence = { ...(this.app.state.presence || {}), ...data.presence };
+            const newPr = { ...data.presence };
+            newPr[userKey] = { lastSeen: Date.now(), updatedAt: Date.now(), name: currentUser.name || userKey, role: currentUser.role || 'student' };
+            this.app.state.presence = newPr;
             if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
             this.app.renderPresenceCursors();
           }
@@ -5386,12 +5426,39 @@
       const isTeacher = user && (user.isTeacher || user.role === 'teacher');
       const myGroupId = this.getEffectiveGroupId();
 
-      if (remoteData.groupId && remoteData.groupId !== myGroupId && user?.role === 'student') return;
-
+      const prevMetaVer = this._lastKnownMetaVer;
       if (remoteData.metaVer !== undefined) {
         this._lastKnownMetaVer = remoteData.metaVer;
         if (this.app?.authManager) {
           this.app.authManager.globalMetaVersion = remoteData.metaVer;
+        }
+        // 🛡️ 核心防漏补丁：若服务端版本递增，但本次协同响应未包含完整 announcements 或 referencePapers（如高频协作 Delta），
+        // 必须立刻主动触发 pullGlobalMeta 补拉全局最新通知与参考范文并刷新工作台，杜绝多端数据不同步
+        if (prevMetaVer !== undefined && remoteData.metaVer !== prevMetaVer && (!Array.isArray(remoteData.announcements) || !Array.isArray(remoteData.referencePapers))) {
+          if (this.app && this.app.authManager && typeof this.app.authManager.pullGlobalMeta === 'function') {
+            this.app.authManager.pullGlobalMeta(true).then(() => {
+              if (this.app) {
+                if (typeof this.app.renderHeader === 'function') this.app.renderHeader();
+                if (typeof this.app.checkUnreadAnnouncements === 'function') this.app.checkUnreadAnnouncements();
+
+                // 📚 实时更新工作台参考范文按钮与弹窗
+                const currentUser = this.app.authManager.getCurrentUser();
+                const effectiveClassId = this.app.authManager.getEffectiveStudentClassId(currentUser, this.app.state?.activeTaskId);
+                const activeGroupObj = this.app.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
+                const groupId = this.app.state?.activeGroupId || this.groupId || activeGroupObj?.id || currentUser?.groupId || null;
+                const available = this.app.authManager.getReferencePapers(groupId, effectiveClassId, this.app.state?.activeTaskId);
+                const refBtn = document.getElementById('btn-show-case') || document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
+                if (refBtn) {
+                  refBtn.innerText = available.length > 0 ? `📚 查阅参考范文 (${available.length}篇)` : '📚 查阅参考范文库';
+                }
+                if (document.querySelector('.modal-ref-papers-view') || (document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库'))) {
+                  if (typeof this.app.showReferencePapersModal === 'function') {
+                    this.app.showReferencePapersModal();
+                  }
+                }
+              }
+            }).catch(() => {});
+          }
         }
       }
 
@@ -5399,15 +5466,9 @@
         this._hasPulledGlobal = true;
       }
 
-      // 更新本地已知的服务端 revisionId 和 metaVer（每次拉到数据都对齐，彻底打通 Delta 差量通道）
+      // 更新本地已知的服务端 revisionId（每次拉到数据都对齐，彻底打通 Delta 差量通道）
       if (remoteData.revisionId !== undefined) {
         this._lastKnownRevisionId = remoteData.revisionId;
-      }
-      if (remoteData.metaVer !== undefined) {
-        this._lastKnownMetaVer = remoteData.metaVer;
-        if (this.app?.authManager) {
-          this.app.authManager.globalMetaVersion = remoteData.metaVer;
-        }
       }
       this._hasPulledGlobal = true;
 
@@ -5703,6 +5764,13 @@
         }
       }
 
+      // 🛡️ 严格任务物理隔离守卫：若响应中携带的 taskId 与当前工作台 activeTaskId 不一致，坚决拒绝合并阶段数据
+      const currentActiveTaskId = this.app?.state?.activeTaskId || this.taskId;
+      const isTaskMatch = !remoteData.taskId || !currentActiveTaskId || isSameId(remoteData.taskId, currentActiveTaskId);
+      if (!isTaskMatch && user?.role === 'student') {
+        return;
+      }
+
       // 🛡️ 教师重置功能已废除，纯净同步阶段协作数据，绝对不误踢正在协作的学生
       this._hasInitialPullCompleted = true;
       this.isInitialPullDone = true;
@@ -5723,7 +5791,12 @@
             }
           });
         }
-        this.app.state.presence = { ...(this.app.state.presence || {}), ...incomingPr };
+        // 🛡️ 严格权威在线状态：直接采用服务端清洗后的最新 presence，杜绝历史离线成员内存残留
+        const myId = user ? String(user.id || '').trim() : '';
+        if (myId && this.app.state.presence && this.app.state.presence[myId]) {
+          incomingPr[myId] = this.app.state.presence[myId];
+        }
+        this.app.state.presence = incomingPr;
         this.app.renderPresenceCursors();
       }
 
@@ -6313,6 +6386,9 @@
 
       if (remoteData.currentStage) {
         this.app.state.groupMaxStage = remoteData.currentStage;
+        if (!this.app.isViewingPastStage) {
+          this.app.state.currentStage = remoteData.currentStage;
+        }
       }
 
       // 🌟 全员里程碑协同弹窗：远端阶段流转达成时，确保所有正在等待的组员均能收到弹窗并点击推进
@@ -6435,10 +6511,8 @@
               🚀 登录集智平台
             </button>
           </form>
-          <div style="text-align:center; margin-top:24px; font-size:12px; color:#94a3b8; font-weight:500; display:flex; justify-content:center; align-items:center; gap:8px;">
+          <div style="text-align:center; margin-top:24px; font-size:12px; color:#94a3b8; font-weight:500; display:flex; justify-content:center; align-items:center;">
             <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" style="color:#94a3b8; text-decoration:none;">浙ICP备2026066047号-1</a>
-            <span style="opacity:0.5;">·</span>
-            <span style="font-family:monospace; font-size:11px; color:#94a3b8;" title="系统版本号">${APP_VERSION}</span>
           </div>
         </div>
       </div>
@@ -7328,7 +7402,7 @@
                 <span style="background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:700;">教学空间</span>
               </div>
             ` : `
-              <div class="brand-logo" style="font-size:22px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent; display:flex; align-items:baseline; gap:8px;">集智 JIZHI 教学总控大厅 <span style="font-size:11px; font-weight:700; color:#94a3b8; font-family:monospace;" title="系统版本号">${APP_VERSION}</span></div>
+              <div class="brand-logo" style="font-size:22px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI 教学总控大厅</div>
             `}
           </div>
           <div class="teacher-info" style="display:flex; align-items:center; gap:14px;">
@@ -9487,21 +9561,28 @@
 
     const btnSaveSurveyUrl = container.querySelector('#btn-save-survey-url');
     if (btnSaveSurveyUrl) {
-      btnSaveSurveyUrl.addEventListener('click', () => {
+      btnSaveSurveyUrl.addEventListener('click', async () => {
         const urlInput = container.querySelector('#input-survey-url') || container.querySelector('#survey-url-input');
         const targetClassId = selSurveyClass ? selSurveyClass.value : activeClass.id;
         const targetTaskId = selSurveyTask ? selSurveyTask.value : (currentClassTasks[0] ? currentClassTasks[0].id : '');
         const url = urlInput ? urlInput.value.trim() : '';
         if (!url) { alert('⚠️ 请先填入有效的问卷链接！'); return; }
 
-        authManager.saveSurvey(targetClassId, targetTaskId, url);
-
-        if (window.app && window.app.cloudSyncEngine) {
-          window.app.cloudSyncEngine.pushSnapshot();
+        btnSaveSurveyUrl.disabled = true;
+        btnSaveSurveyUrl.innerText = '⏳ 保存中...';
+        try {
+          await authManager.saveSurvey(targetClassId, targetTaskId, url);
+          if (window.app && window.app.cloudSyncEngine) {
+            window.app.cloudSyncEngine.pushSnapshot();
+          }
+          alert('✅ 问卷链接已成功保存并永久同步！');
+        } catch (err) {
+          alert('❌ 保存失败: ' + (err?.message || err));
+        } finally {
+          btnSaveSurveyUrl.disabled = false;
+          btnSaveSurveyUrl.innerText = '💾 保存问卷链接';
+          renderTeacherPortal(container, authManager, state, onLogout);
         }
-
-        alert('✅ 问卷链接已成功保存并永久同步！');
-        renderTeacherPortal(container, authManager, state, onLogout);
       });
     }
 
@@ -10917,7 +10998,7 @@
 
             submitBtn.innerText = '⏳ 正在存入范文库...';
 
-            const newPaper = authManager.uploadReferencePaper({
+            const newPaper = await authManager.uploadReferencePaper({
               title,
               classId: selClassId,
               className: selClassName,
@@ -11432,6 +11513,7 @@
       return isScopeMatch(a, {
         userClassId: userClass.id,
         userGroupId: groupId,
+        userGroupName: groupName,
         currentTaskId: null,
         currentTaskTitle: null,
         userClassName: userClass.name
@@ -11443,16 +11525,12 @@
       <div class="student-task-portal" style="min-height:100vh; background:#f0f4f9; display:flex; flex-direction:column;">
         <header class="app-header" style="height:60px; background:#ffffff; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; padding:0 24px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
           <div class="brand-section" style="display:flex; align-items:center; gap:12px;">
-            <div class="brand-logo" style="font-size:20px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent; display:flex; align-items:baseline; gap:6px;">集智 JIZHI <span style="font-size:10.5px; font-weight:700; color:#94a3b8; font-family:monospace;" title="系统版本号">${APP_VERSION}</span></div>
+            <div class="brand-logo" style="font-size:20px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI</div>
             <div class="brand-badge" style="background:#eff6ff; color:#2563eb; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid #bfdbfe;">
               🎓 ${currentUser ? currentUser.name : '学生'} · ${userClass ? userClass.name : '学术写作班级'} · ${groupName}
             </div>
           </div>
           <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
-            <button id="btn-portal-survey-link" style="background:#eff6ff; border:1.5px solid #bfdbfe; color:#2563eb; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="课程评估问卷">📋 问卷</button>
-            <button class="nav-ann-bell-btn ${unreadAnnCount > 0 ? 'has-unread' : ''}" id="btn-portal-ann-bell" title="课堂教学通知" style="padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe;">
-              <span>📢 教学通知</span>${unreadAnnCount > 0 ? `<span style="background:#ef4444; color:#ffffff; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:10px; box-shadow:0 1px 4px rgba(239,68,68,0.4);">${unreadAnnCount}</span>` : ''}
-            </button>
             <button id="btn-portal-change-pwd" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="修改登录密码">🔑 修改密码</button>
             <button id="btn-portal-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
           </div>
@@ -11617,12 +11695,6 @@
     container.querySelector('#btn-portal-logout')?.addEventListener('click', () => onLogout());
     container.querySelector('#btn-portal-change-pwd')?.addEventListener('click', () => {
       authManager.openChangePasswordModal();
-    });
-    container.querySelector('#btn-portal-ann-bell')?.addEventListener('click', () => {
-      if (onOpenAnnModal) onOpenAnnModal();
-    });
-    container.querySelector('#btn-portal-survey-link')?.addEventListener('click', () => {
-      if (onOpenSurveyModal) onOpenSurveyModal();
     });
     container.querySelectorAll('.btn-enter-task-workspace').forEach(btn => {
       btn.addEventListener('click', () => onSelectTask(btn.dataset.taskId));
@@ -12360,6 +12432,7 @@
       return isScopeMatch(a, {
         userClassId: activeClassId,
         userGroupId: groupId,
+        userGroupName: groupName,
         currentTaskId: activeTaskId,
         currentTaskTitle: currentTaskTitle,
         userClassName: currentClassObj ? currentClassObj.name : ''
@@ -12417,7 +12490,7 @@
 
     const newHeaderHtml = `
       <div class="brand-section">
-        <div class="brand-logo" style="display:flex; align-items:baseline; gap:6px;">集智 JIZHI <span style="font-size:10px; font-weight:700; color:#94a3b8; font-family:monospace;" title="系统版本号">${APP_VERSION}</span></div>
+        <div class="brand-logo" style="display:flex; align-items:baseline; gap:6px;">集智 JIZHI</div>
         <div class="brand-badge" style="background:#eff6ff; color:#1d4ed8; padding:3px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid #bfdbfe; display:inline-flex; align-items:center; gap:6px;">
           <span>🎓 ${escapeHtml(currentUser ? currentUser.name : '学生')}</span>
           <span style="opacity:0.35;">·</span>
@@ -12494,33 +12567,37 @@
   }
 
   function renderCanvas(state, handlers) {
-    const canvas = document.getElementById('canvas-panel');
-    if (!canvas) return;
+    try {
+      const canvas = document.getElementById('canvas-panel');
+      if (!canvas) return;
 
-    // 🛡️ 极致架构升级：采用多阶段独立持久化容器，切换阶段时保留 DOM 与 iframe，彻底根治 Etherpad 闪烁白屏与状态丢失问题
-    let s1Container = canvas.querySelector('#stage-canvas-s1');
-    let s2Container = canvas.querySelector('#stage-canvas-s2');
-    let s3Container = canvas.querySelector('#stage-canvas-s3');
+      // 🛡️ 极致架构升级：采用多阶段独立持久化容器，切换阶段时保留 DOM 与 iframe，彻底根治 Etherpad 闪烁白屏与状态丢失问题
+      let s1Container = canvas.querySelector('#stage-canvas-s1');
+      let s2Container = canvas.querySelector('#stage-canvas-s2');
+      let s3Container = canvas.querySelector('#stage-canvas-s3');
 
-    if (!s1Container || !s2Container || !s3Container) {
-      canvas.innerHTML = `
-        <div id="stage-canvas-s1" style="display:none; flex-direction:column; width:100%; gap:12px; padding-bottom:36px;"></div>
-        <div id="stage-canvas-s2" style="display:none; flex-direction:column; height:100%; width:100%; overflow:hidden;"></div>
-        <div id="stage-canvas-s3" style="display:none; flex-direction:column; width:100%; gap:12px; padding-bottom:36px;"></div>
-      `;
-      s1Container = canvas.querySelector('#stage-canvas-s1');
-      s2Container = canvas.querySelector('#stage-canvas-s2');
-      s3Container = canvas.querySelector('#stage-canvas-s3');
+      if (!s1Container || !s2Container || !s3Container) {
+        canvas.innerHTML = `
+          <div id="stage-canvas-s1" style="display:none; flex-direction:column; width:100%; gap:12px; padding-bottom:36px;"></div>
+          <div id="stage-canvas-s2" style="display:none; flex-direction:column; height:100%; width:100%; overflow:hidden;"></div>
+          <div id="stage-canvas-s3" style="display:none; flex-direction:column; width:100%; gap:12px; padding-bottom:36px;"></div>
+        `;
+        s1Container = canvas.querySelector('#stage-canvas-s1');
+        s2Container = canvas.querySelector('#stage-canvas-s2');
+        s3Container = canvas.querySelector('#stage-canvas-s3');
+      }
+
+      const curStage = state.currentStage || 'stage1';
+      s1Container.style.display = (curStage === 'stage1') ? 'flex' : 'none';
+      s2Container.style.display = (curStage === 'stage2') ? 'flex' : 'none';
+      s3Container.style.display = (curStage === 'stage3') ? 'flex' : 'none';
+
+      if (curStage === 'stage1') renderStage1Canvas(s1Container, state, handlers);
+      else if (curStage === 'stage2') renderStage2Canvas(s2Container, state, handlers);
+      else if (curStage === 'stage3') renderStage3Canvas(s3Container, state, handlers);
+    } catch (err) {
+      console.error('[renderCanvas] Render error:', err);
     }
-
-    const curStage = state.currentStage || 'stage1';
-    s1Container.style.display = (curStage === 'stage1') ? 'flex' : 'none';
-    s2Container.style.display = (curStage === 'stage2') ? 'flex' : 'none';
-    s3Container.style.display = (curStage === 'stage3') ? 'flex' : 'none';
-
-    if (curStage === 'stage1') renderStage1Canvas(s1Container, state, handlers);
-    else if (curStage === 'stage2') renderStage2Canvas(s2Container, state, handlers);
-    else if (curStage === 'stage3') renderStage3Canvas(s3Container, state, handlers);
   }
 
   function renderPresencePills(editorId, state) {
@@ -12562,7 +12639,7 @@
           const p = presence[k];
           if (p) {
             const pTime = Number(p.lastSeen || p.updatedAt || p.timestamp || 0);
-            if (pTime > 0 && ((serverNow - pTime <= 120000) || (pTime - serverNow <= 60000))) {
+            if (pTime > 0 && ((serverNow - pTime <= 45000) || (pTime - serverNow <= 45000))) {
               isOnline = true;
               break;
             }
@@ -12596,6 +12673,10 @@
 
     // 🛡️ 纯净化图层：彻底清除富文本内部的任何历史残留光标 DOM
     editor.querySelectorAll('.remote-cursor-widget').forEach(el => el.remove());
+  }
+  if (typeof window !== 'undefined') {
+    window.renderPresencePills = renderPresencePills;
+    window.renderRemoteCursors = renderRemoteCursors;
   }
 
   function renderStage1Canvas(canvas, state, handlers) {
@@ -12645,6 +12726,7 @@
     const isAllConfirmed = (totalMembersCount > 0 && confirmedCount >= totalMembersCount);
     const isContractLocked = !!(s1.contract && s1.contract.isConfirmed) || isAllConfirmed || (state.groupMaxStage === 'stage2' || state.groupMaxStage === 'stage3') || state.isFinalSubmitted || isTaskDeadlineExpired;
     const isDraftDone = !!(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated);
+    const isContractComplete = isDraftDone || !!(s1.contract?.topic || s1.mergedTitle);
     const isInputDisabled = isContractLocked; // 只有在公约最终签署生效/全组进入下一阶段后才真正锁定输入，草案生成后全员可自由微调
     if (s1.contract && isAllConfirmed) s1.contract.isConfirmed = true;
 
@@ -12809,21 +12891,21 @@
               ${(() => {
                 const confs = state.stepConfirmations || {};
                 const isExtractingAny = isAnyExtracting(state);
-                const genericNames = ['学生', '组员', '我', '未分配', '匿名', 'a', 'b', 'c', 'user', 'undefined', 'null'];
-
                 const isDoneHelper = (map) => {
                   if (!map) return 0;
                   return membersList.filter(m => isMemberDone(map, m)).length;
                 };
                 const isMyDoneHelper = (map) => {
                   if (!map) return false;
-                  return isMemberDone(map, currUserObj || currentUser);
+                  return isMemberDone(map, currUserObj || { id: currentUser, name: currentUserName });
                 };
 
                 if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
                   return `
-                    <div style="background:#f0fdf4; border:1.5px solid #86efac; color:#15803d; padding:7px 22px; border-radius:20px; font-weight:800; font-size:13px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(34,197,94,0.15);">
-                      ✅ 公约草案已全部提炼生成（全组可微调修改，并在下方签署确认）
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <span style="font-size:13px; font-weight:800; color:#059669; background:#ecfdf5; border:1px solid #a7f3d0; padding:6px 16px; border-radius:20px;">
+                        🎉 公约草案已全部就绪
+                      </span>
                     </div>
                   `;
                 } else if (s1.contractStep === 'tasks') {
@@ -12917,12 +12999,12 @@
         </div>
 
         <div style="display:flex; flex-direction:column; gap:16px; width:100%;">
-          <!-- 6大研究设计方案模块与时间规划 (文体自适应) -->
+          <!-- 6大研究设计方案模块与阶段二起草时间规划 (文体自适应) -->
           <div style="background:#f8fafc; padding:18px; border-radius:12px; border:1px solid #bfdbfe; width:100%; box-sizing:border-box;">
             <div style="font-weight:800; color:#1e40af; margin-bottom:14px; font-size:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
               <div style="display:flex; align-items:center; gap:8px;">
-                <span>📚 方案核心模块与时间规划 (6 大模块起草):</span>
-                <span style="font-size:11.5px; background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:8px; border:1px solid #bfdbfe; font-weight:700;">${genreCfg.icon} ${genreCfg.label}</span>
+                <span>📚 方案核心模块与阶段二起草时间规划 (6 大模块起草):</span>
+                <span style="font-size:11.5px; background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:8px; border:1px solid #bfdbfe; font-weight:700;">⏱️ 阶段二起草预算: 约 ${Math.round(taskDurMin * 0.70)} 分钟 (任务总时长 ${taskDurMin} 分钟)</span>
               </div>
             </div>
 
@@ -12964,6 +13046,7 @@
           </div>
         </div>
 
+        <!-- 签署矩阵看板 -->
         <div id="stage1-contract-sign-matrix-mount" style="margin-top:16px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px 18px; width:100%; box-sizing:border-box;">
           <div style="font-size:13px; font-weight:700; color:#334155; margin-bottom:10px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;">
             <span>📌 本组全员确认签署状态矩阵 (规则：需 ${totalMembersCount}/${totalMembersCount} 人全部点击确认):</span>
@@ -12971,7 +13054,7 @@
           </div>
           <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:13px;">
             ${membersList.map(m => {
-              const isConf = isMemberDone(confirmedMembers, m);
+              const isConf = isMemberDone(s1.contract?.confirmedMembers, m);
               return `
                 <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#ffffff'}; padding:6px 12px; border-radius:8px; font-weight:600;">
                   ${m.avatar || '👤'} ${m.name}: <b>${isConf ? '✅ 已确认签署' : '⏳ 未确认'}</b>
@@ -12990,11 +13073,15 @@
             <button disabled style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:13px 32px; border-radius:10px; font-weight:800; cursor:not-allowed; font-size:14.5px;">
               🛑 任务已截止（只读查阅模式）
             </button>
+          ` : (!isContractComplete ? `
+            <button id="btn-confirm-contract" disabled style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:13px 32px; border-radius:10px; font-weight:800; cursor:not-allowed; font-size:14.5px; opacity:0.85; box-shadow:none;" title="请先完成课题、方案概述、时间分配与任务分工">
+              ⏳ 请等待公约内容生成完整后签署 (需完成课题、概述、时间与分工)
+            </button>
           ` : `
             <button id="btn-confirm-contract" style="background:${userHasConfirmed ? '#eff6ff' : 'linear-gradient(135deg, #059669, #047857)'}; border:1px solid ${userHasConfirmed ? '#bfdbfe' : 'transparent'}; color:${userHasConfirmed ? '#1d4ed8' : 'white'}; padding:13px 32px; border-radius:10px; font-weight:800; cursor:pointer; font-size:14.5px; box-shadow:0 3px 12px rgba(5,150,105,0.25);">
               ${userHasConfirmed ? `✅ 我 (${currentUserName}) 已按键确认签署 (${confirmedCount}/${totalMembersCount} 人已完成)` : `✍️ 我以 (${currentUserName}) 身份按键确认签署合约 (已确认 ${confirmedCount}/${totalMembersCount} 人)`}
             </button>
-          `)}
+          `))}
         </div>
 
       </div>
@@ -13683,6 +13770,17 @@
       const btnConfirm = canvas.querySelector('#btn-confirm-contract');
       if (btnConfirm) {
         btnConfirm.addEventListener('click', () => {
+          const hasTopic = !!(s1.mergedTitle || s1.contract?.topic?.trim());
+          const hasOverview = !!(s1.contract?.overview?.trim() || s1.researchOverview?.trim());
+          const hasTime = !!(s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6 && Object.values(s1.contract.timeAllocations).some(v => Number(v) > 0));
+          const hasAssignments = !!(s1.contract?.taskAssignments && Object.keys(s1.contract.taskAssignments).length > 0 && Object.values(s1.contract.taskAssignments).some(v => typeof v === 'string' && v.trim().length > 0));
+          if (!hasTopic || !hasOverview || !hasTime || !hasAssignments) {
+            if (typeof showGlobalBannerNotice === 'function') {
+              showGlobalBannerNotice('公约尚未就绪', '请先完成课题、方案概述、时间预算分配及人员分工等公约核心内容，方可签署！', 'warning', 4000);
+            }
+            return;
+          }
+
           s1.contract._lastSignTime = Date.now();
           const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
           const myCode = currUser?.id || state.currentUser || '';
@@ -15375,7 +15473,7 @@
             const p = presence[k];
             if (p && !p.offline) {
               const pTime = Number(p.lastSeen || p.updatedAt || p.timestamp || 0);
-              if (pTime > 0 && (nowMs - pTime <= 180000)) {
+              if (pTime > 0 && (nowMs - pTime <= 45000)) {
                 isOnline = true;
                 break;
               }
@@ -15387,7 +15485,7 @@
             for (const [pk, p] of Object.entries(presence)) {
               if (!p || p.offline) continue;
               const pTime = Number(p.lastSeen || p.updatedAt || p.timestamp || 0);
-              if (pTime > 0 && (nowMs - pTime <= 180000)) {
+              if (pTime > 0 && (nowMs - pTime <= 45000)) {
                 const pLow = String(pk).toLowerCase();
                 const pName = String(p.name || '').trim().toLowerCase();
                 const pId = String(p.userId || p.id || '').trim().toLowerCase();
@@ -15397,28 +15495,6 @@
                 }
               }
             }
-          }
-          // 3. Recent chat message fallback (within 180s)
-          if (!isOnline && state.chatLogs) {
-            const mKeys = [uid, m.name, m.studentCode].filter(Boolean).map(x => String(x).toLowerCase());
-            ['stage1', 'stage2', 'stage3'].forEach(stg => {
-              if (isOnline) return;
-              const msgs = state.chatLogs[stg] || [];
-              for (let i = msgs.length - 1; i >= 0; i--) {
-                const msg = msgs[i];
-                if (!msg) continue;
-                const msgTime = Number(msg._timeMs || 0);
-                if (msgTime > 0 && (nowMs - msgTime <= 180000)) {
-                  const sLow = String(msg.sender || '').toLowerCase();
-                  if (mKeys.includes(sLow)) {
-                    isOnline = true;
-                    break;
-                  }
-                } else if (msgTime > 0 && (nowMs - msgTime > 180000)) {
-                  break;
-                }
-              }
-            });
           }
         }
 
@@ -15670,6 +15746,13 @@
           btn.style.opacity = '0.5';
           btn.style.cursor = 'not-allowed';
         });
+      } else {
+        // 🛡️ 恢复：当不再进行任何提炼时，确保重试按钮可点击
+        stream.querySelectorAll('.btn-retry-ai').forEach(btn => {
+          btn.disabled = false;
+          btn.style.opacity = '1';
+          btn.style.cursor = 'pointer';
+        });
       }
 
       stream.querySelectorAll('.chat-attached-img').forEach(img => {
@@ -15794,7 +15877,7 @@
             📜 公约草案已全部生成！👉 请全员在左侧公约下方核对并签署 (${confirmedCount}/${totalCount} 人已签)
           </div>
         `;
-      } else if (elapsedSec >= 13 * 60) {
+      } else if (elapsedSec >= 8 * 60) {
         actionBar.style.display = 'block';
         const isGeneratingContract = !!(window.app && window.app._isGeneratingContract);
         const isExtractingAny = isAnyExtracting(state);
@@ -15963,6 +16046,9 @@
   }
 
   // 🛡️ Fail-safe compatibility exports
+  function renderActionBar() {}
+  function renderOutline() {}
+  function renderReferencePapersModal() {}
   function renderDefenseRoom() {}
   function renderWordEditor() {}
   function renderStageNavigation() {}
@@ -15971,6 +16057,7 @@
   function setupChatAtMentionMenu() {}
   function updateContributionUi() {}
   function showSurveyModalIfApplicable() {}
+  function renderEditorToolbar() {}
 
   // 🚀 全局事件委托守护：确保初稿确认、范文库、编辑会议三大按钮任何时刻 100% 灵敏响应
   if (typeof document !== 'undefined' && !window._stage2GlobalClickDelegated) {
@@ -16378,7 +16465,7 @@
         const raw = sessionStorage.getItem('jizhi_active_workspace_snap') || localStorage.getItem('jizhi_active_workspace_snap');
         if (raw) {
           const parsed = JSON.parse(raw);
-          if (parsed && parsed.classId === effectiveClassId && parsed.taskId === taskId && parsed.groupId === groupId) {
+          if (parsed && isSameId(parsed.classId, effectiveClassId) && parsed.taskId && taskId && isSameId(parsed.taskId, taskId) && isSameId(parsed.groupId, groupId)) {
             cached = parsed;
           }
         }
@@ -16874,8 +16961,8 @@
           const membersList = Object.values(this.state.members || {});
           const presenceMap = this.state.presence || {};
           const onlineMembers = membersList.filter(m => {
-            const p = presenceMap[m.id] || presenceMap[m.id];
-            return p && (nowMs - (p.updatedAt || 0) < 180000);
+            const p = presenceMap[m.id] || presenceMap[m.name];
+            return p && (nowMs - (p.updatedAt || p.lastSeen || 0) < 45000);
           });
           if (this.isCurrentTaskReadOnly && this.isCurrentTaskReadOnly()) return; // 🛡️ 只读模式下绝不触发任何定时智能体催促与分析
 
@@ -17338,6 +17425,32 @@
               const isUniversalClass = (cid) => !cid || cid === 'all' || cid === 'class_all' || cid === 'task_class_all';
               const rawTaskClassId = (targetTaskObj && !isUniversalClass(targetTaskObj.classId)) ? targetTaskObj.classId : null;
               const taskClassId = rawTaskClassId || (this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, strictTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null));
+
+              // 🛡️ 严格任务物理隔离：无论是从任务大厅进入、还是切换不同任务，进入指定任务时彻底重置为干净状态或该任务专属状态
+              const isNewOrSwitchedTask = (!this.state.activeTaskId || !isSameId(this.state.activeTaskId, strictTaskId));
+              if (isNewOrSwitchedTask) {
+                if (this.cloudSyncEngine && this.state.activeTaskId) {
+                  this.cloudSyncEngine.sendPresenceLeave(currentUser);
+                }
+                sessionStorage.removeItem('jizhi_active_workspace_snap');
+                localStorage.removeItem('jizhi_active_workspace_snap');
+                this.state.presence = {};
+                this.state.isFinalSubmitted = false;
+                this.state.currentStage = 'stage1';
+                this.state.groupMaxStage = 'stage1';
+                this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+                this.state.stage1 = JSON.parse(JSON.stringify(InitialState.stage1));
+                this.state.stage2 = JSON.parse(JSON.stringify(InitialState.stage2));
+                this.state.stage3 = JSON.parse(JSON.stringify(InitialState.stage3));
+                this.state.timer = JSON.parse(JSON.stringify(InitialState.timer));
+                this.state.stepConfirmations = {};
+                this.state.fieldLocks = {};
+                this.state.activeAgentAnalyzing = null;
+                this.stage2StartTime = null;
+                this.stage3StartTime = null;
+                this.isViewingPastStage = false;
+              }
+
               this.state.activeStudentClassId = taskClassId;
               this.state.activeTaskId = strictTaskId;
               this.state.activeTaskTitle = strictTaskTitle;
@@ -17361,12 +17474,11 @@
               this.state.currentStage = effectiveStage;
               this.isViewingPastStage = false;
 
-              if (!this.state.presence) this.state.presence = {};
-              const myKeys = [currentUser?.id, currentUser?.name].filter(Boolean);
+              this.state.presence = {};
               const now = Date.now();
-              myKeys.forEach(k => {
-                this.state.presence[k] = { nodeIndex: 0, activeSection: '在线协作', updatedAt: now };
-              });
+              if (currentUser?.id) {
+                this.state.presence[String(currentUser.id)] = { nodeIndex: 0, activeSection: '在线协作', updatedAt: now, lastSeen: now, name: currentUser.name };
+              }
 
               if (this.cloudSyncEngine) {
                 this.cloudSyncEngine.isLoggingOut = false;
@@ -17909,10 +18021,10 @@
               return;
             }
 
-            // 🌟 13 分钟兜底机制：若一致性研讨下发已达 13 分钟（780,000ms），学生未点击【让责任编辑总结】，系统自动平滑推进至审稿编辑下发修正清单！
-            if (divergenceElapsed >= 13 * 60 * 1000 && !this._isTriggeringSecondReview && !this._isAutoAdvancingToSecondReview) {
+            // 🌟 8 分钟兜底机制：若一致性研讨下发已达 8 分钟（480,000ms），学生未点击【让责任编辑总结】，系统自动平滑推进至审稿编辑下发修正清单！
+            if (divergenceElapsed >= 8 * 60 * 1000 && !this._isTriggeringSecondReview && !this._isAutoAdvancingToSecondReview) {
               this._isAutoAdvancingToSecondReview = true;
-              console.log('⏰ [Stage2 Workflow] 一致性研讨已达 13 分钟，学生未手动点击总结，平台自动交棒审稿编辑...');
+              console.log('⏰ [Stage2 Workflow] 一致性研讨已达 8 分钟，学生未手动点击总结，平台自动交棒审稿编辑...');
               const taskType = this.getCurrentTaskType();
               const isInst = (taskType === 'instructional');
               const managingName = isInst ? '备课组长' : '责任编辑';
@@ -18374,13 +18486,10 @@
         // 过滤出严格属于【当前班级 + 当前任务 + 当前小组】的全部通知
         const myAnns = allAnns.filter(a => {
           if (!a || a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长')) return false;
-          if (a.taskId && a.taskId !== 'task_all' && a.taskId !== 'all' && activeTaskId) {
-            const tObj = allTasks.find(t => isSameId(t.id, a.taskId) || t.title === a.taskId);
-            if (tObj && isTaskExpired(tObj)) return false;
-          }
           return isScopeMatch(a, {
             userClassId: effectiveClassId || currentUser?.classId,
             userGroupId: groupId,
+            userGroupName: activeGroupObj ? activeGroupObj.name : '',
             currentTaskId: activeTaskId,
             currentTaskTitle: currentTaskTitle,
             userClassName: effectiveClassName
@@ -18413,6 +18522,14 @@
           const currentOpenModal = document.querySelector('.modal-announcement-popup');
           if (!currentOpenModal) {
             this.showAnnouncementModal(unreadList[0], true);
+          } else {
+            // 若当前正处于通知弹窗中，记录最新未读通知并在当前弹窗关闭后自动顺滑带出
+            const openAnnId = currentOpenModal.dataset.annId;
+            if (openAnnId === 'list') {
+              this.showAnnouncementModal(null, true);
+            } else if (openAnnId !== unreadList[0].id) {
+              currentOpenModal._hasNextPendingAnn = unreadList[0];
+            }
           }
         }
       };
@@ -18473,6 +18590,7 @@
           return isScopeMatch(a, {
             userClassId: effectiveClassId || currentUser?.classId,
             userGroupId: groupId,
+            userGroupName: activeGroupObj ? activeGroupObj.name : '',
             currentTaskId: activeTaskId,
             currentTaskTitle: currentTaskTitle,
             userClassName: effectiveClassName
@@ -18668,6 +18786,7 @@
       };
 
       const closeModal = () => {
+        const nextPending = modal._hasNextPendingAnn;
         modal.remove();
         document.removeEventListener('keydown', onEsc);
         // ⚡ 0 延迟即时刷新右上角【教学通知】红点角标
@@ -18699,6 +18818,15 @@
         }
         if (this.state.studentViewMode === 'task_list') {
           this.renderMain();
+        }
+
+        // 📢 连续通知顺滑接力：若在展示期间收到了教师最新发布的未读通知，关闭后自动弹出最新通知
+        if (nextPending && !isAnnRead(nextPending)) {
+          setTimeout(() => {
+            if (!document.querySelector('.modal-announcement-popup')) {
+              this.showAnnouncementModal(nextPending, true);
+            }
+          }, 150);
         }
       };
 
@@ -18787,9 +18915,9 @@
       const currentClassId = this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) || currentUser?.classId || null;
       const currentTaskId = this.state.activeTaskId || null;
       const tasks = this.authManager.getTasks();
-      const currTaskObj = tasks.find(t => t.id === currentTaskId);
-      const taskTitle = currTaskObj ? currTaskObj.title : '指定写作任务';
-      const surveyUrl = this.authManager.getSurveyUrl(currentClassId, currentTaskId);
+      const currTaskObj = tasks.find(t => isSameId(t.id, currentTaskId));
+      const taskTitle = currTaskObj ? currTaskObj.title : (currentTaskId || '指定写作任务');
+      const surveyUrl = this.authManager.getSurveyUrl(currentClassId, currentTaskId) || (currTaskObj ? this.authManager.getSurveyUrl(currentClassId, currTaskObj.id) : '');
       const isConfigured = surveyUrl && surveyUrl.startsWith('http');
       const surveyDoneKey = `jizhi_survey_completed_${currentClassId}_${currentTaskId}`;
 
@@ -19005,10 +19133,28 @@
       this.state.studentViewMode = 'task_list';
       this.state.activeTaskId = null;
       this.state.activeTaskTitle = null;
-      sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
-      sessionStorage.removeItem('jizhi_active_task_id');
-      localStorage.setItem('jizhi_student_view_mode', 'task_list');
-      localStorage.removeItem('jizhi_active_task_id');
+      this.state.currentStage = 'stage1';
+      this.state.groupMaxStage = 'stage1';
+      this.state.isFinalSubmitted = false;
+      this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+      this.state.stage1 = JSON.parse(JSON.stringify(InitialState.stage1));
+      this.state.stage2 = JSON.parse(JSON.stringify(InitialState.stage2));
+      this.state.stage3 = JSON.parse(JSON.stringify(InitialState.stage3));
+      this.state.timer = JSON.parse(JSON.stringify(InitialState.timer));
+      this.state.stepConfirmations = {};
+      this.state.fieldLocks = {};
+      this.state.activeAgentAnalyzing = null;
+      this.stage2StartTime = null;
+      this.stage3StartTime = null;
+      this.isViewingPastStage = false;
+      try {
+        sessionStorage.removeItem('jizhi_active_workspace_snap');
+        localStorage.removeItem('jizhi_active_workspace_snap');
+        sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
+        sessionStorage.removeItem('jizhi_active_task_id');
+        localStorage.setItem('jizhi_student_view_mode', 'task_list');
+        localStorage.removeItem('jizhi_active_task_id');
+      } catch (e) {}
       this.renderMain();
     }
 
@@ -19023,7 +19169,19 @@
       this.state.studentViewMode = 'task_list';
       this.state.activeTaskId = null;
       this.state.activeTaskTitle = null;
+      this.state.currentStage = 'stage1';
+      this.state.groupMaxStage = 'stage1';
+      this.state.isFinalSubmitted = false;
+      this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+      this.state.stage1 = JSON.parse(JSON.stringify(InitialState.stage1));
+      this.state.stage2 = JSON.parse(JSON.stringify(InitialState.stage2));
+      this.state.stage3 = JSON.parse(JSON.stringify(InitialState.stage3));
+      this.state.stepConfirmations = {};
+      this.state.fieldLocks = {};
+      this.state.activeAgentAnalyzing = null;
       try {
+        sessionStorage.removeItem('jizhi_active_workspace_snap');
+        localStorage.removeItem('jizhi_active_workspace_snap');
         sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
         sessionStorage.removeItem('jizhi_active_task_id');
         localStorage.setItem('jizhi_student_view_mode', 'task_list');
@@ -19962,6 +20120,101 @@
     }
 
     /**
+     * 🔄 阶段二：手动重试触发一审破题把脉（供聊天气泡中的重试按钮调用）
+     */
+    async triggerStage2FirstReview(btnElement = null) {
+      if (this._isTriggeringFirstReview) return;
+      this._isTriggeringFirstReview = true;
+      if (btnElement) this.disableAllRetryButtons(btnElement, '⏳ 正在重新生成一审破题把脉...');
+
+      const taskType = this.getCurrentTaskType();
+      const isInstTask = (taskType === 'instructional');
+      const reviewerRoleName = isInstTask ? '教研专家' : '审稿编辑';
+      const genreDocName = isInstTask ? '教学设计' : '论文';
+      const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+
+      // 获取当前 Etherpad 正文内容
+      let rawDoc = '';
+      try {
+        const padFrame = document.querySelector('#etherpad-iframe, iframe[src*="etherpad"]');
+        if (padFrame && padFrame.contentDocument) {
+          const body = padFrame.contentDocument.querySelector('iframe[name="ace_outer"]')?.contentDocument?.querySelector('iframe[name="ace_inner"]')?.contentDocument?.body;
+          rawDoc = body ? body.innerText.replace(/<[^>]*>/g, '').trim() : '';
+        }
+      } catch (e) { /* cross-origin */ }
+      if (!rawDoc) rawDoc = this.state.stage2?.lastEditorContent || this.state.stage2?.editorContent || '论文草稿已起草引言与文献综述';
+
+      const s2 = this.state.stage2 || {};
+
+      this.setActiveAgentAnalyzing({
+        icon: '📝',
+        title: `【${reviewerRoleName}】正在进行初审破题把脉质检...`,
+        detail: `正在全量通读当前已起草的全部正文段落，以开篇破题为主线进行通盘${isInstTask ? '教学设计' : '学术'}把脉...`
+      });
+
+      try {
+        const genreDesc = getGenrePromptDescriptor(taskType);
+        const firstReviewPrompt = `${genreDesc}\n\n【课题】：《${topic}》\n【当前${genreDocName}正文已起草的实际草稿内容（全量通读）】：\n${rawDoc}\n\n请作为${reviewerRoleName}，全面通读当前学生已起草的全部内容（写到哪审到哪，具体情况具体分析，【绝对严禁出现"分工"字眼】）：\n1. 【正文实质性与进度评估】：\n   - 若当前草稿字数极少（仅有零星几个字、测试字句或尚未实质性展开正文）：直接一针见血指出正文起草严重滞后，尚未形成实质性${genreDocName}框架，督促小组成员紧扣《${topic}》尽快展开开篇实质性起草；\n   - 若已有实质性起草：以开篇立意/${isInstTask ? '三维教学目标' : '核心研究问题'}为主线，直截了当指出【哪里有什么问题 ➔ 怎么改】；${isInstTask ? '\n   - 【教学设计质检红线】：严格审查第二部分【教学目标与重难点】是否规范落地【三维目标】（知识与技能、过程与方法、情感态度价值观），严查是否出现"使学生/让学生"等教师视角表述、过程与方法是否具备"通过...经历...学会..."三要素、动词是否具体可测；' : ''}\n2. 【分情况审查全文衔接】：\n   - 若后续章节/教学活动已有起草：明确指出开头目标/立论与后续已写段落之间是否存在脱节；\n   - 若后续章节尚未起草：重点把关开头的问题界定与学情目标是否精准，并给出后续展开的衔接要求；\n3. 【语体规范与严密性】：若存在口语化表述或设计步骤含糊，精准指出并给出规范建议；\n\n输出格式：清晰列出 1~2 条核心质检条目（每条包含：· 诊断问题：指出哪里有什么问题；· 改进建议：指出具体怎么改）。纯自然语言输出，120~160字。`;
+
+        let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, {
+          stage: 'stage2',
+          topic,
+          actualDoc: rawDoc,
+          taskType,
+          milestoneKey: 'stage2_first_review',
+          scopeKey: this.getGroupScopeKey()
+        });
+
+        if (firstReviewText && firstReviewText.trim().length > 0) {
+          // 🛡️ 移除正在生成中的思考消息与残留网络提醒/重试按键
+          this.state.chatLogs.stage2 = (this.state.chatLogs.stage2 || []).filter(m => {
+            if (!m) return false;
+            if (m.isThinking || String(m.id || '').startsWith('thinking_first_review_') || String(m.id || '').startsWith('err_first_review_')) return false;
+            const txt = m.text || '';
+            if (txt.includes('btn-retry-ai') && (txt.includes('triggerStage2FirstReview') || txt.includes('一审破题把脉'))) return false;
+            if (m.sender === 'reviewingEditor' && txt.includes('网络提醒')) return false;
+            return true;
+          });
+
+          const formattedFirstReview = (firstReviewText.includes('一审') || firstReviewText.includes('初审') || firstReviewText.includes('破题把脉')) ? firstReviewText : `📝 【${reviewerRoleName}·一审破题把脉】：\n${firstReviewText}`;
+          const firstReviewMsg = {
+            sender: 'reviewingEditor',
+            senderName: `学术质量 · ${reviewerRoleName}`,
+            text: formattedFirstReview,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          };
+          if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+          this.state.chatLogs.stage2.push(firstReviewMsg);
+          s2.firstReviewText = firstReviewText;
+          s2.reviewMilestone = 'first_review_done';
+          this.syncChatLogs();
+          this.syncStage2();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        } else {
+          // 仍然失败，重新显示重试按钮
+          const errMsg = {
+            id: 'err_first_review_retry_' + Date.now(),
+            sender: 'reviewingEditor',
+            senderName: `学术质量 · ${reviewerRoleName}`,
+            text: `📝 【${reviewerRoleName}·网络提醒】：📡 一审破题把脉再次生成失败，请稍后重试。<br><button class="btn-retry-ai" onclick="window.app.triggerStage2FirstReview(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成《一审破题把脉》</button>`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          };
+          if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+          this.state.chatLogs.stage2.push(errMsg);
+          this.syncChatLogs();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        }
+      } catch (err) {
+        console.error('[triggerStage2FirstReview] retry error:', err);
+      } finally {
+        this.setActiveAgentAnalyzing(null);
+        this._isTriggeringFirstReview = false;
+      }
+    }
+
+    /**
      * 💡 阶段一：重试生成方案研讨指引
      */
     async retryVoteGuidance(btnElement) {
@@ -20036,25 +20289,25 @@
 
         const tally = s1.votes || {};
         const proposals = s1.proposals || [];
-        let maxVotes = -1;
+        let maxVotes = 0;
         let winningProposal = null;
         proposals.forEach(p => {
-          const count = tally[p.id] || 0;
+          const count = Number(tally[p.id] || 0);
           if (count > maxVotes) {
             maxVotes = count;
             winningProposal = p;
           }
         });
+        if (!winningProposal && proposals.length > 0) {
+          winningProposal = proposals[0];
+        }
 
-        const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
-        const effClassId = this.state.activeStudentClassId || currUser?.classId || null;
-        const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUser, effClassId) : null;
-        const membersList = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0) 
-          ? effGroup.members 
-          : (this.state.members || [{ name: 'A' }, { name: 'B' }, { name: 'C' }]);
-        const totalMembersCount = membersList.length;
-
-        const isUnanimous = (winningProposal && maxVotes === totalMembersCount && totalMembersCount > 0);
+        // 🛡️ 判定投票共识与一致性（杜绝班级未满员时将全票一致误判为分歧）：
+        // 1. 凡是实际获得投票的提案只有 1 个（且有得票），说明所有已投票的组员完全投给同一提案，100% 为全票一致！
+        // 2. 或者全组本来就只有 1 个候选提案，自然达成共识。
+        // 3. 只有当实际有得票的提案数量 >= 2（多方分立）时，才判定为存在分歧！
+        const votedProposals = proposals.filter(p => Number(tally[p.id] || 0) > 0);
+        const isUnanimous = (votedProposals.length === 1 && maxVotes > 0) || (proposals.length === 1);
 
         // 🛡️ 清理已有的同类失败气泡与思考中占位气泡
         this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => {
@@ -20079,8 +20332,10 @@
           s1.mergedTitle = winningProposal.title;
           if (!s1.contract) s1.contract = {};
           s1.contract.topic = winningProposal.title;
-          s1.contract.overview = '';
-          s1.researchOverview = '';
+          if (winningProposal.description && !s1.contract.overview) {
+            s1.contract.overview = winningProposal.description.replace(/<[^>]+>/g, ' ').trim();
+            s1.researchOverview = s1.contract.overview;
+          }
           guideMsgId = 'vote_unanimous_' + Date.now();
 
           const unanimousPrompt = `${genreDesc}
@@ -20172,6 +20427,8 @@
         this.renderStudentWorkspace();
       } catch (e) {
         console.warn('triggerVoteGuidance error:', e);
+        this._isTriggeringVoteGuidance = false;
+        this.setActiveAgentAnalyzing(null);
         this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (!m.isThinking && !String(m.id || '').startsWith('thinking_vote')));
         const errVoteMsg = {
           id: 'err_vote_' + Date.now(),
@@ -20198,6 +20455,11 @@
         if (this.state.stage1) this.state.stage1._guidanceCallingTimestamp = null;
         this.syncStage1();
         this.setActiveAgentAnalyzing(null);
+        if (typeof window.renderChat === 'function') {
+          window.renderChat(this.state);
+        } else {
+          renderChat(this.state);
+        }
       }
     }
 
@@ -20629,16 +20891,19 @@
           }
         }
 
-        // 🛡️ 严格遵循用户真实研讨：若确实没有提取出方案，直接显示“暂无”，绝对不添加任何预设套话兜底！
+        // 🛡️ 严格遵循用户真实研讨：若确实没有提取出方案，优先匹配当前课题的提案说明，或显示“暂无”，绝不添加任何假大空套话！
+        const matchedProp = propList.find(p => p && (p.title === finalTopic || p.title === currentCandidate)) || propList[0];
         if (!finalOverview || !finalOverview.trim() || finalOverview === '暂无') {
-          finalOverview = (propList[0]?.description) ? propList[0].description.replace(/<[^>]+>/g, ' ').trim() : '暂无';
+          finalOverview = (matchedProp?.description) ? matchedProp.description.replace(/<[^>]+>/g, ' ').trim() : '暂无';
         }
 
-        // 🛡️ 移除正在提炼中的思考消息与残留网络提醒
+        // 🛡️ 移除正在提炼中的思考消息与残留网络提醒/重试按键
         this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => {
           if (!m) return false;
-          if (m.isThinking || String(m.id || '').startsWith('thinking_topic_')) return false;
-          if (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('主题与方案')) return false;
+          if (m.isThinking || String(m.id || '').startsWith('thinking_topic_') || String(m.id || '').startsWith('topic_err_')) return false;
+          const txt = m.text || '';
+          if (txt.includes('btn-retry-ai') && (txt.includes('_doExtractTopic') || txt.includes('主题与方案') || txt.includes('课题与方案'))) return false;
+          if (m.sender === 'auctioneer' && txt.includes('网络提醒') && (txt.includes('主题与方案') || txt.includes('课题与方案'))) return false;
           return true;
         });
 
@@ -20690,6 +20955,8 @@
         renderChat(this.state);
       } catch (e) {
         console.warn('Extract topic & overview error:', e);
+        this._isExtractingTopic = false;
+        this.setActiveAgentAnalyzing(null);
         if (!this.state.stage1) this.state.stage1 = {};
         this.state.stage1._topicExtractFailed = true;
         this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (!m.isThinking && !String(m.id || '').startsWith('thinking_topic_')));
@@ -20715,6 +20982,7 @@
         this._isExtractingTopic = false;
         this.setActiveAgentAnalyzing(null);
         this.renderStudentWorkspace();
+        renderChat(this.state);
         if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
       }
     }
@@ -20781,28 +21049,30 @@
         const allTasks = this.authManager ? this.authManager.getTasks() : [];
         const curTask = allTasks.find(t => isSameId(t.id, this.state.activeTaskId) || (t.title && t.title === this.state.activeTaskId));
         const totalDurationMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
+        const stage2BudgetMin = Math.round(totalDurationMin * 0.70);
 
-        const timePrompt = `小组成员已就${isInst ? '教学设计方案 6 大模块' : '学术论文 6 大章节'}的时间预算规划在讨论区展开了非制式自由研讨。
+        const timePrompt = `小组成员已就${isInst ? '教学设计方案 6 大模块' : '学术论文 6 大章节'}的时间预算规划在讨论区展开了研讨。
   【组内关于时间规划与各${isInst ? '模块' : '章节'}侧重的真实研讨记录（全量记录）】:
   ${chatSnippet}
-  【参考${isInst ? '备课设计' : '论文写作'}总时长】: ${totalDurationMin} 分钟
+  【参考任务总时长】: ${totalDurationMin} 分钟，其中【阶段二 ${isInst ? '集体备课/教学设计起草' : '学术编辑部/正文撰写'}预算时长（占任务总时长 70%）约为 ${stage2BudgetMin} 分钟】。
 
   请通读上述真实讨论记录，作为资深${agentRole}：
+  1. 核心规划原则：6 大${isInst ? '模块' : '章节'}的时间预算分配是专门针对【阶段二 正文协同撰写/备课起草】的实际耗时进行规划，因此 6 大${isInst ? '模块' : '章节'}分配的分钟数总和应约为 ${stage2BudgetMin} 分钟（【最高红线：严禁按任务全流程总时长 ${totalDurationMin} 分钟分配，因为阶段一方案协商与阶段三答辩也各需占用时间】）；
      - 若组员明确提到了某${isInst ? '模块' : '章节'}分配多少分钟，严格按照组员商定的时间分配；
-     - 若组员提到各${isInst ? '模块' : '章节'}“平分”或“均分”，则将总时长平分给各${isInst ? '模块' : '章'}；
-     - 若组员提到“重点在${isInst ? '新知探究与建构/情境创设' : '方法/重点在综述'}”，则显著增加对应${isInst ? '模块' : '章节'}的时间权重；
-     - 若组员未明确提及某${isInst ? '模块' : '章节'}具体数值，依据${isInst ? '教学设计方案黄金比例（重点强化新知探究与建构）' : '学术论文标准黄金比例（重点强化研究设计与方法）'}智能补齐，使 6 大${isInst ? '模块' : '章节'}总和约为 ${totalDurationMin} 分钟；
+     - 若组员提到各${isInst ? '模块' : '章节'}“平分”或“均分”，则将阶段二预算（约 ${stage2BudgetMin} 分钟）平分给各${isInst ? '模块' : '章'}；
+     - 若组员提到“重点在${isInst ? '新知探究与建构/情境创设' : '研究设计与方法/文献综述'}”，则显著增加对应${isInst ? '模块' : '章节'}的时间权重；
+     - 若组员未明确提及某${isInst ? '模块' : '章节'}具体数值，依据${isInst ? '教学设计方案黄金比例（重点强化新知探究与建构）' : '学术论文标准黄金比例（重点强化研究设计与方法）'}智能补齐，使 6 大${isInst ? '模块' : '章节'}总和约为 ${stage2BudgetMin} 分钟；
   2. 给出 1 句专业且亲切的点拨（结合组员的研讨侧重点），宣布时间分配已录入公约，并顺承引导全组在讨论区商定各自负责的${isInst ? '撰写模块' : '写作章节'}与任务分工！
 
   输出格式必须为合法 JSON（严禁代码块以外的多余文字）：
   {
-    "background": 25,
-    "literature": 30,
-    "questions": 25,
-    "method": 40,
-    "reflection": 20,
-    "references": 10,
-    "guideText": "全篇 6 大${isInst ? '模块' : '章节'}时间预算已成功配置并录入公约看板！接下来请全组在讨论区商定各自负责认领的${isInst ? '撰写模块' : '写作章节'}与任务分工！商定完成后点击左侧【👥 一键提炼任务分工】！"
+    "background": ${isInst ? 10 : 12},
+    "literature": ${isInst ? 10 : 16},
+    "questions": ${isInst ? 15 : 12},
+    "method": ${isInst ? 30 : 30},
+    "reflection": ${isInst ? 12 : 14},
+    "references": ${isInst ? 7 : 8},
+    "guideText": "阶段二 6 大${isInst ? '模块' : '章节'}起草时间预算（共计约 ${stage2BudgetMin} 分钟）已成功配置并录入公约看板！接下来请全组在讨论区商定各自负责认领的${isInst ? '撰写模块' : '写作章节'}与任务分工！商定完成后点击左侧【👥 一键提炼任务分工】！"
   }`;
 
         const resp = await callCozeAgentAPI('auctioneer', timePrompt, { stage: 'stage1', topic: s1.mergedTitle || (isInst ? '教学设计' : '论文'), taskType, milestoneKey: 'stage1_time_alloc' });
@@ -20876,11 +21146,13 @@
           throw new Error('未能从大模型返回中解析出有效的时间预算数据');
         }
 
-        // 🛡️ 移除正在提炼中的思考消息与残留网络提醒
+        // 🛡️ 移除正在提炼中的思考消息与残留网络提醒/重试按键
         this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => {
           if (!m) return false;
-          if (m.isThinking || String(m.id || '').startsWith('thinking_time_')) return false;
-          if (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('时间')) return false;
+          if (m.isThinking || String(m.id || '').startsWith('thinking_time_') || String(m.id || '').startsWith('time_err_')) return false;
+          const txt = m.text || '';
+          if (txt.includes('btn-retry-ai') && (txt.includes('_doExtractTime') || txt.includes('时间分配') || txt.includes('时间预算'))) return false;
+          if (m.sender === 'auctioneer' && txt.includes('网络提醒') && txt.includes('时间')) return false;
           return true;
         });
 
@@ -20926,6 +21198,8 @@
         renderChat(this.state);
       } catch (e) {
         console.warn('Extract time error:', e);
+        this._isExtractingTime = false;
+        this.setActiveAgentAnalyzing(null);
         if (!this.state.stage1) this.state.stage1 = {};
         this.state.stage1._timeExtractFailed = true;
         this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (!m.isThinking && !String(m.id || '').startsWith('thinking_time_')));
@@ -20951,6 +21225,7 @@
         this._isExtractingTime = false;
         this.setActiveAgentAnalyzing(null);
         this.renderStudentWorkspace();
+        renderChat(this.state);
         if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
       }
     }
@@ -21094,11 +21369,13 @@
           throw new Error('未能从大模型返回中解析出有效的成员分工数据');
         }
 
-        // 🛡️ 移除正在提炼中的思考消息与残留网络提醒
+        // 🛡️ 移除正在提炼中的思考消息与残留网络提醒/重试按键
         this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => {
           if (!m) return false;
-          if (m.isThinking || String(m.id || '').startsWith('thinking_tasks_')) return false;
-          if (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('分工')) return false;
+          if (m.isThinking || String(m.id || '').startsWith('thinking_tasks_') || String(m.id || '').startsWith('tasks_err_')) return false;
+          const txt = m.text || '';
+          if (txt.includes('btn-retry-ai') && (txt.includes('_doExtractTasks') || txt.includes('任务分工') || txt.includes('成员分工'))) return false;
+          if (m.sender === 'auctioneer' && txt.includes('网络提醒') && txt.includes('分工')) return false;
           return true;
         });
 
@@ -21150,6 +21427,8 @@
         renderChat(this.state);
       } catch (e) {
         console.warn('Extract tasks error:', e);
+        this._isExtractingTasks = false;
+        this.setActiveAgentAnalyzing(null);
         if (!this.state.stage1) this.state.stage1 = {};
         this.state.stage1._tasksExtractFailed = true;
         this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (!m.isThinking && !String(m.id || '').startsWith('thinking_tasks_')));
@@ -21175,6 +21454,7 @@
         this._isExtractingTasks = false;
         this.setActiveAgentAnalyzing(null);
         this.renderStudentWorkspace();
+        renderChat(this.state);
         if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
       }
     }
@@ -21461,6 +21741,8 @@
 
       if (!isSuccess) {
         this._contractGenerateFailed = true;
+        this._isGeneratingContract = false;
+        this.setActiveAgentAnalyzing(null);
         if (this.state.stage1) this.state.stage1._fullContractFailed = true;
         this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (!m.isThinking && !String(m.id || '').startsWith('thinking_full_contract_')));
         const errFullMsg = {
@@ -21478,16 +21760,18 @@
         this.syncStage1();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-        if (typeof renderChat === 'function') renderChat(this.state);
         this.renderStudentWorkspace();
+        if (typeof renderChat === 'function') renderChat(this.state);
         return;
       }
 
-      // 🛡️ 移除正在提炼中的思考消息与残留网络提醒
+      // 🛡️ 移除正在提炼中的思考消息与残留网络提醒/重试按键
       this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => {
         if (!m) return false;
         if (m.isThinking || String(m.id || '').startsWith('thinking_full_contract_')) return false;
-        if (m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('公约草案')) return false;
+        const txt = m.text || '';
+        if (txt.includes('btn-retry-ai') && (txt.includes('_doOneClickGenerateContract') || txt.includes('公约草案'))) return false;
+        if (m.sender === 'auctioneer' && txt.includes('网络提醒') && (txt.includes('公约草案') || txt.includes('公约'))) return false;
         return true;
       });
 
@@ -21570,6 +21854,8 @@
       }, 300);
     } catch (e) {
       console.warn('One click generate contract error:', e);
+      this._isGeneratingContract = false;
+      this.setActiveAgentAnalyzing(null);
       if (this.state.stage1) this.state.stage1._contractGenerateFailed = true;
       if (window.app) window.app._contractGenerateFailed = true;
       const errFullMsg = {
@@ -21591,6 +21877,7 @@
       this._isGeneratingContract = false;
       this.setActiveAgentAnalyzing(null);
       this.renderStudentWorkspace();
+      renderChat(this.state);
       if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.state);
     }
   }
@@ -21815,8 +22102,28 @@
         const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues, taskType, milestoneKey: 'stage2_managing' });
         let managingText = (respManaging && respManaging.trim().length > 0) ? respManaging.trim() : '';
         if (!managingText) {
+          this.setActiveAgentAnalyzing(null);
+          this._isGeneratingManagingSummary = false;
           managingText = `🤝 【${managingName}·提示】：📡 正在提炼研讨共识，大模型生成未完成。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:5px 14px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新调用生成研讨共识小结</button>`;
+          const msgManaging = { sender: 'managingEditor', senderName: isInst ? '协同调度 · 备课组长' : '协同调度 · 责任编辑', text: managingText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
+          s2ChatLogs.push(msgManaging);
+          this.sendSingleChatMessage(msgManaging, 'stage2');
+          this.syncChatLogs();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          this.renderStudentWorkspace();
+          if (typeof renderChat === 'function') renderChat(this.state);
+          return;
         } else {
+          // 🛡️ 移除正在提炼中的思考消息与残留网络提醒/重试按键
+          this.state.chatLogs.stage2 = (this.state.chatLogs.stage2 || []).filter(m => {
+            if (!m) return false;
+            if (m.isThinking || String(m.id || '').startsWith('thinking_s2_managing_')) return false;
+            const txt = m.text || '';
+            if (txt.includes('btn-retry-ai') && (txt.includes('handleS2ManagingSummary') || txt.includes('研讨共识小结'))) return false;
+            if (m.sender === 'managingEditor' && (txt.includes('提示') || txt.includes('网络提醒')) && txt.includes('大模型生成未完成')) return false;
+            return true;
+          });
+
           if (!managingText.startsWith('🤝')) managingText = `🤝 【${managingName}·研讨共识小结】：${managingText}`;
         }
 
@@ -21855,6 +22162,7 @@
         }
 
         if (!reviewingText) {
+          this.setActiveAgentAnalyzing(null);
           reviewingText = `📝 【${reviewingName}·提示】：📡 通读全篇草稿生成清单未完成。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:5px 14px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新调用下发《${isInst ? '磨课修正清单' : '二审修正清单'}》</button>`;
         } else {
           if (!reviewingText.startsWith('📝')) reviewingText = `📝 【${reviewingName}·${isInst ? '磨课质检' : '二审修正'}】：${reviewingText}`;
@@ -21893,6 +22201,7 @@
         this.setActiveAgentAnalyzing(null);
         this._isGeneratingManagingSummary = false;
         this.renderStudentWorkspace();
+        if (typeof renderChat === 'function') renderChat(this.state);
       }
     }
 
@@ -21940,8 +22249,19 @@
         const respSummary = await callCozeAgentAPI('reviewingEditor', summaryPrompt, { stage: 'stage2', topic, taskType, milestoneKey: 'stage2_review_summary' });
         let summaryText = (respSummary && respSummary.trim().length > 0) ? respSummary.trim() : '';
         if (!summaryText) {
+          this.setActiveAgentAnalyzing(null);
           summaryText = `📝 【${reviewingName}·网络提醒】：📡 正在评估全组修改对策与落实方案，网络连接稍有延迟未能获取到即时总结。<br><button class="btn-retry-ai" onclick="window.app.handleS2ReviewingSummary(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成修改确认与冲刺寄语</button>`;
         } else {
+          // 🛡️ 移除正在提炼中的思考消息与残留网络提醒/重试按键
+          this.state.chatLogs.stage2 = (this.state.chatLogs.stage2 || []).filter(m => {
+            if (!m) return false;
+            if (m.isThinking || String(m.id || '').startsWith('thinking_s2_reviewing_')) return false;
+            const txt = m.text || '';
+            if (txt.includes('btn-retry-ai') && (txt.includes('handleS2ReviewingSummary') || txt.includes('冲刺寄语'))) return false;
+            if (m.sender === 'reviewingEditor' && txt.includes('网络提醒')) return false;
+            return true;
+          });
+
           if (!summaryText.startsWith('📝')) summaryText = `📝 【${reviewingName}·修改确认与${isInst ? '备课' : '写作'}冲刺】：${summaryText}`;
           s2.meetingStep = 'completed'; // 完成半程会议，收起按钮
           s2.meetingCompletedTime = Date.now();
@@ -21968,6 +22288,7 @@
         this._isGeneratingReviewSummary = false;
         this.setActiveAgentAnalyzing(null); // 🌟 研判完毕，清除动态分析框
         this.renderStudentWorkspace();
+        if (typeof renderChat === 'function') renderChat(this.state);
       }
     }
 
@@ -22051,8 +22372,16 @@
         return;
       }
 
+      // 🛡️ 清理历史残留的思考消息与网络提醒/重试按键错误气泡
       if (this.state.chatLogs.stage3) {
-        this.state.chatLogs.stage3 = this.state.chatLogs.stage3.filter(m => !m || !(m.sender === 'neutral' && (m.text || '').includes('网络提醒') && (m.text || '').includes(inqLabel)));
+        this.state.chatLogs.stage3 = this.state.chatLogs.stage3.filter(m => {
+          if (!m) return false;
+          if (m.isThinking || String(m.id || '').startsWith('thinking_chair_guide_')) return false;
+          const txt = m.text || '';
+          if (txt.includes('btn-retry-ai') && (txt.includes('retryChairGuide') || txt.includes(inqLabel))) return false;
+          if (m.sender === 'neutral' && txt.includes('网络提醒') && txt.includes(inqLabel)) return false;
+          return true;
+        });
       }
 
       const cleanGuide = aiGuideText.startsWith('🟡') ? aiGuideText : `🟡 【${chairShort}·针对${inqLabel}答辩思路引导】：${aiGuideText}`;
@@ -22181,12 +22510,21 @@
             chairSpeech = `🟡 【${chairShort}·答辩定案与顺推】：${checkTip} ${cleanSpeech}\n\n${nextGuide}`;
           }
 
-          // 清理历史残留的网络提醒错误气泡
+          // 🛡️ 清理历史残留的思考消息与网络提醒/重试按键错误气泡
           if (this.state.chatLogs.stage3) {
-            this.state.chatLogs.stage3 = this.state.chatLogs.stage3.filter(m => !m || !(m.sender === 'neutral' && (m.text || '').includes('网络提醒')));
+            this.state.chatLogs.stage3 = this.state.chatLogs.stage3.filter(m => {
+              if (!m) return false;
+              if (m.isThinking || String(m.id || '').startsWith('thinking_s3_inquiry_')) return false;
+              const txt = m.text || '';
+              if (txt.includes('btn-retry-ai') && (txt.includes('handleS3InquirySummary') || txt.includes(inqLabel) || txt.includes('答辩定案'))) return false;
+              if (m.sender === 'neutral' && txt.includes('网络提醒')) return false;
+              return true;
+            });
           }
         } else {
           // ⚠️ 只要大模型生成未完成或缺少任何一个标签，严禁兜底硬塞，必须直接出重试按键！
+          this.setActiveAgentAnalyzing(null);
+          this._isAnalyzingS3Inquiry = false;
           chairSpeech = `🟡 【${chairShort}·网络提醒】：📡 答辩审阅大模型未能按标准完成【${inqLabel}】定案分析。<br><button class="btn-retry-ai" onclick="window.app.handleS3InquirySummary(this)" style="margin-top:6px; background:#d97706; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成【${inqLabel}】答辩定案</button>`;
         }
 
@@ -22209,6 +22547,8 @@
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
       } catch (e) {
         console.warn('handleS3InquirySummary error:', e);
+        this._isAnalyzingS3Inquiry = false;
+        this.setActiveAgentAnalyzing(null);
         const errChairMsg = {
           sender: 'neutral',
           senderName: '答辩委员会主席 · 中间委员',
@@ -22222,6 +22562,7 @@
         this._isAnalyzingS3Inquiry = false;
         this.setActiveAgentAnalyzing(null);
         this.renderStudentWorkspace();
+        if (typeof window.renderChat === 'function') window.renderChat(this.state);
       }
     }
 
@@ -22627,6 +22968,8 @@
 
           // 🛡️ 纯粹大模型真实生成：若未生成完成则提示重试，绝不注入假保底内容
           if (!propText || !oppText) {
+            this.setActiveAgentAnalyzing(null);
+            this._isStage3PipelineRunning = false;
             const errPipelineMsg = {
               id: 'msg_s3_pipeline_err_' + Date.now(),
               sender: 'neutral',
@@ -24273,11 +24616,13 @@
               console.warn('[FirstReview] Coze API error, switching to prompt fallback:', apiErr);
             }
             if (!firstReviewText || firstReviewText.trim().length === 0) {
+              this.setActiveAgentAnalyzing(null);
+              this._isTriggeringFirstReview = false;
               const errReviewMsg = {
                 id: 'err_first_review_' + Date.now(),
                 sender: 'reviewingEditor',
                 senderName: `学术质量 · ${reviewerRoleName}`,
-                text: `📝 【${reviewerRoleName}·网络提醒】：📡 正在通读正文草稿进行初审把脉，网络连接稍有延迟未能即时生成意见。<br><button class="btn-retry-ai" onclick="window.app.triggerStage2FirstReview()" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成《一审破题把脉》</button>`,
+                text: `📝 【${reviewerRoleName}·网络提醒】：📡 正在通读正文草稿进行初审把脉，网络连接稍有延迟未能即时生成意见。<br><button class="btn-retry-ai" onclick="window.app.triggerStage2FirstReview(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成《一审破题把脉》</button>`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: Date.now()
               };
@@ -24453,10 +24798,10 @@
         const managingName = isInst ? '备课组长' : '责任编辑';
 
         const contribPrompt = `小组正在协作撰写《${topic}》，目前全组总字数已达到 ${effectiveTotal} 字。
-  组员【${targetName}】主要聚焦在【${targetChapter}】，当前写作字数贡献占比偏低（≤ 15%）。
+  组员【${targetName}】主要负责【${targetChapter}】，当前写作字数贡献占比偏低（≤ 15%）。
   请作为${managingName}（过程学伴），发表 80~110 字的【动态写作关怀与共同思考点拨】：
-  ① 用温和鼓励的语气提醒 ${targetName} 同学可以逐步动笔展开起草；
-  ② 结合其主要聚焦的【${targetChapter}】，给出 1 个具体的学术起草切入建议；
+  ① 【明确点名提醒】：必须在发言中明确点名【@${targetName} 同学】，用温和鼓励的语气提醒其可以逐步动笔展开起草；
+  ② 结合其主要聚焦的【${targetChapter}】，给出 1 个具体的学术/教学设计起草切入建议；
   ③ 【核心红线要求】：同时提醒其主动通读同伴已起草的段落，从中汲取灵感并打通前后逻辑衔接；
   ④ 纯自然语言，80~110字，严禁指责，【绝对严禁出现“分工”字眼】，强调共同思考与协同衔接，严禁输出代码块，严禁添加按钮。`;
 
@@ -24477,8 +24822,11 @@
         }
 
         if (!careText) {
-          // 🌟 协作贡献比关怀：以大模型为主，大模型异常时以温暖兜底为辅
-          careText = `🤝 【${managingName}·协同关怀】：大家都在按节奏推进！主要聚焦【${targetChapter}】的 ${targetName} 同学也可以逐步动笔啦。建议可以先通读同伴已起草的段落，从中汲取灵感并打通前后逻辑衔接，遇到难点随时在研讨区抛出来，全组共同思考推进！`;
+          // 🌟 协作贡献比关怀：以大模型为主，大模型异常时以温暖兜底为辅（明确点名关怀）
+          careText = `🤝 【${managingName}·协同关怀】：大家都在按节奏推进！主要聚焦【${targetChapter}】的 @${targetName} 同学也可以逐步动笔啦。建议可以先通读同伴已起草的段落，从中汲取灵感并打通前后逻辑衔接，遇到难点随时在研讨区抛出来，全组共同思考推进！`;
+        } else if (!careText.includes(targetName)) {
+          // 🛡️ 守卫：确保发言中明确点名被关怀组员
+          careText = careText.replace(`🤝 【${managingName}·协同关怀】：`, `🤝 【${managingName}·协同关怀】：@${targetName} 同学，`);
         }
 
         const msg = {
