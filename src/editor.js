@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2820";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2820";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2820";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2821";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2821";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2821";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -713,21 +713,28 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
       userClassId: activeClassId,
       userGroupId: groupId,
       currentTaskId: activeTaskId,
+      currentTaskTitle: currentTaskTitle,
       userClassName: currentClassObj ? currentClassObj.name : ''
     });
   });
   const isAnnRead = (a) => {
     if (!a) return false;
-    const uKey = currentUser ? (currentUser.id || currentUser.name || 'anon') : 'anon';
+    const uId = currentUser ? (currentUser.id || currentUser.studentCode || currentUser.userCode || '') : '';
+    const uKey = uId || (currentUser ? currentUser.name : '') || 'anon';
     try {
       const localReadMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
-      if (localReadMap[`${uKey}_${a.id}`]) return true;
+      if (localReadMap[`${uKey}_${a.id}`] || (uId && localReadMap[`${uId}_${a.id}`])) return true;
     } catch (e) {}
     if (currentUser) {
-      if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
-      if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
+      if (uId && a.readStatus && a.readStatus[uId]) return true;
+      if (currentUser.name && !['学生', '组员', '我', '未分配', '匿名', 'user', 'undefined', 'null'].includes(String(currentUser.name).trim().toLowerCase())) {
+        if (a.readStatus && a.readStatus[currentUser.name]) return true;
+      }
       if (Array.isArray(a.confirmedMembers)) {
-        if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || (currentUser.name && m.name === currentUser.name)))) return true;
+        if (a.confirmedMembers.some(m => m && (
+          (uId && m.id === uId) ||
+          (currentUser.name && m.name === currentUser.name && !['学生', '组员', '我'].includes(String(currentUser.name).trim().toLowerCase()))
+        ))) return true;
       }
     }
     return false;

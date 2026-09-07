@@ -1407,12 +1407,12 @@ export function isScopeMatch(target = {}, context = {}) {
   } = target;
   
   const targetGroupId = tGroupId || tDirectGroupId;
-  const { userClassId, userGroupId, currentTaskId, userClassName } = context;
+  const { userClassId, userGroupId, currentTaskId, currentTaskTitle, userClassName } = context;
 
-  // 1. 班级范围匹配 (仅在明确指定全校广播 all/class_all/* 时放行，否则严格校验班级ID/班级名称)
+  // 1. 班级范围匹配 (仅在明确指定全校广播 all/class_all/* 时放行，否则校验班级ID/班级名称)
   const cleanTargetClass = String(tClassId || '').trim();
   const cleanTargetClassName = String(tClassName || '').trim().toLowerCase();
-  const isClassBroadcast = !cleanTargetClass || cleanTargetClass.toLowerCase() === 'all' || cleanTargetClass.toLowerCase() === 'class_all' || cleanTargetClass === '*';
+  const isClassBroadcast = !cleanTargetClass || cleanTargetClass.toLowerCase() === 'all' || cleanTargetClass.toLowerCase() === 'class_all' || cleanTargetClass === '*' || cleanTargetClassName === '全校班级';
 
   let matchClass = false;
   if (isClassBroadcast) {
@@ -1433,12 +1433,14 @@ export function isScopeMatch(target = {}, context = {}) {
       return c.toLowerCase() === 'all' || c === '*' || (cleanUserClass && isSameId(c, cleanUserClass)) || (cleanUserClassName && c.toLowerCase() === cleanUserClassName);
     })) {
       matchClass = true;
+    } else if (!cleanUserClass && !cleanUserClassName) {
+      matchClass = true;
     }
   }
 
-  // 2. 小组范围匹配 (仅在明确指定全班广播 all/group_all/* 时放行，否则严格校验小组ID)
+  // 2. 小组范围匹配 (仅在明确指定全班广播 all/group_all/* 时放行，否则校验小组ID)
   const cleanTargetGroup = String(targetGroupId || '').trim();
-  const isGroupBroadcast = !cleanTargetGroup || cleanTargetGroup.toLowerCase() === 'all' || cleanTargetGroup.toLowerCase() === 'group_all' || cleanTargetGroup === '*';
+  const isGroupBroadcast = !cleanTargetGroup || cleanTargetGroup.toLowerCase() === 'all' || cleanTargetGroup.toLowerCase() === 'group_all' || cleanTargetGroup === '*' || (target.targetGroupName && String(target.targetGroupName).includes('全班'));
 
   let matchGroup = false;
   if (isGroupBroadcast) {
@@ -1452,24 +1454,35 @@ export function isScopeMatch(target = {}, context = {}) {
       return g.toLowerCase() === 'all' || g === '*' || (cleanUserGroup && isSameId(g, cleanUserGroup));
     })) {
       matchGroup = true;
+    } else if (!cleanUserGroup) {
+      matchGroup = true;
     }
   }
 
-  // 3. 任务范围匹配 (仅在明确指定全部任务 all/task_all/* 时放行，否则校验任务ID/任务名称)
+  // 3. 任务范围匹配 (仅在明确指定全部任务 all/task_all/* 时放行，否则全方位双向比对任务ID与任务名称)
   const cleanTargetTask = String(tTaskId || '').trim();
   const cleanTargetTaskTitle = String(tTaskTitle || '').trim().toLowerCase();
-  const isTaskBroadcast = !cleanTargetTask || cleanTargetTask.toLowerCase() === 'all' || cleanTargetTask.toLowerCase() === 'task_all' || cleanTargetTask === '*';
+  const isTaskBroadcast = !cleanTargetTask || cleanTargetTask.toLowerCase() === 'all' || cleanTargetTask.toLowerCase() === 'task_all' || cleanTargetTask === '*' || cleanTargetTaskTitle === '全班通识广播';
 
   let matchTask = false;
   if (isTaskBroadcast) {
     matchTask = true;
   } else {
     const cleanCurrentTask = String(currentTaskId || '').trim();
-    if (cleanCurrentTask && isSameId(cleanTargetTask, cleanCurrentTask)) {
+    const cleanCurrentTaskTitle = String(currentTaskTitle || '').trim().toLowerCase();
+
+    if (!cleanCurrentTask && !cleanCurrentTaskTitle) {
+      // 大厅或未绑定特定任务上下文时放行任务匹配
+      matchTask = true;
+    } else if (cleanCurrentTask && isSameId(cleanTargetTask, cleanCurrentTask)) {
+      matchTask = true;
+    } else if (cleanTargetTaskTitle && cleanCurrentTaskTitle && cleanTargetTaskTitle === cleanCurrentTaskTitle) {
       matchTask = true;
     } else if (cleanTargetTaskTitle && cleanCurrentTask && cleanTargetTaskTitle === cleanCurrentTask.toLowerCase()) {
       matchTask = true;
-    } else if (!cleanCurrentTask) {
+    } else if (cleanTargetTask && cleanCurrentTaskTitle && cleanTargetTask.toLowerCase() === cleanCurrentTaskTitle) {
+      matchTask = true;
+    } else if (cleanTargetTask && cleanCurrentTask && cleanTargetTask.toLowerCase() === cleanCurrentTask.toLowerCase()) {
       matchTask = true;
     }
   }

@@ -2716,7 +2716,9 @@ if ($action === 'update_read_status' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         if (!isset($ann['confirmedMembers']) || !is_array($ann['confirmedMembers'])) $ann['confirmedMembers'] = [];
 
                         if ($userId) $ann['readStatus'][$userId] = true;
-                        if ($userName) $ann['readStatus'][$userName] = true;
+                        if ($userName && !in_array(mb_strtolower(trim($userName)), ['学生', '组员', '我', '未分配', '匿名', 'user', 'undefined', 'null'])) {
+                            $ann['readStatus'][$userName] = true;
+                        }
                         if ($groupId) {
                             $ann['readGroupStatus'][$groupId] = true;
                         }

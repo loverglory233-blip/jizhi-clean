@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2820";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2820";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2820";
-import { AuthManager } from "./auth.js?v=20260907_v2820";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2820";
-import { renderLoginView } from "./login.js?v=20260907_v2820";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2820";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2820";
+} from "./constants.js?v=20260907_v2821";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2821";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2821";
+import { AuthManager } from "./auth.js?v=20260907_v2821";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2821";
+import { renderLoginView } from "./login.js?v=20260907_v2821";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2821";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2821";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2820";
+} from "./editor.js?v=20260907_v2821";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2339,19 +2339,27 @@ export class App {
       const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
       const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj?.id || currentUser?.groupId || null;
       const allTasks = this.authManager.getTasks();
+      const curTaskObj = allTasks.find(t => isSameId(t.id, activeTaskId) || t.title === activeTaskId);
+      const currentTaskTitle = curTaskObj ? curTaskObj.title : (this.state.activeTaskTitle || '');
 
       const isAnnRead = (a) => {
         if (!a) return false;
-        const uKey = currentUser ? (currentUser.id || currentUser.name || 'anon') : 'anon';
+        const uId = currentUser ? (currentUser.id || currentUser.studentCode || currentUser.userCode || '') : '';
+        const uKey = uId || (currentUser ? currentUser.name : '') || 'anon';
         try {
           const localReadMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
-          if (localReadMap[`${uKey}_${a.id}`]) return true;
+          if (localReadMap[`${uKey}_${a.id}`] || (uId && localReadMap[`${uId}_${a.id}`])) return true;
         } catch (e) {}
         if (currentUser) {
-          if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
-          if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
+          if (uId && a.readStatus && a.readStatus[uId]) return true;
+          if (currentUser.name && !['学生', '组员', '我', '未分配', '匿名', 'user', 'undefined', 'null'].includes(String(currentUser.name).trim().toLowerCase())) {
+            if (a.readStatus && a.readStatus[currentUser.name]) return true;
+          }
           if (Array.isArray(a.confirmedMembers)) {
-            if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || (currentUser.name && m.name === currentUser.name)))) return true;
+            if (a.confirmedMembers.some(m => m && (
+              (uId && m.id === uId) ||
+              (currentUser.name && m.name === currentUser.name && !['学生', '组员', '我'].includes(String(currentUser.name).trim().toLowerCase()))
+            ))) return true;
           }
         }
         return false;
@@ -2363,13 +2371,14 @@ export class App {
       const myAnns = allAnns.filter(a => {
         if (!a || a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长')) return false;
         if (a.taskId && a.taskId !== 'task_all' && a.taskId !== 'all' && activeTaskId) {
-          const tObj = allTasks.find(t => isSameId(t.id, a.taskId));
+          const tObj = allTasks.find(t => isSameId(t.id, a.taskId) || t.title === a.taskId);
           if (tObj && isTaskExpired(tObj)) return false;
         }
         return isScopeMatch(a, {
           userClassId: effectiveClassId || currentUser?.classId,
           userGroupId: groupId,
           currentTaskId: activeTaskId,
+          currentTaskTitle: currentTaskTitle,
           userClassName: effectiveClassName
         });
       });
@@ -2422,20 +2431,29 @@ export class App {
     const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj?.id || currentUser?.groupId || null;
     const isTaskListMode = (this.state && this.state.studentViewMode === 'task_list');
     const activeTaskId = this.state.activeTaskId || null;
+    const allTasks = this.authManager.getTasks();
+    const curTaskObj = allTasks.find(t => isSameId(t.id, activeTaskId) || t.title === activeTaskId);
+    const currentTaskTitle = curTaskObj ? curTaskObj.title : (this.state.activeTaskTitle || '');
     const allAnns = this.authManager.getAnnouncements();
 
     const isAnnRead = (a) => {
       if (!a) return false;
-      const uKey = currentUser ? (currentUser.id || currentUser.name || 'anon') : 'anon';
+      const uId = currentUser ? (currentUser.id || currentUser.studentCode || currentUser.userCode || '') : '';
+      const uKey = uId || (currentUser ? currentUser.name : '') || 'anon';
       try {
         const localReadMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
-        if (localReadMap[`${uKey}_${a.id}`]) return true;
+        if (localReadMap[`${uKey}_${a.id}`] || (uId && localReadMap[`${uId}_${a.id}`])) return true;
       } catch (e) {}
       if (currentUser) {
-        if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
-        if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
+        if (uId && a.readStatus && a.readStatus[uId]) return true;
+        if (currentUser.name && !['学生', '组员', '我', '未分配', '匿名', 'user', 'undefined', 'null'].includes(String(currentUser.name).trim().toLowerCase())) {
+          if (a.readStatus && a.readStatus[currentUser.name]) return true;
+        }
         if (Array.isArray(a.confirmedMembers)) {
-          if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || (currentUser.name && m.name === currentUser.name)))) return true;
+          if (a.confirmedMembers.some(m => m && (
+            (uId && m.id === uId) ||
+            (currentUser.name && m.name === currentUser.name && !['学生', '组员', '我'].includes(String(currentUser.name).trim().toLowerCase()))
+          ))) return true;
         }
       }
       return false;
@@ -2452,6 +2470,7 @@ export class App {
           userClassId: effectiveClassId || currentUser?.classId,
           userGroupId: groupId,
           currentTaskId: activeTaskId,
+          currentTaskTitle: currentTaskTitle,
           userClassName: effectiveClassName
         });
       })
@@ -2702,11 +2721,6 @@ export class App {
     };
 
     const showDetail = (ann) => {
-      // 查阅即自动消除红点，无需强制二次确认
-      try {
-        this.authManager.markAnnouncementRead(ann.id, groupId);
-      } catch (e) {}
-
       modal.dataset.annId = ann.id;
       modal.innerHTML = renderDetailHtml(ann);
       attachDetailEvents(ann);

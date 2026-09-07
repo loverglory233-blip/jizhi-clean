@@ -8,8 +8,8 @@ import {
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES,
   TASK_GENRE_CONFIGS
-} from "./constants.js?v=20260907_v2820";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch, isSameId } from "./utils.js?v=20260907_v2820";
+} from "./constants.js?v=20260907_v2821";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch, isSameId } from "./utils.js?v=20260907_v2821";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -240,15 +240,22 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
   });
   const isAnnRead = (a) => {
     if (!a) return false;
+    const uId = currentUser ? (currentUser.id || currentUser.studentCode || currentUser.userCode || '') : '';
+    const uKey = uId || (currentUser ? currentUser.name : '') || 'anon';
     try {
       const localReadMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
-      if (localReadMap[a.id]) return true;
+      if (localReadMap[`${uKey}_${a.id}`] || (uId && localReadMap[`${uId}_${a.id}`])) return true;
     } catch (e) {}
     if (currentUser) {
-      if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
-      if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
+      if (uId && a.readStatus && a.readStatus[uId]) return true;
+      if (currentUser.name && !['学生', '组员', '我', '未分配', '匿名', 'user', 'undefined', 'null'].includes(String(currentUser.name).trim().toLowerCase())) {
+        if (a.readStatus && a.readStatus[currentUser.name]) return true;
+      }
       if (Array.isArray(a.confirmedMembers)) {
-        if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || (currentUser.name && m.name === currentUser.name)))) return true;
+        if (a.confirmedMembers.some(m => m && (
+          (uId && m.id === uId) ||
+          (currentUser.name && m.name === currentUser.name && !['学生', '组员', '我'].includes(String(currentUser.name).trim().toLowerCase()))
+        ))) return true;
       }
     }
     return false;
@@ -260,6 +267,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
       userClassId: userClass.id,
       userGroupId: groupId,
       currentTaskId: null,
+      currentTaskTitle: null,
       userClassName: userClass.name
     });
   });
