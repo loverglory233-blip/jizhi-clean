@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2775";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2775";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2775";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260907_v2777";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2777";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, isSameId } from "./utils.js?v=20260907_v2777";
 
 /**
  * 🤖 获取当前生效的智能体分析状态（全端强一致，当阶段一/二/三达成全员确认提炼中时，右侧分析卡片与按钮绝对同步呈现）
@@ -2777,25 +2777,19 @@ function renderStage3RevisionPlanHtml(s3, state) {
         </div>
         <span id="icon-toggle-stage3-revplan" style="font-size:11px; color:${isAllDone ? '#059669' : '#0d9488'}; font-weight:700; background:#ffffff; border:1px solid ${isAllDone ? '#a7f3d0' : '#99f6e4'}; padding:1.5px 8px; border-radius:4px;">▲ 收起清单</span>
       </div>
-      <div id="body-stage3-revplan-items" style="font-size:11.5px; color:#1e293b; display:flex; flex-direction:column; gap:6px; margin-top:8px;">
+      <div id="body-stage3-revplan-items" style="font-size:11.5px; color:#1e293b; display:flex; flex-direction:column; gap:5px; margin-top:6px;">
         ${plan.items.map((item, idx) => {
           const isChecked = !!completedMap[idx];
-          const rawInqTitle = item.title || `意见 ${idx + 1}`;
-          const rawResp = item.response || '对照反方质询要点，在对应章节补充修改完善';
+          const rawResp = (item.response || item.title || '在对应章节补充修改完善').trim();
           return `
-            <div class="s3-revplan-item-box" data-item-idx="${idx}" style="line-height:1.45; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#cbd5e1'}; border-radius:6px; padding:6px 10px; display:flex; align-items:flex-start; gap:8px; cursor:pointer; transition:all 0.15s ease;">
-              <input type="checkbox" class="s3-revplan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} style="cursor:pointer; margin-top:3px; transform:scale(1.15);">
-              <div style="flex:1; text-decoration:${isChecked ? 'line-through' : 'none'}; color:${isChecked ? '#166534' : '#1e293b'};">
-                <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
-                  <b style="color:${isChecked ? '#166534' : '#0f172a'}; font-size:12px;">【要求 ${idx + 1}】${escapeHtml(rawInqTitle)}</b>
-                  <span style="font-size:10px; padding:0 5px; border-radius:4px; font-weight:700; background:${isChecked ? '#dcfce7' : '#f1f5f9'}; color:${isChecked ? '#15803d' : '#475569'}; border:1px solid ${isChecked ? '#bbf7d0' : '#e2e8f0'};">
-                    ${isChecked ? '✓ 已落实' : '待修改'}
-                  </span>
-                </div>
-                <div style="font-size:11px; color:${isChecked ? '#15803d' : '#475569'};">
-                  <b>修改对策/落实要点：</b>${escapeHtml(rawResp)}
-                </div>
+            <div class="s3-revplan-item-box" data-item-idx="${idx}" style="line-height:1.4; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#cbd5e1'}; border-radius:4px; padding:5px 8px; display:flex; align-items:center; gap:6px; cursor:pointer; transition:all 0.15s ease;">
+              <input type="checkbox" class="s3-revplan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} style="cursor:pointer; margin-top:0; transform:scale(1.1);">
+              <div style="flex:1; text-decoration:${isChecked ? 'line-through' : 'none'}; color:${isChecked ? '#166534' : '#1e293b'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(rawResp)}">
+                <b style="color:${isChecked ? '#166534' : '#0f172a'}; margin-right:4px;">${idx + 1}.</b> ${escapeHtml(rawResp)}
               </div>
+              <span style="font-size:10px; padding:1px 6px; border-radius:4px; font-weight:700; flex-shrink:0; background:${isChecked ? '#dcfce7' : '#f1f5f9'}; color:${isChecked ? '#15803d' : '#64748b'}; border:1px solid ${isChecked ? '#bbf7d0' : '#e2e8f0'};">
+                ${isChecked ? '✓ 已落实' : '待修改'}
+              </span>
             </div>
           `;
         }).join('')}
@@ -2845,28 +2839,8 @@ function bindStage3RevisionPlanEvents(container, s3, state, handlers) {
 }
 
 function renderRevisionSummaryBtnHtml(s3, state) {
-  const s3Logs = (state && state.chatLogs && state.chatLogs.stage3) ? state.chatLogs.stage3 : [];
-  const hasRevSummary = s3Logs.some(m => m && m._revisionSummaryFlag === true);
-  const isRunning = !!(window.app && window.app._isTriggeringRevisionSummary);
-  const isFailed = !!(s3 && s3._revisionSummaryFailed);
-
-  // 1. 若已经成功生成了终稿修改指南，按键彻底隐藏消失，保持工作台极简纯净
-  if (hasRevSummary) {
-    return '';
-  }
-
-  // 2. 若正在自动生成中，仅显示轻量状态胶囊，杜绝用户误点击冲突
-  if (isRunning) {
-    return `<span style="font-size:11px; color:#d97706; background:#fef3c7; border:1px solid #fde68a; padding:2px 8px; border-radius:10px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">⏳ 正在归纳终稿修改指南...</span>`;
-  }
-
-  // 3. 若生成遇阻或失败，显示显眼的重试按键供学生一键重新触发
-  if (isFailed) {
-    return `<button onclick="window.app && window.app.triggerRevisionEntrySummary(this, true)" style="background:linear-gradient(135deg, #ea580c, #c2410c); color:#fff; border:none; padding:3px 12px; border-radius:14px; font-size:11.5px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(234,88,12,0.25);">🔄 提炼遇阻，点此重新提炼【终稿修改指南】</button>`;
-  }
-
-  // 4. 异常断点（尚未生成且未在生成）：显示兜底生成按钮
-  return `<button onclick="window.app && window.app.triggerRevisionEntrySummary(this, false)" style="background:linear-gradient(135deg, #d97706, #b45309); color:#fff; border:none; padding:3px 12px; border-radius:14px; font-size:11.5px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(217,119,6,0.25);">💡 帮我生成【终稿修改指南】</button>`;
+  // 已由左侧《终稿修改落实清单》与全员确认时的精炼开工播报彻底替代，无需额外生成按钮
+  return '';
 }
 
 function renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitted) {

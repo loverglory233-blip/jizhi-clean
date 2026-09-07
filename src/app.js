@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2775";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2775";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2775";
-import { AuthManager } from "./auth.js?v=20260907_v2775";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2775";
-import { renderLoginView } from "./login.js?v=20260907_v2775";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2775";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2775";
+} from "./constants.js?v=20260907_v2777";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2777";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2777";
+import { AuthManager } from "./auth.js?v=20260907_v2777";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2777";
+import { renderLoginView } from "./login.js?v=20260907_v2777";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2777";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2777";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2775";
+} from "./editor.js?v=20260907_v2777";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3192,13 +3192,6 @@ export class App {
             this.runStage3CommitteePipeline();
           }, 300);
         }
-        // 若已全员确认答辩（isRevisionConfirmed）但中间委员终稿修改总结尚未发，补触发
-        if (s3.isRevisionConfirmed) {
-          const hasRevSummary = s3Logs.some(m => m && m._revisionSummaryFlag === true);
-          if (!hasRevSummary) {
-            setTimeout(() => { this.triggerRevisionEntrySummary(); }, 600);
-          }
-        }
       }
     }
 
@@ -5927,150 +5920,12 @@ ${chatSnippet}
       this.setActiveAgentAnalyzing(null); // 🌟 研判完毕，清除动态分析框
       this.renderStudentWorkspace();
     }
-  }
-
   /**
-   * 📋 全员确认答辩后 / 终稿面板主动触发：中间委员生成终审裁决与终稿修改指南
-   * 触发方式：1. 切换到终稿面板自动触发；2. 终稿面板顶部按钮主动触发；3. 失败后点击重试按钮触发
+   * 📋 阶段三终稿修改指引（已升级为左侧《终稿修改落实清单》+ 秒级开工播报，彻底废除异步大模型调用）
    */
-  async triggerRevisionEntrySummary(btnElement = null, isForceRetry = false) {
-    if (this._isTriggeringRevisionSummary) return;
-    const s3 = this.state.stage3 || {};
-    if (!s3.isRevisionConfirmed) return;
-
-    // 幂等检测：非强制重试且已成功发过，不再重复
-    const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
-    const alreadySent = s3Logs.some(m => m && m._revisionSummaryFlag === true);
-    if (!isForceRetry && alreadySent) return;
-
-    // 🔒 组内跨端分布式并发锁：一人触发，全组锁定，杜绝同组 2 人同时请求导致排队堵塞 100 秒
-    const now = Date.now();
-    if (!isForceRetry && s3._revisionCallingTs && (now - Number(s3._revisionCallingTs) < 30000)) {
-      return;
-    }
-    s3._revisionCallingTs = now;
-
-    if (btnElement) {
-      this.disableAllRetryButtons(btnElement, `⏳ 正在归纳生成【终稿修改指南】...`);
-    }
-
-    this._isTriggeringRevisionSummary = true;
-    if (typeof this.renderStudentWorkspace === 'function') {
-      this.renderStudentWorkspace();
-    }
-
-    const taskType = this.getCurrentTaskType();
-    const isInst = (taskType === 'instructional');
-    const topic = (this.state.stage1 && (this.state.stage1.mergedTitle || this.state.stage1.contract?.topic)) || '本课题';
-    const docName = isInst ? '教学设计' : '论文';
-    const docTarget = isInst ? '修改教案终稿' : '修改论文终稿';
-    const chairShort = isInst ? '答辩主席' : '中间委员';
-
-    this.setActiveAgentAnalyzing({
-      icon: '🟡',
-      title: isForceRetry
-        ? `【${chairShort}】正在重新提炼【终审裁决与修改指南】...`
-        : `【${chairShort}】正在归纳答辩修改要点，起草终审裁决与终稿修改指南...`,
-      detail: isForceRetry
-        ? '正在重新评估答辩共识要点，起草成稿与修改寄语...'
-        : '正在将各条答辩共识整合为终稿分点修改要点清单...'
-    });
-
-    try {
-      const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
-      const adoptedItems = feedbacks.filter(f => f && f.role === 'opponent' && f.response && f.response.trim());
-      const feedbackSummaryLines = adoptedItems.map((f, i) =>
-        `【意见 ${i + 1}】原质询：${f.title || f.comment || ''}；组内答辩共识与修改对策：${f.response || ''}`
-      ).join('\n');
-
-      const prompt = `小组已完成全部答辩质询并全员确认进入终稿修改阶段。
-课题：《${topic}》
-
-各条意见的答辩共识与修改对策如下：
-${feedbackSummaryLines || '（全组已通过答辩，无重大修改意见）'}
-
-请作为答辩委员会主席，严格按以下格式输出【答辩终审裁决与终稿修改指南】（整体控制在 130~180 字）：
-第一句：祝贺全组圆满通过答辩！委员会已全票通过大家的答辩陈述与修改方案！
-第二行：📝 【终稿修改落实要点】：
-逐条用 ① ② ③ 编号精炼列出各条意见在终稿中的具体修改动作与落脚点（每条严格一句话，15~25字）：
-① 针对意见 1：在相应章节补充 [明确具体章节与修改动作，15~25字]；
-② 针对意见 2：在相应章节优化 [明确具体章节与修改动作，15~25字]；
-……（有几条意见就列几条，直奔要害、详略得当、杜绝冗长堆砌）
-最后一句：👉 请小组成员对照上述分点要点，在当前【${docTarget}】面板中把修改结论落实到正文终稿中，通读完善后点击【🚀 确认提交终稿】完成归档！
-注意：纯自然语言输出，不要添加任何代码块或多余标记。`;
-
-      let resp = null;
-      try {
-        // ⚡ 极速智能限时竞速：最高等待 12 秒！若 Coze 平台排队拥堵，直接基于真实答辩共识毫秒级自动完成归纳，绝不让学生傻等 100 秒
-        const cozePromise = callCozeAgentAPI('neutral', prompt, { stage: 'stage3', topic, milestoneKey: 'stage3_revision_entry_summary' });
-        const timeoutPromise = new Promise(r => setTimeout(() => r('__TIMEOUT__'), 12000));
-        const raceResult = await Promise.race([cozePromise, timeoutPromise]);
-        if (raceResult && raceResult !== '__TIMEOUT__' && raceResult.trim().length > 25) {
-          resp = raceResult;
-        }
-      } catch (e) {
-        console.warn('triggerRevisionEntrySummary AI error:', e);
-      }
-
-      // 🛡️ 智能极速保底：若 Coze 超过 12 秒或偶发异常，直接基于组内 3 条真实答辩记录生成规范终稿修改指南，确保极速响应
-      if (!resp || resp.trim().length <= 25) {
-        const numEmojis = ['①', '②', '③', '④', '⑤'];
-        const points = adoptedItems.map((f, i) => {
-          const num = numEmojis[i] || `(${i + 1})`;
-          const rawResp = (f.response || '').trim();
-          const clean = rawResp.replace(/^.*答辩[陈述]*[：:]\s*/, '').replace(/^.*修改方案[：:]\s*/, '').trim();
-          return `${num} 针对意见 ${i + 1}：${clean || '结合评审意见在对应章节进一步完善补充'}；`;
-        }).join('\n');
-
-        resp = `祝贺全组圆满通过答辩！委员会已全票通过大家的答辩陈述与修改方案！\n📝 【终稿修改落实要点】：\n${points || '① 全面通读正文，对照前序研讨意见完成细节润色。'}\n👉 请小组成员对照上述分点要点，在当前【${docTarget}】面板中把修改结论落实到正文终稿中，通读完善后点击【🚀 确认提交终稿】完成归档！`;
-      }
-
-      if (!this.state.chatLogs) this.state.chatLogs = {};
-      if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
-
-      // 清理此前残留的失败网络提醒
-      this.state.chatLogs.stage3 = this.state.chatLogs.stage3.filter(m => !m || !(m.sender === 'neutral' && (m.text || '').includes('网络提醒')));
-
-      if (resp && resp.trim().length > 25) {
-        // ✅ 生成成功
-        s3._revisionSummaryFailed = false;
-        const formattedResp = resp.trim().replace(/\n/g, '<br>');
-        const speechText = formattedResp.startsWith('🟡') ? formattedResp : `🟡 【${chairShort}·答辩终审裁决与终稿修改指南】：<br>${formattedResp}`;
-
-        const msg = {
-          sender: 'neutral',
-          text: speechText,
-          _revisionSummaryFlag: true,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now() + 100
-        };
-        this.state.chatLogs.stage3.push(msg);
-      } else {
-        // ⚠️ 生成遇阻：给出重试网络提醒气泡，标记失败状态，供用户随时重试
-        s3._revisionSummaryFailed = true;
-        const failMsg = {
-          sender: 'neutral',
-          text: `🟡 【${chairShort}·网络提醒】：📡 正在归纳答辩修改要点，大模型生成稍有延迟未能即时生成总结。<br><button class="btn-retry-ai" onclick="window.app.triggerRevisionEntrySummary(this, true)" style="margin-top:6px; background:#d97706; color:#fff; border:none; padding:5px 14px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新提炼【终审裁决与修改指南】</button>`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now() + 100
-        };
-        this.state.chatLogs.stage3.push(failMsg);
-      }
-
-      this.syncStage3();
-      this.syncChatLogs();
-      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-      renderChat(this.state);
-    } catch (e) {
-      console.warn('triggerRevisionEntrySummary error:', e);
-      s3._revisionSummaryFailed = true;
-    } finally {
-      this._isTriggeringRevisionSummary = false;
-      this.setActiveAgentAnalyzing(null);
-      if (typeof this.renderStudentWorkspace === 'function') {
-        this.renderStudentWorkspace();
-      }
-    }
+  triggerRevisionEntrySummary() {
+    // 已由全员确认答辩时秒级下发的《终稿修改落实清单》与中间委员开工播报彻底替代
+    return;
   }
 
   /**
@@ -6218,16 +6073,15 @@ ${rawDoc ? `\n【小组当前正文草稿全文（全量通读，确保答辩陈
 ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内容】: ${nextInqFullContent}` : ''}
 
 【本次即时指令】:
-1. 答辩陈述（80~100字）：
-   - 【尊重学生发言 + 适度补充 1~2 个动作】：
-     * 若小组成员在讨论区发言充分，严格归纳学生的核心辩护要点；
-     * 若小组成员发言较为简短单薄，必须基于学生提到的点，适度自然补充 1~2 个契合方案阶段的具体动作（绝不多加，也不泛泛而谈）；
-   - 【严格遵守方案阶段红线（无数据）】：明确当前处于【开题/方案设计阶段，尚未实测，绝无实际数据】！绝对严禁捏造假数据，严禁捏造或承诺具体的统计系数、α信度值或拟合指标；补充的动作必须聚焦于“文献经典佐证、正文测量工具章节界定、操作化实施规范”，切实解决反方质疑。
-2. 主席发言（100~130字）：定案本题；${remainingOppCount > 0 ? `顺推【${nextLabel}】，必须明确引述反方针对该题的核心质疑原文（“${nextInqFullContent.slice(0, 80)}...”），并给出针对性破局思路。` : `宣布全部质询辩护完毕，提醒全员在右上方点击【✍️ 确认进入终稿修改】以解锁终稿修改面板。`}
+1. 答辩陈述（严格 25~45 字，直接输出具体修改动作，绝不说废话）：
+   - 【只需具体修改措施】：直接明确在哪个具体章节改什么、加什么。
+   - 【严禁任何空洞套话与理论保障废话】：严禁出现“针对核心概念界定模糊的质询”、“后续将切实保障测量工具的科学性与严谨性”、“规避测量偏差保障结论严谨性”、“提升研究普适性”等任何修饰性、解释性套话！
+   - 【一句话直奔措施】：例如“在正文第3.2节将学习时间操作化定义为有效交互时长，排除挂课静止时间。”或“测量工具采用成熟量表，在第4章补充Cronbach's α≥0.7等信效度判定标准。”
+2. 主席发言（80~110字）：简要定案本题；${remainingOppCount > 0 ? `顺推【${nextLabel}】，简明引述反方针对该题的核心质疑原文（“${nextInqFullContent.slice(0, 60)}...”），并给出针对性破局思路。` : `宣布全部质询辩护完毕，提醒全员在右上方点击【✍️ 确认进入终稿修改】以解锁终稿修改面板。`}
 
 请严格按格式输出：
-答辩陈述：[80~100字]
-主席发言：[100~130字]`;
+答辩陈述：[25~45字，纯具体修改动作，无套话废话]
+主席发言：[80~110字]`;
 
       const isRetry = !!btnElement;
       // 🌟 挂载中间委员正在提炼共识思考气泡
@@ -7923,7 +7777,7 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
 
           const promptMsg = {
             sender: 'neutral',
-            text: `🎉 【${chairSenderTitle}宣布】：恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 人已全部确认完成答辩！【修改${docName}终稿】面板已正式解锁！\n\n🟡 【${chairSenderTitle}·终稿修改启动】：答辩委员会已全票通过大家的答辩方案！已在左侧终稿正文上方为您生成《终稿修改落实清单》（共 ${planCount} 项修改要求）。\n👉 请全组成员对照清单分工修改${docName}终稿，每落实一项可在清单中打勾确认，全部落实完善后点击【🚀 确认提交${docName}终稿】完成归档！`,
+            text: `🎉 【${chairSenderTitle}·答辩全票通过】：答辩全票通过！已在左侧生成《终稿修改落实清单》（共 ${planCount} 项要求）。\n👉 请全员对照清单分工修改${docName}终稿，每落实一项打勾确认，全部落实完善后提交终稿！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now() + 50,
             _revisionSummaryFlag: true
@@ -9603,12 +9457,23 @@ ${fullDoc}
     
     const targetItems = oppItems.length > 0 ? oppItems : feedbacks;
     const items = targetItems.map((f, i) => {
-      const inqTitle = f.title || f.comment || `意见 ${i + 1}`;
-      const cleanResp = (f.response || '').trim();
+      let cleanResp = (f.response || '').trim();
+      // 🧹 规则级纯净清洗：剃除“针对xx质询”、“本研究明确”等套话前缀
+      cleanResp = cleanResp.replace(/^.*答辩[陈述]*[：:]\s*/, '')
+                           .replace(/^.*修改[对策方案要点]*[：:]\s*/, '')
+                           .replace(/^针对[^，,。；;]+的质询[，,：:\s]*/, '')
+                           .replace(/^本研究明确[：:\s]*/, '')
+                           .trim();
+      // 🧹 剃除“保障结论严谨性”、“切实保障测量工具的科学性与严谨性”、“提升研究普适性”、“规避测量偏差”等套话后缀
+      cleanResp = cleanResp.replace(/[，,；;]?\s*(?:切实)?(?:保障|提高|提升|规避)[^。；;]+[。；;]?\s*$/g, '')
+                           .replace(/[，,；;]?\s*(?:切实)?保障结论严谨性[。]?\s*$/g, '')
+                           .replace(/[，,；;]?\s*规避测量偏差[。]?\s*$/g, '')
+                           .replace(/[；;。]\s*$/, '')
+                           .trim();
       return {
         id: f.id || `s3_inq_${i + 1}`,
         inqIndex: i + 1,
-        title: inqTitle,
+        title: f.title || f.comment || `意见 ${i + 1}`,
         response: cleanResp || '对照反方质询要点，在对应正文章节补充修改完善'
       };
     });
