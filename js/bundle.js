@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2778
+ * Version: 20260907_v2779
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2778';
+  const APP_VERSION = '20260907_v2779';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -6825,7 +6825,7 @@
           tFrame2.setAttribute('data-pad', expectedPad);
           tFrame2.setAttribute('data-task', curTaskPid);
           tFrame2.setAttribute('data-group', curGroupPid);
-          tFrame2.src = `/p/${encodeURIComponent(expectedPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
+          tFrame2.src = `/p/${encodeURIComponent(expectedPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true`;
         }
         enforceEtherpadReadonly(tFrame2);
       }
@@ -6846,7 +6846,7 @@
           tFrame3.setAttribute('data-pad', expectedPad);
           tFrame3.setAttribute('data-task', curTaskPid);
           tFrame3.setAttribute('data-group', curGroupPid);
-          tFrame3.src = `/p/${encodeURIComponent(expectedPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
+          tFrame3.src = `/p/${encodeURIComponent(expectedPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true`;
         }
         enforceEtherpadReadonly(tFrame3);
       }
@@ -8358,7 +8358,7 @@
                                   </div>
                                 </div>
                                 <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex; overscroll-behavior:contain; overscroll-behavior-y:contain;">
-                                  <iframe id="teacher-stage2-etherpad-frame" data-pad="${targetPad}" data-task="${activeTaskId}" data-group="${activeMonitorGId}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff; overscroll-behavior:contain; overscroll-behavior-y:contain;" title="教师端实时写作同屏镜像 (只读)"></iframe>
+                                  <iframe id="teacher-stage2-etherpad-frame" data-pad="${targetPad}" data-task="${activeTaskId}" data-group="${activeMonitorGId}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff; overscroll-behavior:contain; overscroll-behavior-y:contain;" title="教师端实时写作同屏镜像 (只读)"></iframe>
                                 </div>
                               </div>
                             `;
@@ -8441,7 +8441,7 @@
                                   </div>
                                   </div>
                                   <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex; overscroll-behavior:contain; overscroll-behavior-y:contain;">
-                                    <iframe id="teacher-stage3-etherpad-frame" data-pad="${targetPad}" data-task="${activeTaskId}" data-group="${activeMonitorGId}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff; overscroll-behavior:contain; overscroll-behavior-y:contain;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
+                                    <iframe id="teacher-stage3-etherpad-frame" data-pad="${targetPad}" data-task="${activeTaskId}" data-group="${activeMonitorGId}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff; overscroll-behavior:contain; overscroll-behavior-y:contain;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
                                   </div>
                                 </div>
                               `;
@@ -13678,7 +13678,7 @@
     }
 
     const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
-    const padUrl = `/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans&noColors=true`;
+    const padUrl = `/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&noColors=true`;
 
     const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
     const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
@@ -14949,7 +14949,7 @@
             const isEditorReadonly = isTaskDeadlineExpired || isFinalSubmitted || !!(window.app && window.app.isViewingPastStage);
 
             const targetPad = rawPadName;
-            const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans&noColors=true`;
+            const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&noColors=true`;
 
             return `
               <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
