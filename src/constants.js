@@ -4,7 +4,7 @@
  * Version: 2.1.0 (2026-08-23)
  */
 
-export const APP_VERSION = '20260907_v2849';
+export const APP_VERSION = '20260907_v2850';
 export const APP_BUILD_DATE = '2026-09-07';
 
 export const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -153,9 +153,9 @@ export const TASK_GENRE_CONFIGS = {
       auctioneer: '备课引导师',
       managingEditor: '备课组长',
       reviewingEditor: '教研专家',
-      proponent: '正方评审专家',
-      opponent: '反方质询专家',
-      neutral: '答辩委员会主席'
+      proponent: '正方专家',
+      opponent: '反方专家',
+      neutral: '答辩主席'
     },
     modules: [
       { key: 'background', title: '一、教材与学情分析', color: '#2563eb', defaultMinutes: 0 },

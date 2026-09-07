@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2849";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2849";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2849";
-import { AuthManager } from "./auth.js?v=20260907_v2849";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2849";
-import { renderLoginView } from "./login.js?v=20260907_v2849";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2849";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2849";
+} from "./constants.js?v=20260907_v2850";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2850";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2850";
+import { AuthManager } from "./auth.js?v=20260907_v2850";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2850";
+import { renderLoginView } from "./login.js?v=20260907_v2850";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2850";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2850";
 import {
   renderChat,
   renderOutline,
@@ -32,7 +32,7 @@ import {
   renderRemoteCursors,
   renderStudentWorkspace,
   renderReferencePapersModal
-} from "./editor.js?v=20260907_v2849";
+} from "./editor.js?v=20260907_v2850";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -866,7 +866,7 @@ export class App {
 
         const currentStage = this.state.currentStage || 'stage1';
         
-        // ⏰ 全局进度与阶段间转场催促 + 阶段二智能体保底机制 (由在场学号最小的在线成员单点触发，杜绝多人并发 AI 消息风暴)
+        // ⏰ 全局进度与阶段转场催促 + 智能体保底机制 (由组长或最后确认成员触发，结合分布式锁排他保护，杜绝重复调用)
         const myCode = currentUser?.id || this.state.currentUser || 'A';
         const activeTaskId = this.state.activeTaskId || null;
         const currentGroupId = (currentUser && currentUser.groupId) ? currentUser.groupId : (this.state.activeMonitorGroupId || this.state.activeGroupId || null);
@@ -1668,7 +1668,7 @@ export class App {
       // 🛡️ 截止只读模式下彻底关闭所有静默提醒、情绪安抚与智能体干预
       if (this.isCurrentTaskReadOnly()) return;
 
-      // ⚡ 单点守护主节点动态选举：由当前在场学号最小的在线成员接管，杜绝单点失效与并发重复！
+      // ⚡ 单点守护：由组长或当前操作成员接管，结合分布式防重锁杜绝并发重复
       const myCode = currUserObj?.id || this.state.currentUser || 'A';
       const now = Date.now();
       const membersList = Object.values(this.state.members || {});
@@ -6969,13 +6969,13 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
         ? oppMatches.map(s => s.trim()).filter(s => s.length > 0)
         : [oppBody];
       this.state.stage3.feedbackItems = [
-        { id: 'fb_prop', role: 'proponent', speaker: isInst ? '正方评审专家 (肯定支持)' : '正方委员 Agent (肯定支持)', title: '立论支持', content: propText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, ''), response: '', status: 'pending' }
+        { id: 'fb_prop', role: 'proponent', speaker: isInst ? '正方专家 (肯定支持)' : '正方委员 Agent (肯定支持)', title: '立论支持', content: propText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, ''), response: '', status: 'pending' }
       ];
       oppQueries.forEach((q, i) => {
         this.state.stage3.feedbackItems.push({
           id: 'fb_opp_' + (i + 1),
           role: 'opponent',
-          speaker: isInst ? '反方质询专家 (针对实质询)' : '反方委员 Agent (尖锐质询)',
+          speaker: isInst ? '反方专家 (针对实质询)' : '反方委员 Agent (尖锐质询)',
           title: '质询 ' + (i + 1),
           content: q,
           response: '',
