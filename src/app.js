@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2769";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2769";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2769";
-import { AuthManager } from "./auth.js?v=20260907_v2769";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2769";
-import { renderLoginView } from "./login.js?v=20260907_v2769";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2769";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2769";
+} from "./constants.js?v=20260907_v2771";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2771";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2771";
+import { AuthManager } from "./auth.js?v=20260907_v2771";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2771";
+import { renderLoginView } from "./login.js?v=20260907_v2771";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2771";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2771";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2769";
+} from "./editor.js?v=20260907_v2771";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5943,6 +5943,13 @@ ${chatSnippet}
     const alreadySent = s3Logs.some(m => m && m._revisionSummaryFlag === true);
     if (!isForceRetry && alreadySent) return;
 
+    // 🔒 组内跨端分布式并发锁：一人触发，全组锁定，杜绝同组 2 人同时请求导致排队堵塞 100 秒
+    const now = Date.now();
+    if (!isForceRetry && s3._revisionCallingTs && (now - Number(s3._revisionCallingTs) < 30000)) {
+      return;
+    }
+    s3._revisionCallingTs = now;
+
     if (btnElement) {
       this.disableAllRetryButtons(btnElement, `⏳ 正在归纳生成【终稿修改指南】...`);
     }
@@ -5994,9 +6001,28 @@ ${feedbackSummaryLines || '（全组已通过答辩，无重大修改意见）'}
 
       let resp = null;
       try {
-        resp = await callCozeAgentAPI('neutral', prompt, { stage: 'stage3', topic, milestoneKey: 'stage3_revision_entry_summary' });
+        // ⚡ 极速智能限时竞速：最高等待 12 秒！若 Coze 平台排队拥堵，直接基于真实答辩共识毫秒级自动完成归纳，绝不让学生傻等 100 秒
+        const cozePromise = callCozeAgentAPI('neutral', prompt, { stage: 'stage3', topic, milestoneKey: 'stage3_revision_entry_summary' });
+        const timeoutPromise = new Promise(r => setTimeout(() => r('__TIMEOUT__'), 12000));
+        const raceResult = await Promise.race([cozePromise, timeoutPromise]);
+        if (raceResult && raceResult !== '__TIMEOUT__' && raceResult.trim().length > 25) {
+          resp = raceResult;
+        }
       } catch (e) {
         console.warn('triggerRevisionEntrySummary AI error:', e);
+      }
+
+      // 🛡️ 智能极速保底：若 Coze 超过 12 秒或偶发异常，直接基于组内 3 条真实答辩记录生成规范终稿修改指南，确保极速响应
+      if (!resp || resp.trim().length <= 25) {
+        const numEmojis = ['①', '②', '③', '④', '⑤'];
+        const points = adoptedItems.map((f, i) => {
+          const num = numEmojis[i] || `(${i + 1})`;
+          const rawResp = (f.response || '').trim();
+          const clean = rawResp.replace(/^.*答辩[陈述]*[：:]\s*/, '').replace(/^.*修改方案[：:]\s*/, '').trim();
+          return `${num} 针对意见 ${i + 1}：${clean || '结合评审意见在对应章节进一步完善补充'}；`;
+        }).join('\n');
+
+        resp = `祝贺全组圆满通过答辩！委员会已全票通过大家的答辩陈述与修改方案！\n📝 【终稿修改落实要点】：\n${points || '① 全面通读正文，对照前序研讨意见完成细节润色。'}\n👉 请小组成员对照上述分点要点，在当前【${docTarget}】面板中把修改结论落实到正文终稿中，通读完善后点击【🚀 确认提交终稿】完成归档！`;
       }
 
       if (!this.state.chatLogs) this.state.chatLogs = {};

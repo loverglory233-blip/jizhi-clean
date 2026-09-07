@@ -7,7 +7,7 @@
 class CozePromptFactory {
     public static function buildPrompt($stage, $topic, $userQuery, $actualDoc = '', $botKey = '', $priorReview = '', $taskType = 'experiment') {
         // ⚡ 若指令本身已包含正文全文或结构化上下文，直接透传，确保真实大模型极速响应
-        if (mb_strpos($userQuery, 'JSON') !== false || mb_strpos($userQuery, '小组成员已') !== false || mb_strpos($userQuery, '【组内') !== false || mb_strpos($userQuery, '【当前任务') !== false || mb_strpos($userQuery, '【小组当前真实正文草稿') !== false || mb_strpos($userQuery, '针对小组') !== false || mb_strpos($userQuery, '针对课题') !== false) {
+        if (mb_strpos($userQuery, 'JSON') !== false || mb_strpos($userQuery, '小组成员已') !== false || mb_strpos($userQuery, '小组已完成') !== false || mb_strpos($userQuery, '答辩终审裁决') !== false || mb_strpos($userQuery, '【组内') !== false || mb_strpos($userQuery, '【当前任务') !== false || mb_strpos($userQuery, '【小组当前真实正文草稿') !== false || mb_strpos($userQuery, '针对小组') !== false || mb_strpos($userQuery, '针对课题') !== false) {
             if (!empty($actualDoc) && mb_strpos($userQuery, $actualDoc) === false) {
                 return $userQuery . "\n\n【正文草稿全文】:\n" . $actualDoc;
             }
