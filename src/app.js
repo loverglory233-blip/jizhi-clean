@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2839";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2839";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2839";
-import { AuthManager } from "./auth.js?v=20260907_v2839";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2839";
-import { renderLoginView } from "./login.js?v=20260907_v2839";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2839";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2839";
+} from "./constants.js?v=20260907_v2840";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2840";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2840";
+import { AuthManager } from "./auth.js?v=20260907_v2840";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2840";
+import { renderLoginView } from "./login.js?v=20260907_v2840";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2840";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2840";
 import {
   renderChat,
   renderOutline,
@@ -28,7 +28,7 @@ import {
   renderActionBar,
   renderStudentWorkspace,
   renderReferencePapersModal
-} from "./editor.js?v=20260907_v2839";
+} from "./editor.js?v=20260907_v2840";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6477,161 +6477,6 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
       this.syncChatLogs();
     } finally {
       this._isAnalyzingS3Inquiry = false;
-      this.setActiveAgentAnalyzing(null);
-      this.renderStudentWorkspace();
-      if (typeof window.renderChat === 'function') window.renderChat(this.state);
-    }
-  }
-
-  /**
-   * 🎓 阶段三终极一键定案全部质询：需全员确认同意后触发通读研讨并批量定案回填
-   */
-  handleS3BatchAllInquiriesSummary() {
-    const totalMembers = Object.keys(this.state.members || {}).length || 1;
-    if (totalMembers <= 1) {
-      return this._doBatchAllInquiriesSummary();
-    }
-    this.handleStepConfirmation('s3_all_inquiries', () => this._doBatchAllInquiriesSummary(), '一键总结全部答辩定案');
-  }
-
-  async _doBatchAllInquiriesSummary(btnElement = null) {
-    if (this._isBatchAnalyzingS3) return;
-    const s3 = this.state.stage3 || {};
-    const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
-    const oppPending = feedbacks.filter(f => f && f.role === 'opponent' && (!f.response || !f.response.trim()));
-    if (oppPending.length === 0) return;
-
-    this._isBatchAnalyzingS3 = true;
-    this._s3BatchFailed = false;
-    const s3ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
-    const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '论文方案';
-    const taskType = this.getCurrentTaskType();
-    const isInst = (taskType === 'instructional');
-    const docName = isInst ? '教学设计' : '论文';
-    const chairSenderName = isInst ? '答辩委员会主席' : '答辩委员会主席 · 中间委员';
-    const chairShort = isInst ? '答辩主席' : '中间委员';
-
-    try {
-      this.disableAllRetryButtons(btnElement, `⏳ 正在通读全组研讨并一键总结全部答辩定案...`);
-
-      const allStudentMsgs = s3ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !String(m.text || '').startsWith('[IMG_DATA]:'));
-      const chatSnippet = allStudentMsgs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(Boolean).join('\n') || '组员正在讨论区商讨各项学术质询的辩护思路与修改对策';
-
-      const rawDoc = ((this.state.stage3 && this.state.stage3.finalDraft) || (this.state.stage2 && this.state.stage2.unifiedContent) || '').replace(/<[^>]*>/g, '').trim();
-
-      this.setActiveAgentAnalyzing({
-        icon: '🟡',
-        title: `【${chairShort}】正在通读全组研讨并一键定案全部答辩质询...`,
-        detail: `正在分析全量讨论记录，为 ${oppPending.length} 项未定案质询自动提炼具体修改对策并定案回填...`
-      });
-
-      const inqListText = oppPending.map((inq) => {
-        const idx = feedbacks.indexOf(inq);
-        const label = idx >= 1 ? `意见 ${idx}` : '反方质询';
-        return `【${label}】: ${inq.comment || inq.content || inq.title || ''}`;
-      }).join('\n\n');
-
-      const formatExample = oppPending.map((inq) => {
-        const idx = feedbacks.indexOf(inq);
-        const label = idx >= 1 ? `意见 ${idx}` : '反方质询';
-        return `【${label}答辩陈述】: [25~45字纯具体修改动作，无空洞套话废话]`;
-      }).join('\n');
-
-      const batchPrompt = `【课题】: 《${topic}》
-【需要一键定案的反方学术质询清单】:
-${inqListText}
-
-【组员在讨论区的真实辩护发言（全量研讨记录，绝无截断）】:
-${chatSnippet}
-${rawDoc ? `\n【小组当前正文草稿全文】:\n${rawDoc}\n` : ''}
-
-【本次即时指令】:
-1. 请为上述每一条反方质询分别提炼具体的答辩陈述（严格 25~45 字，直接输出在哪个具体章节改什么、补什么，严禁空洞套话废话）；
-2. 主席发言（80~110字）：宣布全套质询辩护完毕并全票通过，提醒全员在右上方点击【✍️ 确认进入终稿修改】以解锁终稿修改面板。
-
-请严格按如下格式输出（每一条质询必须包含标准标签）：
-${formatExample}
-【主席发言】: [80~110字]`;
-
-      const resp = await callCozeAgentAPI('neutral', batchPrompt, { stage: 'stage3', topic, actualDoc: rawDoc, milestoneKey: `stage3_batch_all_inquiries_${Date.now()}` });
-
-      let filledCount = 0;
-      let chairSpeech = '';
-      if (resp && typeof resp === 'string' && resp.trim().length > 0) {
-        const lines = resp.trim().split('\n');
-        for (const inq of oppPending) {
-          const idx = feedbacks.indexOf(inq);
-          const label = idx >= 1 ? `意见 ${idx}` : '反方质询';
-          const matchLine = lines.find(l => l && (l.includes(`${label}答辩陈述`) || (idx >= 1 && l.includes(`意见${idx}答辩陈述`)) || l.includes(`质询${idx}答辩陈述`)));
-          if (matchLine) {
-            const cleanResp = matchLine.replace(/^.*答辩陈述[：:]\s*/, '').replace(/^[【\[][^】\]]+[】\]][：:]?\s*/, '').trim();
-            if (cleanResp) {
-              inq.response = cleanResp;
-              inq.isFinalized = true;
-              inq.status = 'finalized';
-              filledCount++;
-            }
-          }
-        }
-
-        const speechLine = lines.find(l => l && (l.includes('主席发言') || l.includes('主席总结')));
-        if (speechLine) {
-          chairSpeech = speechLine.replace(/^.*主席发言[：:]\s*/, '').replace(/^.*主席总结[：:]\s*/, '').trim();
-        }
-      }
-
-      if (filledCount > 0) {
-        this._s3BatchFailed = false;
-        const fullChairSpeech = chairSpeech
-          ? `🟡 【${chairShort}·全套答辩定案】：全套反方质询答辩陈述已一键成功录入左侧裁决矩阵！请全组成员在左侧核对。\n\n${chairSpeech}\n\n👉 全部质询均已辩护定案并获委员会全票认可！请全组成员在右上角点击【✍️ 确认进入终稿修改】，全员确认后将进入【修改${docName}终稿】！`
-          : `🟡 【${chairShort}·全套答辩定案】：全套反方质询答辩陈述已一键成功录入左侧裁决矩阵！请全组成员在左侧核对。\n\n👉 全部质询均已辩护定案并获委员会全票认可！请全组成员在右上角点击【✍️ 确认进入终稿修改】，全员确认后将进入【修改${docName}终稿】！`;
-
-        if (this.state.chatLogs.stage3) {
-          this.state.chatLogs.stage3 = this.state.chatLogs.stage3.filter(m => {
-            if (!m) return false;
-            if (m.isThinking || String(m.id || '').startsWith('thinking_s3_batch_')) return false;
-            const txt = m.text || '';
-            if (txt.includes('btn-retry-ai') && (txt.includes('_doBatchAllInquiriesSummary') || txt.includes('handleS3InquirySummary'))) return false;
-            if (m.sender === 'neutral' && txt.includes('网络提醒')) return false;
-            return true;
-          });
-        }
-
-        const chairMsgObj = {
-          sender: 'neutral',
-          senderName: chairSenderName,
-          text: fullChairSpeech,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now(),
-          stage: 'stage3'
-        };
-        s3ChatLogs.push(chairMsgObj);
-        if (typeof this.sendSingleChatMessage === 'function') {
-          this.sendSingleChatMessage(chairMsgObj, 'stage3');
-        }
-
-        this.syncStage3();
-        this.syncChatLogs();
-        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-      } else {
-        this._s3BatchFailed = true;
-        this.setActiveAgentAnalyzing(null);
-        const errChairMsg = {
-          sender: 'neutral',
-          senderName: chairSenderName,
-          text: `🟡 【${chairShort}·网络提醒】：📡 通读研讨一键定案全部质询时大模型生成未完成或网络延迟。<br><button class="btn-retry-ai" onclick="window.app._doBatchAllInquiriesSummary(this)" style="margin-top:6px; background:#d97706; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成【全套答辩定案】</button>`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now()
-        };
-        s3ChatLogs.push(errChairMsg);
-        this.syncChatLogs();
-      }
-    } catch (e) {
-      console.warn('_doBatchAllInquiriesSummary error:', e);
-      this._s3BatchFailed = true;
-      this.setActiveAgentAnalyzing(null);
-    } finally {
-      this._isBatchAnalyzingS3 = false;
       this.setActiveAgentAnalyzing(null);
       this.renderStudentWorkspace();
       if (typeof window.renderChat === 'function') window.renderChat(this.state);
