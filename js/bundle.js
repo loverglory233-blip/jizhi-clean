@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2856
+ * Version: 20260907_v2857
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2856';
+  const APP_VERSION = '20260907_v2857';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -20577,11 +20577,12 @@
      * 🛡️ 全局提炼互斥判定：当任意一处正在进行 AI 提炼时互斥保护，同时具备超时自愈机制防止死锁
      */
     isAnyExtracting() {
-      // 🛡️ 智能防呆自愈：检查 activeAgentAnalyzing 是否存在且是否超时（容忍大模型 90 秒延迟，绝不提前误杀）
+      // 🛡️ 智能防呆自愈：检查 activeAgentAnalyzing 是否存在且是否超时（严格 30 秒自愈，绝不无限阻塞）
+      const now = Date.now();
       if (this.state && this.state.activeAgentAnalyzing) {
         const info = this.state.activeAgentAnalyzing;
         const ts = info._ts || info.timestamp || 0;
-        if (ts && (Date.now() - ts > 90000)) {
+        if (ts && (now - ts > 30000)) {
           this._isGeneratingContract = false;
           this._isExtractingTopic = false;
           this._isExtractingTime = false;
@@ -20592,6 +20593,26 @@
           }
         }
       }
+
+      if (!this._extractingTimestamps) this._extractingTimestamps = {};
+      const checkLock = (prop, key) => {
+        if (this[prop]) {
+          const ts = this._extractingTimestamps[key] || 0;
+          if (!ts) {
+            this._extractingTimestamps[key] = now;
+          } else if (now - ts > 30000) {
+            this[prop] = false;
+            this._extractingTimestamps[key] = null;
+          }
+        }
+      };
+      checkLock('_isGeneratingContract', 'contract');
+      checkLock('_isExtractingTopic', 'topic');
+      checkLock('_isExtractingTime', 'time');
+      checkLock('_isExtractingTasks', 'tasks');
+      checkLock('_isGeneratingManagingSummary', 's2_managing');
+      checkLock('_isGeneratingReviewSummary', 's2_reviewing');
+      checkLock('_isAnalyzingS3Inquiry', 's3_inquiry');
 
       const effective = (typeof window.getEffectiveAgentAnalyzing === 'function') ? window.getEffectiveAgentAnalyzing(this.state) : null;
       if (effective && effective.isExtracting) return true;

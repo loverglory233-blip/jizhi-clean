@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2856";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2856";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2856";
-import { AuthManager } from "./auth.js?v=20260907_v2856";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2856";
-import { renderLoginView } from "./login.js?v=20260907_v2856";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2856";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2856";
+} from "./constants.js?v=20260907_v2857";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2857";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2857";
+import { AuthManager } from "./auth.js?v=20260907_v2857";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2857";
+import { renderLoginView } from "./login.js?v=20260907_v2857";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2857";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2857";
 import {
   renderChat,
   renderOutline,
@@ -32,7 +32,7 @@ import {
   renderRemoteCursors,
   renderStudentWorkspace,
   renderReferencePapersModal
-} from "./editor.js?v=20260907_v2856";
+} from "./editor.js?v=20260907_v2857";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4433,11 +4433,12 @@ ${votedDetails}
    * 🛡️ 全局提炼互斥判定：当任意一处正在进行 AI 提炼时互斥保护，同时具备超时自愈机制防止死锁
    */
   isAnyExtracting() {
-    // 🛡️ 智能防呆自愈：检查 activeAgentAnalyzing 是否存在且是否超时（容忍大模型 90 秒延迟，绝不提前误杀）
+    // 🛡️ 智能防呆自愈：检查 activeAgentAnalyzing 是否存在且是否超时（严格 30 秒自愈，绝不无限阻塞）
+    const now = Date.now();
     if (this.state && this.state.activeAgentAnalyzing) {
       const info = this.state.activeAgentAnalyzing;
       const ts = info._ts || info.timestamp || 0;
-      if (ts && (Date.now() - ts > 90000)) {
+      if (ts && (now - ts > 30000)) {
         this._isGeneratingContract = false;
         this._isExtractingTopic = false;
         this._isExtractingTime = false;
@@ -4448,6 +4449,26 @@ ${votedDetails}
         }
       }
     }
+
+    if (!this._extractingTimestamps) this._extractingTimestamps = {};
+    const checkLock = (prop, key) => {
+      if (this[prop]) {
+        const ts = this._extractingTimestamps[key] || 0;
+        if (!ts) {
+          this._extractingTimestamps[key] = now;
+        } else if (now - ts > 30000) {
+          this[prop] = false;
+          this._extractingTimestamps[key] = null;
+        }
+      }
+    };
+    checkLock('_isGeneratingContract', 'contract');
+    checkLock('_isExtractingTopic', 'topic');
+    checkLock('_isExtractingTime', 'time');
+    checkLock('_isExtractingTasks', 'tasks');
+    checkLock('_isGeneratingManagingSummary', 's2_managing');
+    checkLock('_isGeneratingReviewSummary', 's2_reviewing');
+    checkLock('_isAnalyzingS3Inquiry', 's3_inquiry');
 
     const effective = (typeof window.getEffectiveAgentAnalyzing === 'function') ? window.getEffectiveAgentAnalyzing(this.state) : null;
     if (effective && effective.isExtracting) return true;
