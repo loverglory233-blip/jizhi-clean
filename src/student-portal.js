@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   TASK_GENRE_CONFIGS,
   APP_VERSION
-} from "./constants.js?v=20260907_v2843";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch, isSameId } from "./utils.js?v=20260907_v2843";
+} from "./constants.js?v=20260907_v2844";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch, isSameId } from "./utils.js?v=20260907_v2844";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -285,10 +285,6 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
           </div>
         </div>
         <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
-          <button id="btn-portal-survey-link" style="background:#eff6ff; border:1.5px solid #bfdbfe; color:#2563eb; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="课程评估问卷">📋 问卷</button>
-          <button class="nav-ann-bell-btn ${unreadAnnCount > 0 ? 'has-unread' : ''}" id="btn-portal-ann-bell" title="课堂教学通知" style="padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe;">
-            <span>📢 教学通知</span>${unreadAnnCount > 0 ? `<span style="background:#ef4444; color:#ffffff; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:10px; box-shadow:0 1px 4px rgba(239,68,68,0.4);">${unreadAnnCount}</span>` : ''}
-          </button>
           <button id="btn-portal-change-pwd" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="修改登录密码">🔑 修改密码</button>
           <button id="btn-portal-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
         </div>
@@ -453,12 +449,6 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
   container.querySelector('#btn-portal-logout')?.addEventListener('click', () => onLogout());
   container.querySelector('#btn-portal-change-pwd')?.addEventListener('click', () => {
     authManager.openChangePasswordModal();
-  });
-  container.querySelector('#btn-portal-ann-bell')?.addEventListener('click', () => {
-    if (onOpenAnnModal) onOpenAnnModal();
-  });
-  container.querySelector('#btn-portal-survey-link')?.addEventListener('click', () => {
-    if (onOpenSurveyModal) onOpenSurveyModal();
   });
   container.querySelectorAll('.btn-enter-task-workspace').forEach(btn => {
     btn.addEventListener('click', () => onSelectTask(btn.dataset.taskId));
