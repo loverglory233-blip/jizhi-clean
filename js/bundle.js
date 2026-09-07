@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2825
+ * Version: 20260907_v2826
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2825';
+  const APP_VERSION = '20260907_v2826';
   const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -18496,7 +18496,6 @@
       const isSelectedRead = selectedAnn ? isAnnRead(selectedAnn) : true;
       const isSelectedExtension = selectedAnn ? isExtensionNotice(selectedAnn) : false;
 
-      const allTasks = this.authManager.getTasks();
       const annTaskObj = selectedAnn ? allTasks.find(t => isSameId(t.id, selectedAnn.taskId)) : null;
       const isAnnTaskExpired = isTaskExpired(annTaskObj);
 
