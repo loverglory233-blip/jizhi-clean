@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2771';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2771';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260907_v2773';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260907_v2773';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1639,6 +1639,13 @@ export class CloudSyncEngine {
           });
           const anyCardInDom = document.querySelector('.feedback-direct-input');
           if (!anyCardInDom && this.app.state.currentStage === 'stage3') needWorkspaceRender = true;
+        }
+
+        if (remoteS3.revisionPlan) {
+          if (JSON.stringify(remoteS3.revisionPlan) !== JSON.stringify(localS3.revisionPlan)) {
+            this.app.state.stage3.revisionPlan = remoteS3.revisionPlan;
+            needWorkspaceRender = true;
+          }
         }
       }
     }

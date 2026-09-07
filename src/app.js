@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260907_v2771";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2771";
-import { callCozeAgentAPI } from "./agents.js?v=20260907_v2771";
-import { AuthManager } from "./auth.js?v=20260907_v2771";
-import { CloudSyncEngine } from "./sync.js?v=20260907_v2771";
-import { renderLoginView } from "./login.js?v=20260907_v2771";
-import { renderTeacherPortal } from "./teacher.js?v=20260907_v2771";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2771";
+} from "./constants.js?v=20260907_v2773";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260907_v2773";
+import { callCozeAgentAPI } from "./agents.js?v=20260907_v2773";
+import { AuthManager } from "./auth.js?v=20260907_v2773";
+import { CloudSyncEngine } from "./sync.js?v=20260907_v2773";
+import { renderLoginView } from "./login.js?v=20260907_v2773";
+import { renderTeacherPortal } from "./teacher.js?v=20260907_v2773";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260907_v2773";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260907_v2771";
+} from "./editor.js?v=20260907_v2773";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -7664,6 +7664,17 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           this.renderStudentWorkspace();
         },
+        onStage3RevisionPlanToggle: (idx, isCompleted) => {
+          if (!this.state.stage3) this.state.stage3 = {};
+          if (!this.state.stage3.revisionPlan || !this.state.stage3.revisionPlan.items?.length) {
+            this.state.stage3.revisionPlan = this.buildStage3RevisionPlan(this.state.stage3);
+          }
+          if (!this.state.stage3.revisionPlan.completedMap) this.state.stage3.revisionPlan.completedMap = {};
+          this.state.stage3.revisionPlan.completedMap[idx] = !!isCompleted;
+          this.syncStage3();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          this.renderStudentWorkspace();
+        },
         onPresenceChange: (nodeIdx, sectionTitle, charOffset) => {
           const user = this.state.currentUser;
           if (!this.state.presence) this.state.presence = {};
@@ -7907,11 +7918,16 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
 
         if (confirmedCount >= totalMembersCount) {
           s3.isRevisionConfirmed = true;
+          // 📋 立即自动为全组生成《终稿修改落实清单》（从反方质询与答辩共识直接提取）
+          s3.revisionPlan = this.buildStage3RevisionPlan(s3);
+          const planCount = (s3.revisionPlan.items || []).length;
+
           const promptMsg = {
             sender: 'neutral',
-            text: `🎉 【${chairSenderTitle}宣布】：恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 人已全部确认完成答辩！【修改${docName}终稿】面板已正式解锁！请组员切换至【📝 修改${docName}终稿】面板完善正文，修改完毕后由代表点击【🚀 提交${docName}终稿】完成归档！`,
+            text: `🎉 【${chairSenderTitle}宣布】：恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 人已全部确认完成答辩！【修改${docName}终稿】面板已正式解锁！\n\n🟡 【${chairSenderTitle}·终稿修改启动】：答辩委员会已全票通过大家的答辩方案！已在左侧终稿正文上方为您生成《终稿修改落实清单》（共 ${planCount} 项修改要求）。\n👉 请全组成员对照清单分工修改${docName}终稿，每落实一项可在清单中打勾确认，全部落实完善后点击【🚀 确认提交${docName}终稿】完成归档！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now() + 50
+            _timeMs: Date.now() + 50,
+            _revisionSummaryFlag: true
           };
           this.state.chatLogs.stage3.push(promptMsg);
           this.syncStage3();
@@ -7919,9 +7935,6 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           this.renderStudentWorkspace();
           renderChat(this.state);
-
-          // 📋 延迟触发中间委员答辩修改总结陈词（把修改要点归纳后引导落实到终稿）
-          setTimeout(() => { this.triggerRevisionEntrySummary(); }, 1500);
 
           const autoKey = `jizhi_autoadvanced_${this.state.activeTaskId}_stage3_editor`;
           if (!sessionStorage.getItem(autoKey)) {
@@ -9579,6 +9592,35 @@ ${fullDoc}
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       this.renderStudentWorkspace();
     }
+  }
+
+  /**
+   * 🎓 构建阶段三【终稿修改落实清单】(从反方 3 项质询与小组真实答辩共识自动提取)
+   */
+  buildStage3RevisionPlan(s3 = null) {
+    const curS3 = s3 || this.state.stage3 || {};
+    const feedbacks = Array.isArray(curS3.feedbackItems) ? curS3.feedbackItems : [];
+    const oppItems = feedbacks.filter(f => f && f.role === 'opponent');
+    
+    const targetItems = oppItems.length > 0 ? oppItems : feedbacks;
+    const items = targetItems.map((f, i) => {
+      const inqTitle = f.title || f.comment || `意见 ${i + 1}`;
+      const cleanResp = (f.response || '').trim();
+      return {
+        id: f.id || `s3_inq_${i + 1}`,
+        inqIndex: i + 1,
+        title: inqTitle,
+        response: cleanResp || '对照反方质询要点，在对应正文章节补充修改完善'
+      };
+    });
+
+    const oldCompletedMap = (curS3.revisionPlan && curS3.revisionPlan.completedMap) || {};
+    return {
+      isGenerated: true,
+      generatedAt: (curS3.revisionPlan && curS3.revisionPlan.generatedAt) || Date.now(),
+      items: items,
+      completedMap: oldCompletedMap
+    };
   }
 
   // handleLogout() 已在 L1648 定义（含 presence 清理与云端推送），此处不再重复

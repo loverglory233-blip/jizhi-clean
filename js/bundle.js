@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260907_v2771
+ * Version: 20260907_v2773
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,8 +16,8 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260907_v2771';
-  const APP_BUILD_DATE = '2026-09-06';
+  const APP_VERSION = '20260907_v2773';
+  const APP_BUILD_DATE = '2026-09-07';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
   const STORAGE_KEY_USERS_DB = 'jizhi_pure_v10_users_db';
@@ -106,7 +106,12 @@
       activeTab: 'defense', // 'defense' or 'editor'
       feedbackItems: [],
       isRevisionConfirmed: false,
-      confirmedMembers: {}
+      confirmedMembers: {},
+      revisionPlan: {
+        isGenerated: false,
+        items: [],
+        completedMap: {}
+      }
     },
 
     presence: {},
@@ -6154,6 +6159,13 @@
             });
             const anyCardInDom = document.querySelector('.feedback-direct-input');
             if (!anyCardInDom && this.app.state.currentStage === 'stage3') needWorkspaceRender = true;
+          }
+
+          if (remoteS3.revisionPlan) {
+            if (JSON.stringify(remoteS3.revisionPlan) !== JSON.stringify(localS3.revisionPlan)) {
+              this.app.state.stage3.revisionPlan = remoteS3.revisionPlan;
+              needWorkspaceRender = true;
+            }
           }
         }
       }
@@ -14306,6 +14318,114 @@
     }
   }
 
+  /**
+   * 📋 渲染阶段三【终稿修改落实清单】HTML (嵌入在终稿 Etherpad 编辑器正上方)
+   */
+  function renderStage3RevisionPlanHtml(s3, state) {
+    let plan = s3?.revisionPlan;
+    if (!plan || !plan.isGenerated || !Array.isArray(plan.items) || plan.items.length === 0) {
+      // 若尚未生成且有答辩意见，按需就地构建一次以保持强自愈
+      if (window.app && typeof window.app.buildStage3RevisionPlan === 'function') {
+        plan = window.app.buildStage3RevisionPlan(s3);
+        if (s3) s3.revisionPlan = plan;
+      }
+    }
+
+    if (!plan || !Array.isArray(plan.items) || plan.items.length === 0) {
+      return `
+        <div id="stage3-revision-plan-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px; padding:6px 12px; margin-bottom:8px; flex-shrink:0; display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-size:12px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
+            <span>📋 【终稿修改落实清单】</span>
+            <span style="font-size:11px; background:#eff6ff; color:#2563eb; padding:1px 6px; border-radius:6px;">全员确认进入终稿修改后自动提取生成</span>
+          </div>
+        </div>
+      `;
+    }
+
+    const completedMap = plan.completedMap || {};
+    const completedCount = Object.values(completedMap).filter(Boolean).length;
+    const totalItems = plan.items.length;
+    const isAllDone = completedCount >= totalItems && totalItems > 0;
+
+    return `
+      <div id="stage3-revision-plan-card" style="background:${isAllDone ? '#ecfdf5' : '#f0fdfa'}; border:1px solid ${isAllDone ? '#a7f3d0' : '#99f6e4'}; border-radius:8px; padding:8px 14px; margin-bottom:10px; flex-shrink:0; box-shadow:0 1px 4px rgba(13,148,136,0.06);">
+        <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-stage3-revplan">
+          <div style="font-size:12.5px; font-weight:800; color:${isAllDone ? '#059669' : '#0d9488'}; display:flex; align-items:center; gap:8px;">
+            <span>📋 【终稿修改落实清单】(${totalItems} 项修改要求)</span>
+            <span style="font-size:11px; background:${isAllDone ? '#d1fae5' : '#ccfbf1'}; color:${isAllDone ? '#065f46' : '#0f766e'}; border:1px solid ${isAllDone ? '#a7f3d0' : '#5eead4'}; padding:1px 8px; border-radius:10px; font-weight:800;">
+              ${isAllDone ? `🎉 全部 ${totalItems} 项已落实完成` : `⏳ 已落实 ${completedCount}/${totalItems} 项`}
+            </span>
+            <span style="font-size:11px; color:#64748b; font-weight:500;">(对照清单分工修改终稿正文，落实后打勾)</span>
+          </div>
+          <span id="icon-toggle-stage3-revplan" style="font-size:11px; color:${isAllDone ? '#059669' : '#0d9488'}; font-weight:700; background:#ffffff; border:1px solid ${isAllDone ? '#a7f3d0' : '#99f6e4'}; padding:1.5px 8px; border-radius:4px;">▲ 收起清单</span>
+        </div>
+        <div id="body-stage3-revplan-items" style="font-size:11.5px; color:#1e293b; display:flex; flex-direction:column; gap:6px; margin-top:8px;">
+          ${plan.items.map((item, idx) => {
+            const isChecked = !!completedMap[idx];
+            const rawInqTitle = item.title || `意见 ${idx + 1}`;
+            const rawResp = item.response || '对照反方质询要点，在对应章节补充修改完善';
+            return `
+              <div class="s3-revplan-item-box" data-item-idx="${idx}" style="line-height:1.45; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#cbd5e1'}; border-radius:6px; padding:6px 10px; display:flex; align-items:flex-start; gap:8px; cursor:pointer; transition:all 0.15s ease;">
+                <input type="checkbox" class="s3-revplan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} style="cursor:pointer; margin-top:3px; transform:scale(1.15);">
+                <div style="flex:1; text-decoration:${isChecked ? 'line-through' : 'none'}; color:${isChecked ? '#166534' : '#1e293b'};">
+                  <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+                    <b style="color:${isChecked ? '#166534' : '#0f172a'}; font-size:12px;">【要求 ${idx + 1}】${escapeHtml(rawInqTitle)}</b>
+                    <span style="font-size:10px; padding:0 5px; border-radius:4px; font-weight:700; background:${isChecked ? '#dcfce7' : '#f1f5f9'}; color:${isChecked ? '#15803d' : '#475569'}; border:1px solid ${isChecked ? '#bbf7d0' : '#e2e8f0'};">
+                      ${isChecked ? '✓ 已落实' : '待修改'}
+                    </span>
+                  </div>
+                  <div style="font-size:11px; color:${isChecked ? '#15803d' : '#475569'};">
+                    <b>修改对策/落实要点：</b>${escapeHtml(rawResp)}
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * 📋 为阶段三【终稿修改落实清单】卡片绑定折叠与打勾事件
+   */
+  function bindStage3RevisionPlanEvents(container, s3, state, handlers) {
+    const card = container.querySelector('#stage3-revision-plan-card');
+    if (!card) return;
+
+    const btnToggle = card.querySelector('#btn-toggle-stage3-revplan');
+    if (btnToggle) {
+      btnToggle.onclick = (e) => {
+        if (e.target.closest('.s3-revplan-item-box') || e.target.classList.contains('s3-revplan-check-input')) return;
+        const bodyItems = card.querySelector('#body-stage3-revplan-items');
+        const iconToggle = card.querySelector('#icon-toggle-stage3-revplan');
+        if (bodyItems) {
+          const isHidden = bodyItems.style.display === 'none';
+          bodyItems.style.display = isHidden ? 'flex' : 'none';
+          if (iconToggle) iconToggle.innerText = isHidden ? '▲ 收起清单' : '▼ 展开清单';
+        }
+      };
+    }
+
+    card.querySelectorAll('.s3-revplan-item-box').forEach(box => {
+      box.onclick = (e) => {
+        const idx = Number(box.dataset.itemIdx);
+        if (isNaN(idx)) return;
+        if (!s3.revisionPlan) s3.revisionPlan = {};
+        if (!s3.revisionPlan.completedMap) s3.revisionPlan.completedMap = {};
+        const newStatus = !s3.revisionPlan.completedMap[idx];
+        s3.revisionPlan.completedMap[idx] = newStatus;
+        if (handlers && handlers.onStage3RevisionPlanToggle) {
+          handlers.onStage3RevisionPlanToggle(idx, newStatus);
+        } else if (window.app) {
+          window.app.syncStage3();
+          if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+          window.app.renderStudentWorkspace();
+        }
+      };
+    });
+  }
+
   function renderRevisionSummaryBtnHtml(s3, state) {
     const s3Logs = (state && state.chatLogs && state.chatLogs.stage3) ? state.chatLogs.stage3 : [];
     const hasRevSummary = s3Logs.some(m => m && m._revisionSummaryFlag === true);
@@ -14667,6 +14787,19 @@
         }
       }
 
+      // 📋 动态增量就地刷新【终稿修改落实清单】卡片
+      const existingRevPlanCard = existingEditorCard.querySelector('#stage3-revision-plan-card');
+      if (existingRevPlanCard) {
+        existingRevPlanCard.outerHTML = renderStage3RevisionPlanHtml(s3, state);
+        bindStage3RevisionPlanEvents(existingEditorCard, s3, state, handlers);
+      } else {
+        const cardTitleEl = existingEditorCard.querySelector('.card-title');
+        if (cardTitleEl) {
+          cardTitleEl.insertAdjacentHTML('afterend', renderStage3RevisionPlanHtml(s3, state));
+          bindStage3RevisionPlanEvents(existingEditorCard, s3, state, handlers);
+        }
+      }
+
       if (existingFrame) {
         if (isFinalSubmitted || isTaskDeadlineExpired) {
           existingFrame._wasPreviouslyReadonly = true;
@@ -14854,6 +14987,10 @@
                   <button onclick="const f=document.getElementById('stage3-etherpad-frame'); if(f) f.src=f.src;" style="background:transparent; color:#2563eb; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600;">🔄 刷新</button>
                 </div>
               </div>
+
+              <!-- 📋 终稿修改落实清单 (依据答辩意见自动生成，供组员分工修改并打勾) -->
+              ${renderStage3RevisionPlanHtml(s3, state)}
+
               <div style="flex:1; min-height:0; position:relative; background:#f1f5f9; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1;">
                 <iframe id="stage3-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; min-height:540px; border:none; display:block; ${isEditorReadonly ? 'user-select:none;' : ''}" allow="clipboard-read; clipboard-write" onload="const f=document.getElementById('stage3-etherpad-frame'); if(f) { if(${isEditorReadonly ? 'true' : 'false'}) { try { if(window.enforceEtherpadReadonly) window.enforceEtherpadReadonly(f); } catch(e){} } else { try { if(window.liftEtherpadReadonly) window.liftEtherpadReadonly(f); } catch(e){} } }"></iframe>
                 ${isEditorReadonly ? '<div class="etherpad-readonly-shield" style="position:absolute; top:0; left:0; right:20px; bottom:0; z-index:50; background:transparent; cursor:default; pointer-events:auto;" title="🔒 正文已截止锁定为只读模式"></div>' : ''}
@@ -15061,6 +15198,9 @@
 
     const surveyBtn = canvas.querySelector('#btn-open-survey-page');
     if (surveyBtn) surveyBtn.addEventListener('click', () => handlers.onOpenSurveyModal());
+
+    // 📋 绑定阶段三【终稿修改落实清单】卡片的折叠与打勾事件
+    bindStage3RevisionPlanEvents(canvas, s3, state, handlers);
 
     // 确保所有答辩输入框完整撑开自适应，绝不截断任何字迹
     autoResizeFeedbackInputs(canvas);
@@ -23408,6 +23548,17 @@
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             this.renderStudentWorkspace();
           },
+          onStage3RevisionPlanToggle: (idx, isCompleted) => {
+            if (!this.state.stage3) this.state.stage3 = {};
+            if (!this.state.stage3.revisionPlan || !this.state.stage3.revisionPlan.items?.length) {
+              this.state.stage3.revisionPlan = this.buildStage3RevisionPlan(this.state.stage3);
+            }
+            if (!this.state.stage3.revisionPlan.completedMap) this.state.stage3.revisionPlan.completedMap = {};
+            this.state.stage3.revisionPlan.completedMap[idx] = !!isCompleted;
+            this.syncStage3();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            this.renderStudentWorkspace();
+          },
           onPresenceChange: (nodeIdx, sectionTitle, charOffset) => {
             const user = this.state.currentUser;
             if (!this.state.presence) this.state.presence = {};
@@ -23651,11 +23802,16 @@
 
           if (confirmedCount >= totalMembersCount) {
             s3.isRevisionConfirmed = true;
+            // 📋 立即自动为全组生成《终稿修改落实清单》（从反方质询与答辩共识直接提取）
+            s3.revisionPlan = this.buildStage3RevisionPlan(s3);
+            const planCount = (s3.revisionPlan.items || []).length;
+
             const promptMsg = {
               sender: 'neutral',
-              text: `🎉 【${chairSenderTitle}宣布】：恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 人已全部确认完成答辩！【修改${docName}终稿】面板已正式解锁！请组员切换至【📝 修改${docName}终稿】面板完善正文，修改完毕后由代表点击【🚀 提交${docName}终稿】完成归档！`,
+              text: `🎉 【${chairSenderTitle}宣布】：恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 人已全部确认完成答辩！【修改${docName}终稿】面板已正式解锁！\n\n🟡 【${chairSenderTitle}·终稿修改启动】：答辩委员会已全票通过大家的答辩方案！已在左侧终稿正文上方为您生成《终稿修改落实清单》（共 ${planCount} 项修改要求）。\n👉 请全组成员对照清单分工修改${docName}终稿，每落实一项可在清单中打勾确认，全部落实完善后点击【🚀 确认提交${docName}终稿】完成归档！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now() + 50
+              _timeMs: Date.now() + 50,
+              _revisionSummaryFlag: true
             };
             this.state.chatLogs.stage3.push(promptMsg);
             this.syncStage3();
@@ -23663,9 +23819,6 @@
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             this.renderStudentWorkspace();
             renderChat(this.state);
-
-            // 📋 延迟触发中间委员答辩修改总结陈词（把修改要点归纳后引导落实到终稿）
-            setTimeout(() => { this.triggerRevisionEntrySummary(); }, 1500);
 
             const autoKey = `jizhi_autoadvanced_${this.state.activeTaskId}_stage3_editor`;
             if (!sessionStorage.getItem(autoKey)) {
@@ -25323,6 +25476,35 @@
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         this.renderStudentWorkspace();
       }
+    }
+
+    /**
+     * 🎓 构建阶段三【终稿修改落实清单】(从反方 3 项质询与小组真实答辩共识自动提取)
+     */
+    buildStage3RevisionPlan(s3 = null) {
+      const curS3 = s3 || this.state.stage3 || {};
+      const feedbacks = Array.isArray(curS3.feedbackItems) ? curS3.feedbackItems : [];
+      const oppItems = feedbacks.filter(f => f && f.role === 'opponent');
+
+      const targetItems = oppItems.length > 0 ? oppItems : feedbacks;
+      const items = targetItems.map((f, i) => {
+        const inqTitle = f.title || f.comment || `意见 ${i + 1}`;
+        const cleanResp = (f.response || '').trim();
+        return {
+          id: f.id || `s3_inq_${i + 1}`,
+          inqIndex: i + 1,
+          title: inqTitle,
+          response: cleanResp || '对照反方质询要点，在对应正文章节补充修改完善'
+        };
+      });
+
+      const oldCompletedMap = (curS3.revisionPlan && curS3.revisionPlan.completedMap) || {};
+      return {
+        isGenerated: true,
+        generatedAt: (curS3.revisionPlan && curS3.revisionPlan.generatedAt) || Date.now(),
+        items: items,
+        completedMap: oldCompletedMap
+      };
     }
 
     // handleLogout() 已在 L1648 定义（含 presence 清理与云端推送），此处不再重复
