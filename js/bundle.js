@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260908_v2895
+ * Version: 20260908_v2896
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260908_v2895';
+  const APP_VERSION = '20260908_v2896';
   const APP_BUILD_DATE = '2026-09-08';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -23175,7 +23175,6 @@
       }
 
       const welcomeFlagKey = `jizhi_welcomed_${taskId}_${groupId}_${stage}`;
-      if (stage !== 'stage3' && sessionStorage.getItem(welcomeFlagKey)) return;
 
       if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
       const logs = this.state.chatLogs[stage];
@@ -23191,7 +23190,6 @@
 
         const hasAuctioneerIntro = logs.some(m => m && (m.sender === 'auctioneer' || (m.id && String(m.id).includes('auctioneer'))) && (m.text?.includes('阶段一') || m.text?.includes('拍卖会') || m.text?.includes('备课工作坊') || m.text?.includes('拍卖师开场') || m.text?.includes('引导师开场')));
         if (!hasAuctioneerIntro) {
-          sessionStorage.setItem(welcomeFlagKey, '1');
           const welcomeMsg = {
             id: `msg_welcome_${taskId}_${groupId}_stage1`,
             classId: effectiveClassId,
@@ -23206,6 +23204,7 @@
           };
           logs.unshift(welcomeMsg);
           this.sendSingleChatMessage(welcomeMsg, 'stage1');
+          sessionStorage.setItem(welcomeFlagKey, '1');
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
         } else {
           sessionStorage.setItem(welcomeFlagKey, '1');
@@ -23233,7 +23232,6 @@
         const hasPapers = (availablePapers && availablePapers.length > 0);
 
         if (!hasManagingIntro) {
-          sessionStorage.setItem(welcomeFlagKey, '1');
           const s1 = this.state.stage1 || {};
           const topic = s1.contract?.topic || s1.mergedTitle || '未定课题';
 
@@ -23284,6 +23282,7 @@
           };
           logs.unshift(managingWelcome);
           this.sendSingleChatMessage(managingWelcome, 'stage2');
+          sessionStorage.setItem(welcomeFlagKey, '1');
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
 
           // 🛡️ 审稿编辑/教研专家规则：必须在【责任编辑/备课组长之后】发言，且【仅当当前任务下发了范文/文献】时才说开场白

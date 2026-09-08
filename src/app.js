@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260908_v2895";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2895";
-import { callCozeAgentAPI } from "./agents.js?v=20260908_v2895";
-import { AuthManager } from "./auth.js?v=20260908_v2895";
-import { CloudSyncEngine } from "./sync.js?v=20260908_v2895";
-import { renderLoginView } from "./login.js?v=20260908_v2895";
-import { renderTeacherPortal } from "./teacher.js?v=20260908_v2895";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2895";
+} from "./constants.js?v=20260908_v2896";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2896";
+import { callCozeAgentAPI } from "./agents.js?v=20260908_v2896";
+import { AuthManager } from "./auth.js?v=20260908_v2896";
+import { CloudSyncEngine } from "./sync.js?v=20260908_v2896";
+import { renderLoginView } from "./login.js?v=20260908_v2896";
+import { renderTeacherPortal } from "./teacher.js?v=20260908_v2896";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2896";
 import {
   renderEditor,
   renderChat,
@@ -36,7 +36,7 @@ import {
   getEtherpadAuthorStats,
   renderPresenceCursors,
   getEffectiveAgentAnalyzing
-} from "./editor.js?v=20260908_v2895";
+} from "./editor.js?v=20260908_v2896";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6698,7 +6698,6 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
     }
 
     const welcomeFlagKey = `jizhi_welcomed_${taskId}_${groupId}_${stage}`;
-    if (stage !== 'stage3' && sessionStorage.getItem(welcomeFlagKey)) return;
 
     if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
     const logs = this.state.chatLogs[stage];
@@ -6714,7 +6713,6 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
 
       const hasAuctioneerIntro = logs.some(m => m && (m.sender === 'auctioneer' || (m.id && String(m.id).includes('auctioneer'))) && (m.text?.includes('阶段一') || m.text?.includes('拍卖会') || m.text?.includes('备课工作坊') || m.text?.includes('拍卖师开场') || m.text?.includes('引导师开场')));
       if (!hasAuctioneerIntro) {
-        sessionStorage.setItem(welcomeFlagKey, '1');
         const welcomeMsg = {
           id: `msg_welcome_${taskId}_${groupId}_stage1`,
           classId: effectiveClassId,
@@ -6729,6 +6727,7 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
         };
         logs.unshift(welcomeMsg);
         this.sendSingleChatMessage(welcomeMsg, 'stage1');
+        sessionStorage.setItem(welcomeFlagKey, '1');
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
       } else {
         sessionStorage.setItem(welcomeFlagKey, '1');
@@ -6756,7 +6755,6 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
       const hasPapers = (availablePapers && availablePapers.length > 0);
 
       if (!hasManagingIntro) {
-        sessionStorage.setItem(welcomeFlagKey, '1');
         const s1 = this.state.stage1 || {};
         const topic = s1.contract?.topic || s1.mergedTitle || '未定课题';
         
@@ -6807,6 +6805,7 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
         };
         logs.unshift(managingWelcome);
         this.sendSingleChatMessage(managingWelcome, 'stage2');
+        sessionStorage.setItem(welcomeFlagKey, '1');
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
 
         // 🛡️ 审稿编辑/教研专家规则：必须在【责任编辑/备课组长之后】发言，且【仅当当前任务下发了范文/文献】时才说开场白
