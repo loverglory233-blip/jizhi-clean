@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260908_v2894';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260908_v2894';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260908_v2895';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260908_v2895';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -385,6 +385,8 @@ export class CloudSyncEngine {
   }
 
   initPolling() {
+    this.stopPolling();
+    this.isLoggingOut = false;
     this.pullFromServer();
     this.sendPresencePing(); // ⚡ 进入工作台 0ms 瞬间首发上线心跳，告别等待
     // ⚡ 动静分级智能心跳与轮询阶梯（兼顾百人并发流畅度与 2核2G 低带宽服务器长效稳定）：
@@ -400,14 +402,21 @@ export class CloudSyncEngine {
         this.pullFromServer();
       }
     };
+    if (this._activityEventsBound) {
+      ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
+        window.removeEventListener(evt, this._markActiveHandler, { passive: true });
+      });
+    }
+    this._markActiveHandler = markActive;
+    this._activityEventsBound = true;
     ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
       window.addEventListener(evt, markActive, { passive: true });
     });
 
     const isHidden = () => document.hidden || document.visibilityState === 'hidden';
     const isIdle = () => (Date.now() - lastUserActivity > 30000);
-    const getPollInterval = () => (isHidden() ? 6000 : (isIdle() ? 3500 : 1800));
-    const getPingInterval = () => (isHidden() ? 15000 : 8000);
+    const getPollInterval = () => (isHidden() ? 8000 : (isIdle() ? 5000 : 2500));
+    const getPingInterval = () => (isHidden() ? 20000 : 12000);
 
     const runPoll = () => {
       if (this.isLoggingOut) return;
@@ -457,14 +466,14 @@ export class CloudSyncEngine {
         this.pullFromServer();
       }
     };
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        triggerImmediateSync();
-      }
-    });
-    window.addEventListener('focus', () => {
-      triggerImmediateSync();
-    });
+    if (this._visibilityHandler) document.removeEventListener('visibilitychange', this._visibilityHandler);
+    if (this._focusHandler) window.removeEventListener('focus', this._focusHandler);
+    this._visibilityHandler = () => {
+      if (document.visibilityState === 'visible') triggerImmediateSync();
+    };
+    this._focusHandler = () => triggerImmediateSync();
+    document.addEventListener('visibilitychange', this._visibilityHandler);
+    window.addEventListener('focus', this._focusHandler);
 
     // 🚪 页面关闭/退出时立即发送离线信标，秒级通知教师端
     window.addEventListener('beforeunload', () => {
@@ -495,35 +504,9 @@ export class CloudSyncEngine {
     const isTeacher = currentUser && (currentUser.isTeacher || currentUser.role === 'teacher');
     const isStudent = currentUser && (currentUser.role === 'student' || currentUser.isStudent);
     if (isStudent && (this.app.state.studentViewMode !== 'workspace' || !this.app.state.activeTaskId)) {
-      if (this.app.authManager && typeof this.app.authManager.pullGlobalMeta === 'function') {
-        this.isPulling = true;
-        try {
-          const res = await this.app.authManager.pullGlobalMeta();
-          if (res && res.changed) {
-            if (this.app.state.studentViewMode === 'task_list' && typeof this.app.renderMain === 'function') {
-              const activeEl = document.activeElement;
-              const isInteracting = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA');
-              if (!isInteracting) {
-                this.app.renderMain();
-              }
-            }
-            if (typeof this.app.renderHeader === 'function') {
-              this.app.renderHeader();
-            }
-            if (typeof this.app.checkUnreadAnnouncements === 'function') {
-              this.app.checkUnreadAnnouncements();
-            }
-          }
-        } catch (e) {
-        } finally {
-          this.isPulling = false;
-          if (this._needsImmediatePull && !this.isLoggingOut) {
-            this._needsImmediatePull = false;
-            setTimeout(() => this.pullFromServer(), 30);
-          }
-        }
-      }
-      return; // 学生在大厅/登录页时，不拉取任何具体任务工作台的协同快照，但持续轮询全局元数据以实时感知新任务/通知
+      // 大厅元数据由 student-portal 5 秒版本探测负责，这里不再重复 pullGlobalMeta，也不拉工作台快照。
+      this.isPulling = false;
+      return;
     }
     this.isPulling = true;
     this.updateScopeKeys();
@@ -915,13 +898,13 @@ export class CloudSyncEngine {
       }
       try {
         if (Array.isArray(remoteData.classes) && remoteData.classes.length > 0) {
-          const localClasses = this.app.authManager.getClasses();
           const classMap = new Map();
-          localClasses.forEach(c => {
-            if (c && c.id) {
-              classMap.set(c.id, c);
-            }
-          });
+          if (isTeacher) {
+            const localClasses = this.app.authManager.getClasses();
+            localClasses.forEach(c => {
+              if (c && c.id) classMap.set(c.id, c);
+            });
+          }
           remoteData.classes.forEach(rClass => {
             if (rClass && rClass.id) {
               const c = classMap.get(rClass.id);

@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260908_v2894";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2894";
-import { callCozeAgentAPI } from "./agents.js?v=20260908_v2894";
-import { AuthManager } from "./auth.js?v=20260908_v2894";
-import { CloudSyncEngine } from "./sync.js?v=20260908_v2894";
-import { renderLoginView } from "./login.js?v=20260908_v2894";
-import { renderTeacherPortal } from "./teacher.js?v=20260908_v2894";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2894";
+} from "./constants.js?v=20260908_v2895";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2895";
+import { callCozeAgentAPI } from "./agents.js?v=20260908_v2895";
+import { AuthManager } from "./auth.js?v=20260908_v2895";
+import { CloudSyncEngine } from "./sync.js?v=20260908_v2895";
+import { renderLoginView } from "./login.js?v=20260908_v2895";
+import { renderTeacherPortal } from "./teacher.js?v=20260908_v2895";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2895";
 import {
   renderEditor,
   renderChat,
@@ -36,7 +36,7 @@ import {
   getEtherpadAuthorStats,
   renderPresenceCursors,
   getEffectiveAgentAnalyzing
-} from "./editor.js?v=20260908_v2894";
+} from "./editor.js?v=20260908_v2895";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -858,9 +858,7 @@ export class App {
         });
         this.renderPresenceCursors();
 
-        if (this.cloudSyncEngine && typeof this.cloudSyncEngine.sendPresencePing === 'function') {
-          this.cloudSyncEngine.sendPresencePing(currentUser);
-        }
+        // 在线心跳由 CloudSyncEngine 统一发送，避免 app 层再打一份 presence_ping。
       }
     };
     doPing();
@@ -869,17 +867,11 @@ export class App {
   }
 
   initGlobalMetaHeartbeat() {
-    if (this._globalMetaHeartbeat) clearInterval(this._globalMetaHeartbeat);
-    this._globalMetaHeartbeat = setInterval(async () => {
-      if (document.hidden) return;
-      const user = this.authManager ? this.authManager.getCurrentUser() : null;
-      if (!user) return;
-      if (this.authManager && typeof this.authManager.pullGlobalMeta === 'function') {
-        try {
-          await this.authManager.pullGlobalMeta(false);
-        } catch (err) {}
-      }
-    }, 3000);
+    if (this._globalMetaHeartbeat) {
+      clearInterval(this._globalMetaHeartbeat);
+      this._globalMetaHeartbeat = null;
+    }
+    // 工作台/大厅已有 CloudSyncEngine 与门户轮询做版本探测，这里不再另开 3 秒全量心跳。
   }
 
   initTimer() {
@@ -1281,7 +1273,7 @@ export class App {
           this._studentWorkspacePollTick++;
           if (this._studentWorkspacePollTick % 20 === 0) {
             if (this.authManager && this.authManager.pullGlobalMeta) {
-              this.authManager.pullGlobalMeta().then(() => {
+              this.authManager.pullGlobalMeta(false).then(() => {
                 // 1. 若当前屏幕正打开的通知已被教师在后台删除，立即自动关闭该弹窗
                 const openAnnModal = document.querySelector('.modal-announcement-popup');
                 if (openAnnModal) {
@@ -1332,30 +1324,17 @@ export class App {
             }
           }
 
-          renderHeader(
-            this.state, currentUser, this.authManager.getAnnouncements(),
-            (s) => this.switchStage(s),
-            () => this.handleLogout(),
-            () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
-            () => this.backToTaskList()
-          );
-        } else if (this.state.studentViewMode === 'task_list') {
-          // ⚡ 学生端在任务大厅时：每 2 秒静默检测服务端全局版本（新任务发布/任务撤销/通知/问卷/范文秒级即时到达）
-          if (!this._studentTaskListPollTick) this._studentTaskListPollTick = 0;
-          this._studentTaskListPollTick++;
-          if (this._studentTaskListPollTick % 2 === 0) {
-            if (this.authManager && this.authManager.pullGlobalMeta) {
-              this.authManager.pullGlobalMeta().then((res) => {
-                if (res && res.changed && this.state.studentViewMode === 'task_list') {
-                  const activeEl = document.activeElement;
-                  const isInteracting = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA');
-                  if (!isInteracting) {
-                    this.renderMain();
-                  }
-                }
-              }).catch(() => {});
-            }
+          const timerBox = document.querySelector('#app-header .timer-box');
+          if (timerBox && curTask && typeof formatDurationHuman === 'function') {
+            const remainMs = curTask.deadline ? (new Date(String(curTask.deadline).replace(/-/g, '/')).getTime() - Date.now()) : NaN;
+            const remainMin = !isNaN(remainMs) ? Math.max(0, Math.floor(remainMs / 60000)) : 0;
+            const expired = !isNaN(remainMs) && remainMs <= 0;
+            timerBox.innerText = expired
+              ? `🛑 任务已截止 · 只读模式 (${curTask.deadline || '已到期'})`
+              : `⏱️ 截止: ${curTask.deadline || '未设'} · 剩余 ${formatDurationHuman(remainMin, true)}`;
           }
+        } else if (this.state.studentViewMode === 'task_list') {
+          // 大厅元数据探测由 student-portal 5 秒轮询与 CloudSyncEngine 负责，避免 1 秒定时器重复打 get_global_meta。
         }
       }
     }, 1000);
@@ -1634,6 +1613,43 @@ export class App {
       this.checkUnreadAnnouncements();
       this.initCrossStageInactivityChecker();
     }
+  }
+
+  collectStudentChatAfterGuide(stage, guideMatcher) {
+    const logs = (this.state.chatLogs && this.state.chatLogs[stage]) ? this.state.chatLogs[stage] : [];
+    let guideTime = 0;
+    for (let i = logs.length - 1; i >= 0; i--) {
+      const m = logs[i];
+      if (!m || m.isThinking) continue;
+      const txt = String(m.text || '');
+      if (
+        txt.includes('网络提醒') ||
+        txt.includes('大模型生成未完成') ||
+        txt.includes('btn-retry-ai') ||
+        txt.includes('催促') ||
+        txt.includes('进度关怀') ||
+        txt.includes('协同跟进') ||
+        txt.includes('跟进提示') ||
+        txt.includes('冲刺寄语') ||
+        txt.includes('收尾倒计时') ||
+        txt.includes('一致性协同研讨') ||
+        txt.includes('二审协同修改研讨') ||
+        txt.includes('答辩思考启发') ||
+        txt.includes('修改落实确认')
+      ) continue;
+      const matched = typeof guideMatcher === 'function' ? guideMatcher(m, txt) : (guideMatcher && txt.includes(guideMatcher));
+      if (matched) {
+        guideTime = Number(m._timeMs || parseMsgTime(m) || 0);
+        break;
+      }
+    }
+    return logs.filter(m => {
+      if (!m || !m.text || m.isThinking) return false;
+      if (m.sender === 'system' || AgentProfiles[m.sender]) return false;
+      if (String(m.text).startsWith('[IMG_DATA]:')) return false;
+      if (guideTime && Number(m._timeMs || parseMsgTime(m) || 0) < guideTime) return false;
+      return true;
+    }).map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(Boolean).join('\n');
   }
 
   // 🌐 通用智能体静默/情绪提示发射器：真 AI 生成，静默直出，失败时采用温暖兜底或提示 @智能体 重新召唤
@@ -2026,10 +2042,9 @@ export class App {
             const isInst = (taskType === 'instructional');
             const managingName = isInst ? '备课组长' : '责任编辑';
             const reviewingName = isInst ? '教研专家' : '审稿编辑';
-            const autoSummarySpeech = `🤝 【${managingName}·研讨小结与交棒】：全组一致性协同研讨已进行 8 分钟，为保障整体写作进度，现将大家研讨要点与正文草稿移交给${reviewingName}，通读全篇下发《${isInst ? '磨课修正清单' : '二审修正清单'}》！`;
             setTimeout(() => {
-              if (typeof this.triggerReviewingEditorAfterDiscussion === 'function') {
-                this.triggerReviewingEditorAfterDiscussion(autoSummarySpeech);
+              if (typeof this._doGenerateS2ManagingSummary === 'function') {
+                this._doGenerateS2ManagingSummary();
               }
               this._isAutoAdvancingToSecondReview = false;
             }, 600);
@@ -2239,12 +2254,13 @@ export class App {
               const s3SilenceMsg = {
                 sender: 'neutral',
                 senderName: isInst ? '答辩委员会主席' : '答辩委员会主席 · 中间委员',
-                text: `🟡 【${chairShort}·答辩思考启发】：关于【${inqLabel}】，大家可以从实施情境限制、三维目标达成路径或具体活动补强措施切入辩护；商定好思路后，随时点击上方按钮帮大家一键提炼定案！`,
+                text: `🟡 【${chairShort}·答辩思考启发】：关于【${inqLabel}】，大家可以先对照上方质询要点在讨论区交流辩护思路；商定好后，随时点击上方按钮帮大家一键提炼定案！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
               if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
               this.state.chatLogs.stage3.push(s3SilenceMsg);
+              this.sendSingleChatMessage(s3SilenceMsg, 'stage3');
               this.syncChatLogs();
               if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
               renderChat(this.state);
@@ -2265,14 +2281,15 @@ export class App {
 
               const guidePrompt = `【课题】: 《${topic}》
 小组成员已完成上一项答辩${prevLabel ? `【${prevLabel}】` : ''}并已回填入左侧矩阵。
-当前进入【${inqLabel}】答辩研讨：
-【反方实质询（${inqLabel}）具体内容】: ${inqContent}
+当前进入【${inqLabel}】答辩研讨。
+【反方实质询全文】:
+${inqContent}
 
 【本次即时指令】:
-请发表 130~160 字引导发言：
-1. 告知全组已完成上一项答辩并回填，接下来聚焦【${inqLabel}】；
-2. 必须具体引述反方针对该题的核心质疑原文（“${inqContent.slice(0, 80)}...”），给出清晰针对性的破局思路支架；
-3. 引导全组讨论，商定后点击上方【💡 ${inqLabel} 讨论差不多了？帮我总结并填入】。`;
+请针对上述这一条质询发表 130~160 字引导建议：
+1. 告知全组接下来聚焦【${inqLabel}】；
+2. 必须具体引述该条质询原文要点，给出清晰针对性的破局思路支架；
+3. 引导全组讨论，商定后点击上方【💡 ${inqLabel} 讨论差不多了？帮我总结并填入】。不要总结学生发言，因为此时讨论尚未开始。`;
 
               (async () => {
                 // 🌟 挂载中间委员正在生成当前质询思路引导动态思考气泡
@@ -3670,7 +3687,10 @@ export class App {
     this.studentMsgCountSinceLastAgent = 0;
     const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
     const currentTopic = this.state.stage1 ? this.state.stage1.mergedTitle : '本组课题';
-    const actualDocContent = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '';
+    const wantsDocAnalysis = /分析|通读|审阅|正文|全文|文章|草稿|论文|教学设计|把脉|质检/.test(userMsg);
+    const actualDocContent = wantsDocAnalysis && this.state.stage2 && this.state.stage2.unifiedContent
+      ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim()
+      : '';
     const agentProfile = AgentProfiles[replyAgent] || { name: '智能体专家', avatar: '🤖', color: '#2563eb' };
     this.setActiveAgentAnalyzing({
       icon: agentProfile.avatar || '🤖',
@@ -3683,14 +3703,12 @@ export class App {
     try {
       let replyText = null;
       try {
-        const apiPromise = callCozeAgentAPI(replyAgent, userMsg, {
+        replyText = await callCozeAgentAPI(replyAgent, userMsg, {
           stage: stage,
           topic: currentTopic,
           actualDoc: actualDocContent,
           userId: currentUser ? (currentUser.id ) : 'student_user'
         });
-        const timeoutPromise = new Promise(r => setTimeout(() => r(null), 20000));
-        replyText = await Promise.race([apiPromise, timeoutPromise]);
       } catch (err) {
         replyText = null;
       }
@@ -4873,20 +4891,13 @@ ${votedDetails}
         detail: `${agentRole}正在根据讨论区研讨记录提炼【${isInst ? '教学课题与方案概述' : '论文主题与研究方案'}】...`
       });
 
-      const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-      const validUserLogs = s1ChatLogs.filter(m => {
-        if (!m || !m.text) return false;
-        if (m.isThinking) return false;
-        if (m.sender === 'system' || AgentProfiles[m.sender]) return false;
-        if (typeof m.text === 'string' && m.text.startsWith('[IMG_DATA]:')) return false;
-        if (typeof m.text === 'string' && (m.text.includes('【投票结果】') || m.text.includes('【公约草案就绪】') || m.text.includes('【全盘公约就绪】'))) return false;
-        return true;
-      });
-      const chatSnippet = validUserLogs.map(m => {
-        const name = m.senderName || m.sender || '组员';
-        const cleanText = (m.text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        return `${name}: ${cleanText}`;
-      }).filter(line => line.trim().length > 0).join('\n');
+      const chatSnippet = this.collectStudentChatAfterGuide('stage1', (m, txt) =>
+        m.sender === 'auctioneer' &&
+        (txt.includes('投票结果') || txt.includes('落槌与方案研讨') || txt.includes('方案研讨') || txt.includes('分歧融合')) &&
+        !txt.includes('方案确立') &&
+        !txt.includes('时间预算确立')
+      );
+      const validUserLogs = chatSnippet ? chatSnippet.split('\n').filter(Boolean) : [];
 
       // 抓取小组成员提交的提案详情（包含标题与方案说明）
       const propList = (s1.proposals && Array.isArray(s1.proposals)) ? s1.proposals : [];
@@ -5134,20 +5145,9 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
         detail: `${agentRole}正在根据讨论区研讨记录提炼【6 大${isInst ? '模块' : '章节'}时间预算分配】...`
       });
 
-      const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-      const validUserLogs = s1ChatLogs.filter(m => {
-        if (!m || !m.text) return false;
-        if (m.isThinking) return false;
-        if (m.sender === 'system' || AgentProfiles[m.sender]) return false;
-        if (typeof m.text === 'string' && m.text.startsWith('[IMG_DATA]:')) return false;
-        if (typeof m.text === 'string' && (m.text.includes('【投票结果】') || m.text.includes('【公约草案就绪】') || m.text.includes('【全盘公约就绪】'))) return false;
-        return true;
-      });
-      const chatSnippet = validUserLogs.map(m => {
-        const name = m.senderName || m.sender || '组员';
-        const cleanText = (m.text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        return `${name}: ${cleanText}`;
-      }).filter(line => line.trim().length > 0).join('\n');
+      const chatSnippet = this.collectStudentChatAfterGuide('stage1', (m, txt) =>
+        m.sender === 'auctioneer' && txt.includes('方案确立') && (txt.includes('时间预算') || txt.includes('时间分配'))
+      );
 
       const genreCfg = TASK_GENRE_CONFIGS[taskType] || TASK_GENRE_CONFIGS.experiment;
       const allTasks = this.authManager ? this.authManager.getTasks() : [];
@@ -5382,10 +5382,9 @@ ${chatSnippet}
       if (Array.isArray(this.state.members)) members = this.state.members;
       else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
 
-      const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-      // 🛡️ 提取阶段一组员全部真实研讨记录，杜绝人为截断或丢弃
-      const userLogs = s1ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !String(m.text || '').startsWith('[IMG_DATA]:'));
-      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(l => l.trim().length > 0).join('\n') || '组员正在商定分工';
+      const chatSnippet = this.collectStudentChatAfterGuide('stage1', (m, txt) =>
+        m.sender === 'auctioneer' && txt.includes('时间预算确立')
+      ) || '组员正在商定分工';
 
       const membersInfo = members.map(m => `- ${m.name || m.id}`).join('\n');
 
@@ -5623,9 +5622,9 @@ ${chatSnippet}
     const membersList = members.filter(Boolean);
 
     // 1. 🛡️ 提取阶段一组员全部真实研讨记录，全量透传无截断
-    const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-    const allUserLogs = s1ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !String(m.text || '').startsWith('[IMG_DATA]:'));
-    const chatSnippet = allUserLogs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(l => l.trim().length > 0).join('\n');
+    const chatSnippet = this.collectStudentChatAfterGuide('stage1', (m, txt) =>
+      m.sender === 'auctioneer' && (txt.includes('投票结果') || txt.includes('落槌与方案研讨') || txt.includes('方案研讨')) && !txt.includes('方案确立') && !txt.includes('时间预算确立')
+    );
 
     // 抓取小组成员提交的提案详情（包含标题与方案说明）
     const propDetails = (s1.proposals || []).map((p, idx) => {
@@ -6150,8 +6149,9 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
     this._isGeneratingManagingSummary = true;
     try {
       const s2ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
-      const userLogs = s2ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.sender.includes('Editor') && !m.isThinking && !String(m.text || '').startsWith('[IMG_DATA]:'));
-      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(Boolean).join('\n') || '组员正在围绕论文前后脱节与论证方法深化讨论修改思路';
+      const chatSnippet = this.collectStudentChatAfterGuide('stage2', (m, txt) =>
+        m.sender === 'managingEditor' && (txt.includes('自查研判') || txt.includes('一致性研讨号召'))
+      ) || '组员正在围绕论文前后脱节与论证方法深化讨论修改思路';
 
       const subs = s2.meetingSubmissions || {};
       const subValues = Object.values(subs);
@@ -6175,17 +6175,12 @@ ${propDetails || '（组员未单独提交文本提案，主要通过上述聊�
       const rawDoc = (liveDoc && liveDoc.trim().length > 30) ? liveDoc.trim() : ((s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim());
 
       const managingPrompt = `小组成员已在讨论区就论文《${topic}》的前序修改方向展开了半程研讨。
-【组员自查打卡反映的全部瓶颈与脱节痛点】: ${bottlenecks}
-【组员自查聚焦关注点】: ${focusIssues}
-【组员指出的脱节章节】: ${transIssues || '前后章节衔接与概念统一'}
-【组内关于修改思路的讨论记录】:
+【上一条引导发出后到点击按键的组员研讨】:
 ${chatSnippet}
-【正文草稿】:
-${rawDoc || '（小组成员正在协作起草正文草稿）'}
 
 请作为责任编辑，发表 120~160 字的【半程研讨共识小结与交棒】：
-① 全面、客观梳理并点明小组成员在自查中汇报的各项脱节痛点；
-② 提炼总结全组在讨论区商定达成的具体修改共识要点（严禁假大空套话，【绝对严禁出现“分工”字眼”】）；
+① 只根据上述这段研讨，提炼全组商定的修改共识要点（严禁假大空套话，【绝对严禁出现“分工”字眼”】）；
+② 不要通读或转述正文全文；
 ③ 隆重引出审稿专家通读全篇下发《二审修正清单》。
 （纯自然语言输出，120~160字，严禁输出代码块）`;
 
@@ -6198,7 +6193,7 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
       this.setActiveAgentAnalyzing({ icon: '🤝', title: `【${managingName}】正在提炼半程研讨共识...`, detail: `正在深度整合全组自查痛点与研讨记录，提炼修改共识要点并交棒${reviewingName}...` });
       await new Promise(r => setTimeout(r, 1200));
 
-      const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues, taskType, milestoneKey: 'stage2_managing' });
+      const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, taskType, milestoneKey: 'stage2_managing' });
       let managingText = (respManaging && respManaging.trim().length > 0) ? respManaging.trim() : '';
       if (!managingText) {
         this.setActiveAgentAnalyzing(null);
@@ -6238,11 +6233,12 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
 【全篇${isInst ? '教学设计' : '学术论文'}草稿全文】：
 ${rawDoc || `（小组成员正在协作起草${isInst ? '教学设计' : '正文'}草稿）`}
 
-【半程自查研讨与暴露的瓶颈】：
+【半程编辑会议自查打卡】：
 - 核心卡壳瓶颈：『${bottlenecks}』
 - 组员聚焦关注点：『${focusIssues}』
-【组内关于修改思路的讨论记录】:
-${chatSnippet}
+- 脱节章节：『${transIssues || '无'}』
+- 语体问题：『${styleIssues || '无'}』
+- 构思偏离：『${ideationIssues || '无'}』
 
 【审查要求】：
 请作为资深${isInst ? '教研专家' : '审稿编辑'}，通读上方全篇${isInst ? '教学设计（包括教学目标、学情分析、教学重难点、导入新课、合作探究活动/新授过程、练习巩固、板书与评价）' : '论文正文草稿'}，发表 140~180 字【${isInst ? '磨课修正清单' : '二审修正清单'}】。
@@ -6260,7 +6256,7 @@ ${isInst ? '【教研深度审查要求】：绝严禁只泛泛评价目标和�
 
       let reviewingText = '';
       try {
-        const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues, rawDoc, taskType, milestoneKey: 'stage2_reviewing' });
+        const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, bottlenecks, focusIssues, actualDoc: rawDoc, taskType, milestoneKey: 'stage2_reviewing' });
         reviewingText = (respReviewing && respReviewing.trim().length > 0) ? respReviewing.trim() : '';
       } catch (err) {
         console.warn('Reviewing agent call err:', err);
@@ -6332,8 +6328,14 @@ ${isInst ? '【教研深度审查要求】：绝严禁只泛泛评价目标和�
     this._isGeneratingReviewSummary = true;
     try {
       const s2ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
-      const userLogs = s2ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !String(m.text || '').startsWith('[IMG_DATA]:'));
-      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(Boolean).join('\n') || '组员已商定修改落实对策';
+      const chatSnippet = this.collectStudentChatAfterGuide('stage2', (m, txt) =>
+        m.sender === 'reviewingEditor' &&
+        (txt.includes('诊断问题') || txt.includes('二审意见') || txt.includes('磨课质检意见') || txt.includes('二审修正清单') || txt.includes('磨课修正清单')) &&
+        !txt.includes('协同修改研讨') &&
+        !txt.includes('网络提醒') &&
+        !txt.includes('冲刺寄语') &&
+        !txt.includes('修改落实确认')
+      ) || '组员已商定修改落实对策';
 
       const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
       const taskType = this.getCurrentTaskType();
@@ -6341,7 +6343,7 @@ ${isInst ? '【教研深度审查要求】：绝严禁只泛泛评价目标和�
       const reviewingName = isInst ? '教研专家' : '审稿编辑';
 
       const summaryPrompt = `小组成员已就《${isInst ? '磨课修正清单' : '二审修正清单'}》在讨论区明确了具体的修改对策与协同落实方案。
-【组内关于清单落实的讨论记录】:
+【审稿编辑发出二审后、学生点击总结按键前的组员研讨】:
 ${chatSnippet}
 
 请作为${reviewingName}，发表 90~120 字的【修改落实确认与定稿冲刺寄语】：
@@ -6435,12 +6437,14 @@ ${chatSnippet}
     if (typeof this.renderCanvas === 'function') this.renderCanvas();
 
     const guidePrompt = `小组正在就课题《${topic}》开展答辩研讨。
-当前研讨进度：全组正在研讨【${inqLabel}】（反方质询：${inqContent}）。
+当前研讨进度：全组正在研讨【${inqLabel}】。
+【反方质询全文】：
+${inqContent}
 【本次即时指令】:
-请发表 130~160 字引导发言：
+请针对上述这一条质询发表 130~160 字引导建议：
 1. 聚焦【${inqLabel}】；
-2. 必须具体引述反方针对该题的核心质疑原文（“${inqContent.slice(0, 80)}...”），给出清晰针对性的破局思路支架；
-3. 引导全组讨论，商定后点击上方【💡 ${inqLabel} 讨论差不多了？帮我总结并填入】。`;
+2. 必须具体引述该条质询原文要点，给出清晰针对性的破局思路支架；
+3. 引导全组讨论，商定后点击上方【💡 ${inqLabel} 讨论差不多了？帮我总结并填入】。不要总结学生发言，因为此时讨论尚未开始。`;
 
     let aiGuideText = '';
     try {
@@ -6527,13 +6531,10 @@ ${chatSnippet}
       const inqIndex = feedbacks.indexOf(currentInquiry);
       const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
 
-      // 🛡️ 提取组员真实讨论记录：全量提取阶段三全部组员研讨发言，绝对零剪裁、零丢弃！
-      const s3ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
-      const allStudentMsgs = s3ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !String(m.text || '').startsWith('[IMG_DATA]:'));
-      const chatSnippet = allStudentMsgs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(Boolean).join('\n') || '组员正在商讨辩护思路与修改对策';
-
-      // 🛡️ 提取当前小组完整的正文草稿全文（若已有终稿草稿则优先终稿，绝不截断）
-      const rawDoc = ((this.state.stage3 && this.state.stage3.finalDraft) || (this.state.stage2 && this.state.stage2.unifiedContent) || '').replace(/<[^>]*>/g, '').trim();
+      // 总结只取：本条引导发出之后，到学生点击「帮我总结」之间的组员研讨。
+      const chatSnippet = this.collectStudentChatAfterGuide('stage3', (m, txt) =>
+        m.sender === 'neutral' && (txt.includes(inqLabel) || txt.includes('答辩思路引导') || txt.includes('破局'))
+      ) || '组员正在商讨辩护思路与修改对策';
 
       const remainingOppCount = feedbacks.filter(f => f.role === 'opponent' && f !== currentInquiry && (!f.response || !f.response.trim())).length;
       const nextInquiry = feedbacks.find(f => f.role === 'opponent' && f !== currentInquiry && (!f.response || !f.response.trim()));
@@ -6551,10 +6552,9 @@ ${chatSnippet}
       const nextInqFullContent = nextInquiry ? (nextInquiry.content || nextInquiry.comment || nextInquiry.title || '') : '';
 
       const evalInquiryPrompt = `【课题】: 《${topic}》
-【反方质询（${inqLabel}）】: ${currentInquiry.comment || currentInquiry.content}
-【组员在讨论区的真实辩护发言（全量研讨记录，绝无截断）】:
+【反方质询（${inqLabel}）全文】: ${currentInquiry.comment || currentInquiry.content}
+【本条引导发出后、学生点击总结前的组员研讨】:
 ${chatSnippet}
-${rawDoc ? `\n【小组当前正文草稿全文（全量通读，确保答辩陈述契合正文具体章节）】:\n${rawDoc}\n` : ''}
 ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内容】: ${nextInqFullContent}` : ''}
 
 【本次即时指令】:
@@ -6580,7 +6580,7 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
           : '正在忠实整合组员辩护要点，自动定案回填矩阵并顺推下一质询...'
       });
 
-      const resp = await callCozeAgentAPI('neutral', evalInquiryPrompt, { stage: 'stage3', topic, actualDoc: rawDoc, milestoneKey: `stage3_inquiry_${inqIndex}` });
+      const resp = await callCozeAgentAPI('neutral', evalInquiryPrompt, { stage: 'stage3', topic, milestoneKey: `stage3_inquiry_${inqIndex}` });
       let extractedResponse = '';
       let chairSpeech = '';
 
@@ -7042,7 +7042,7 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
 态度客观严谨、温和建设，纯自然语言输出，200~260字。`;
 
         try {
-          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 90000));
+          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 120000));
           const promises = [];
           if (!hasProp) {
             promises.push(Promise.race([
@@ -7199,16 +7199,16 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
 
 答辩正反两方评审意见已入驻左侧矩阵。
 【正方意见】: ${propText}
-【反方质询】: ${oppText}
+【意见 1 / 质询 ① 全文】: ${oppText}
 
 请作为答辩委员会主席（中间委员），发表 130~150 字的【针对质询 ① 独立答辩思路引导】：
-① 宣布正反方评审已正式送达并生成【答辩与终稿修改清单】，肯定正方的创新与实践价值，明确指出反方提出了针对实质询；
-② 【单题独立引导·核心铁律】：本次只聚焦【意见 1 / 质询 ①】，结合上述文体特征与反方质询①的具体内容给出清晰的答辩破局/操作化补救思路支架（严禁提及或剧透后续质询！）；
+① 宣布正反方评审已正式送达，明确指出本次只聚焦【意见 1 / 质询 ①】；
+② 必须针对上述这一条质询给出清晰答辩破局/操作化补救思路支架（严禁提及或剧透后续质询，不要总结学生发言，因为讨论尚未开始）；
 ③ 引导全组在讨论区充分商讨，商定差不多后点击聊天框上方【💡 意见 1 讨论差不多了？帮我总结并填入】按钮！纯自然语言输出，130~150字。`;
 
         let chairText = '';
         try {
-          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 90000));
+          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 120000));
           chairText = await Promise.race([
             callCozeAgentAPI('neutral', chairPrompt, { stage: 'stage3', topic, prop: propText, opp: oppText, queryPoint: 1, taskType, milestoneKey: 'stage3_chair' }),
             timeoutPromise
@@ -8700,7 +8700,7 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
 
       const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-      const contentSnippet = rawDoc || '论文草稿已起草引言与文献综述';
+      const fullDraft = rawDoc || '';
 
       const taskType = this.getCurrentTaskType();
       const isInstTask = (taskType === 'instructional');
@@ -8729,7 +8729,7 @@ ${remainingOppCount > 0 ? `【下一项反方质询（${nextLabel}）具体内�
 
 【课题】：《${topic}》
 【当前${genreDocName}正文已起草的实际草稿内容（全量通读）】：
-${contentSnippet}
+${fullDraft || '（当前协同文档尚未写入正文）'}
 
 请作为${reviewerRoleName}，全面通读当前学生已起草的全部内容（写到哪审到哪，具体情况具体分析，【绝对严禁出现“分工”字眼】）：
 1. 【正文实质性与进度评估】：
@@ -8746,7 +8746,7 @@ ${contentSnippet}
             firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, {
               stage: 'stage2',
               topic,
-              actualDoc: contentSnippet,
+              actualDoc: fullDraft,
               taskType,
               milestoneKey: 'stage2_first_review',
               scopeKey: this.getGroupScopeKey()
@@ -9563,47 +9563,38 @@ ${contentSnippet}
 - 组员自查填写的具体聚焦诉求：${questionsList}
 - 质量自评均分：${avgOverallRating} 星
 
-请作为责任编辑（过程学伴），发表 120~150 字的【自查研判与一致性研讨号召】：
+请作为${managingName}（过程学伴），发表 90~140 字的【半程自查研判】：
 ① 第一句明确说明已全员收到全组 ${submittedCount} 位组员的编辑会议打卡记录；
-② 【全部如实说明·绝不隐瞒】：全面、客观梳理组员在自查中汇报的各项脱节痛点（凡是学生汇报的脱节痛点如：${transFocusText}、${primaryAcademicB} 等，均须全部逐一说明，绝不遗漏）；
-③ 【号召一致性研讨】：号召全组成员在讨论区围绕上述脱节环节展开深度对齐研讨，商定统一的衔接方案；商定差不多后点击下方【💡 讨论差不多了？让责任编辑总结】！
-（纯自然语言输出，120~150字，【绝对严禁出现“分工”字眼】）`;
+② ${hasDivergence
+  ? `【全部如实说明·绝不隐瞒】：全面、客观梳理组员在自查中汇报的各项脱节痛点（凡是学生汇报的脱节痛点如：${transFocusText}、${primaryAcademicB} 等，均须全部逐一说明，绝不遗漏）；随后号召全组在讨论区围绕上述脱节环节展开对齐研讨，商定差不多后点击下方【💡 讨论差不多了？让${managingName}总结】！`
+  : `明确肯定全组口径统一、前后贯通，未发现脱节或目标偏离；不要号召继续讨论，不要让学生再点总结；直接引出${reviewingName}通读全文，下发《${isInst ? '磨课修正清单' : '二审修正清单'}》！`}
+（纯自然语言输出，90~140字，【绝对严禁出现“分工”字眼】）`;
 
       let managingText = '';
-      if (!hasDivergence) {
-        // 🌟 无分歧模式：全员高度协调一致，直接发表肯定与引荐寄语，跳过责任编辑总结
-        managingText = isInst
-          ? `🤝 【备课组长·半程自查研判】：🎉 各位老师，已成功收到全组 ${submittedCount} 位组员的编辑会议打卡记录！经过数据综合研判，全篇教案在三维教学目标、新知探究活动与语体规范上口径统一、前后贯通，未发现教学环节脱节或目标偏离！全组备课推进非常扎实顺利，无需在讨论区停滞对齐，下面直接有请教研专家通读全篇教学设计，为大家进行深度教研质检，下发磨课诊断意见与《磨课修正清单》！`
-          : `🤝 【责任编辑·半程自查研判】：🎉 各位研究者，已成功收到全组 ${submittedCount} 位组员的编辑会议打卡记录！经过数据综合研判，全篇各章节在论题立意、论证衔接与学术语体上高度协调一致，未发现明显的前后脱节或构思偏离！全组当前的写作推进非常扎实，无需在讨论区停滞对齐，下面直接有请审稿编辑通读全文草稿，为大家进行深度学术质检，下发二审诊断意见与《二审修正清单》！`;
+      try {
+        managingText = await callCozeAgentAPI('managingEditor', managingPrompt, {
+          stage: 'stage2',
+          topic,
+          bottleneck: primaryAcademicB,
+          taskType,
+          milestoneKey: hasDivergence ? 'stage2_meeting_divergence' : 'stage2_meeting_consistent',
+          scopeKey: this.getGroupScopeKey()
+        });
+      } catch (e) {
+        console.warn('managingEditor divergence analysis error:', e);
+      } finally {
         this.setActiveAgentAnalyzing(null);
+      }
+      if (!managingText || managingText.trim().length === 0) {
+        this.state.stage2.hasBroadcastedMeetingDivergence = false;
+        managingText = `🤝 【${managingName}·网络提醒】：📡 正在研判全组自查痛点与偏离环节，大模型生成未完成或网络延迟。<br><button class="btn-retry-ai" onclick="window.app && window.app.retryManagingDivergence && window.app.retryManagingDivergence(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:5px 14px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成自查研判与研讨指引</button>`;
       } else {
-        try {
-          managingText = await callCozeAgentAPI('managingEditor', managingPrompt, {
-            stage: 'stage2',
-            topic,
-            bottleneck: primaryAcademicB,
-            taskType,
-            milestoneKey: 'stage2_meeting_divergence',
-            scopeKey: this.getGroupScopeKey()
-          });
-        } catch (e) {
-          console.warn('managingEditor divergence analysis error:', e);
-        } finally {
-          this.setActiveAgentAnalyzing(null);
+        if (this.state.chatLogs.stage2) {
+          this.state.chatLogs.stage2 = this.state.chatLogs.stage2.filter(m => !m || !(m.sender === 'managingEditor' && (m.text || '').includes('网络提醒') && (m.text || '').includes('自查研判')));
         }
-        if (!managingText || managingText.trim().length === 0) {
-          this.state.stage2.hasBroadcastedMeetingDivergence = false;
-          managingText = `🤝 【${managingName}·网络提醒】：📡 正在研判全组自查痛点与偏离环节，大模型生成未完成或网络延迟。<br><button class="btn-retry-ai" onclick="window.app && window.app.retryManagingDivergence && window.app.retryManagingDivergence(this)" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:5px 14px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成自查研判与研讨指引</button>`;
-        } else {
-          // 🛡️ 成功生成时，清理历史残留的失败提醒
-          if (this.state.chatLogs.stage2) {
-            this.state.chatLogs.stage2 = this.state.chatLogs.stage2.filter(m => !m || !(m.sender === 'managingEditor' && (m.text || '').includes('网络提醒') && (m.text || '').includes('自查研判')));
-          }
-          // 确保开头自然包含打卡记录说明
-          const cleanManagingText = managingText.replace(/^🤝\s*【[^】]+】[：:]\s*/, '').trim();
-          if (!cleanManagingText.includes('打卡记录') && !cleanManagingText.includes('打卡')) {
-            managingText = `🤝 【${managingName}·自查研判与一致性研讨】：已成功收到全组 ${submittedCount} 位组员的编辑会议打卡记录！${cleanManagingText}`;
-          }
+        const cleanManagingText = managingText.replace(/^🤝\s*【[^】]+】[：:]?\s*/, '').trim();
+        if (!cleanManagingText.includes('打卡记录') && !cleanManagingText.includes('打卡')) {
+          managingText = `🤝 【${managingName}·自查研判】：已成功收到全组 ${submittedCount} 位组员的编辑会议打卡记录！${cleanManagingText}`;
         }
       }
 
@@ -9623,7 +9614,7 @@ ${contentSnippet}
       renderChat(this.state);
 
       // 3. 平台接管调控：若生成失败，绝不推进状态；仅当成功时才设置【等待组内商讨对齐】状态
-      if (!managingText || (!managingText.includes('自查研判') && !managingText.includes('一致性研判'))) {
+      if (!managingText || managingText.includes('网络提醒') || managingText.includes('btn-retry-ai')) {
         return;
       }
 
@@ -9632,14 +9623,21 @@ ${contentSnippet}
         bAcademic: primaryAcademicB,
         userText: questionsList,
         transFocus: transFocusText,
+        transFocusText,
         styleFocus: styleFocusText,
+        styleFocusText,
+        ideationFocusText,
         timeSubmitted: Date.now(),
-        studentMsgCount: 0
+        studentMsgCount: 0,
+        hasMeetingDivergence: hasDivergence
       };
       this.state.stage2PendingReviewing = this.state.stage2.pendingReviewing;
       this.syncStage2();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       this.renderStudentWorkspace();
+      if (!hasDivergence && typeof this.triggerReviewingEditorAfterDiscussion === 'function') {
+        setTimeout(() => this.triggerReviewingEditorAfterDiscussion(managingText), 800);
+      }
     });
   }
 
@@ -9697,11 +9695,12 @@ ${contentSnippet}
 - 组员自查填写的具体聚焦诉求：${questionsList}
 - 质量自评均分：${avgOverallRating} 星
 
-请作为${managingName}（过程学伴），发表 120~150 字的【自查研判与一致性研讨号召】：
+请作为${managingName}（过程学伴），发表 90~140 字的【半程自查研判】：
 ① 第一句明确说明已全员收到全组 ${submittedCount} 位组员的编辑会议打卡记录；
-② 【全部如实说明·绝不隐瞒】：全面、客观梳理组员在自查中汇报的各项脱节痛点（凡是学生汇报的脱节痛点如：${transFocusText}、${primaryAcademicB} 等，均须全部逐一说明，绝不遗漏）；
-③ 【号召一致性研讨】：号召全组成员在讨论区围绕上述脱节环节展开深度对齐研讨，商定统一的衔接方案；商定差不多后点击下方【💡 讨论差不多了？让${managingName}总结】！
-（纯自然语言输出，120~150字，【绝对严禁出现“分工”字眼】）`;
+② ${hasDivergence
+  ? `【全部如实说明·绝不隐瞒】：全面、客观梳理组员在自查中汇报的各项脱节痛点（凡是学生汇报的脱节痛点如：${transFocusText}、${primaryAcademicB} 等，均须全部逐一说明，绝不遗漏）；随后号召全组在讨论区围绕上述脱节环节展开对齐研讨，商定差不多后点击下方【💡 讨论差不多了？让${managingName}总结】！`
+  : `明确肯定全组口径统一、前后贯通，未发现脱节或目标偏离；不要号召继续讨论，不要让学生再点总结；直接引出${isInst ? '教研专家' : '审稿编辑'}通读全文，下发《${isInst ? '磨课修正清单' : '二审修正清单'}》！`}
+（纯自然语言输出，90~140字，【绝对严禁出现“分工”字眼】）`;
 
       let managingText = '';
       try {
@@ -9748,7 +9747,7 @@ ${contentSnippet}
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
 
-      if (!managingText || (!managingText.includes('自查研判') && !managingText.includes('一致性研判'))) {
+      if (!managingText || managingText.includes('网络提醒') || managingText.includes('btn-retry-ai')) {
         return;
       }
 
@@ -9806,19 +9805,23 @@ ${contentSnippet}
     const reviewingName = isInst ? '教研专家' : '审稿编辑';
 
     // 1. 备课组长/责任编辑出场做【一致性研讨小结】并交棒 (支持大模型针对具体讨论内容的深度研判总结)
-    const managingText = customManagingSummary || `🤝 【${managingName}·一致性研讨小结】：太好了，看到全组已经在讨论区对齐了修改主线！下面有请${reviewingName}通读全文草稿，为大家进行深度${isInst ? '教研质检' : '学术质检'}，并下发【3 项半程修正清单】！`;
-    const consensusMsg = {
-      sender: 'managingEditor',
-      text: managingText,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      _timeMs: Date.now(),
-      stage: 'stage2'
-    };
-    if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-    this.state.chatLogs.stage2.push(consensusMsg);
-    this.syncChatLogs();
-    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-    renderChat(this.state);
+    // 一致路径：打卡后已经发过「口径统一、有请审稿编辑」，这里不再重复推责任编辑小结，直接二审。
+    const alreadyPraised = !!(customManagingSummary && s2ChatLogs.some(m => m && m.sender === 'managingEditor' && m.text === customManagingSummary));
+    if (!alreadyPraised) {
+      const managingText = customManagingSummary || `🤝 【${managingName}·一致性研讨小结】：太好了，看到全组已经在讨论区对齐了修改主线！下面有请${reviewingName}通读全文草稿，为大家进行深度${isInst ? '教研质检' : '学术质检'}，并下发【3 项半程修正清单】！`;
+      const consensusMsg = {
+        sender: 'managingEditor',
+        text: managingText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now(),
+        stage: 'stage2'
+      };
+      if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+      this.state.chatLogs.stage2.push(consensusMsg);
+      this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      renderChat(this.state);
+    }
 
     const liveDoc = (typeof window.getEtherpadAuthorStats === 'function') ? (window.getEtherpadAuthorStats('stage2-etherpad-frame')?.cleanText || '') : '';
     const fullDoc = (liveDoc && liveDoc.trim().length > 30) ? liveDoc.trim() : ((this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '论文初稿方案');
@@ -9830,9 +9833,12 @@ ${contentSnippet}
 【全篇${isInst ? '教学设计' : '学术论文'}草稿全文】：
 ${fullDoc}
 
-【半程会议研讨与暴露的瓶颈】：
+【半程编辑会议自查打卡】：
 - 核心卡壳瓶颈：『${ctx.bAcademic || (isInst ? '教学活动设计与学情重难点落实' : '论证逻辑与方法设计')}』
 - 组员聚焦关注点：『${ctx.userText || (isInst ? '新知探究与合作任务设计' : '核心概念统领与主体设计')}』
+- 脱节章节：『${ctx.transFocusText || '无'}』
+- 语体问题：『${ctx.styleFocusText || '无'}』
+- 构思偏离：『${ctx.ideationFocusText || '无'}』
 
 【审查要求】：
 请作为资深${isInst ? '教研专家' : '审稿编辑'}，通读上方全篇${isInst ? '教学设计（包括教学目标、学情分析、教学重难点、导入新课、合作探究活动/新授过程、练习巩固、板书与评价）' : '论文正文草稿'}，发表 140~180 字【${isInst ? '磨课修正清单' : '二审修正清单'}】。

@@ -8,14 +8,9 @@ import {
   STORAGE_KEY_USERS_DB,
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_TASKS,
-  STORAGE_KEY_ANNOUNCEMENTS,
-  DefaultClasses,
-  DefaultUsers,
-  DefaultTasks,
-  DefaultAnnouncements,
-  DefaultReferencePapers
-} from './constants.js?v=20260908_v2894';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260908_v2894';
+  STORAGE_KEY_ANNOUNCEMENTS
+} from './constants.js?v=20260908_v2895';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260908_v2895';
 
 export class AuthManager {
   constructor() {
@@ -37,11 +32,7 @@ export class AuthManager {
     this.cleanseUserTitles();
   }
   initDatabase() {
-    if (!localStorage.getItem(STORAGE_KEY_USERS_DB)) localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(DefaultUsers));
-    if (!localStorage.getItem(STORAGE_KEY_CLASSES)) localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(DefaultClasses));
-    if (!localStorage.getItem(STORAGE_KEY_TASKS)) localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(DefaultTasks));
-    if (!localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS)) localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(DefaultAnnouncements));
-    if (!localStorage.getItem('jizhi_reference_papers_db')) localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(DefaultReferencePapers));
+    // 空缓存保持为空，等服务端元数据到达后再写入；不预置演示班级/任务/通知。
   }
 
   // 🛡️ 全局小组数据自动清洗与自愈引擎 (班级之间 100% 独立，彻底清除幽灵空组与重复小组)
@@ -416,6 +407,8 @@ export class AuthManager {
 
               if (isTeacher && !annMap.has(localAnn.id)) {
                 annMap.set(localAnn.id, localAnn);
+              } else if (!isTeacher && !annMap.has(localAnn.id)) {
+                return;
               } else if (annMap.has(localAnn.id)) {
                 const remoteAnn = annMap.get(localAnn.id);
                 const mergedReadStatus = { ...(remoteAnn.readStatus || {}), ...(localAnn.readStatus || {}) };
@@ -702,8 +695,7 @@ export class AuthManager {
       users = JSON.parse(localStorage.getItem(STORAGE_KEY_USERS_DB)) || [];
     } catch (e) { users = []; }
     if (!Array.isArray(users) || users.length === 0) {
-      users = JSON.parse(JSON.stringify(DefaultUsers));
-      localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+      users = [];
     } else {
       const seenIds = new Set();
       const uniqueUsers = [];
@@ -786,7 +778,7 @@ export class AuthManager {
     let announcements = [];
     try {
       const stored = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || localStorage.getItem('jizhi_announcements_db') || localStorage.getItem('jizhi_pure_v10_ann_db');
-      announcements = stored ? JSON.parse(stored) : DefaultAnnouncements;
+      announcements = stored ? JSON.parse(stored) : [];
       if (Array.isArray(announcements)) {
         let changed = false;
         announcements.forEach(a => {
@@ -802,7 +794,7 @@ export class AuthManager {
         }
       }
     } catch (e) {
-      announcements = DefaultAnnouncements;
+      announcements = [];
     }
     return (Array.isArray(announcements) ? announcements : []).filter(a => 
       !a.isSystemAction && 
@@ -987,7 +979,7 @@ export class AuthManager {
       throw new Error(`已存在名为【${cleanName}】的教学班级，不能重复创建！`);
     }
     const newClass = {
-      id: 'class_' + Date.now(),
+      id: 'class_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8),
       name: cleanName,
       studentIds: [],
       groups: []
@@ -1715,7 +1707,7 @@ export class AuthManager {
     }
 
     const newTask = {
-      id: 'task_' + Date.now(),
+      id: 'task_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8),
       title, classId, className: targetClass ? targetClass.name : '教学班',
       taskType: taskType || 'experiment',
       durationMinutes: parseInt(durationMinutes) || 150,
