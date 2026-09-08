@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS
-} from './constants.js?v=20260908_v2898';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260908_v2898';
+} from './constants.js?v=20260908_v2899';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260908_v2899';
 
 export class AuthManager {
   constructor() {
@@ -252,7 +252,14 @@ export class AuthManager {
             }
           }
           if (data.unchanged) {
-            return { success: true, changed: false, version: this.globalMetaVersion }; // ⚡ 极速早退：服务端版本未变，0 开销
+            const localVer = this.globalMetaVersion || 0;
+            const remoteVer = parseInt(data.version, 10) || localVer;
+            if (remoteVer > localVer) {
+              this.globalMetaVersion = remoteVer;
+              this._isPullingMeta = false;
+              return await this.pullGlobalMeta(true);
+            }
+            return { success: true, changed: false, version: this.globalMetaVersion };
           }
           // 1. 账号池：学生端以服务端归属为唯一权威，不能让普通模式的旧 localStorage
           // 覆盖最新 classId/classIds/groupId；教师端才保留本地未完成的账号编辑。

@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   TASK_GENRE_CONFIGS,
   APP_VERSION
-} from "./constants.js?v=20260908_v2898";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch, isSameId } from "./utils.js?v=20260908_v2898";
+} from "./constants.js?v=20260908_v2899";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch, isSameId } from "./utils.js?v=20260908_v2899";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -118,36 +118,6 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
     }
   };
   window.addEventListener('jizhi_meta_updated', window._metaUpdatePortalHandler);
-
-  // ⚡ 工业级多端轻量全局心跳巡检（跨设备/跨浏览器秒级免刷新对齐，0 开销 20 字节版本探测）
-  if (window._studentPortalPollTimer) {
-    clearInterval(window._studentPortalPollTimer);
-    window._studentPortalPollTimer = null;
-  }
-  // 服务端只在版本变化时返回完整元数据；未变化响应仅为极小版本探测包。
-  window._studentPortalPollTimer = setInterval(async () => {
-    if (state.studentViewMode !== 'task_list') {
-      clearInterval(window._studentPortalPollTimer);
-      window._studentPortalPollTimer = null;
-      return;
-    }
-    if (document.hidden) return;
-    if (authManager && typeof authManager.pullGlobalMeta === 'function') {
-      try {
-        await authManager.pullGlobalMeta(false);
-      } catch (err) {}
-    }
-  }, 2500);
-  if (window._studentPortalVisibilityHandler) {
-    document.removeEventListener('visibilitychange', window._studentPortalVisibilityHandler);
-  }
-  window._studentPortalVisibilityHandler = () => {
-    if (document.hidden || state.studentViewMode !== 'task_list') return;
-    if (authManager && typeof authManager.pullGlobalMeta === 'function') {
-      authManager.pullGlobalMeta(false).catch(() => {});
-    }
-  };
-  document.addEventListener('visibilitychange', window._studentPortalVisibilityHandler);
 
   const currentUser = authManager.getCurrentUser();
   const classes = authManager.getClasses();

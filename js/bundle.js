@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260908_v2898
+ * Version: 20260908_v2899
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260908_v2898';
+  const APP_VERSION = '20260908_v2899';
   const APP_BUILD_DATE = '2026-09-08';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2330,7 +2330,14 @@
               }
             }
             if (data.unchanged) {
-              return { success: true, changed: false, version: this.globalMetaVersion }; // ⚡ 极速早退：服务端版本未变，0 开销
+              const localVer = this.globalMetaVersion || 0;
+              const remoteVer = parseInt(data.version, 10) || localVer;
+              if (remoteVer > localVer) {
+                this.globalMetaVersion = remoteVer;
+                this._isPullingMeta = false;
+                return await this.pullGlobalMeta(true);
+              }
+              return { success: true, changed: false, version: this.globalMetaVersion };
             }
             // 1. 账号池：学生端以服务端归属为唯一权威，不能让普通模式的旧 localStorage
             // 覆盖最新 classId/classIds/groupId；教师端才保留本地未完成的账号编辑。
@@ -11594,36 +11601,6 @@
     };
     window.addEventListener('jizhi_meta_updated', window._metaUpdatePortalHandler);
 
-    // ⚡ 工业级多端轻量全局心跳巡检（跨设备/跨浏览器秒级免刷新对齐，0 开销 20 字节版本探测）
-    if (window._studentPortalPollTimer) {
-      clearInterval(window._studentPortalPollTimer);
-      window._studentPortalPollTimer = null;
-    }
-    // 服务端只在版本变化时返回完整元数据；未变化响应仅为极小版本探测包。
-    window._studentPortalPollTimer = setInterval(async () => {
-      if (state.studentViewMode !== 'task_list') {
-        clearInterval(window._studentPortalPollTimer);
-        window._studentPortalPollTimer = null;
-        return;
-      }
-      if (document.hidden) return;
-      if (authManager && typeof authManager.pullGlobalMeta === 'function') {
-        try {
-          await authManager.pullGlobalMeta(false);
-        } catch (err) {}
-      }
-    }, 2500);
-    if (window._studentPortalVisibilityHandler) {
-      document.removeEventListener('visibilitychange', window._studentPortalVisibilityHandler);
-    }
-    window._studentPortalVisibilityHandler = () => {
-      if (document.hidden || state.studentViewMode !== 'task_list') return;
-      if (authManager && typeof authManager.pullGlobalMeta === 'function') {
-        authManager.pullGlobalMeta(false).catch(() => {});
-      }
-    };
-    document.addEventListener('visibilitychange', window._studentPortalVisibilityHandler);
-
     const currentUser = authManager.getCurrentUser();
     const classes = authManager.getClasses();
     const tasks = authManager.getTasks();
@@ -16658,6 +16635,25 @@
         }, 500);
       };
       window.addEventListener('jizhi_meta_updated', this._scheduleStudentMetaUiRefresh);
+
+      if (!window._jizhiGlobalMetaPollBound) {
+        window._jizhiGlobalMetaPollBound = true;
+        const probeMeta = () => {
+          if (document.hidden) return;
+          const u = this.authManager ? this.authManager.getCurrentUser() : null;
+          if (!u || (u.role !== 'student' && !u.isStudent)) return;
+          if (this.authManager && typeof this.authManager.pullGlobalMeta === 'function') {
+            this.authManager.pullGlobalMeta(false).then((res) => {
+              if (res && res.changed) this._scheduleStudentMetaUiRefresh();
+            }).catch(() => {});
+          }
+        };
+        window._jizhiGlobalMetaPollTimer = setInterval(probeMeta, 2500);
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) probeMeta();
+        });
+        probeMeta();
+      }
 
       this.renderMain();
 

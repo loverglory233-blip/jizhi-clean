@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260908_v2898";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2898";
-import { callCozeAgentAPI } from "./agents.js?v=20260908_v2898";
-import { AuthManager } from "./auth.js?v=20260908_v2898";
-import { CloudSyncEngine } from "./sync.js?v=20260908_v2898";
-import { renderLoginView } from "./login.js?v=20260908_v2898";
-import { renderTeacherPortal } from "./teacher.js?v=20260908_v2898";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2898";
+} from "./constants.js?v=20260908_v2899";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2899";
+import { callCozeAgentAPI } from "./agents.js?v=20260908_v2899";
+import { AuthManager } from "./auth.js?v=20260908_v2899";
+import { CloudSyncEngine } from "./sync.js?v=20260908_v2899";
+import { renderLoginView } from "./login.js?v=20260908_v2899";
+import { renderTeacherPortal } from "./teacher.js?v=20260908_v2899";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2899";
 import {
   renderEditor,
   renderChat,
@@ -36,7 +36,7 @@ import {
   getEtherpadAuthorStats,
   renderPresenceCursors,
   getEffectiveAgentAnalyzing
-} from "./editor.js?v=20260908_v2898";
+} from "./editor.js?v=20260908_v2899";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -161,6 +161,25 @@ export class App {
       }, 500);
     };
     window.addEventListener('jizhi_meta_updated', this._scheduleStudentMetaUiRefresh);
+
+    if (!window._jizhiGlobalMetaPollBound) {
+      window._jizhiGlobalMetaPollBound = true;
+      const probeMeta = () => {
+        if (document.hidden) return;
+        const u = this.authManager ? this.authManager.getCurrentUser() : null;
+        if (!u || (u.role !== 'student' && !u.isStudent)) return;
+        if (this.authManager && typeof this.authManager.pullGlobalMeta === 'function') {
+          this.authManager.pullGlobalMeta(false).then((res) => {
+            if (res && res.changed) this._scheduleStudentMetaUiRefresh();
+          }).catch(() => {});
+        }
+      };
+      window._jizhiGlobalMetaPollTimer = setInterval(probeMeta, 2500);
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) probeMeta();
+      });
+      probeMeta();
+    }
 
     this.renderMain();
 
