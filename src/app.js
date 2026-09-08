@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260908_v2897";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2897";
-import { callCozeAgentAPI } from "./agents.js?v=20260908_v2897";
-import { AuthManager } from "./auth.js?v=20260908_v2897";
-import { CloudSyncEngine } from "./sync.js?v=20260908_v2897";
-import { renderLoginView } from "./login.js?v=20260908_v2897";
-import { renderTeacherPortal } from "./teacher.js?v=20260908_v2897";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2897";
+} from "./constants.js?v=20260908_v2898";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, showTaskDeadlineExpiredModal, liftEtherpadReadonly, enforceEtherpadReadonly, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from "./utils.js?v=20260908_v2898";
+import { callCozeAgentAPI } from "./agents.js?v=20260908_v2898";
+import { AuthManager } from "./auth.js?v=20260908_v2898";
+import { CloudSyncEngine } from "./sync.js?v=20260908_v2898";
+import { renderLoginView } from "./login.js?v=20260908_v2898";
+import { renderTeacherPortal } from "./teacher.js?v=20260908_v2898";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260908_v2898";
 import {
   renderEditor,
   renderChat,
@@ -36,7 +36,7 @@ import {
   getEtherpadAuthorStats,
   renderPresenceCursors,
   getEffectiveAgentAnalyzing
-} from "./editor.js?v=20260908_v2897";
+} from "./editor.js?v=20260908_v2898";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1271,7 +1271,7 @@ export class App {
           // ⚡ 快照已每 2 秒天然同步通知与文献，此处仅保留 20 秒轻量静默兜底
           if (!this._studentWorkspacePollTick) this._studentWorkspacePollTick = 0;
           this._studentWorkspacePollTick++;
-          if (this._studentWorkspacePollTick % 20 === 0) {
+          if (this._studentWorkspacePollTick % 3 === 0) {
             if (this.authManager && this.authManager.pullGlobalMeta) {
               this.authManager.pullGlobalMeta(false).then(() => {
                 // 1. 若当前屏幕正打开的通知已被教师在后台删除，立即自动关闭该弹窗

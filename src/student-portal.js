@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   TASK_GENRE_CONFIGS,
   APP_VERSION
-} from "./constants.js?v=20260908_v2897";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch, isSameId } from "./utils.js?v=20260908_v2897";
+} from "./constants.js?v=20260908_v2898";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch, isSameId } from "./utils.js?v=20260908_v2898";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -137,7 +137,17 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
         await authManager.pullGlobalMeta(false);
       } catch (err) {}
     }
-  }, 5000);
+  }, 2500);
+  if (window._studentPortalVisibilityHandler) {
+    document.removeEventListener('visibilitychange', window._studentPortalVisibilityHandler);
+  }
+  window._studentPortalVisibilityHandler = () => {
+    if (document.hidden || state.studentViewMode !== 'task_list') return;
+    if (authManager && typeof authManager.pullGlobalMeta === 'function') {
+      authManager.pullGlobalMeta(false).catch(() => {});
+    }
+  };
+  document.addEventListener('visibilitychange', window._studentPortalVisibilityHandler);
 
   const currentUser = authManager.getCurrentUser();
   const classes = authManager.getClasses();

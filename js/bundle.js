@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260908_v2897
+ * Version: 20260908_v2898
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260908_v2897';
+  const APP_VERSION = '20260908_v2898';
   const APP_BUILD_DATE = '2026-09-08';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5140,6 +5140,13 @@
         if (this.isLoggingOut) return;
         this.pullFromServer().finally(() => {
           if (this.isLoggingOut) return;
+          const now = Date.now();
+          if (!this._lastMetaProbeAt || now - this._lastMetaProbeAt > 4000) {
+            this._lastMetaProbeAt = now;
+            if (this.app && this.app.authManager && typeof this.app.authManager.pullGlobalMeta === 'function') {
+              this.app.authManager.pullGlobalMeta(false).catch(() => {});
+            }
+          }
           this.pollTimer = setTimeout(runPoll, getPollInterval());
         });
       };
@@ -5238,7 +5245,7 @@
       const sessToken = currentUser ? (currentUser.activeSessionId || currentUser.token || currentUser.sessionToken || '') : '';
       const lastRev = this._lastKnownRevisionId || 0;
       const lastChatMs = this._getLastChatTimeMs();
-      const metaVer = this._lastKnownMetaVer || 0;
+      const metaVer = this.app?.authManager?.globalMetaVersion || this._lastKnownMetaVer || 0;
       const incGlobal = this._hasPulledGlobal ? 0 : 1;
 
       try {
@@ -11605,7 +11612,17 @@
           await authManager.pullGlobalMeta(false);
         } catch (err) {}
       }
-    }, 5000);
+    }, 2500);
+    if (window._studentPortalVisibilityHandler) {
+      document.removeEventListener('visibilitychange', window._studentPortalVisibilityHandler);
+    }
+    window._studentPortalVisibilityHandler = () => {
+      if (document.hidden || state.studentViewMode !== 'task_list') return;
+      if (authManager && typeof authManager.pullGlobalMeta === 'function') {
+        authManager.pullGlobalMeta(false).catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', window._studentPortalVisibilityHandler);
 
     const currentUser = authManager.getCurrentUser();
     const classes = authManager.getClasses();
@@ -17751,7 +17768,7 @@
             // ⚡ 快照已每 2 秒天然同步通知与文献，此处仅保留 20 秒轻量静默兜底
             if (!this._studentWorkspacePollTick) this._studentWorkspacePollTick = 0;
             this._studentWorkspacePollTick++;
-            if (this._studentWorkspacePollTick % 20 === 0) {
+            if (this._studentWorkspacePollTick % 3 === 0) {
               if (this.authManager && this.authManager.pullGlobalMeta) {
                 this.authManager.pullGlobalMeta(false).then(() => {
                   // 1. 若当前屏幕正打开的通知已被教师在后台删除，立即自动关闭该弹窗

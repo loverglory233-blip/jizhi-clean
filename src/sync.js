@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260908_v2897';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260908_v2897';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260908_v2898';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260908_v2898';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -422,6 +422,13 @@ export class CloudSyncEngine {
       if (this.isLoggingOut) return;
       this.pullFromServer().finally(() => {
         if (this.isLoggingOut) return;
+        const now = Date.now();
+        if (!this._lastMetaProbeAt || now - this._lastMetaProbeAt > 4000) {
+          this._lastMetaProbeAt = now;
+          if (this.app && this.app.authManager && typeof this.app.authManager.pullGlobalMeta === 'function') {
+            this.app.authManager.pullGlobalMeta(false).catch(() => {});
+          }
+        }
         this.pollTimer = setTimeout(runPoll, getPollInterval());
       });
     };
@@ -520,7 +527,7 @@ export class CloudSyncEngine {
     const sessToken = currentUser ? (currentUser.activeSessionId || currentUser.token || currentUser.sessionToken || '') : '';
     const lastRev = this._lastKnownRevisionId || 0;
     const lastChatMs = this._getLastChatTimeMs();
-    const metaVer = this._lastKnownMetaVer || 0;
+    const metaVer = this.app?.authManager?.globalMetaVersion || this._lastKnownMetaVer || 0;
     const incGlobal = this._hasPulledGlobal ? 0 : 1;
 
     try {
