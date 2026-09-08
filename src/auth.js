@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS
-} from './constants.js?v=20260908_v2896';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260908_v2896';
+} from './constants.js?v=20260908_v2897';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice, isSameId, normalizeId, isTaskExpired } from './utils.js?v=20260908_v2897';
 
 export class AuthManager {
   constructor() {

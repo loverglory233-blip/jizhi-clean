@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260908_v2896
+ * Version: 20260908_v2897
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260908_v2896';
+  const APP_VERSION = '20260908_v2897';
   const APP_BUILD_DATE = '2026-09-08';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5880,8 +5880,10 @@
         this._hasInitialPullCompleted = true;
       }
 
-      // 🛡️ 新任务纯净初始化守卫：若当前任务尚未产生协作记录（revisionId === 0），彻底清空残留数据
-      const isBrandNewTask = (remoteData.revisionId === 0 || remoteData.timestamp === 0);
+      // 🛡️ 新任务纯净初始化守卫：仅在本地还没有任何聊天时清空残留；一旦已有开场白/发言，绝不再用 revisionId=0 把实时消息冲掉
+      const localHasChat = ['stage1', 'stage2', 'stage3'].some(stg => Array.isArray(this.app.state.chatLogs?.[stg]) && this.app.state.chatLogs[stg].some(m => m && String(m.text || '').trim()));
+      const remoteHasChat = ['stage1', 'stage2', 'stage3'].some(stg => Array.isArray(remoteData.chatLogs?.[stg]) && remoteData.chatLogs[stg].some(m => m && String(m.text || '').trim()));
+      const isBrandNewTask = (remoteData.revisionId === 0 || remoteData.timestamp === 0) && !localHasChat && !remoteHasChat;
       if (isBrandNewTask) {
         this.app.state.currentStage = 'stage1';
         this.app.state.groupMaxStage = 'stage1';
@@ -5921,7 +5923,8 @@
           this.app.state.stage3.revisionPlan = null;
         }
         needWorkspaceRender = true;
-      } else if (remoteData.chatLogs) {
+      }
+      if (!isBrandNewTask && remoteData.chatLogs) {
         this.applyRemoteChatLogs(remoteData.chatLogs);
       }
 

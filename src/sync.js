@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260908_v2896';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260908_v2896';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260908_v2897';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs, isSameId, normalizeId, flashHighlightElement } from './utils.js?v=20260908_v2897';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1162,8 +1162,10 @@ export class CloudSyncEngine {
       this._hasInitialPullCompleted = true;
     }
 
-    // 🛡️ 新任务纯净初始化守卫：若当前任务尚未产生协作记录（revisionId === 0），彻底清空残留数据
-    const isBrandNewTask = (remoteData.revisionId === 0 || remoteData.timestamp === 0);
+    // 🛡️ 新任务纯净初始化守卫：仅在本地还没有任何聊天时清空残留；一旦已有开场白/发言，绝不再用 revisionId=0 把实时消息冲掉
+    const localHasChat = ['stage1', 'stage2', 'stage3'].some(stg => Array.isArray(this.app.state.chatLogs?.[stg]) && this.app.state.chatLogs[stg].some(m => m && String(m.text || '').trim()));
+    const remoteHasChat = ['stage1', 'stage2', 'stage3'].some(stg => Array.isArray(remoteData.chatLogs?.[stg]) && remoteData.chatLogs[stg].some(m => m && String(m.text || '').trim()));
+    const isBrandNewTask = (remoteData.revisionId === 0 || remoteData.timestamp === 0) && !localHasChat && !remoteHasChat;
     if (isBrandNewTask) {
       this.app.state.currentStage = 'stage1';
       this.app.state.groupMaxStage = 'stage1';
@@ -1203,7 +1205,8 @@ export class CloudSyncEngine {
         this.app.state.stage3.revisionPlan = null;
       }
       needWorkspaceRender = true;
-    } else if (remoteData.chatLogs) {
+    }
+    if (!isBrandNewTask && remoteData.chatLogs) {
       this.applyRemoteChatLogs(remoteData.chatLogs);
     }
 
